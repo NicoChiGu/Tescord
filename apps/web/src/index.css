@@ -1,0 +1,158 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --visual-viewport-height: 100dvh;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  height: 100dvh;
+  -webkit-overflow-scrolling: touch;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+  overscroll-behavior-x: none;
+  overscroll-behavior-y: none;
+  touch-action: pan-y pinch-zoom;
+}
+
+/* 消息内容区允许正常选词与复制 */
+.selectable-text {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Discord 经典细滚动条 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #2b2d31;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1a1b1e;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #111214;
+}
+
+/* 呼吸动画高亮语音说话状态 */
+@keyframes voice-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(35, 165, 90, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(35, 165, 90, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(35, 165, 90, 0);
+  }
+}
+
+.speaking-ring {
+  animation: voice-pulse 1.5s infinite;
+  border-color: #23a55a !important;
+}
+
+/* 移动端抽屉与遮罩平滑进入动画 */
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes slide-right {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-left {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-right {
+  animation: slide-right 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-left {
+  animation: slide-left 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Discord 经典 ContextMenu 展开与关闭动画 */
+@keyframes context-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes context-menu-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+.animate-context-menu-in {
+  animation: context-menu-in 110ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: var(--radix-context-menu-content-transform-origin, top left);
+}
+
+.animate-context-menu-out {
+  animation: context-menu-out 85ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transform-origin: var(--radix-context-menu-content-transform-origin, top left);
+}
+
+/* 优化移动端长按体验，防止系统原生 Callout、放大镜与文字选中抢占 */
+[data-radix-context-menu-trigger] {
+  -webkit-touch-callout: none !important;
+  -webkit-user-select: none !important;
+  user-select: none !important;
+}
+
+

@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  # 1. 业务数据库 PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: tescord-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tescord
+      POSTGRES_PASSWORD: tescord_secret_password
+      POSTGRES_DB: tescord_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tescord -d tescord_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Redis 网关缓存与广播
+  redis:
+    image: redis:7-alpine
+    container_name: tescord-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+  # 3. MinIO 本地化对象存储
+  minio:
+    image: minio/minio:latest
+    container_name: tescord-minio
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadminpassword
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+
+  # 4. LiveKit SFU 媒体引擎 (WebRTC 语音视频与直播)
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: tescord-livekit
+    restart: unless-stopped
+    command: --config /etc/livekit.yaml
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "7880:7880"         # 媒体信令端口
+      - "7881:7881"         # WebRTC TCP
+      - "7882:7882/udp"     # LiveKit 内置 TURN 端口
+      - "50000-50100:50000-50100/udp" # WebRTC ICE UDP 媒体端口
+
+  # 5. Coturn NAT 穿透中继
+  coturn:
+    image: coturn/coturn:latest
+    container_name: tescord-coturn
+    restart: unless-stopped
+    volumes:
+      - ./turnserver.conf:/etc/turnserver.conf:ro
+    ports:
+      - "3478:3478"
+      - "3478:3478/udp"
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:

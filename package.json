@@ -1,0 +1,20 @@
+{
+  "name": "tescord-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:server": "pnpm --filter @tescord/server dev",
+    "dev:web": "pnpm --filter @tescord/web dev",
+    "dev:desktop": "pnpm --filter @tescord/desktop dev",
+    "livekit": "powershell -ExecutionPolicy Bypass -File ./scripts/start-livekit.ps1",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
+  },
+  "devDependencies": {
+    "turbo": "^2.4.4",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2"
+  },
+  "packageManager": "pnpm@11.9.0"
+}
