@@ -12,6 +12,7 @@ interface AuthState {
   user: User | null;
   accessToken: string | null;
   refreshToken: string | null;
+  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -29,6 +30,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   accessToken: localStorage.getItem("tescord_access_token"),
   refreshToken: localStorage.getItem("tescord_refresh_token"),
+  token: localStorage.getItem("tescord_access_token"),
   isAuthenticated: false,
   isLoading: true,
   error: null,
@@ -64,6 +66,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           set({
             user,
             accessToken,
+            token: accessToken,
             refreshToken,
             isAuthenticated: true,
             isLoading: false,
@@ -110,6 +113,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         user: tokens.user,
         accessToken: tokens.accessToken,
+        token: tokens.accessToken,
         refreshToken: tokens.refreshToken,
         isAuthenticated: true,
         isLoading: false,
@@ -142,6 +146,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         user: tokens.user,
         accessToken: tokens.accessToken,
+        token: tokens.accessToken,
         refreshToken: tokens.refreshToken,
         isAuthenticated: true,
         isLoading: false,
@@ -174,6 +179,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         user: data.user,
         accessToken: data.accessToken,
+        token: data.accessToken,
         refreshToken: data.refreshToken,
         isAuthenticated: true,
         isLoading: false,
@@ -191,6 +197,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({
       user: null,
       accessToken: null,
+      token: null,
       refreshToken: null,
       isAuthenticated: false,
       isLoading: false,

@@ -2,11 +2,196 @@ import * as React from "react";
 import * as ContextMenuPrimitive from "@radix-ui/react-context-menu";
 import { Check, ChevronRight, Circle } from "lucide-react";
 
-export const ContextMenu = ContextMenuPrimitive.Root;
+export const ContextMenu: React.FC<
+  React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.Root>
+> = ({ onOpenChange, ...props }) => {
+  const handleOpenChange = (open: boolean) => {
+    if (!open) {
+      scheduleClearContextMenuPoint(200);
+    }
+    onOpenChange?.(open);
+  };
+
+  return <ContextMenuPrimitive.Root onOpenChange={handleOpenChange} {...props} />;
+};
 export const ContextMenuGroup = ContextMenuPrimitive.Group;
 export const ContextMenuPortal = ContextMenuPrimitive.Portal;
 export const ContextMenuSub = ContextMenuPrimitive.Sub;
 export const ContextMenuRadioGroup = ContextMenuPrimitive.RadioGroup;
+
+/**
+ * 上下文菜单触发坐标物理缓存与门禁：
+ * 捕获最近一次右键/长按唤起菜单时的精确物理视口坐标，用于防范
+ * Radix ContextMenu 内部因 useEffect 异步时序导致的初始锚点 (0, 0) 或旧坐标闪烁。
+ */
+export interface ContextMenuCoord {
+  x: number;
+  y: number;
+  time: number;
+}
+
+let lastContextMenuPoint: ContextMenuCoord | null = null;
+let clearPointTimer: ReturnType<typeof setTimeout> | null = null;
+
+export const setLastContextMenuPoint = (point: { x: number; y: number }) => {
+  if (clearPointTimer) {
+    clearTimeout(clearPointTimer);
+    clearPointTimer = null;
+  }
+  lastContextMenuPoint = { ...point, time: Date.now() };
+};
+
+export const getLastContextMenuPoint = () => lastContextMenuPoint;
+
+/**
+ * 延迟清空物理坐标：
+ * 默认延迟 200ms（等待 85ms 的离场动画 context-menu-out 播放完毕且元素从 DOM 卸载后），
+ * 清空坐标缓存，防止下一次打开其他菜单时污染新菜单的锚点。
+ */
+export const scheduleClearContextMenuPoint = (delayMs: number = 200) => {
+  if (clearPointTimer) {
+    clearTimeout(clearPointTimer);
+  }
+  clearPointTimer = setTimeout(() => {
+    lastContextMenuPoint = null;
+    clearPointTimer = null;
+  }, delayMs);
+};
+
+// 在全局捕获阶段注册物理 contextmenu 监听，确保无论从哪个组件或子树右键触发，都能在任何 React 批处理前捕获到坐标
+if (typeof window !== "undefined") {
+  window.addEventListener(
+    "contextmenu",
+    (e: MouseEvent) => {
+      setLastContextMenuPoint({ x: e.clientX, y: e.clientY });
+    },
+    true
+  );
+}
+
+/**
+ * 定位收敛门禁 Hook (useContextMenuPositionReady)
+ * 解决 Radix ContextMenu 在打开首帧由于 PopperAnchor 的异步 useEffect 造成 PopperContent
+ * 在 (0, 0) 初始锚点或上一次旧锚点处错误挂载并启动 CSS 进场动画的问题。
+ *
+ * 核心策略：
+ * 1. 挂载阶段利用 visibility: hidden 与 opacity: 0 保留真实 offsetWidth/offsetHeight 供 Floating UI 测量；
+ * 2. 抑制入场动画 (!animate-none)，防止错误位置渲染与 transform-origin 突变；
+ * 3. 校验外层 wrapper 是否脱离 (0, 0) 错误锚点，并且物理位置是否已经收敛到当前点击目标区域 (isWithinTargetRegion)；
+ * 4. 菜单关闭并卸载后，调度延迟清空坐标并重置 wrapper transform，防止历史坐标残留污染下一次唤起；
+ * 5. 门禁解除后无缝激活标准的 animate-context-menu-in 入场动画。
+ */
+export function useContextMenuPositionReady(
+  node: HTMLElement | null,
+  isSubMenu: boolean = false
+) {
+  const [isReady, setIsReady] = React.useState(false);
+
+  React.useLayoutEffect(() => {
+    if (!node) return;
+
+    const wrapper = node.closest<HTMLElement>("[data-radix-popper-content-wrapper]");
+    if (!wrapper) {
+      setIsReady(true);
+      return;
+    }
+
+    let cancelled = false;
+
+    const checkReady = () => {
+      if (cancelled) return false;
+
+      const transform = wrapper.style.transform || "";
+      // 1. 若仍在隐藏测量阶段 (translate(0, -200%))，未就绪
+      if (transform.includes("-200%")) {
+        return false;
+      }
+
+      // 2. 若尚未计算任何 translate 变换，未就绪
+      if (!transform.includes("translate")) {
+        return false;
+      }
+
+      // 3. 对于主右键菜单（非级联子菜单），校验坐标是否落入 (0, 0) 错误锚点或上一次菜单的历史旧坐标
+      if (!isSubMenu) {
+        const lastPoint = getLastContextMenuPoint();
+        if (lastPoint && Date.now() - lastPoint.time < 4000) {
+          const rect = wrapper.getBoundingClientRect();
+
+          // 校验 a：防屏幕左上角 (0, 0) 初始错误锚点
+          const isClickFarFromOrigin = Math.hypot(lastPoint.x, lastPoint.y) > 35;
+          if (isClickFarFromOrigin && rect.left < 20 && rect.top < 20) {
+            return false;
+          }
+
+          // 校验 b：防前一个打开 Menu 的历史旧坐标残留闪烁
+          const width = rect.width || node.offsetWidth || 200;
+          const height = rect.height || node.offsetHeight || 200;
+
+          // 菜单正常展开位置必定围绕当前点击物理点进行 placement 计算
+          const minValidX = lastPoint.x - width - 60;
+          const maxValidX = lastPoint.x + 60;
+          const minValidY = lastPoint.y - height - 60;
+          const maxValidY = lastPoint.y + 60;
+
+          const isWithinTargetRegion =
+            rect.left >= minValidX &&
+            rect.left <= maxValidX &&
+            rect.top >= minValidY &&
+            rect.top <= maxValidY;
+
+          if (!isWithinTargetRegion) {
+            // 说明 wrapper 当前仍停留在上一次打开菜单的旧坐标处，尚未对齐到当前点击锚点
+            return false;
+          }
+        }
+      }
+
+      return true;
+    };
+
+    if (checkReady()) {
+      setIsReady(true);
+    } else {
+      let rafId1: number;
+      let rafId2: number;
+
+      rafId1 = requestAnimationFrame(() => {
+        if (cancelled) return;
+        if (checkReady()) {
+          setIsReady(true);
+        } else {
+          // 双重 rAF 确保跨越 React 被动任务阶段
+          rafId2 = requestAnimationFrame(() => {
+            if (cancelled) return;
+            setIsReady(true);
+          });
+        }
+      });
+
+      return () => {
+        cancelled = true;
+        cancelAnimationFrame(rafId1);
+        if (rafId2) cancelAnimationFrame(rafId2);
+      };
+    }
+  }, [node, isSubMenu]);
+
+  // 组件卸载清理逻辑：菜单关闭后延迟清空坐标，并主动重置 wrapper transform，防止残留
+  React.useEffect(() => {
+    return () => {
+      scheduleClearContextMenuPoint(200);
+      if (node) {
+        const wrapper = node.closest<HTMLElement>("[data-radix-popper-content-wrapper]");
+        if (wrapper) {
+          wrapper.style.transform = "translate(0, -200%)";
+        }
+      }
+    };
+  }, [node]);
+
+  return isReady;
+}
 
 /**
  * 增强型 ContextMenuTrigger：
@@ -19,7 +204,7 @@ export const ContextMenuRadioGroup = ContextMenuPrimitive.RadioGroup;
 export const ContextMenuTrigger = React.forwardRef<
   React.ElementRef<typeof ContextMenuPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.Trigger>
->(({ children, style, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, ...props }, ref) => {
+>(({ children, style, onContextMenu, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, ...props }, ref) => {
   const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const startPosRef = React.useRef<{ x: number; y: number } | null>(null);
   const currentPosRef = React.useRef<{ x: number; y: number } | null>(null);
@@ -76,6 +261,7 @@ export const ContextMenuTrigger = React.forwardRef<
     timerRef.current = setTimeout(() => {
       isLongPressTriggeredRef.current = true;
       const point = currentPosRef.current || coords;
+      setLastContextMenuPoint(point);
 
       // 触觉反馈震动
       if (typeof navigator !== "undefined" && navigator.vibrate) {
@@ -83,9 +269,6 @@ export const ContextMenuTrigger = React.forwardRef<
           navigator.vibrate(40);
         } catch {}
       }
-
-      // 同步更新门禁全局坐标
-      lastContextMenuPoint = { x: point.x, y: point.y, time: Date.now() };
 
       // 派发原生 contextmenu 事件到触发目标，激活 Radix 原生 handleOpen
       if (target) {
@@ -104,6 +287,11 @@ export const ContextMenuTrigger = React.forwardRef<
 
       installClickSuppressor();
     }, 450);
+  };
+
+  const handleContextMenu = (e: React.MouseEvent<HTMLSpanElement>) => {
+    setLastContextMenuPoint({ x: e.clientX, y: e.clientY });
+    onContextMenu?.(e);
   };
 
   const handlePointerMove = (e: React.PointerEvent<HTMLSpanElement>) => {
@@ -142,6 +330,7 @@ export const ContextMenuTrigger = React.forwardRef<
         userSelect: "none",
         ...style,
       }}
+      onContextMenu={handleContextMenu}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUpOrCancel}
@@ -154,119 +343,6 @@ export const ContextMenuTrigger = React.forwardRef<
 });
 ContextMenuTrigger.displayName = ContextMenuPrimitive.Trigger.displayName;
 
-
-// 记录最近一次右键点击的鼠标视口坐标
-let lastContextMenuPoint: { x: number; y: number; time: number } | null = null;
-
-if (typeof window !== "undefined") {
-  window.addEventListener(
-    "contextmenu",
-    (e) => {
-      lastContextMenuPoint = { x: e.clientX, y: e.clientY, time: Date.now() };
-    },
-    true
-  );
-}
-
-/**
- * 防左上角闪烁门禁 Hook：
- * 当 Radix Popper 首帧因异步 useEffect 尚未应用真实鼠标锚点而停留在 (0, 0) 时，
- * 在浏览器绘制 (Paint) 之前将其保持隐藏，待真实锚点计算完成后立即解除隐藏并触发顺滑进入动画。
- */
-function useContextMenuPositionGate(elementRef: React.RefObject<HTMLElement | null>) {
-  const [isReady, setIsReady] = React.useState(false);
-
-  React.useLayoutEffect(() => {
-    const node = elementRef.current;
-    if (!node) return;
-
-    const point = lastContextMenuPoint;
-    const now = Date.now();
-
-    // 若最近 1.5 秒内无鼠标右击坐标，直接判定就绪（键盘呼出或无障碍模式）
-    if (!point || now - point.time > 1500) {
-      setIsReady(true);
-      return;
-    }
-
-    const wrapper = node.closest(
-      "[data-radix-popper-content-wrapper]"
-    ) as HTMLElement | null;
-
-    if (!wrapper) {
-      setIsReady(true);
-      return;
-    }
-
-    const checkIsPositioned = () => {
-      const rect = wrapper.getBoundingClientRect();
-      // 如果 wrapper 卡在左上角 (0, 0) 附近，而鼠标点击在它处，说明首帧尚未完成锚点纠偏
-      const isStuckAtOrigin =
-        rect.left <= 15 &&
-        rect.top <= 15 &&
-        (Math.abs(point.x - rect.left) > 40 || Math.abs(point.y - rect.top) > 40);
-
-      return !isStuckAtOrigin;
-    };
-
-    if (checkIsPositioned()) {
-      setIsReady(true);
-      return;
-    }
-
-    // 首帧未正确定位：在 Paint 发生前强制不可见，彻底消除左上角闪烁
-    node.style.visibility = "hidden";
-    node.style.opacity = "0";
-    node.style.pointerEvents = "none";
-
-    let rafId: number;
-    let observer: MutationObserver | null = null;
-    let timeoutId: ReturnType<typeof setTimeout>;
-
-    const cleanupGate = () => {
-      if (observer) observer.disconnect();
-      cancelAnimationFrame(rafId);
-      clearTimeout(timeoutId);
-      node.style.visibility = "";
-      node.style.opacity = "";
-      node.style.pointerEvents = "";
-      setIsReady(true);
-    };
-
-    // 监听 wrapper 样式变动（Popper 更新真实坐标时触发）
-    observer = new MutationObserver(() => {
-      if (checkIsPositioned()) {
-        cleanupGate();
-      }
-    });
-
-    observer.observe(wrapper, {
-      attributes: true,
-      attributeFilter: ["style", "transform"]
-    });
-
-    // 辅助 RAF 轮询以兼容极端环境
-    const pollFrame = () => {
-      if (checkIsPositioned()) {
-        cleanupGate();
-      } else {
-        rafId = requestAnimationFrame(pollFrame);
-      }
-    };
-    rafId = requestAnimationFrame(pollFrame);
-
-    // 最大 40ms 超时兜底，确保任何异常场景绝不卡死隐藏
-    timeoutId = setTimeout(cleanupGate, 40);
-
-    return () => {
-      if (observer) observer.disconnect();
-      cancelAnimationFrame(rafId);
-      clearTimeout(timeoutId);
-    };
-  }, [elementRef]);
-
-  return isReady;
-}
 
 export const ContextMenuSubTrigger = React.forwardRef<
   React.ElementRef<typeof ContextMenuPrimitive.SubTrigger>,
@@ -290,33 +366,59 @@ ContextMenuSubTrigger.displayName = ContextMenuPrimitive.SubTrigger.displayName;
 export const ContextMenuSubContent = React.forwardRef<
   React.ElementRef<typeof ContextMenuPrimitive.SubContent>,
   React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.SubContent>
->(({ className = "", collisionPadding = 8, ...props }, ref) => (
-  <ContextMenuPrimitive.Portal>
-    <ContextMenuPrimitive.SubContent
-      ref={ref}
-      collisionPadding={collisionPadding}
-      className={`z-50 min-w-[180px] overflow-hidden rounded-md border border-[#2b2d31]/80 bg-[#111214] p-1 text-[#dbdee1] shadow-2xl outline-none data-[state=open]:animate-context-menu-in data-[state=closed]:animate-context-menu-out ${className}`}
-      {...props}
-    />
-  </ContextMenuPrimitive.Portal>
-));
+>(({ className = "", collisionPadding = 8, style, ...props }, forwardedRef) => {
+  const [node, setNode] = React.useState<HTMLDivElement | null>(null);
+  const isReady = useContextMenuPositionReady(node, true);
+
+  const handleRef = React.useCallback(
+    (el: HTMLDivElement | null) => {
+      setNode(el);
+      if (typeof forwardedRef === "function") {
+        forwardedRef(el);
+      } else if (forwardedRef) {
+        (forwardedRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+      }
+    },
+    [forwardedRef]
+  );
+
+  return (
+    <ContextMenuPrimitive.Portal>
+      <ContextMenuPrimitive.SubContent
+        ref={handleRef}
+        collisionPadding={collisionPadding}
+        style={{
+          ...style,
+          visibility: isReady ? undefined : "hidden",
+          opacity: isReady ? undefined : 0,
+          pointerEvents: isReady ? "auto" : "none",
+        }}
+        className={`z-50 min-w-[180px] overflow-hidden rounded-md border border-[#2b2d31]/80 bg-[#111214] p-1 text-[#dbdee1] shadow-2xl outline-none ${
+          isReady
+            ? "data-[state=open]:animate-context-menu-in pointer-events-auto"
+            : "!animate-none pointer-events-none"
+        } data-[state=closed]:animate-context-menu-out ${className}`}
+        {...props}
+      />
+    </ContextMenuPrimitive.Portal>
+  );
+});
 ContextMenuSubContent.displayName = ContextMenuPrimitive.SubContent.displayName;
 
 export const ContextMenuContent = React.forwardRef<
   React.ElementRef<typeof ContextMenuPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.Content>
->(({ className = "", collisionPadding = 8, ...props }, forwardedRef) => {
-  const innerRef = React.useRef<HTMLDivElement | null>(null);
-  const isReady = useContextMenuPositionGate(innerRef);
+>(({ className = "", collisionPadding = 8, style, ...props }, forwardedRef) => {
+  const [node, setNode] = React.useState<HTMLDivElement | null>(null);
+  const isReady = useContextMenuPositionReady(node, false);
 
-  // 合并内部用于门禁的 ref 和外部传递的 forwardedRef
   const handleRef = React.useCallback(
-    (node: HTMLDivElement | null) => {
-      innerRef.current = node;
+    (el: HTMLDivElement | null) => {
+      setNode(el);
       if (typeof forwardedRef === "function") {
-        forwardedRef(node);
+        forwardedRef(el);
       } else if (forwardedRef) {
-        (forwardedRef as React.MutableRefObject<HTMLDivElement | null>).current = node;
+        (forwardedRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
       }
     },
     [forwardedRef]
@@ -327,11 +429,17 @@ export const ContextMenuContent = React.forwardRef<
       <ContextMenuPrimitive.Content
         ref={handleRef}
         collisionPadding={collisionPadding}
+        style={{
+          ...style,
+          visibility: isReady ? undefined : "hidden",
+          opacity: isReady ? undefined : 0,
+          pointerEvents: isReady ? "auto" : "none",
+        }}
         className={`z-50 min-w-[190px] overflow-hidden rounded-md border border-[#2b2d31]/80 bg-[#111214] p-1.5 text-[#dbdee1] shadow-2xl select-none outline-none ${
           isReady
-            ? "data-[state=open]:animate-context-menu-in data-[state=closed]:animate-context-menu-out"
-            : "invisible opacity-0"
-        } ${className}`}
+            ? "data-[state=open]:animate-context-menu-in pointer-events-auto"
+            : "!animate-none pointer-events-none"
+        } data-[state=closed]:animate-context-menu-out ${className}`}
         {...props}
       />
     </ContextMenuPrimitive.Portal>
@@ -351,7 +459,7 @@ export const ContextMenuItem = React.forwardRef<
   return (
     <ContextMenuPrimitive.Item
       ref={ref}
-      className={`relative flex cursor-pointer select-none items-center rounded px-2 py-1.5 text-xs font-medium outline-none transition-colors data-[disabled]:pointer-events-none data-[disabled]:opacity-40 ${
+      className={`relative flex cursor-pointer select-none items-center rounded px-2 py-1.5 text-xs font-medium outline-none transition-colors pointer-events-auto data-[disabled]:pointer-events-none data-[disabled]:opacity-40 ${
         isDanger
           ? "text-[#f23f43] hover:bg-[#f23f43] hover:text-white focus:bg-[#f23f43] focus:text-white"
           : "text-[#dbdee1] hover:bg-[#5865f2] hover:text-white focus:bg-[#5865f2] focus:text-white"

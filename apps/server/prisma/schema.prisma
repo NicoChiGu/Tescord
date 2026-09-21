@@ -26,6 +26,8 @@ model User {
   messages      Message[]
   reactions     Reaction[]
   invites       Invite[]
+  bans          Ban[]
+  auditLogs     AuditLog[]
 }
 
 model RefreshToken {
@@ -41,18 +43,21 @@ model RefreshToken {
 
 // 2. 公会 (Guild / Server) 与成员
 model Guild {
-  id        String        @id @default(cuid())
-  name      String
-  iconUrl   String?
-  ownerId   String
-  owner     User          @relation("GuildOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id          String        @id @default(cuid())
+  name        String
+  iconUrl     String?
+  description String?
+  ownerId     String
+  owner       User          @relation("GuildOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
-  channels  Channel[]
-  members   GuildMember[]
-  roles     Role[]
-  invites   Invite[]
+  channels    Channel[]
+  members     GuildMember[]
+  roles       Role[]
+  invites     Invite[]
+  bans        Ban[]
+  auditLogs   AuditLog[]
 
   @@index([ownerId])
 }
@@ -81,6 +86,7 @@ model Role {
   hoist       Boolean  @default(false)
   position    Int      @default(0)
   permissions Int      @default(0) // 位掩码 PermissionFlags
+  isDefault   Boolean  @default(false)
   createdAt   DateTime @default(now())
 
   @@index([guildId])
@@ -167,3 +173,38 @@ model Invite {
 
   @@index([guildId])
 }
+
+// 6. 封禁黑名单 (Ban)
+model Ban {
+  id        String   @id @default(cuid())
+  guildId   String
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@unique([guildId, userId])
+  @@index([guildId])
+  @@index([userId])
+}
+
+// 7. 服务器审计日志 (Audit Log)
+model AuditLog {
+  id          String   @id @default(cuid())
+  guildId     String
+  guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action      String
+  targetId    String?
+  targetName  String?
+  changesJson String?
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  @@index([guildId])
+  @@index([userId])
+  @@index([createdAt])
+}
+

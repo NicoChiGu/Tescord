@@ -93,6 +93,19 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
     };
   }, [isRecordingKeybind, config]);
 
+  // ESC 键监听关闭弹窗
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isRecordingKeybind) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose, isRecordingKeybind]);
+
   if (!isOpen) return null;
 
   const handleToggle = (key: keyof typeof config) => {
@@ -173,6 +186,7 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
           </div>
           <button
             onClick={onClose}
+            aria-label="关闭"
             className="p-1.5 text-discord-textMuted hover:text-white rounded-lg hover:bg-[#35373c] transition"
           >
             <X className="w-5 h-5" />

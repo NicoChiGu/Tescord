@@ -1,7 +1,51 @@
 import { prisma } from "../db.js";
-import { PermissionFlags, hasPermission } from "@tescord/types";
+import { PermissionFlags, hasPermission, Role } from "@tescord/types";
 
 export class PermissionService {
+  /**
+   * 确保指定公会存在基础 @everyone 角色，若无则自动创建
+   */
+  public async ensureEveryoneRole(guildId: string): Promise<any> {
+    let everyoneRole = await prisma.role.findFirst({
+      where: {
+        guildId,
+        OR: [{ isDefault: true }, { name: "@everyone" }],
+      },
+    });
+
+    if (!everyoneRole) {
+      const defaultPerms =
+        PermissionFlags.VIEW_CHANNEL |
+        PermissionFlags.SEND_MESSAGES |
+        PermissionFlags.ADD_REACTIONS |
+        PermissionFlags.ATTACH_FILES |
+        PermissionFlags.READ_MESSAGE_HISTORY |
+        PermissionFlags.CONNECT |
+        PermissionFlags.SPEAK |
+        PermissionFlags.STREAM |
+        PermissionFlags.CHANGE_NICKNAME;
+
+      everyoneRole = await prisma.role.create({
+        data: {
+          guildId,
+          name: "@everyone",
+          color: null,
+          hoist: false,
+          position: 0,
+          permissions: defaultPerms,
+          isDefault: true,
+        },
+      });
+    } else if (!everyoneRole.isDefault) {
+      everyoneRole = await prisma.role.update({
+        where: { id: everyoneRole.id },
+        data: { isDefault: true },
+      });
+    }
+
+    return everyoneRole;
+  }
+
   /**
    * 校验用户在指定公会是否具有某个权限位
    */
@@ -23,6 +67,11 @@ export class PermissionService {
     });
     if (!member) return false;
 
+    // 1. 获取公会 @everyone 基础角色权限
+    const everyoneRole = await this.ensureEveryoneRole(guildId);
+    let totalPermissions = everyoneRole.permissions;
+
+    // 2. 解析用户被赋予的附加角色
     let roleIds: string[] = [];
     try {
       roleIds = JSON.parse(member.roleIds || "[]");
@@ -30,26 +79,130 @@ export class PermissionService {
       roleIds = [];
     }
 
-    if (roleIds.length === 0) {
-      // 默认权限：查看、发言、连麦、说话
-      const defaultPerms =
-        PermissionFlags.VIEW_CHANNEL |
-        PermissionFlags.SEND_MESSAGES |
-        PermissionFlags.ADD_REACTIONS |
-        PermissionFlags.CONNECT |
-        PermissionFlags.SPEAK;
-      return hasPermission(defaultPerms, flag);
+    if (roleIds.length > 0) {
+      const roles = await prisma.role.findMany({
+        where: {
+          id: { in: roleIds },
+          guildId,
+        },
+      });
+
+      totalPermissions = roles.reduce(
+        (acc, r) => acc | r.permissions,
+        totalPermissions,
+      );
     }
+
+    return hasPermission(totalPermissions, flag);
+  }
+
+  /**
+   * 获取成员在公会中的最高角色权重 (position)
+   * Owner 拥有无穷大权重 Infinity
+   * 无独立角色的普通成员为 0 (等同于 @everyone)
+   */
+  public async getMemberHighestRolePosition(
+    userId: string,
+    guildId: string,
+  ): Promise<number> {
+    const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+    if (!guild) return -1;
+    if (guild.ownerId === userId) return Infinity;
+
+    const member = await prisma.guildMember.findUnique({
+      where: {
+        guildId_userId: { guildId, userId },
+      },
+    });
+    if (!member) return -1;
+
+    let roleIds: string[] = [];
+    try {
+      roleIds = JSON.parse(member.roleIds || "[]");
+    } catch {
+      roleIds = [];
+    }
+
+    if (roleIds.length === 0) return 0;
 
     const roles = await prisma.role.findMany({
       where: {
         id: { in: roleIds },
         guildId,
       },
+      select: { position: true },
     });
 
-    const totalPermissions = roles.reduce((acc, r) => acc | r.permissions, 0);
-    return hasPermission(totalPermissions, flag);
+    if (roles.length === 0) return 0;
+    return Math.max(...roles.map((r) => r.position));
+  }
+
+  /**
+   * 校验操作者是否能够管理目标角色 (防越权)
+   * 规则：
+   * 1. Owner 可以管理任意角色；
+   * 2. 操作者自身必须拥有 MANAGE_ROLES 权限；
+   * 3. 目标角色的 position 必须严格小于操作者的最高角色 position (除非是编辑 @everyone 角色权限位)；
+   * 4. @everyone 角色不可被删除，不可修改其 position。
+   */
+  public async canManageRole(
+    actorUserId: string,
+    guildId: string,
+    targetRole: { id?: string; position: number; isDefault?: boolean },
+  ): Promise<boolean> {
+    const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+    if (!guild) return false;
+    if (guild.ownerId === actorUserId) return true;
+
+    const hasManageRoles = await this.hasGuildPermission(
+      actorUserId,
+      guildId,
+      PermissionFlags.MANAGE_ROLES,
+    );
+    if (!hasManageRoles) return false;
+
+    const actorHighestPos = await this.getMemberHighestRolePosition(
+      actorUserId,
+      guildId,
+    );
+
+    // 操作者最高权重大于目标角色权重
+    return actorHighestPos > targetRole.position;
+  }
+
+  /**
+   * 校验操作者是否能够处置目标成员 (修改角色/修改昵称/踢出/封禁等)
+   * 规则：
+   * 1. 禁止处置自身 (如封禁自己)；
+   * 2. Owner 拥有最高处置权；
+   * 3. 任何人都不可处置 Owner；
+   * 4. 操作者的最高角色 position 必须严格大于目标成员的最高角色 position。
+   */
+  public async canManageMember(
+    actorUserId: string,
+    targetUserId: string,
+    guildId: string,
+  ): Promise<boolean> {
+    if (actorUserId === targetUserId) return false;
+
+    const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+    if (!guild) return false;
+
+    // 任何人无法处置 Owner
+    if (guild.ownerId === targetUserId) return false;
+    // Owner 可以处置任何非 Owner
+    if (guild.ownerId === actorUserId) return true;
+
+    const actorHighestPos = await this.getMemberHighestRolePosition(
+      actorUserId,
+      guildId,
+    );
+    const targetHighestPos = await this.getMemberHighestRolePosition(
+      targetUserId,
+      guildId,
+    );
+
+    return actorHighestPos > targetHighestPos;
   }
 
   /**

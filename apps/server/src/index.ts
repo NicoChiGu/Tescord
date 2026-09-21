@@ -13,6 +13,7 @@ import { gatewayManager } from "./gateway.js";
 import { generateLiveKitToken } from "./livekit.js";
 import { storageService } from "./services/storage.service.js";
 import { permissionService } from "./services/permission.service.js";
+import { auditLogService } from "./services/audit-log.service.js";
 import { e2eeService } from "./services/e2ee.service.js";
 import {
   GatewayOpCode,
@@ -22,6 +23,7 @@ import {
   RegisterDTO,
   UpdateProfileDTO,
   CreateGuildDTO,
+  UpdateGuildDTO,
   CreateChannelDTO,
   CreateInviteDTO,
   JoinInviteDTO,
@@ -30,6 +32,13 @@ import {
   buildSecurityHeaders,
   RegisterPreKeyDTO,
   E2eeKeyExchangePayload,
+  CreateRoleDTO,
+  UpdateRoleDTO,
+  UpdateRolePositionsDTO,
+  UpdateMemberRolesDTO,
+  BanMemberDTO,
+  TransferOwnershipDTO,
+  AuditLogAction,
 } from "@tescord/types";
 
 config();
@@ -265,6 +274,7 @@ server.get("/api/guilds", async () => {
               avatarUrl: true,
               status: true,
               customStatus: true,
+              bio: true,
               createdAt: true,
             },
           },
@@ -276,48 +286,73 @@ server.get("/api/guilds", async () => {
     },
   });
 
-  return guilds.map((g) => ({
-    id: g.id,
-    name: g.name,
-    iconUrl: g.iconUrl,
-    ownerId: g.ownerId,
-    createdAt: g.createdAt.toISOString(),
-    channels: g.channels.map((c) => ({
-      id: c.id,
-      guildId: c.guildId,
-      name: c.name,
-      type: c.type as any,
-      topic: c.topic,
-      parentId: c.parentId,
-      position: c.position,
-      isE2EE: c.isE2EE,
-      bitrate: c.bitrate,
-      createdAt: c.createdAt.toISOString(),
-    })),
-    members: g.members.map((m) => ({
-      userId: m.userId,
-      guildId: m.guildId,
-      nickname: m.nickname,
-      roleIds: JSON.parse(m.roleIds || "[]"),
-      joinedAt: m.joinedAt.toISOString(),
-      user: m.user
-        ? {
-            ...m.user,
-            createdAt: m.user.createdAt.toISOString(),
-          }
-        : undefined,
-    })),
-    roles: g.roles.map((r) => ({
-      id: r.id,
-      guildId: r.guildId,
-      name: r.name,
-      color: r.color,
-      hoist: r.hoist,
-      position: r.position,
-      permissions: r.permissions,
-      createdAt: r.createdAt.toISOString(),
-    })),
-  }));
+  return guilds.map((g) => {
+    const roleMap = new Map(g.roles.map((r) => [r.id, r]));
+    return {
+      id: g.id,
+      name: g.name,
+      iconUrl: g.iconUrl,
+      description: g.description,
+      ownerId: g.ownerId,
+      createdAt: g.createdAt.toISOString(),
+      updatedAt: g.updatedAt.toISOString(),
+      channels: g.channels.map((c) => ({
+        id: c.id,
+        guildId: c.guildId,
+        name: c.name,
+        type: c.type as any,
+        topic: c.topic,
+        parentId: c.parentId,
+        position: c.position,
+        isE2EE: c.isE2EE,
+        bitrate: c.bitrate,
+        createdAt: c.createdAt.toISOString(),
+      })),
+      roles: g.roles.map((r) => ({
+        id: r.id,
+        guildId: r.guildId,
+        name: r.name,
+        color: r.color,
+        hoist: r.hoist,
+        position: r.position,
+        permissions: r.permissions,
+        isDefault: r.isDefault,
+        createdAt: r.createdAt.toISOString(),
+      })),
+      members: g.members.map((m) => {
+        const roleIds: string[] = JSON.parse(m.roleIds || "[]");
+        const parsedRoles = roleIds
+          .map((id) => roleMap.get(id))
+          .filter(Boolean)
+          .map((r: any) => ({
+            id: r.id,
+            guildId: r.guildId,
+            name: r.name,
+            color: r.color,
+            hoist: r.hoist,
+            position: r.position,
+            permissions: r.permissions,
+            isDefault: r.isDefault,
+            createdAt: r.createdAt.toISOString(),
+          }));
+
+        return {
+          userId: m.userId,
+          guildId: m.guildId,
+          nickname: m.nickname,
+          roleIds,
+          roles: parsedRoles,
+          joinedAt: m.joinedAt.toISOString(),
+          user: m.user
+            ? {
+                ...m.user,
+                createdAt: m.user.createdAt.toISOString(),
+              }
+            : undefined,
+        };
+      }),
+    };
+  });
 });
 
 server.get("/api/guilds/:guildId/channels", async (request) => {
@@ -358,10 +393,22 @@ server.post("/api/guilds", async (request, reply) => {
     return reply.status(400).send({ error: "服务器名称不能为空" });
   }
 
+  const defaultPerms =
+    PermissionFlags.VIEW_CHANNEL |
+    PermissionFlags.SEND_MESSAGES |
+    PermissionFlags.ADD_REACTIONS |
+    PermissionFlags.ATTACH_FILES |
+    PermissionFlags.READ_MESSAGE_HISTORY |
+    PermissionFlags.CONNECT |
+    PermissionFlags.SPEAK |
+    PermissionFlags.STREAM |
+    PermissionFlags.CHANGE_NICKNAME;
+
   const guild = await prisma.guild.create({
     data: {
       name: name.trim(),
       iconUrl: iconUrl || null,
+      description: (request.body as any)?.description || null,
       ownerId: owner.id,
       channels: {
         create: [
@@ -381,11 +428,20 @@ server.post("/api/guilds", async (request, reply) => {
       roles: {
         create: [
           {
+            name: "@everyone",
+            color: null,
+            hoist: false,
+            position: 0,
+            permissions: defaultPerms,
+            isDefault: true,
+          },
+          {
             name: "Admin",
             color: "#5865F2",
             hoist: true,
-            position: 0,
+            position: 1,
             permissions: 0x7fffffff,
+            isDefault: false,
           },
         ],
       },
@@ -396,7 +452,7 @@ server.post("/api/guilds", async (request, reply) => {
     },
   });
 
-  const adminRole = guild.roles[0];
+  const adminRole = guild.roles.find((r) => r.name === "Admin") || guild.roles[0];
   const member = await prisma.guildMember.create({
     data: {
       guildId: guild.id,
@@ -412,6 +468,7 @@ server.post("/api/guilds", async (request, reply) => {
           avatarUrl: true,
           status: true,
           customStatus: true,
+          bio: true,
           createdAt: true,
         },
       },
@@ -422,8 +479,10 @@ server.post("/api/guilds", async (request, reply) => {
     id: guild.id,
     name: guild.name,
     iconUrl: guild.iconUrl,
+    description: guild.description,
     ownerId: guild.ownerId,
     createdAt: guild.createdAt.toISOString(),
+    updatedAt: guild.updatedAt.toISOString(),
     channels: guild.channels.map((c) => ({
       id: c.id,
       guildId: c.guildId,
@@ -436,18 +495,6 @@ server.post("/api/guilds", async (request, reply) => {
       bitrate: c.bitrate,
       createdAt: c.createdAt.toISOString(),
     })),
-    members: [
-      {
-        userId: member.userId,
-        guildId: member.guildId,
-        nickname: member.nickname,
-        roleIds: [adminRole.id],
-        joinedAt: member.joinedAt.toISOString(),
-        user: member.user
-          ? { ...member.user, createdAt: member.user.createdAt.toISOString() }
-          : undefined,
-      },
-    ],
     roles: guild.roles.map((r) => ({
       id: r.id,
       guildId: r.guildId,
@@ -456,8 +503,34 @@ server.post("/api/guilds", async (request, reply) => {
       hoist: r.hoist,
       position: r.position,
       permissions: r.permissions,
+      isDefault: r.isDefault,
       createdAt: r.createdAt.toISOString(),
     })),
+    members: [
+      {
+        userId: member.userId,
+        guildId: member.guildId,
+        nickname: member.nickname,
+        roleIds: [adminRole.id],
+        roles: [
+          {
+            id: adminRole.id,
+            guildId: adminRole.guildId,
+            name: adminRole.name,
+            color: adminRole.color,
+            hoist: adminRole.hoist,
+            position: adminRole.position,
+            permissions: adminRole.permissions,
+            isDefault: adminRole.isDefault,
+            createdAt: adminRole.createdAt.toISOString(),
+          },
+        ],
+        joinedAt: member.joinedAt.toISOString(),
+        user: member.user
+          ? { ...member.user, createdAt: member.user.createdAt.toISOString() }
+          : undefined,
+      },
+    ],
   };
 
   gatewayManager.broadcast({
@@ -467,6 +540,964 @@ server.post("/api/guilds", async (request, reply) => {
   });
 
   return formattedGuild;
+});
+
+// ==========================================
+// 2.1 服务器管理员管理板块 API (Server Admin Suite)
+// ==========================================
+
+// 修改服务器基础概览信息 (需 MANAGE_GUILD)
+server.patch("/api/guilds/:guildId", async (request, reply) => {
+  const { guildId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  const user = userId
+    ? await prisma.user.findUnique({ where: { id: userId } })
+    : null;
+  if (!user) return reply.status(401).send({ error: "需要登录后操作" });
+
+  const hasPerm = await permissionService.hasGuildPermission(
+    user.id,
+    guildId,
+    PermissionFlags.MANAGE_GUILD,
+  );
+  if (!hasPerm) {
+    return reply
+      .status(403)
+      .send({ error: "缺少管理服务器权限 (MANAGE_GUILD)" });
+  }
+
+  const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+  if (!guild) return reply.status(404).send({ error: "服务器不存在" });
+
+  const body = (request.body || {}) as UpdateGuildDTO;
+  const updated = await prisma.guild.update({
+    where: { id: guildId },
+    data: {
+      name: body.name !== undefined ? body.name.trim() : undefined,
+      iconUrl: body.iconUrl !== undefined ? body.iconUrl : undefined,
+      description:
+        body.description !== undefined ? body.description : undefined,
+    },
+  });
+
+  await auditLogService.logAction({
+    guildId,
+    userId: user.id,
+    action: AuditLogAction.GUILD_UPDATE,
+    targetId: guildId,
+    targetName: updated.name,
+    changes: {
+      name: { old: guild.name, new: updated.name },
+      iconUrl: { old: guild.iconUrl, new: updated.iconUrl },
+      description: { old: guild.description, new: updated.description },
+    },
+  });
+
+  const payload = {
+    id: updated.id,
+    name: updated.name,
+    iconUrl: updated.iconUrl,
+    description: updated.description,
+    ownerId: updated.ownerId,
+    createdAt: updated.createdAt.toISOString(),
+    updatedAt: updated.updatedAt.toISOString(),
+  };
+
+  gatewayManager.broadcast({
+    op: GatewayOpCode.DISPATCH,
+    t: GatewayEvents.GUILD_UPDATE,
+    d: payload,
+  });
+
+  return payload;
+});
+
+// 解散/删除服务器 (仅限 Owner，需服务器全名二次确认)
+server.delete("/api/guilds/:guildId", async (request, reply) => {
+  const { guildId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  const user = userId
+    ? await prisma.user.findUnique({ where: { id: userId } })
+    : null;
+  if (!user) return reply.status(401).send({ error: "需要登录后操作" });
+
+  const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+  if (!guild) return reply.status(404).send({ error: "服务器不存在" });
+
+  if (guild.ownerId !== user.id) {
+    return reply.status(403).send({ error: "只有服务器所有者可以解散服务器" });
+  }
+
+  const { nameConfirmation } = (request.body || {}) as {
+    nameConfirmation?: string;
+  };
+  if (nameConfirmation !== guild.name) {
+    return reply.status(400).send({ error: "服务器名称确认不匹配" });
+  }
+
+  await prisma.guild.delete({ where: { id: guildId } });
+
+  gatewayManager.broadcast({
+    op: GatewayOpCode.DISPATCH,
+    t: GatewayEvents.GUILD_DELETE,
+    d: { guildId },
+  });
+
+  return { success: true, guildId };
+});
+
+// 转让服务器所有权 (仅限 Owner)
+server.post(
+  "/api/guilds/:guildId/transfer-ownership",
+  async (request, reply) => {
+    const { guildId } = request.params as any;
+    const userId = await getUserIdFromRequest(request);
+    const user = userId
+      ? await prisma.user.findUnique({ where: { id: userId } })
+      : null;
+    if (!user) return reply.status(401).send({ error: "需要登录后操作" });
+
+    const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+    if (!guild) return reply.status(404).send({ error: "服务器不存在" });
+
+    if (guild.ownerId !== user.id) {
+      return reply
+        .status(403)
+        .send({ error: "只有服务器所有者可以转让所有权" });
+    }
+
+    const { newOwnerId } = (request.body || {}) as TransferOwnershipDTO;
+    if (!newOwnerId) {
+      return reply.status(400).send({ error: "目标新所有者不能为空" });
+    }
+
+    const targetMember = await prisma.guildMember.findUnique({
+      where: { guildId_userId: { guildId, userId: newOwnerId } },
+      include: { user: true },
+    });
+    if (!targetMember) {
+      return reply.status(400).send({ error: "目标用户不是该服务器成员" });
+    }
+
+    const updated = await prisma.guild.update({
+      where: { id: guildId },
+      data: { ownerId: newOwnerId },
+    });
+
+    await auditLogService.logAction({
+      guildId,
+      userId: user.id,
+      action: "GUILD_OWNERSHIP_TRANSFER",
+      targetId: newOwnerId,
+      targetName: targetMember.user.username,
+      reason: `所有权由 ${user.username} 转让给 ${targetMember.user.username}`,
+    });
+
+    const payload = {
+      id: updated.id,
+      name: updated.name,
+      iconUrl: updated.iconUrl,
+      description: updated.description,
+      ownerId: updated.ownerId,
+      createdAt: updated.createdAt.toISOString(),
+      updatedAt: updated.updatedAt.toISOString(),
+    };
+
+    gatewayManager.broadcast({
+      op: GatewayOpCode.DISPATCH,
+      t: GatewayEvents.GUILD_UPDATE,
+      d: payload,
+    });
+
+    return payload;
+  },
+);
+
+// 获取角色列表 (确保包含 @everyone)
+server.get("/api/guilds/:guildId/roles", async (request) => {
+  const { guildId } = request.params as any;
+  await permissionService.ensureEveryoneRole(guildId);
+  const roles = await prisma.role.findMany({
+    where: { guildId },
+    orderBy: { position: "asc" },
+  });
+  return roles.map((r) => ({
+    id: r.id,
+    guildId: r.guildId,
+    name: r.name,
+    color: r.color,
+    hoist: r.hoist,
+    position: r.position,
+    permissions: r.permissions,
+    isDefault: r.isDefault,
+    createdAt: r.createdAt.toISOString(),
+  }));
+});
+
+// 创建角色 (需 MANAGE_ROLES)
+server.post("/api/guilds/:guildId/roles", async (request, reply) => {
+  const { guildId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  const user = userId
+    ? await prisma.user.findUnique({ where: { id: userId } })
+    : null;
+  if (!user) return reply.status(401).send({ error: "需要登录后操作" });
+
+  const hasPerm = await permissionService.hasGuildPermission(
+    user.id,
+    guildId,
+    PermissionFlags.MANAGE_ROLES,
+  );
+  if (!hasPerm) {
+    return reply
+      .status(403)
+      .send({ error: "缺少管理角色权限 (MANAGE_ROLES)" });
+  }
+
+  const body = (request.body || {}) as CreateRoleDTO;
+  const roles = await prisma.role.findMany({
+    where: { guildId },
+    select: { position: true },
+  });
+  const maxPos =
+    roles.length > 0 ? Math.max(...roles.map((r) => r.position)) : 0;
+
+  const role = await prisma.role.create({
+    data: {
+      guildId,
+      name: body.name ? body.name.trim() : "新身份组",
+      color: body.color || null,
+      hoist: body.hoist || false,
+      position: maxPos + 1,
+      permissions: body.permissions !== undefined ? body.permissions : 0,
+      isDefault: false,
+    },
+  });
+
+  await auditLogService.logAction({
+    guildId,
+    userId: user.id,
+    action: AuditLogAction.ROLE_CREATE,
+    targetId: role.id,
+    targetName: role.name,
+    changes: {
+      name: { new: role.name },
+      color: { new: role.color },
+      hoist: { new: role.hoist },
+      permissions: { new: role.permissions },
+    },
+  });
+
+  const formattedRole = {
+    id: role.id,
+    guildId: role.guildId,
+    name: role.name,
+    color: role.color,
+    hoist: role.hoist,
+    position: role.position,
+    permissions: role.permissions,
+    isDefault: role.isDefault,
+    createdAt: role.createdAt.toISOString(),
+  };
+
+  gatewayManager.broadcast({
+    op: GatewayOpCode.DISPATCH,
+    t: GatewayEvents.GUILD_ROLE_CREATE,
+    d: { guildId, role: formattedRole },
+  });
+
+  return formattedRole;
+});
+
+// 修改角色 (需 MANAGE_ROLES & 层级校验)
+server.patch("/api/guilds/:guildId/roles/:roleId", async (request, reply) => {
+  const { guildId, roleId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  const user = userId
+    ? await prisma.user.findUnique({ where: { id: userId } })
+    : null;
+  if (!user) return reply.status(401).send({ error: "需要登录后操作" });
+
+  const role = await prisma.role.findUnique({ where: { id: roleId } });
+  if (!role || role.guildId !== guildId) {
+    return reply.status(404).send({ error: "角色不存在" });
+  }
+
+  const canManage = await permissionService.canManageRole(
+    user.id,
+    guildId,
+    role,
+  );
+  if (!canManage && !role.isDefault) {
+    return reply
+      .status(403)
+      .send({ error: "无权修改该角色（权限不足或角色层级高于/等同于自身）" });
+  }
+
+  const body = (request.body || {}) as UpdateRoleDTO;
+  const isEveryone = role.isDefault || role.name === "@everyone";
+
+  const updatedRole = await prisma.role.update({
+    where: { id: roleId },
+    data: {
+      name:
+        !isEveryone && body.name !== undefined ? body.name.trim() : undefined,
+      color: !isEveryone && body.color !== undefined ? body.color : undefined,
+      hoist: !isEveryone && body.hoist !== undefined ? body.hoist : undefined,
+      position:
+        !isEveryone && body.position !== undefined ? body.position : undefined,
+      permissions:
+        body.permissions !== undefined ? body.permissions : undefined,
+    },
+  });
+
+  await auditLogService.logAction({
+    guildId,
+    userId: user.id,
+    action: AuditLogAction.ROLE_UPDATE,
+    targetId: role.id,
+    targetName: updatedRole.name,
+    changes: {
+      name: { old: role.name, new: updatedRole.name },
+      color: { old: role.color, new: updatedRole.color },
+      hoist: { old: role.hoist, new: updatedRole.hoist },
+      permissions: { old: role.permissions, new: updatedRole.permissions },
+    },
+  });
+
+  const formattedRole = {
+    id: updatedRole.id,
+    guildId: updatedRole.guildId,
+    name: updatedRole.name,
+    color: updatedRole.color,
+    hoist: updatedRole.hoist,
+    position: updatedRole.position,
+    permissions: updatedRole.permissions,
+    isDefault: updatedRole.isDefault,
+    createdAt: updatedRole.createdAt.toISOString(),
+  };
+
+  gatewayManager.broadcast({
+    op: GatewayOpCode.DISPATCH,
+    t: GatewayEvents.GUILD_ROLE_UPDATE,
+    d: { guildId, role: formattedRole },
+  });
+
+  return formattedRole;
+});
+
+// 删除角色 (需 MANAGE_ROLES & 层级校验)
+server.delete("/api/guilds/:guildId/roles/:roleId", async (request, reply) => {
+  const { guildId, roleId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  const user = userId
+    ? await prisma.user.findUnique({ where: { id: userId } })
+    : null;
+  if (!user) return reply.status(401).send({ error: "需要登录后操作" });
+
+  const role = await prisma.role.findUnique({ where: { id: roleId } });
+  if (!role || role.guildId !== guildId) {
+    return reply.status(404).send({ error: "角色不存在" });
+  }
+  if (role.isDefault || role.name === "@everyone") {
+    return reply.status(400).send({ error: "无法删除 @everyone 基础角色" });
+  }
+
+  const canManage = await permissionService.canManageRole(
+    user.id,
+    guildId,
+    role,
+  );
+  if (!canManage) {
+    return reply
+      .status(403)
+      .send({ error: "无权删除该角色（权限不足或角色层级高于/等同于自身）" });
+  }
+
+  // 从该公会所有成员的 roleIds 中移除该 roleId
+  const members = await prisma.guildMember.findMany({ where: { guildId } });
+  for (const m of members) {
+    try {
+      const ids: string[] = JSON.parse(m.roleIds || "[]");
+      if (ids.includes(roleId)) {
+        const nextIds = ids.filter((id) => id !== roleId);
+        await prisma.guildMember.update({
+          where: { id: m.id },
+          data: { roleIds: JSON.stringify(nextIds) },
+        });
+      }
+    } catch {}
+  }
+
+  await prisma.role.delete({ where: { id: roleId } });
+
+  await auditLogService.logAction({
+    guildId,
+    userId: user.id,
+    action: AuditLogAction.ROLE_DELETE,
+    targetId: role.id,
+    targetName: role.name,
+  });
+
+  gatewayManager.broadcast({
+    op: GatewayOpCode.DISPATCH,
+    t: GatewayEvents.GUILD_ROLE_DELETE,
+    d: { guildId, roleId },
+  });
+
+  return { success: true, guildId, roleId };
+});
+
+// 批量调整角色权重层级
+server.put("/api/guilds/:guildId/roles/positions", async (request, reply) => {
+  const { guildId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  const user = userId
+    ? await prisma.user.findUnique({ where: { id: userId } })
+    : null;
+  if (!user) return reply.status(401).send({ error: "需要登录后操作" });
+
+  const hasPerm = await permissionService.hasGuildPermission(
+    user.id,
+    guildId,
+    PermissionFlags.MANAGE_ROLES,
+  );
+  if (!hasPerm) {
+    return reply
+      .status(403)
+      .send({ error: "缺少管理角色权限 (MANAGE_ROLES)" });
+  }
+
+  const { roles } = (request.body || {}) as UpdateRolePositionsDTO;
+  if (!Array.isArray(roles)) {
+    return reply.status(400).send({ error: "roles 参数必须为数组" });
+  }
+
+  await prisma.$transaction(
+    roles.map((r) =>
+      prisma.role.update({
+        where: { id: r.id },
+        data: { position: r.position },
+      }),
+    ),
+  );
+
+  const updatedRoles = await prisma.role.findMany({
+    where: { guildId },
+    orderBy: { position: "asc" },
+  });
+
+  return updatedRoles.map((r) => ({
+    id: r.id,
+    guildId: r.guildId,
+    name: r.name,
+    color: r.color,
+    hoist: r.hoist,
+    position: r.position,
+    permissions: r.permissions,
+    isDefault: r.isDefault,
+    createdAt: r.createdAt.toISOString(),
+  }));
+});
+
+// 修改成员所属角色或昵称 (需 MANAGE_ROLES / MANAGE_NICKNAMES & 层级校验)
+server.patch(
+  "/api/guilds/:guildId/members/:targetUserId",
+  async (request, reply) => {
+    const { guildId, targetUserId } = request.params as any;
+    const userId = await getUserIdFromRequest(request);
+    const user = userId
+      ? await prisma.user.findUnique({ where: { id: userId } })
+      : null;
+    if (!user) return reply.status(401).send({ error: "需要登录后操作" });
+
+    const member = await prisma.guildMember.findUnique({
+      where: { guildId_userId: { guildId, userId: targetUserId } },
+      include: { user: true },
+    });
+    if (!member) return reply.status(404).send({ error: "目标成员不存在" });
+
+    const body = (request.body || {}) as UpdateMemberRolesDTO;
+
+    // 角色修改校验
+    if (body.roleIds !== undefined) {
+      const hasManageRoles = await permissionService.hasGuildPermission(
+        user.id,
+        guildId,
+        PermissionFlags.MANAGE_ROLES,
+      );
+      if (!hasManageRoles) {
+        return reply
+          .status(403)
+          .send({ error: "缺少管理角色权限 (MANAGE_ROLES)" });
+      }
+
+      const canManage = await permissionService.canManageMember(
+        user.id,
+        targetUserId,
+        guildId,
+      );
+      if (!canManage) {
+        return reply
+          .status(403)
+          .send({ error: "无权管理该成员的角色（对方职级高于或等同于自身）" });
+      }
+
+      const actorHighestPos =
+        await permissionService.getMemberHighestRolePosition(user.id, guildId);
+      const assignedRoles = await prisma.role.findMany({
+        where: { id: { in: body.roleIds }, guildId },
+      });
+
+      const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+      const isOwner = guild?.ownerId === user.id;
+      if (!isOwner) {
+        for (const r of assignedRoles) {
+          if (r.position >= actorHighestPos) {
+            return reply
+              .status(403)
+              .send({
+                error: `无法赋予等于或高于自身权重的角色: ${r.name}`,
+              });
+          }
+        }
+      }
+    }
+
+    // 昵称修改校验
+    if (body.nickname !== undefined) {
+      if (user.id === targetUserId) {
+        const hasNickPerm = await permissionService.hasGuildPermission(
+          user.id,
+          guildId,
+          PermissionFlags.CHANGE_NICKNAME,
+        );
+        if (!hasNickPerm) {
+          return reply
+            .status(403)
+            .send({ error: "缺少修改自身昵称权限 (CHANGE_NICKNAME)" });
+        }
+      } else {
+        const hasManageNickPerm = await permissionService.hasGuildPermission(
+          user.id,
+          guildId,
+          PermissionFlags.MANAGE_NICKNAMES,
+        );
+        if (!hasManageNickPerm) {
+          return reply
+            .status(403)
+            .send({ error: "缺少管理昵称权限 (MANAGE_NICKNAMES)" });
+        }
+        const canManage = await permissionService.canManageMember(
+          user.id,
+          targetUserId,
+          guildId,
+        );
+        if (!canManage) {
+          return reply
+            .status(403)
+            .send({
+              error: "无权修改该成员昵称（对方职级高于或等同于自身）",
+            });
+        }
+      }
+    }
+
+    const updatedMember = await prisma.guildMember.update({
+      where: { id: member.id },
+      data: {
+        roleIds:
+          body.roleIds !== undefined
+            ? JSON.stringify(body.roleIds)
+            : undefined,
+        nickname: body.nickname !== undefined ? body.nickname : undefined,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            avatarUrl: true,
+            status: true,
+            customStatus: true,
+            bio: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    const allRoles = await prisma.role.findMany({ where: { guildId } });
+    const roleMap = new Map(allRoles.map((r) => [r.id, r]));
+    const finalRoleIds: string[] = JSON.parse(
+      updatedMember.roleIds || "[]",
+    );
+    const parsedRoles = finalRoleIds
+      .map((id) => roleMap.get(id))
+      .filter(Boolean)
+      .map((r: any) => ({
+        id: r.id,
+        guildId: r.guildId,
+        name: r.name,
+        color: r.color,
+        hoist: r.hoist,
+        position: r.position,
+        permissions: r.permissions,
+        isDefault: r.isDefault,
+        createdAt: r.createdAt.toISOString(),
+      }));
+
+    await auditLogService.logAction({
+      guildId,
+      userId: user.id,
+      action: AuditLogAction.MEMBER_ROLE_UPDATE,
+      targetId: targetUserId,
+      targetName: updatedMember.user.username,
+      changes: {
+        roleIds: { old: member.roleIds, new: updatedMember.roleIds },
+        nickname: { old: member.nickname, new: updatedMember.nickname },
+      },
+    });
+
+    const memberPayload = {
+      userId: updatedMember.userId,
+      guildId: updatedMember.guildId,
+      nickname: updatedMember.nickname,
+      roleIds: finalRoleIds,
+      roles: parsedRoles,
+      joinedAt: updatedMember.joinedAt.toISOString(),
+      user: updatedMember.user
+        ? {
+            ...updatedMember.user,
+            createdAt: updatedMember.user.createdAt.toISOString(),
+          }
+        : undefined,
+    };
+
+    gatewayManager.broadcast({
+      op: GatewayOpCode.DISPATCH,
+      t: GatewayEvents.GUILD_MEMBER_UPDATE,
+      d: { guildId, member: memberPayload },
+    });
+
+    return memberPayload;
+  },
+);
+
+// 获取封禁黑名单 (需 BAN_MEMBERS)
+server.get("/api/guilds/:guildId/bans", async (request, reply) => {
+  const { guildId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  const user = userId
+    ? await prisma.user.findUnique({ where: { id: userId } })
+    : null;
+  if (!user) return reply.status(401).send({ error: "需要登录后操作" });
+
+  const hasPerm = await permissionService.hasGuildPermission(
+    user.id,
+    guildId,
+    PermissionFlags.BAN_MEMBERS,
+  );
+  if (!hasPerm) {
+    return reply
+      .status(403)
+      .send({ error: "缺少查看封禁名单权限 (BAN_MEMBERS)" });
+  }
+
+  const bans = await prisma.ban.findMany({
+    where: { guildId },
+    include: {
+      user: {
+        select: {
+          id: true,
+          username: true,
+          avatarUrl: true,
+          email: true,
+          status: true,
+          customStatus: true,
+          bio: true,
+          createdAt: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return bans.map((b) => ({
+    id: b.id,
+    guildId: b.guildId,
+    userId: b.userId,
+    user: b.user
+      ? { ...b.user, createdAt: b.user.createdAt.toISOString() }
+      : undefined,
+    reason: b.reason,
+    createdAt: b.createdAt.toISOString(),
+  }));
+});
+
+// 封禁指定成员 (需 BAN_MEMBERS & 层级校验)
+server.post(
+  "/api/guilds/:guildId/bans/:targetUserId",
+  async (request, reply) => {
+    const { guildId, targetUserId } = request.params as any;
+    const userId = await getUserIdFromRequest(request);
+    const user = userId
+      ? await prisma.user.findUnique({ where: { id: userId } })
+      : null;
+    if (!user) return reply.status(401).send({ error: "需要登录后操作" });
+
+    const hasPerm = await permissionService.hasGuildPermission(
+      user.id,
+      guildId,
+      PermissionFlags.BAN_MEMBERS,
+    );
+    if (!hasPerm) {
+      return reply
+        .status(403)
+        .send({ error: "缺少封禁成员权限 (BAN_MEMBERS)" });
+    }
+
+    const canManage = await permissionService.canManageMember(
+      user.id,
+      targetUserId,
+      guildId,
+    );
+    if (!canManage) {
+      return reply
+        .status(403)
+        .send({ error: "无权封禁该成员（对方职级高于或等同于自身）" });
+    }
+
+    const targetUser = await prisma.user.findUnique({
+      where: { id: targetUserId },
+    });
+    if (!targetUser) {
+      return reply.status(404).send({ error: "目标用户不存在" });
+    }
+
+    const body = (request.body || {}) as BanMemberDTO;
+    const ban = await prisma.ban.upsert({
+      where: { guildId_userId: { guildId, userId: targetUserId } },
+      create: {
+        guildId,
+        userId: targetUserId,
+        reason: body.reason || "违反服务器社区守则",
+      },
+      update: {
+        reason: body.reason || "违反服务器社区守则",
+      },
+      include: { user: true },
+    });
+
+    // 移出成员
+    await prisma.guildMember.deleteMany({
+      where: { guildId, userId: targetUserId },
+    });
+
+    await auditLogService.logAction({
+      guildId,
+      userId: user.id,
+      action: AuditLogAction.MEMBER_BAN_ADD,
+      targetId: targetUserId,
+      targetName: targetUser.username,
+      reason: body.reason,
+    });
+
+    const banPayload = {
+      id: ban.id,
+      guildId: ban.guildId,
+      userId: ban.userId,
+      user: ban.user
+        ? { ...ban.user, createdAt: ban.user.createdAt.toISOString() }
+        : undefined,
+      reason: ban.reason,
+      createdAt: ban.createdAt.toISOString(),
+    };
+
+    gatewayManager.broadcast({
+      op: GatewayOpCode.DISPATCH,
+      t: GatewayEvents.GUILD_BAN_ADD,
+      d: { guildId, ban: banPayload },
+    });
+
+    gatewayManager.broadcast({
+      op: GatewayOpCode.DISPATCH,
+      t: GatewayEvents.GUILD_MEMBER_REMOVE,
+      d: { guildId, userId: targetUserId },
+    });
+
+    return banPayload;
+  },
+);
+
+// 解除封禁 (需 BAN_MEMBERS)
+server.delete(
+  "/api/guilds/:guildId/bans/:targetUserId",
+  async (request, reply) => {
+    const { guildId, targetUserId } = request.params as any;
+    const userId = await getUserIdFromRequest(request);
+    const user = userId
+      ? await prisma.user.findUnique({ where: { id: userId } })
+      : null;
+    if (!user) return reply.status(401).send({ error: "需要登录后操作" });
+
+    const hasPerm = await permissionService.hasGuildPermission(
+      user.id,
+      guildId,
+      PermissionFlags.BAN_MEMBERS,
+    );
+    if (!hasPerm) {
+      return reply
+        .status(403)
+        .send({ error: "缺少解封成员权限 (BAN_MEMBERS)" });
+    }
+
+    const targetUser = await prisma.user.findUnique({
+      where: { id: targetUserId },
+    });
+
+    await prisma.ban.deleteMany({
+      where: { guildId, userId: targetUserId },
+    });
+
+    await auditLogService.logAction({
+      guildId,
+      userId: user.id,
+      action: AuditLogAction.MEMBER_BAN_REMOVE,
+      targetId: targetUserId,
+      targetName: targetUser?.username || targetUserId,
+    });
+
+    gatewayManager.broadcast({
+      op: GatewayOpCode.DISPATCH,
+      t: GatewayEvents.GUILD_BAN_REMOVE,
+      d: { guildId, userId: targetUserId },
+    });
+
+    return { success: true, guildId, userId: targetUserId };
+  },
+);
+
+// 查询服务器有效邀请列表 (需 MANAGE_GUILD)
+server.get("/api/guilds/:guildId/invites", async (request, reply) => {
+  const { guildId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  const user = userId
+    ? await prisma.user.findUnique({ where: { id: userId } })
+    : null;
+  if (!user) return reply.status(401).send({ error: "需要登录后操作" });
+
+  const hasPerm = await permissionService.hasGuildPermission(
+    user.id,
+    guildId,
+    PermissionFlags.MANAGE_GUILD,
+  );
+  if (!hasPerm) {
+    return reply
+      .status(403)
+      .send({ error: "缺少管理服务器权限 (MANAGE_GUILD)" });
+  }
+
+  const invites = await prisma.invite.findMany({
+    where: { guildId },
+    include: {
+      inviter: {
+        select: {
+          id: true,
+          username: true,
+          avatarUrl: true,
+          email: true,
+          status: true,
+          customStatus: true,
+          bio: true,
+          createdAt: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  return invites.map((inv) => ({
+    code: inv.code,
+    guildId: inv.guildId,
+    inviterId: inv.inviterId,
+    inviter: inv.inviter
+      ? { ...inv.inviter, createdAt: inv.inviter.createdAt.toISOString() }
+      : undefined,
+    maxUses: inv.maxUses,
+    uses: inv.uses,
+    expiresAt: inv.expiresAt ? inv.expiresAt.toISOString() : null,
+    createdAt: inv.createdAt.toISOString(),
+  }));
+});
+
+// 作废/删除邀请码
+server.delete("/api/invites/:code", async (request, reply) => {
+  const { code } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  const user = userId
+    ? await prisma.user.findUnique({ where: { id: userId } })
+    : null;
+  if (!user) return reply.status(401).send({ error: "需要登录后操作" });
+
+  const invite = await prisma.invite.findUnique({ where: { code } });
+  if (!invite) return reply.status(404).send({ error: "邀请码不存在" });
+
+  const hasManageGuild = await permissionService.hasGuildPermission(
+    user.id,
+    invite.guildId,
+    PermissionFlags.MANAGE_GUILD,
+  );
+  if (invite.inviterId !== user.id && !hasManageGuild) {
+    return reply.status(403).send({ error: "您没有权限删除该邀请码" });
+  }
+
+  await prisma.invite.delete({ where: { code } });
+
+  await auditLogService.logAction({
+    guildId: invite.guildId,
+    userId: user.id,
+    action: AuditLogAction.INVITE_DELETE,
+    targetId: code,
+    targetName: code,
+  });
+
+  return { success: true, code };
+});
+
+// 查询审计日志流水 (需 VIEW_AUDIT_LOG)
+server.get("/api/guilds/:guildId/audit-logs", async (request, reply) => {
+  const { guildId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  const user = userId
+    ? await prisma.user.findUnique({ where: { id: userId } })
+    : null;
+  if (!user) return reply.status(401).send({ error: "需要登录后操作" });
+
+  const hasPerm = await permissionService.hasGuildPermission(
+    user.id,
+    guildId,
+    PermissionFlags.VIEW_AUDIT_LOG,
+  );
+  if (!hasPerm) {
+    return reply
+      .status(403)
+      .send({ error: "缺少查看审计日志权限 (VIEW_AUDIT_LOG)" });
+  }
+
+  const query = (request.query || {}) as {
+    limit?: string;
+    before?: string;
+    action?: string;
+  };
+  const logs = await auditLogService.getGuildAuditLogs(guildId, {
+    limit: query.limit ? parseInt(query.limit, 10) : 50,
+    before: query.before,
+    action: query.action,
+  });
+
+  return logs;
 });
 
 // 生成专属邀请码 (Invite)
@@ -546,6 +1577,18 @@ server.post("/api/invites/:code/join", async (request, reply) => {
 
   if (invite.maxUses > 0 && invite.uses >= invite.maxUses) {
     return reply.status(400).send({ error: "邀请链接使用次数已达上限" });
+  }
+
+  // 检查是否处于该公会的黑名单中
+  const isBanned = await prisma.ban.findUnique({
+    where: {
+      guildId_userId: { guildId: invite.guildId, userId: user.id },
+    },
+  });
+  if (isBanned) {
+    return reply
+      .status(403)
+      .send({ error: "您已被该服务器封禁，无法加入" });
   }
 
   let member = await prisma.guildMember.findUnique({
@@ -825,8 +1868,32 @@ server.delete(
         .send({ error: "缺少踢出成员权限 (KICK_MEMBERS)" });
     }
 
+    const canManage = await permissionService.canManageMember(
+      user.id,
+      targetUserId,
+      guildId,
+    );
+    if (!canManage) {
+      return reply
+        .status(403)
+        .send({ error: "无权踢出该成员（对方职级高于或等同于自身）" });
+    }
+
+    const targetUser = await prisma.user.findUnique({
+      where: { id: targetUserId },
+    });
+
     await prisma.guildMember.deleteMany({
       where: { guildId, userId: targetUserId },
+    });
+
+    await auditLogService.logAction({
+      guildId,
+      userId: user.id,
+      action: AuditLogAction.MEMBER_KICK,
+      targetId: targetUserId,
+      targetName: targetUser?.username || targetUserId,
+      reason: (request.body as any)?.reason,
     });
 
     gatewayManager.broadcast({
@@ -1431,6 +2498,12 @@ async function start() {
     // 启动前执行种子数据检查与存储服务自愈检查
     await seedInitialData();
     await storageService.init();
+
+    // 历史服务器向下兼容自动补齐 @everyone 基础角色
+    const existingGuilds = await prisma.guild.findMany({ select: { id: true } });
+    for (const g of existingGuilds) {
+      await permissionService.ensureEveryoneRole(g.id);
+    }
 
     await server.listen({ port: PORT, host: HOST });
     console.log(

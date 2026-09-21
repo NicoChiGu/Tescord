@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Channel, Message, User, Attachment, Guild } from "@tescord/types";
+import { Channel, Message, User, Attachment, Guild, GuildMember } from "@tescord/types";
 import {
   Hash,
   Lock,
@@ -25,6 +25,8 @@ import { MarkdownRenderer } from "./chat/MarkdownRenderer.js";
 import { EmojiPickerPopover } from "./chat/EmojiPickerPopover.js";
 import { LightboxModal } from "./chat/LightboxModal.js";
 import { MobileActionSheet } from "./chat/MobileActionSheet.js";
+import { MentionInput, MentionInputHandle } from "./chat/MentionInput.js";
+import { UserProfilePopout } from "./profile/UserProfilePopout.js";
 import { MessageContextMenu } from "./context-menu/MessageContextMenu.js";
 import { UserContextMenu } from "./context-menu/UserContextMenu.js";
 import { InputContextMenu } from "./context-menu/InputContextMenu.js";
@@ -71,6 +73,12 @@ interface ChatMessageItemProps {
   setLightboxImage: (img: { url: string; name: string } | null) => void;
   setInputText: React.Dispatch<React.SetStateAction<string>>;
   onOpenMobileActions: (msg: Message) => void;
+  onMentionUser?: (username: string) => void;
+  onOpenProfile?: (
+    author: { id: string; username: string; avatarUrl?: string | null },
+    rect: DOMRect
+  ) => void;
+  onOpenProfileByName?: (username: string, rect: DOMRect) => void;
 }
 
 const isImageMime = (mime: string, name: string) => {
@@ -95,6 +103,9 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   setLightboxImage,
   setInputText,
   onOpenMobileActions,
+  onMentionUser,
+  onOpenProfile,
+  onOpenProfileByName,
 }) => {
   const isMe = msg.authorId === currentUser.id;
   const formattedTime = new Date(msg.createdAt).toLocaleTimeString([], {
@@ -142,9 +153,7 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
           <UserContextMenu
             targetUser={msg.author}
             guild={guild}
-            onMention={(username) =>
-              setInputText((prev) => `${prev}@${username} `)
-            }
+            onMention={(username) => onMentionUser?.(username)}
           >
             <img
               src={
@@ -152,6 +161,12 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                 "https://api.dicebear.com/7.x/bottts/svg?seed=user"
               }
               alt={msg.author.username}
+              onClick={(e) =>
+                onOpenProfile?.(
+                  msg.author,
+                  e.currentTarget.getBoundingClientRect()
+                )
+              }
               className="w-10 h-10 rounded-full flex-shrink-0 cursor-pointer hover:opacity-80 transition mt-0.5"
             />
           </UserContextMenu>
@@ -161,11 +176,17 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
               <UserContextMenu
                 targetUser={msg.author}
                 guild={guild}
-                onMention={(username) =>
-                  setInputText((prev) => `${prev}@${username} `)
-                }
+                onMention={(username) => onMentionUser?.(username)}
               >
-                <span className="font-semibold text-discord-textHeader text-sm cursor-pointer hover:underline">
+                <span
+                  onClick={(e) =>
+                    onOpenProfile?.(
+                      msg.author,
+                      e.currentTarget.getBoundingClientRect()
+                    )
+                  }
+                  className="font-semibold text-discord-textHeader text-sm cursor-pointer hover:underline"
+                >
                   {msg.author.username}
                 </span>
               </UserContextMenu>
@@ -179,7 +200,7 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
               </span>
               {msg.isPinned && (
                 <span
-                  className="flex items-center space-x-0.5 text-[10px] text-yellow-400 bg-yellow-400/10 px-1 rounded border border-yellow-400/30"
+                  className="flex items-center space-x-0.5 text-[10px] text-yellow-500 bg-yellow-500/10 px-1 rounded border border-yellow-500/30"
                   title="该消息已被置顶"
                 >
                   <Pin className="w-2.5 h-2.5 rotate-45" />
@@ -215,6 +236,10 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                       ? decryptedContents[msg.id]?.text ||
                         "🔒 [端到端双棘轮密文解密中...]"
                       : msg.content
+                  }
+                  currentUsername={currentUser.username}
+                  onMentionClick={(username, rect) =>
+                    onOpenProfileByName?.(username, rect)
                   }
                 />
               </div>
@@ -400,10 +425,75 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onToggleMobileDrawer,
   onToggleMobileMemberList,
 }) => {
-  const { isMobile } = useViewport();
+  const { isMobile, isDesktop } = useViewport();
+  const isCompact = !isDesktop;
   const [mobileActionMessage, setMobileActionMessage] = useState<Message | null>(null);
   const [inputText, setInputText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const mentionInputRef = useRef<MentionInputHandle>(null);
+  const [selectedUserPopout, setSelectedUserPopout] = useState<{
+    user: User;
+    member?: GuildMember | null;
+    targetRect: DOMRect;
+  } | null>(null);
+
+  const handleOpenProfile = (
+    author: { id: string; username: string; avatarUrl?: string | null },
+    rect: DOMRect
+  ) => {
+    const member =
+      guild?.members?.find(
+        (m) => m.userId === author.id || m.user?.id === author.id
+      ) || null;
+    const fullUser: User = member?.user || {
+      id: author.id,
+      username: author.username,
+      avatarUrl: author.avatarUrl,
+      email: "",
+      status: "OFFLINE",
+      createdAt: new Date().toISOString(),
+    };
+    setSelectedUserPopout({
+      user: fullUser,
+      member,
+      targetRect: rect,
+    });
+  };
+
+  const handleOpenProfileByName = (name: string, rect: DOMRect) => {
+    const cleanName = name.trim().toLowerCase();
+    const member = guild?.members?.find(
+      (m) =>
+        m.user?.username?.toLowerCase() === cleanName ||
+        m.nickname?.toLowerCase() === cleanName
+    );
+    if (member && member.user) {
+      setSelectedUserPopout({
+        user: member.user,
+        member,
+        targetRect: rect,
+      });
+      return;
+    }
+    const msgAuthor = messages.find(
+      (m) => m.author.username.toLowerCase() === cleanName
+    )?.author;
+    if (msgAuthor) {
+      setSelectedUserPopout({
+        user: {
+          id: msgAuthor.id,
+          username: msgAuthor.username,
+          avatarUrl: msgAuthor.avatarUrl,
+          email: "",
+          status: "OFFLINE",
+          createdAt: new Date().toISOString(),
+        },
+        member: null,
+        targetRect: rect,
+      });
+    }
+  };
+
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>(
     [],
@@ -433,6 +523,21 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // 监听全局 @提及 事件（来自右侧成员列表或用户浮层），追加至文本框并聚焦
+  useEffect(() => {
+    const handleMention = (e: Event) => {
+      const customEvent = e as CustomEvent<{ username: string }>;
+      if (customEvent.detail?.username) {
+        setInputText((prev) => `${prev}@${customEvent.detail.username} `);
+        inputRef.current?.focus();
+      }
+    };
+    window.addEventListener("tescord:mention", handleMention);
+    return () => {
+      window.removeEventListener("tescord:mention", handleMention);
+    };
+  }, []);
 
   // 切换频道时清理本地已处理集合并动态计算当前频道安全码
   useEffect(() => {
@@ -584,11 +689,21 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     }
   };
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputText.trim() && pendingAttachments.length === 0) return;
+  const handleFilesSelected = async (files: File[]) => {
+    for (let i = 0; i < files.length; i++) {
+      await uploadAndAttachFile(files[i]);
+    }
+  };
 
-    let contentToSend = inputText.trim();
+  const executeSendMessage = async (customText?: string) => {
+    const text =
+      customText !== undefined
+        ? customText
+        : mentionInputRef.current?.getPlainText() || inputText;
+    const content = text.trim();
+    if (!content && pendingAttachments.length === 0) return;
+
+    let contentToSend = content;
     if (channel.isE2EE && contentToSend) {
       // 阶段五：客户端本地双棘轮封装密文信封
       contentToSend = await doubleRatchetManager.encryptMessage(
@@ -606,8 +721,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     );
 
     setInputText("");
+    mentionInputRef.current?.clear();
     setReplyingTo(null);
     setPendingAttachments([]);
+  };
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await executeSendMessage();
   };
 
   const handleToggleReaction = (
@@ -691,18 +812,19 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             />
             {searchQuery ? (
               <button
+                type="button"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-2 text-discord-textMuted hover:text-white"
+                className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center text-discord-textMuted hover:text-white transition"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             ) : (
-              <Search className="w-3.5 h-3.5 absolute right-2 top-2 text-discord-textMuted" />
+              <Search className="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 text-discord-textMuted pointer-events-none" />
             )}
           </div>
           <button
             onClick={() => {
-              if (isMobile && onToggleMobileMemberList) {
+              if (isCompact && onToggleMobileMemberList) {
                 onToggleMobileMemberList();
               } else {
                 onToggleMemberList();
@@ -771,6 +893,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             setLightboxImage={setLightboxImage}
             setInputText={setInputText}
             onOpenMobileActions={(m: Message) => setMobileActionMessage(m)}
+            onMentionUser={(username) =>
+              mentionInputRef.current?.insertMention(username, username)
+            }
+            onOpenProfile={(author, rect) => handleOpenProfile(author, rect)}
+            onOpenProfileByName={(name, rect) =>
+              handleOpenProfileByName(name, rect)
+            }
           />
         ))}
         <div ref={messagesEndRef} />
@@ -859,7 +988,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             type="button"
             disabled={isUploading}
             onClick={() => fileInputRef.current?.click()}
-            className="text-discord-textMuted hover:text-discord-textHeader transition disabled:opacity-50"
+            className="flex items-center justify-center text-discord-textMuted hover:text-discord-textHeader transition disabled:opacity-50 shrink-0"
             title="上传文件或图片 (支持 MinIO 直传)"
           >
             {isUploading ? (
@@ -869,34 +998,27 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             )}
           </button>
 
-          <div className="flex-1 flex">
-            <InputContextMenu
-              inputRef={inputRef}
-              value={inputText}
-              onChange={setInputText}
-            >
-              <input
-                ref={inputRef}
-                type="text"
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                onPaste={handlePaste}
-                placeholder={
-                  isMobile
-                    ? `发送到 #${channel.name}`
-                    : `发送消息到 #${channel.name} (支持 Markdown、剧透 ||文字|| 与 Ctrl+V 截图粘贴)`
-                }
-                className="w-full bg-transparent text-sm text-discord-textHeader placeholder-discord-textMuted focus:outline-none"
-              />
-            </InputContextMenu>
-          </div>
+          {/* 富文本 @提及 Tag 输入框 */}
+          <MentionInput
+            ref={mentionInputRef}
+            placeholder={
+              isMobile
+                ? `发送到 #${channel.name}`
+                : `发送消息到 #${channel.name} (键入 @ 快捷提及，支持 Markdown、剧透 ||文字|| 与截图粘贴)`
+            }
+            members={guild?.members || []}
+            roles={guild?.roles || []}
+            onSendMessage={(text) => executeSendMessage(text)}
+            onPasteFiles={(files) => handleFilesSelected(files)}
+            onChangeText={(text) => setInputText(text)}
+          />
 
           {/* 输入框表情选择器 */}
-          <div className="relative">
+          <div className="relative flex items-center shrink-0">
             <button
               type="button"
               onClick={() => setIsInputEmojiOpen(!isInputEmojiOpen)}
-              className="text-discord-textMuted hover:text-discord-textHeader transition"
+              className="flex items-center justify-center text-discord-textMuted hover:text-discord-textHeader transition shrink-0"
               title="选择常用 Emoji"
             >
               <Smile className="w-5 h-5" />
@@ -904,22 +1026,22 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             <EmojiPickerPopover
               isOpen={isInputEmojiOpen}
               onClose={() => setIsInputEmojiOpen(false)}
-              onSelectEmoji={(emoji: string) =>
-                setInputText((prev) => prev + emoji)
-              }
+              onSelectEmoji={(emoji: string) => {
+                mentionInputRef.current?.insertText(emoji);
+              }}
             />
           </div>
 
           <button
             type="submit"
             disabled={!inputText.trim() && pendingAttachments.length === 0}
-            className={`p-1.5 rounded-full transition ${
+            className={`w-7 h-7 flex items-center justify-center rounded-full transition shrink-0 ${
               inputText.trim() || pendingAttachments.length > 0
                 ? "bg-discord-brand text-white hover:bg-discord-brandHover"
                 : "text-discord-textMuted opacity-40 cursor-not-allowed"
             }`}
           >
-            <Send className="w-4 h-4" />
+            <Send className="w-4 h-4 ml-0.5" />
           </button>
         </form>
       </div>
@@ -997,6 +1119,27 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         onDelete={onDeleteMessage}
         onAddReaction={onReactionAdd}
       />
+
+      {/* 用户资料卡片浮层 (支持点击头像、用户名及正文 @Tag 唤出) */}
+      {selectedUserPopout && (
+        <UserProfilePopout
+          isOpen={true}
+          onClose={() => setSelectedUserPopout(null)}
+          targetRect={selectedUserPopout.targetRect}
+          user={selectedUserPopout.user}
+          member={selectedUserPopout.member}
+          guild={guild}
+          currentUser={currentUser}
+          roles={guild?.roles || []}
+          onMention={(username) => {
+            mentionInputRef.current?.insertMention(username, username);
+            setSelectedUserPopout(null);
+          }}
+          onSendMessage={() => {
+            setSelectedUserPopout(null);
+          }}
+        />
+      )}
     </div>
   );
 };

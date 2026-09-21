@@ -89,7 +89,7 @@ export const JoinGuildModal: React.FC<JoinGuildModalProps> = ({
             <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted mb-2">
               邀请码 / 邀请链接 <span className="text-red-400">*</span>
             </label>
-            <div className="relative">
+            <div className="relative flex items-center">
               <input
                 type="text"
                 required
@@ -98,7 +98,7 @@ export const JoinGuildModal: React.FC<JoinGuildModalProps> = ({
                 placeholder="例如：7f503c71 或 http://.../invite/7f503c71"
                 className="w-full bg-[#1e1f22] text-discord-textHeader px-3 py-2.5 pl-9 rounded text-sm focus:outline-none focus:ring-2 focus:ring-discord-brand transition border border-transparent focus:border-discord-brand font-mono"
               />
-              <KeyRound className="w-4 h-4 text-discord-textMuted absolute left-3 top-3" />
+              <KeyRound className="w-4 h-4 text-discord-textMuted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
             </div>
           </div>
 

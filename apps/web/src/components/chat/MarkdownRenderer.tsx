@@ -4,6 +4,85 @@ import remarkGfm from "remark-gfm";
 
 interface MarkdownRendererProps {
   content: string;
+  onMentionClick?: (username: string, rect: DOMRect) => void;
+  currentUsername?: string;
+}
+
+// 递归解析节点内部文本中的 @提及
+function parseMentionsInNode(
+  node: React.ReactNode,
+  onMentionClick?: (username: string, rect: DOMRect) => void,
+  currentUsername?: string
+): React.ReactNode {
+  if (typeof node === "string") {
+    const mentionRegex = /@([a-zA-Z0-9_\u4e00-\u9fa5]+)/g;
+    if (!mentionRegex.test(node)) {
+      return node;
+    }
+    mentionRegex.lastIndex = 0;
+
+    const elements: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = mentionRegex.exec(node)) !== null) {
+      if (match.index > lastIndex) {
+        elements.push(node.substring(lastIndex, match.index));
+      }
+      const targetName = match[1];
+      const isSpecial = targetName === "everyone" || targetName === "here";
+      const isMe =
+        currentUsername &&
+        targetName.toLowerCase() === currentUsername.toLowerCase();
+
+      elements.push(
+        <span
+          key={`${match.index}-${targetName}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            if (!isSpecial) {
+              onMentionClick?.(
+                targetName,
+                e.currentTarget.getBoundingClientRect()
+              );
+            }
+          }}
+          className={`inline-flex items-center px-1.5 py-0.5 mx-0.5 rounded text-[13px] font-medium transition select-none align-baseline ${
+            isSpecial
+              ? "bg-[#5865f2]/20 hover:bg-[#5865f2]/35 text-[#c9cdfb] cursor-default"
+              : isMe
+              ? "bg-[#f0b232]/20 hover:bg-[#f0b232]/35 text-[#f0b232] font-semibold cursor-pointer"
+              : "bg-[#5865f2]/15 hover:bg-[#5865f2] text-[#c9cdfb] hover:text-white cursor-pointer"
+          }`}
+          title={
+            isSpecial
+              ? `全员广播: @${targetName}`
+              : `点击查看 @${targetName} 的个人资料`
+          }
+        >
+          @{targetName}
+        </span>
+      );
+      lastIndex = mentionRegex.lastIndex;
+    }
+
+    if (lastIndex < node.length) {
+      elements.push(node.substring(lastIndex));
+    }
+    return elements;
+  }
+
+  if (React.isValidElement(node) && (node.props as any)?.children) {
+    const children = (node.props as any).children;
+    return React.cloneElement(node, {
+      ...(node.props as any),
+      children: React.Children.map(children, (child) =>
+        parseMentionsInNode(child, onMentionClick, currentUsername)
+      ),
+    });
+  }
+
+  return node;
 }
 
 // Discord 风格剧透 (Spoiler) 胶囊组件
@@ -53,14 +132,23 @@ function parseDiscordSpoilers(raw: string): (string | { spoiler: string })[] {
 
 export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
   content,
+  onMentionClick,
+  currentUsername,
 }) => {
   const segments = parseDiscordSpoilers(content);
+
+  const wrapMentions = (children: React.ReactNode) =>
+    parseMentionsInNode(children, onMentionClick, currentUsername);
 
   return (
     <div className="text-[14px] leading-[1.375rem] text-discord-textNormal break-words font-normal">
       {segments.map((seg, idx) => {
         if (typeof seg !== "string") {
-          return <Spoiler key={idx}>{seg.spoiler}</Spoiler>;
+          return (
+            <Spoiler key={idx}>
+              {wrapMentions(seg.spoiler)}
+            </Spoiler>
+          );
         }
 
         return (
@@ -68,7 +156,9 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
             key={idx}
             remarkPlugins={[remarkGfm]}
             components={{
-              p: ({ children }) => <span className="inline">{children}</span>,
+              p: ({ children }) => (
+                <span className="inline">{wrapMentions(children)}</span>
+              ),
               a: ({ href, children }) => (
                 <a
                   href={href}
@@ -104,7 +194,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
               },
               blockquote: ({ children }) => (
                 <div className="border-l-4 border-[#4e5058] pl-3 my-1.5 text-discord-textMuted italic bg-[#2b2d31]/40 py-0.5 rounded-r">
-                  {children}
+                  {wrapMentions(children)}
                 </div>
               ),
               ul: ({ children }) => (
@@ -115,15 +205,18 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
                   {children}
                 </ol>
               ),
+              li: ({ children }) => <li>{wrapMentions(children)}</li>,
               strong: ({ children }) => (
                 <strong className="font-bold text-discord-textHeader">
-                  {children}
+                  {wrapMentions(children)}
                 </strong>
               ),
-              em: ({ children }) => <em className="italic">{children}</em>,
+              em: ({ children }) => (
+                <em className="italic">{wrapMentions(children)}</em>
+              ),
               del: ({ children }) => (
                 <del className="line-through text-discord-textMuted">
-                  {children}
+                  {wrapMentions(children)}
                 </del>
               ),
             }}

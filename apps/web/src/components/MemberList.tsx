@@ -1,120 +1,324 @@
 import React from "react";
-import { Guild, User } from "@tescord/types";
+import { Guild, User, GuildMember, Role, parseRoleIds } from "@tescord/types";
 import { Crown, ShieldCheck } from "lucide-react";
 import { UserContextMenu } from "./context-menu/UserContextMenu.js";
+import { UserProfilePopout } from "./profile/UserProfilePopout.js";
+import { resolveServerUrl } from "../config.js";
 
 interface MemberListProps {
   guild: Guild | null;
   currentUser: User;
+  className?: string;
   onMention?: (username: string) => void;
+  onSendMessage?: (content: string) => void;
+  onOpenUserSettings?: () => void;
   onKickMember?: (userId: string, username: string) => void;
   onBanMember?: (userId: string, username: string) => void;
+}
+
+interface MemberDisplayItem {
+  id: string;
+  username: string;
+  nickname?: string | null;
+  avatarUrl?: string | null;
+  status: string;
+  customStatus?: string | null;
+  bio?: string | null;
+  isOwner: boolean;
+  color?: string | null;
+  highestHoistedRole?: Role | null;
+  rawUser: User;
+  rawMember?: GuildMember | null;
+  roles: Role[];
+  joinedAt?: string;
+  createdAt?: string;
+}
+
+interface MemberGroup {
+  id: string;
+  name: string;
+  members: MemberDisplayItem[];
 }
 
 export const MemberList: React.FC<MemberListProps> = ({
   guild,
   currentUser,
+  className,
   onMention,
+  onSendMessage,
+  onOpenUserSettings,
   onKickMember,
   onBanMember,
 }) => {
-  // 从真实公会成员中提取展示列表，若无则兜底显示当前用户
-  const memberItems = React.useMemo(() => {
-    if (guild?.members && guild.members.length > 0) {
-      return guild.members.map((m) => {
-        const u = m.user || (m.userId === currentUser.id ? currentUser : null);
-        const isOwner = guild.ownerId === m.userId;
-        return {
-          id: m.userId,
-          username: m.nickname || u?.username || "未知成员",
-          avatarUrl: u?.avatarUrl,
-          status: u?.status || "ONLINE",
-          customStatus: u?.customStatus,
-          isOwner,
-        };
+  // 当前弹出用户信息卡片的选定成员及其坐标
+  const [selectedMember, setSelectedMember] = React.useState<{
+    item: MemberDisplayItem;
+    targetRect: DOMRect;
+  } | null>(null);
+
+  // 切换服务器时自动关闭已打开的卡片
+  React.useEffect(() => {
+    setSelectedMember(null);
+  }, [guild?.id]);
+
+  // 从真实公会成员中提取展示列表并按 Hoist 角色分组
+  const groups = React.useMemo<MemberGroup[]>(() => {
+    if (!guild?.members || guild.members.length === 0) {
+      return [
+        {
+          id: "online",
+          name: "在线",
+          members: [
+            {
+              id: currentUser.id,
+              username: currentUser.username,
+              avatarUrl: currentUser.avatarUrl,
+              status: currentUser.status,
+              customStatus: currentUser.customStatus || "正在体验 Tescord 🚀",
+              bio: currentUser.bio,
+              isOwner: true,
+              rawUser: currentUser,
+              rawMember: null,
+              roles: [],
+              createdAt: currentUser.createdAt,
+            },
+          ],
+        },
+      ];
+    }
+
+    const roleMap = new Map<string, Role>(
+      (guild.roles || []).map((r) => [r.id, r]),
+    );
+
+    // 解析每个成员的角色与最高显示属性
+    const items: MemberDisplayItem[] = guild.members.map((m) => {
+      const u = m.user || (m.userId === currentUser.id ? currentUser : null);
+      const isOwner = guild.ownerId === m.userId;
+
+      // 提取成员的所有角色并按权重降序排列
+      const roleIds = parseRoleIds(m.roleIds);
+      const userRoles = roleIds
+        .map((id) => roleMap.get(id))
+        .filter(Boolean) as Role[];
+      userRoles.sort((a, b) => b.position - a.position);
+
+      // 寻找最高且有颜色的角色
+      const coloredRole = userRoles.find((r) => !!r.color);
+      // 寻找最高且开启 hoist 分栏的角色
+      const hoistedRole = userRoles.find((r) => r.hoist);
+
+      const rawUser: User = u || {
+        id: m.userId,
+        username: "未知成员",
+        email: "",
+        avatarUrl: undefined,
+        status: "ONLINE",
+        createdAt: m.joinedAt || new Date().toISOString(),
+      };
+
+      return {
+        id: m.userId,
+        username: rawUser.username,
+        nickname: m.nickname,
+        avatarUrl: rawUser.avatarUrl,
+        status: rawUser.status || "ONLINE",
+        customStatus: rawUser.customStatus,
+        bio: rawUser.bio,
+        isOwner,
+        color: coloredRole?.color || null,
+        highestHoistedRole: hoistedRole || null,
+        rawUser,
+        rawMember: m,
+        roles: userRoles,
+        joinedAt: m.joinedAt,
+        createdAt: rawUser.createdAt,
+      };
+    });
+
+    // 收集所有开启了 hoist 的角色
+    const hoistedRoles = (guild.roles || [])
+      .filter((r) => r.hoist)
+      .sort((a, b) => b.position - a.position);
+
+    const groupMap = new Map<string, MemberGroup>();
+
+    // 为每个开启 hoist 的角色初始化一个分组
+    for (const r of hoistedRoles) {
+      groupMap.set(r.id, {
+        id: r.id,
+        name: r.name,
+        members: [],
       });
     }
 
-    return [
-      {
-        id: currentUser.id,
-        username: currentUser.username,
-        avatarUrl: currentUser.avatarUrl,
-        status: currentUser.status,
-        customStatus: currentUser.customStatus || "正在体验 Tescord 🚀",
-        isOwner: true,
-      },
-    ];
+    const defaultOnlineGroup: MemberGroup = {
+      id: "online",
+      name: "在线",
+      members: [],
+    };
+
+    const defaultOfflineGroup: MemberGroup = {
+      id: "offline",
+      name: "离线",
+      members: [],
+    };
+
+    // 将成员分发到对应的分组
+    for (const item of items) {
+      if (item.highestHoistedRole && groupMap.has(item.highestHoistedRole.id)) {
+        groupMap.get(item.highestHoistedRole.id)!.members.push(item);
+      } else if (item.status === "OFFLINE") {
+        defaultOfflineGroup.members.push(item);
+      } else {
+        defaultOnlineGroup.members.push(item);
+      }
+    }
+
+    // 组装最终呈现的分组列表（只展示非空分组）
+    const result: MemberGroup[] = [];
+    for (const r of hoistedRoles) {
+      const g = groupMap.get(r.id);
+      if (g && g.members.length > 0) {
+        result.push(g);
+      }
+    }
+
+    if (defaultOnlineGroup.members.length > 0) {
+      result.push(defaultOnlineGroup);
+    }
+    if (defaultOfflineGroup.members.length > 0) {
+      result.push(defaultOfflineGroup);
+    }
+
+    return result;
   }, [guild, currentUser]);
 
   return (
-    <div className="w-60 bg-discord-channelList h-full flex flex-col p-3 overflow-y-auto select-none border-l border-[#232428]">
-      <div className="text-[11px] font-bold text-discord-textMuted uppercase tracking-wider mb-2">
-        成员 — {memberItems.length}
-      </div>
+    <div
+      className={`w-60 bg-discord-channelList h-full flex flex-col p-3 overflow-y-auto select-none border-l border-[#232428] space-y-4 ${
+        className || ""
+      }`}
+    >
+      {groups.map((grp) => (
+        <div key={grp.id} className="space-y-1">
+          {/* 分组标题与人数 */}
+          <div className="text-[11px] font-bold text-discord-textMuted uppercase tracking-wider px-1">
+            {grp.name} — {grp.members.length}
+          </div>
 
-      <div className="space-y-1">
-        {memberItems.map((m) => (
-          <UserContextMenu
-            key={m.id}
-            targetUser={{
-              id: m.id,
-              username: m.username,
-              avatarUrl: m.avatarUrl,
-              status: m.status as any,
-            }}
-            guild={guild}
-            onMention={onMention}
-            onKickMember={onKickMember}
-            onBanMember={onBanMember}
-          >
-            <div className="flex items-center space-x-2.5 p-1.5 rounded hover:bg-discord-hover transition cursor-pointer group">
-              <div className="relative flex-shrink-0">
-                <img
-                  src={
-                    m.avatarUrl ||
-                    "https://api.dicebear.com/7.x/bottts/svg?seed=user"
-                  }
-                  alt={m.username}
-                  className="w-8 h-8 rounded-full bg-[#1e1f22]"
-                />
-                <span
-                  className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-discord-channelList ${
-                    m.status === "ONLINE"
-                      ? "bg-emerald-500"
-                      : m.status === "IDLE"
-                        ? "bg-amber-500"
-                        : m.status === "DND"
+          {/* 成员项目 */}
+          <div className="space-y-0.5">
+            {grp.members.map((m) => (
+              <UserContextMenu
+                key={m.id}
+                targetUser={{
+                  id: m.id,
+                  username: m.username,
+                  avatarUrl: m.avatarUrl,
+                  status: m.status as any,
+                }}
+                guild={guild}
+                onMention={onMention}
+                onKickMember={onKickMember}
+                onBanMember={onBanMember}
+              >
+                <div
+                  data-member-item={m.id}
+                  onClick={(e) => {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    // 若点击当前已展开成员则折叠关闭；若点击新成员则直接无缝切换
+                    if (selectedMember?.item.id === m.id) {
+                      setSelectedMember(null);
+                    } else {
+                      setSelectedMember({
+                        item: m,
+                        targetRect: rect,
+                      });
+                    }
+                  }}
+                  className={`flex items-center space-x-2.5 p-1.5 rounded transition cursor-pointer group ${
+                    selectedMember?.item.id === m.id
+                      ? "bg-discord-hover text-white"
+                      : "hover:bg-discord-hover"
+                  }`}
+                >
+                  <div className="relative flex-shrink-0">
+                    <img
+                      src={
+                        resolveServerUrl(m.avatarUrl) ||
+                        "https://api.dicebear.com/7.x/bottts/svg?seed=" + m.id
+                      }
+                      alt={m.username}
+                      className="w-8 h-8 rounded-full bg-[#1e1f22] object-cover"
+                    />
+                    <span
+                      className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-discord-channelList ${
+                        m.status === "ONLINE"
+                          ? "bg-emerald-500"
+                          : m.status === "IDLE"
+                          ? "bg-amber-500"
+                          : m.status === "DND"
                           ? "bg-rose-500"
                           : "bg-gray-400"
-                  }`}
-                />
-              </div>
-              <div className="flex flex-col min-w-0">
-                <div className="flex items-center space-x-1">
-                  <span className="text-xs font-semibold text-discord-textHeader truncate">
-                    {m.username}
-                  </span>
-                  {m.isOwner ? (
-                    <span title="服务器拥有者">
-                      <Crown className="w-3.5 h-3.5 text-amber-400 flex-shrink-0" />
-                    </span>
-                  ) : (
-                    <span title="已认证成员">
-                      <ShieldCheck className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
-                    </span>
-                  )}
+                      }`}
+                    />
+                  </div>
+
+                  <div className="flex-1 min-w-0 flex flex-col justify-center">
+                    <div className="flex items-center space-x-1">
+                      <span
+                        className="text-xs font-semibold truncate group-hover:text-white transition-colors"
+                        style={{ color: m.color || undefined }}
+                      >
+                        {m.nickname || m.username}
+                      </span>
+                      {m.isOwner && (
+                        <span title="服务器所有者" className="flex-shrink-0">
+                          <Crown className="w-3.5 h-3.5 text-amber-400" />
+                        </span>
+                      )}
+                    </div>
+                    {m.customStatus && (
+                      <span className="text-[10px] text-discord-textMuted truncate">
+                        {m.customStatus}
+                      </span>
+                    )}
+                  </div>
                 </div>
-                {m.customStatus && (
-                  <span className="text-[10px] text-discord-textMuted truncate">
-                    {m.customStatus}
-                  </span>
-                )}
-              </div>
-            </div>
-          </UserContextMenu>
-        ))}
-      </div>
+              </UserContextMenu>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      {/* 仿 Discord 用户信息浮动卡片 (User Popout) */}
+      {selectedMember && (
+        <UserProfilePopout
+          isOpen={true}
+          onClose={() => setSelectedMember(null)}
+          targetRect={selectedMember.targetRect}
+          user={selectedMember.item.rawUser}
+          member={selectedMember.item.rawMember}
+          guild={guild}
+          currentUser={currentUser}
+          roles={selectedMember.item.roles}
+          isOwner={selectedMember.item.isOwner}
+          onOpenSettings={onOpenUserSettings}
+          onMention={(username) => {
+            if (onMention) {
+              onMention(username);
+            } else {
+              window.dispatchEvent(
+                new CustomEvent("tescord:mention", { detail: { username } }),
+              );
+            }
+          }}
+          onSendMessage={onSendMessage}
+          onKickMember={onKickMember}
+          onBanMember={onBanMember}
+        />
+      )}
     </div>
   );
 };

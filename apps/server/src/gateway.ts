@@ -121,6 +121,7 @@ export class GatewayManager {
                     avatarUrl: true,
                     status: true,
                     customStatus: true,
+                    bio: true,
                     createdAt: true,
                   },
                 },

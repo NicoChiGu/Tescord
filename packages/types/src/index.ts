@@ -63,6 +63,7 @@ export enum PermissionFlags {
   MANAGE_CHANNELS = 1 << 4, // 0x00000010
   MANAGE_GUILD = 1 << 5, // 0x00000020
   ADD_REACTIONS = 1 << 6, // 0x00000040
+  VIEW_AUDIT_LOG = 1 << 7, // 0x00000080
   VIEW_CHANNEL = 1 << 10, // 0x00000400
   SEND_MESSAGES = 1 << 11, // 0x00000800
   MANAGE_MESSAGES = 1 << 13, // 0x00002000
@@ -70,8 +71,51 @@ export enum PermissionFlags {
   READ_MESSAGE_HISTORY = 1 << 16, // 0x00010000
   CONNECT = 1 << 20, // 0x00100000
   SPEAK = 1 << 21, // 0x00200000
+  MUTE_MEMBERS = 1 << 22, // 0x00400000
+  DEAFEN_MEMBERS = 1 << 23, // 0x00800000
+  MOVE_MEMBERS = 1 << 24, // 0x01000000
   STREAM = 1 << 25, // 0x02000000
+  MANAGE_ROLES = 1 << 26, // 0x04000000
+  CHANGE_NICKNAME = 1 << 27, // 0x08000000
+  MANAGE_NICKNAMES = 1 << 28, // 0x10000000
 }
+
+export interface PermissionDefinition {
+  flag: PermissionFlags;
+  name: string;
+  description: string;
+  category: "GENERAL" | "MEMBERSHIP" | "TEXT" | "VOICE" | "ADVANCED";
+}
+
+export const ALL_PERMISSIONS: PermissionDefinition[] = [
+  // 通用管理
+  { flag: PermissionFlags.VIEW_AUDIT_LOG, name: "查看审计日志", description: "允许成员查看服务器管理操作的记录流水。", category: "GENERAL" },
+  { flag: PermissionFlags.MANAGE_GUILD, name: "管理服务器", description: "允许成员修改服务器名称、更换图标和全局设置。", category: "GENERAL" },
+  { flag: PermissionFlags.MANAGE_ROLES, name: "管理角色", description: "允许成员创建新角色并编辑低于此职级的角色与权限。", category: "GENERAL" },
+  { flag: PermissionFlags.MANAGE_CHANNELS, name: "管理频道", description: "允许成员创建、编辑或删除频道与分类。", category: "GENERAL" },
+  // 成员处置与邀请
+  { flag: PermissionFlags.KICK_MEMBERS, name: "踢出成员", description: "允许成员将低于此职级的成员移出此服务器。", category: "MEMBERSHIP" },
+  { flag: PermissionFlags.BAN_MEMBERS, name: "封禁成员", description: "允许成员将低于此职级的成员永久封禁并列入黑名单。", category: "MEMBERSHIP" },
+  { flag: PermissionFlags.CREATE_INVITE, name: "创建邀请", description: "允许成员创建服务器邀请码邀请新用户加入。", category: "MEMBERSHIP" },
+  { flag: PermissionFlags.CHANGE_NICKNAME, name: "修改昵称", description: "允许成员修改自己在服务器内的专属昵称。", category: "MEMBERSHIP" },
+  { flag: PermissionFlags.MANAGE_NICKNAMES, name: "管理昵称", description: "允许成员修改其他成员的昵称。", category: "MEMBERSHIP" },
+  // 文本频道权限
+  { flag: PermissionFlags.VIEW_CHANNEL, name: "查看频道", description: "允许成员查看频道列表并阅读文本频道内容。", category: "TEXT" },
+  { flag: PermissionFlags.SEND_MESSAGES, name: "发送消息", description: "允许成员在文字频道中发送消息。", category: "TEXT" },
+  { flag: PermissionFlags.ATTACH_FILES, name: "发送附件", description: "允许成员在文字频道中上传图片、文件或媒体附件。", category: "TEXT" },
+  { flag: PermissionFlags.ADD_REACTIONS, name: "添加反应", description: "允许成员在已有消息上添加表情反应。", category: "TEXT" },
+  { flag: PermissionFlags.READ_MESSAGE_HISTORY, name: "阅读历史消息", description: "允许成员查看频道过去的聊天记录。", category: "TEXT" },
+  { flag: PermissionFlags.MANAGE_MESSAGES, name: "管理消息", description: "允许成员删除或置顶其他成员发送的消息。", category: "TEXT" },
+  // 语音频道权限
+  { flag: PermissionFlags.CONNECT, name: "连接语音", description: "允许成员加入并收听语音频道。", category: "VOICE" },
+  { flag: PermissionFlags.SPEAK, name: "说话开麦", description: "允许成员在语音频道中自由开麦发言。", category: "VOICE" },
+  { flag: PermissionFlags.STREAM, name: "屏幕共享", description: "允许成员在语音频道中分享屏幕或摄像头视频流。", category: "VOICE" },
+  { flag: PermissionFlags.MUTE_MEMBERS, name: "禁言闭麦成员", description: "允许成员在语音频道中静音闭麦其他成员。", category: "VOICE" },
+  { flag: PermissionFlags.DEAFEN_MEMBERS, name: "禁听成员", description: "允许成员在语音频道中抑制其他成员的收听状态。", category: "VOICE" },
+  { flag: PermissionFlags.MOVE_MEMBERS, name: "移动成员", description: "允许成员在不同语音频道之间拖拽转移成员。", category: "VOICE" },
+  // 高级管理
+  { flag: PermissionFlags.ADMINISTRATOR, name: "管理员 (最高特权)", description: "拥有服务器的全部最高特权，无视其他所有权限限制，请极其慎重授予！", category: "ADVANCED" },
+];
 
 export interface Role {
   id: string;
@@ -81,6 +125,7 @@ export interface Role {
   hoist: boolean;
   position: number;
   permissions: number; // 位掩码组合
+  isDefault?: boolean; // 是否是 @everyone 默认兜底角色
   createdAt: string;
 }
 
@@ -99,6 +144,21 @@ export function hasPermission(
 
 export function computePermissions(roles: Role[]): number {
   return roles.reduce((acc, r) => acc | r.permissions, 0);
+}
+
+export function parseRoleIds(raw: any): string[] {
+  if (Array.isArray(raw)) return raw.filter((id): id is string => typeof id === "string");
+  if (typeof raw === "string") {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        return parsed.filter((id): id is string => typeof id === "string");
+      }
+    } catch {
+      return [];
+    }
+  }
+  return [];
 }
 
 // 3. 频道与公会 (Guild / Server)
@@ -122,6 +182,7 @@ export interface GuildMember {
   guildId: string;
   nickname?: string | null;
   roleIds: string[];
+  roles?: Role[];
   joinedAt: string;
   user?: User;
 }
@@ -130,31 +191,107 @@ export interface Guild {
   id: string;
   name: string;
   iconUrl?: string | null;
+  description?: string | null;
   ownerId: string;
   channels: Channel[];
   members: GuildMember[];
   roles?: Role[];
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Invite {
   code: string;
   guildId: string;
   inviterId: string;
+  inviter?: User;
   maxUses?: number;
   uses: number;
   expiresAt?: string | null;
   createdAt: string;
 }
 
+export interface GuildBan {
+  id: string;
+  guildId: string;
+  userId: string;
+  user?: User;
+  reason?: string | null;
+  createdAt: string;
+}
+
+export interface BanMemberDTO {
+  reason?: string;
+}
+
+export enum AuditLogAction {
+  GUILD_UPDATE = "GUILD_UPDATE",
+  ROLE_CREATE = "ROLE_CREATE",
+  ROLE_UPDATE = "ROLE_UPDATE",
+  ROLE_DELETE = "ROLE_DELETE",
+  MEMBER_KICK = "MEMBER_KICK",
+  MEMBER_BAN_ADD = "MEMBER_BAN_ADD",
+  MEMBER_BAN_REMOVE = "MEMBER_BAN_REMOVE",
+  MEMBER_ROLE_UPDATE = "MEMBER_ROLE_UPDATE",
+  INVITE_CREATE = "INVITE_CREATE",
+  INVITE_DELETE = "INVITE_DELETE",
+  CHANNEL_CREATE = "CHANNEL_CREATE",
+  CHANNEL_UPDATE = "CHANNEL_UPDATE",
+  CHANNEL_DELETE = "CHANNEL_DELETE",
+}
+
+export interface AuditLogEntry {
+  id: string;
+  guildId: string;
+  userId: string;
+  user?: User;
+  action: AuditLogAction | string;
+  targetId?: string | null;
+  targetName?: string | null;
+  changesJson?: string | null;
+  changes?: Record<string, { old?: any; new?: any }>;
+  reason?: string | null;
+  createdAt: string;
+}
+
 export interface CreateGuildDTO {
   name: string;
   iconUrl?: string | null;
+  description?: string | null;
 }
 
 export interface UpdateGuildDTO {
   name?: string;
   iconUrl?: string | null;
+  description?: string | null;
+}
+
+export interface TransferOwnershipDTO {
+  newOwnerId: string;
+}
+
+export interface CreateRoleDTO {
+  name: string;
+  color?: string | null;
+  hoist?: boolean;
+  permissions?: number;
+}
+
+export interface UpdateRoleDTO {
+  name?: string;
+  color?: string | null;
+  hoist?: boolean;
+  position?: number;
+  permissions?: number;
+}
+
+export interface UpdateRolePositionsDTO {
+  roles: Array<{ id: string; position: number }>;
+}
+
+export interface UpdateMemberRolesDTO {
+  roleIds: string[];
+  nickname?: string | null;
 }
 
 export interface CreateChannelDTO {
@@ -399,8 +536,15 @@ export const GatewayEvents = {
   USER_UPDATE: "USER_UPDATE",
   GUILD_CREATE: "GUILD_CREATE",
   GUILD_UPDATE: "GUILD_UPDATE",
+  GUILD_DELETE: "GUILD_DELETE",
   GUILD_MEMBER_ADD: "GUILD_MEMBER_ADD",
   GUILD_MEMBER_REMOVE: "GUILD_MEMBER_REMOVE",
+  GUILD_MEMBER_UPDATE: "GUILD_MEMBER_UPDATE",
+  GUILD_ROLE_CREATE: "GUILD_ROLE_CREATE",
+  GUILD_ROLE_UPDATE: "GUILD_ROLE_UPDATE",
+  GUILD_ROLE_DELETE: "GUILD_ROLE_DELETE",
+  GUILD_BAN_ADD: "GUILD_BAN_ADD",
+  GUILD_BAN_REMOVE: "GUILD_BAN_REMOVE",
   CHANNEL_CREATE: "CHANNEL_CREATE",
   CHANNEL_UPDATE: "CHANNEL_UPDATE",
   CHANNEL_DELETE: "CHANNEL_DELETE",

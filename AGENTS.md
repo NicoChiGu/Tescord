@@ -29,7 +29,7 @@
 | **`audio-webrtc`**      | **音视频与算法专家** | LiveKit SFU 媒体服务集成、WebRTC PeerConnection 生命周期管理、AudioWorklet 隔离线程、RNNoise WASM 神经网络降噪管线、声卡混音与 Coturn 网络穿透。 |
 | **`backend-devops`**    | **后端与运维专家**   | Fastify REST API、WebSocket 网关长连接状态机、PostgreSQL + Prisma 数据建模、Redis Pub/Sub 广播、MinIO 对象存储与 Docker Compose 生产编排。       |
 | **`security-crypto`**   | **安全与密码学专家** | SFrame (WebRTC Insertable Streams) 音频端到端加密、Double Ratchet 文本频道加密、Argon2id/JWT 身份鉴权与安全审计。                                |
-| **`qa-verification`**   | **质量与验证专家**   | 编写 Vitest 自动化单元测试、Playwright 跨端并发集成测试、弱网丢包模拟与降噪信噪比客观评估。                                                      |
+| **`qa-verification`**   | **质量与验证专家**   | 编写 Vitest 自动化单元测试、Playwright 跨端并发集成测试、端到端自动化验收、弱网丢包模拟与降噪信噪比客观评估。                                  |
 
 ---
 
@@ -90,6 +90,9 @@ pnpm dev:web
 # 启动 Electron 桌面客户端
 pnpm dev:desktop
 
+# 运行 Playwright 端到端自动化验收测试
+pnpm test:e2e
+
 # 代码格式化
 pnpm format
 ```
@@ -106,3 +109,7 @@ pnpm format
    - 文件路径必须使用平台无关的方式处理（如 `path.join`），杜绝在 Windows/Linux 间出现硬编码反斜杠或斜杠问题。
 3. **音频与媒体资源释放**：
    - 音频 AudioContext、MediaStream、WebSocket 连接在组件卸载或离开频道时，必须有明确的 `cleanup` 清理逻辑，防止内存与硬件占用泄露。
+4. **UI 与核心交互端到端验收 (Playwright E2E Mandatory)**：
+   - 凡涉及 Web/Desktop 前端界面展示、用户交互行为、音视频面板、右键菜单或端到端核心链路的改动，**在最终交付前必须运行并通过 Playwright 自动化验收测试**（`pnpm test:e2e` 或专项 Playwright 脚本）。
+   - **验收指标与凭证**：测试用例必须 100% 通过（PASS），控制台无未捕获的严重错误（Console Error）。Agent 在任务完成汇报中，**必须附带 Playwright 测试通过的执行日志或测试凭据**。
+   - **用例补充红线**：若开发了新交互功能或重构了核心交互流程，必须同步在 `e2e/` 补充配套的 Playwright 测试用例，严禁未经浏览器真实渲染验证即交付。

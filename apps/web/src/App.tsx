@@ -2,9 +2,12 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   Channel,
   Guild,
+  Role,
+  GuildMember,
   Message,
   VoiceState,
   Attachment,
+  parseRoleIds,
 } from "@tescord/types";
 import { Sidebar } from "./components/Sidebar.js";
 import { ChannelSidebar } from "./components/ChannelSidebar.js";
@@ -14,10 +17,12 @@ import { MemberList } from "./components/MemberList.js";
 import { AudioSettingsModal } from "./components/AudioSettingsModal.js";
 import { AuthModal } from "./components/auth/AuthModal.js";
 import { UserSettingsModal } from "./components/settings/UserSettingsModal.js";
+import { ServerSettingsModal } from "./components/server-settings/ServerSettingsModal.js";
 import { CreateGuildModal } from "./components/modals/CreateGuildModal.js";
 import { JoinGuildModal } from "./components/modals/JoinGuildModal.js";
 import { CreateChannelModal } from "./components/modals/CreateChannelModal.js";
 import { ScreenShareModal } from "./components/modals/ScreenShareModal.js";
+import { NetworkQualityModal } from "./components/modals/NetworkQualityModal.js";
 import { FloatingPiP } from "./components/FloatingPiP.js";
 import { useAuthStore } from "./stores/useAuthStore.js";
 import { gatewayClient } from "./services/gateway.js";
@@ -31,6 +36,7 @@ import { SCREEN_SHARE_PRESETS } from "@tescord/types";
 import { API_BASE } from "./config.js";
 import { useViewport } from "./hooks/useViewport.js";
 import { useSwipeGesture } from "./hooks/useSwipeGesture.js";
+import { X } from "lucide-react";
 
 export const App: React.FC = () => {
   const {
@@ -49,7 +55,12 @@ export const App: React.FC = () => {
   const [selectedGuildId, setSelectedGuildId] = useState<string | null>(null);
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
 
-  // 移动端左右滑动呼出与收起抽屉手势
+  // 切换频道或切换至宽屏桌面端时，自动收起移动端/平板端右侧抽屉
+  useEffect(() => {
+    setIsMobileMemberOpen(false);
+  }, [selectedChannel?.id, isDesktop]);
+
+  // 移动端与平板端左右滑动呼出与收起抽屉手势
   useSwipeGesture(
     {
       onOpenLeftDrawer: () => {
@@ -62,18 +73,18 @@ export const App: React.FC = () => {
         if (isMobile) setIsMobileDrawerOpen(false);
       },
       onOpenRightDrawer: () => {
-        if (isMobile && selectedChannel?.type === "TEXT") {
+        if (!isDesktop && selectedChannel?.type === "TEXT") {
           setIsMobileMemberOpen(true);
-          setIsMobileDrawerOpen(false);
+          if (isMobile) setIsMobileDrawerOpen(false);
         }
       },
       onCloseRightDrawer: () => {
-        if (isMobile) setIsMobileMemberOpen(false);
+        if (!isDesktop) setIsMobileMemberOpen(false);
       },
       isLeftDrawerOpen: isMobileDrawerOpen,
       isRightDrawerOpen: isMobileMemberOpen,
     },
-    isMobile,
+    !isDesktop,
   );
   const [activeVoiceChannelId, setActiveVoiceChannelId] = useState<
     string | null
@@ -107,22 +118,65 @@ export const App: React.FC = () => {
   // 模态框显隐状态
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
+  const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
+  const [serverSettingsTargetGuild, setServerSettingsTargetGuild] =
+    useState<Guild | null>(null);
   const [isCreateGuildOpen, setIsCreateGuildOpen] = useState(false);
   const [isJoinGuildOpen, setIsJoinGuildOpen] = useState(false);
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
   const [isScreenShareModalOpen, setIsScreenShareModalOpen] = useState(false);
+  const [isNetworkQualityModalOpen, setIsNetworkQualityModalOpen] =
+    useState(false);
 
   // 初始化鉴权状态
   useEffect(() => {
     initAuth();
   }, [initAuth]);
 
-  // 全局屏蔽浏览器原生右键菜单，按住 Shift+右键 可呼出原生菜单作为逃生通道
+  // 全局右键菜单控制：保留业务右键菜单，放行输入框、选中文本、链接与媒体，仅屏蔽空白背景
   useEffect(() => {
     const handleGlobalContextMenu = (e: MouseEvent) => {
-      if (e.shiftKey) {
-        return; // Shift+右键 开发者逃生通道
+      // 1. 如果已被内部组件 (如 Radix UI 业务右键菜单) 消费并阻止默认行为，直接放行
+      if (e.defaultPrevented) {
+        return;
       }
+
+      // 2. Shift+右键：开发者/用户逃生通道，直接放行
+      if (e.shiftKey) {
+        return;
+      }
+
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+
+      // 3. 原生输入控件或可编辑区域：放行剪切/复制/粘贴
+      const isEditable =
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        target.isContentEditable ||
+        Boolean(target.closest("input, textarea, [contenteditable='true']"));
+
+      if (isEditable) {
+        return;
+      }
+
+      // 4. 用户正在选中文本（非空选区）：放行复制
+      const selection = window.getSelection()?.toString();
+      if (selection && selection.trim().length > 0) {
+        return;
+      }
+
+      // 5. 超链接：放行以支持复制链接地址/外部打开
+      if (target.closest("a[href]")) {
+        return;
+      }
+
+      // 6. 独立图片元素：放行以支持复制图片链接
+      if (target.tagName === "IMG" || Boolean(target.closest("img"))) {
+        return;
+      }
+
+      // 7. 其余空白与常规展示区域：屏蔽浏览器默认菜单（避免弹出浏览器的前进/后退/打印等）
       e.preventDefault();
     };
 
@@ -361,6 +415,110 @@ export const App: React.FC = () => {
       },
     );
 
+    const unbindGuildUpdate = gatewayClient.on(
+      "GUILD_UPDATE",
+      (data: any) => {
+        setGuilds((prev) =>
+          prev.map((g) => (g.id === data.id ? { ...g, ...data } : g)),
+        );
+      },
+    );
+
+    const unbindGuildDelete = gatewayClient.on(
+      "GUILD_DELETE",
+      (data: { guildId: string }) => {
+        setGuilds((prev) => prev.filter((g) => g.id !== data.guildId));
+        if (selectedGuildIdRef.current === data.guildId) {
+          setSelectedGuildId(null);
+          setSelectedChannel(null);
+        }
+      },
+    );
+
+    const unbindRoleCreate = gatewayClient.on(
+      "GUILD_ROLE_CREATE",
+      (data: { guildId: string; role: Role }) => {
+        setGuilds((prev) =>
+          prev.map((g) =>
+            g.id === data.guildId
+              ? { ...g, roles: [...(g.roles || []), data.role] }
+              : g,
+          ),
+        );
+      },
+    );
+
+    const unbindRoleUpdate = gatewayClient.on(
+      "GUILD_ROLE_UPDATE",
+      (data: { guildId: string; role: Role }) => {
+        setGuilds((prev) =>
+          prev.map((g) =>
+            g.id === data.guildId
+              ? {
+                  ...g,
+                  roles: (g.roles || []).map((r) =>
+                    r.id === data.role.id ? data.role : r,
+                  ),
+                }
+              : g,
+          ),
+        );
+      },
+    );
+
+    const unbindRoleDelete = gatewayClient.on(
+      "GUILD_ROLE_DELETE",
+      (data: { guildId: string; roleId: string }) => {
+        setGuilds((prev) =>
+          prev.map((g) =>
+            g.id === data.guildId
+              ? {
+                  ...g,
+                  roles: (g.roles || []).filter((r) => r.id !== data.roleId),
+                  members: (g.members || []).map((m) => ({
+                    ...m,
+                    roleIds: parseRoleIds(m.roleIds).filter(
+                      (id) => id !== data.roleId,
+                    ),
+                  })),
+                }
+              : g,
+          ),
+        );
+      },
+    );
+
+    const unbindMemberUpdate = gatewayClient.on(
+      "GUILD_MEMBER_UPDATE",
+      (data: { guildId: string; member: GuildMember }) => {
+        setGuilds((prev) =>
+          prev.map((g) =>
+            g.id === data.guildId
+              ? {
+                  ...g,
+                  members: (g.members || []).map((m) =>
+                    m.userId === data.member.userId ? data.member : m,
+                  ),
+                }
+              : g,
+          ),
+        );
+      },
+    );
+
+    const unbindBanAdd = gatewayClient.on(
+      "GUILD_BAN_ADD",
+      (data: { guildId: string; ban: any }) => {
+        if (data.ban?.userId === currentUser?.id) {
+          setGuilds((prev) => prev.filter((g) => g.id !== data.guildId));
+          if (selectedGuildIdRef.current === data.guildId) {
+            setSelectedGuildId(null);
+            setSelectedChannel(null);
+          }
+        }
+      },
+    );
+
     return () => {
       unbindReady();
       unbindMsgCreate();
@@ -369,6 +527,13 @@ export const App: React.FC = () => {
       unbindReactionRemove();
       unbindPinUpdate();
       unbindGuildCreate();
+      unbindGuildUpdate();
+      unbindGuildDelete();
+      unbindRoleCreate();
+      unbindRoleUpdate();
+      unbindRoleDelete();
+      unbindMemberUpdate();
+      unbindBanAdd();
       unbindChannelCreate();
       unbindChannelDelete();
       unbindChannelUpdate();
@@ -962,6 +1127,17 @@ export const App: React.FC = () => {
     return <AuthModal />;
   }
 
+  const handleOpenServerSettings = (targetGuild?: Guild) => {
+    setServerSettingsTargetGuild(targetGuild || currentGuild || null);
+    setIsServerSettingsOpen(true);
+  };
+
+  const activeVoiceChannelObj = activeVoiceChannelId
+    ? guilds
+        .flatMap((g) => g.channels || [])
+        .find((c) => c.id === activeVoiceChannelId) || null
+    : null;
+
   const renderSidebarElements = (isDrawer: boolean = false) => (
     <>
       {/* 1. 最左侧公会导航侧栏 */}
@@ -981,7 +1157,7 @@ export const App: React.FC = () => {
         onOpenCreateGuild={() => setIsCreateGuildOpen(true)}
         onOpenJoinGuild={() => setIsJoinGuildOpen(true)}
         onOpenCreateChannel={() => setIsCreateChannelOpen(true)}
-        onOpenServerSettings={() => setIsSettingsOpen(true)}
+        onOpenServerSettings={(targetG) => handleOpenServerSettings(targetG)}
         onLeaveGuild={handleLeaveGuild}
         onMarkGuildAsRead={handleMarkGuildAsRead}
       />
@@ -992,6 +1168,7 @@ export const App: React.FC = () => {
         channels={currentChannels}
         selectedChannelId={selectedChannel?.id || ""}
         activeVoiceChannelId={activeVoiceChannelId}
+        activeVoiceChannelObj={activeVoiceChannelObj}
         voiceStates={voiceStates}
         currentUser={currentUser}
         isMuted={isMuted}
@@ -1015,11 +1192,12 @@ export const App: React.FC = () => {
         onToggleDeafen={handleToggleDeafen}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenUserSettings={() => setIsUserSettingsOpen(true)}
+        onOpenNetworkStats={() => setIsNetworkQualityModalOpen(true)}
         onToggleScreenShare={handleToggleScreenShare}
         onOpenCreateChannel={() => setIsCreateChannelOpen(true)}
         onDeleteChannel={handleDeleteChannel}
         onEditChannel={handleEditChannel}
-        onOpenServerSettings={() => setIsSettingsOpen(true)}
+        onOpenServerSettings={(targetG) => handleOpenServerSettings(targetG)}
         onLeaveGuild={handleLeaveGuild}
         onMarkGuildAsRead={handleMarkGuildAsRead}
         onMarkChannelAsRead={handleMarkChannelAsRead}
@@ -1075,7 +1253,7 @@ export const App: React.FC = () => {
           onReactionRemove={handleReactionRemove}
           onTogglePin={handleTogglePin}
           onDeleteMessage={handleDeleteMessage}
-          showMemberList={showMemberList}
+          showMemberList={isDesktop ? showMemberList : isMobileMemberOpen}
           onToggleMemberList={() => setShowMemberList(!showMemberList)}
           onToggleMobileDrawer={() => setIsMobileDrawerOpen((prev) => !prev)}
           onToggleMobileMemberList={() =>
@@ -1096,30 +1274,89 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* 桌面端右侧成员列表 */}
-      {!isMobile && showMemberList && selectedChannel?.type === "TEXT" && (
-        <MemberList
-          guild={currentGuild}
-          currentUser={currentUser}
-          onKickMember={handleKickMember}
-          onBanMember={handleBanMember}
-        />
-      )}
-
-      {/* 移动端右侧成员抽屉 */}
-      {isMobile && isMobileMemberOpen && selectedChannel?.type === "TEXT" && (
-        <div className="fixed inset-0 z-40 flex justify-end md:hidden">
-          <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm animate-fade-in"
-            onClick={() => setIsMobileMemberOpen(false)}
-          />
-          <div className="relative z-10 h-full w-72 max-w-[80vw] shadow-2xl animate-slide-left bg-discord-channelList border-l border-[#3f4147]">
+      {/* 桌面端常驻右侧成员列表：外层剪裁平滑宽度过渡（Reflow-free） */}
+      {isDesktop && selectedChannel?.type === "TEXT" && (
+        <aside
+          data-testid="member-list-aside"
+          className={`h-full overflow-hidden transition-[width] duration-300 ease-in-out flex-shrink-0 ${
+            showMemberList ? "w-60" : "w-0"
+          }`}
+          aria-hidden={!showMemberList}
+        >
+          <div className="w-60 h-full">
             <MemberList
               guild={currentGuild}
               currentUser={currentUser}
+              onSendMessage={handleSendMessage}
+              onOpenUserSettings={() => setIsUserSettingsOpen(true)}
+              onMention={(username) => {
+                window.dispatchEvent(
+                  new CustomEvent("tescord:mention", { detail: { username } }),
+                );
+              }}
               onKickMember={handleKickMember}
               onBanMember={handleBanMember}
             />
+          </div>
+        </aside>
+      )}
+
+      {/* 移动端与平板端右侧成员抽屉：双向平滑进出过渡动画 */}
+      {!isDesktop && selectedChannel?.type === "TEXT" && (
+        <div
+          data-testid="member-list-drawer"
+          className={`fixed inset-0 z-40 flex justify-end transition-all duration-300 ${
+            isMobileMemberOpen
+              ? "pointer-events-auto visible"
+              : "pointer-events-none invisible delay-300"
+          }`}
+          aria-hidden={!isMobileMemberOpen}
+        >
+          {/* 背景毛玻璃遮罩 */}
+          <div
+            data-testid="member-list-backdrop"
+            className={`fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ease-out ${
+              isMobileMemberOpen ? "opacity-100" : "opacity-0"
+            }`}
+            onClick={() => setIsMobileMemberOpen(false)}
+          />
+          {/* 抽屉面板主体 */}
+          <div
+            data-testid="member-list-drawer-panel"
+            className={`relative z-10 h-full w-72 max-w-[80vw] shadow-2xl bg-discord-channelList border-l border-[#3f4147] transition-transform duration-300 ease-out transform flex flex-col ${
+              isMobileMemberOpen ? "translate-x-0" : "translate-x-full"
+            }`}
+          >
+            {/* 移动/平板端抽屉顶部标题与关闭按钮 */}
+            <div className="h-12 border-b border-[#232428] px-4 flex items-center justify-between flex-shrink-0 text-discord-textHeader font-semibold">
+              <span className="text-sm">频道成员</span>
+              <button
+                type="button"
+                data-testid="close-member-drawer-btn"
+                onClick={() => setIsMobileMemberOpen(false)}
+                className="p-1 rounded text-discord-textMuted hover:text-white hover:bg-[#35373c] transition"
+                title="关闭成员列表"
+                aria-label="关闭成员列表"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <MemberList
+                className="w-full border-l-0"
+                guild={currentGuild}
+                currentUser={currentUser}
+                onSendMessage={handleSendMessage}
+                onOpenUserSettings={() => setIsUserSettingsOpen(true)}
+                onMention={(username) => {
+                  window.dispatchEvent(
+                    new CustomEvent("tescord:mention", { detail: { username } }),
+                  );
+                }}
+                onKickMember={handleKickMember}
+                onBanMember={handleBanMember}
+              />
+            </div>
           </div>
         </div>
       )}
@@ -1218,6 +1455,39 @@ export const App: React.FC = () => {
             onClose={() => setShowFloatingPiP(false)}
           />
         )}
+
+      {/* 12. 服务器管理员设置与配置面板 (全屏沉浸式) */}
+      <ServerSettingsModal
+        isOpen={isServerSettingsOpen}
+        guild={serverSettingsTargetGuild || currentGuild}
+        onClose={() => setIsServerSettingsOpen(false)}
+        onGuildUpdated={(updatedGuild) => {
+          setGuilds((prev) =>
+            prev.map((g) => (g.id === updatedGuild.id ? updatedGuild : g)),
+          );
+        }}
+        onGuildDeleted={(deletedGuildId) => {
+          setGuilds((prev) => prev.filter((g) => g.id !== deletedGuildId));
+          if (selectedGuildId === deletedGuildId) {
+            const remaining = guilds.filter((g) => g.id !== deletedGuildId);
+            if (remaining.length > 0) {
+              setSelectedGuildId(remaining[0].id);
+              setSelectedChannel(remaining[0].channels[0] || null);
+            } else {
+              setSelectedGuildId(null);
+              setSelectedChannel(null);
+            }
+          }
+        }}
+      />
+
+      {/* 13. WebRTC 媒体引擎与网络健康看板模态框 */}
+      <NetworkQualityModal
+        isOpen={isNetworkQualityModalOpen}
+        onClose={() => setIsNetworkQualityModalOpen(false)}
+        channel={activeVoiceChannelObj || selectedChannel}
+        isNoiseSuppressionEnabled={isNoiseSuppressionEnabled}
+      />
     </div>
   );
 };

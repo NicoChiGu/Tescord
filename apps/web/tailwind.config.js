@@ -3,6 +3,22 @@ export default {
   content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
+      keyframes: {
+        "context-menu-in": {
+          "0%": { opacity: "0", transform: "scale(0.96)" },
+          "100%": { opacity: "1", transform: "scale(1)" },
+        },
+        "context-menu-out": {
+          "0%": { opacity: "1", transform: "scale(1)" },
+          "100%": { opacity: "0", transform: "scale(0.96)" },
+        },
+      },
+      animation: {
+        "context-menu-in":
+          "context-menu-in 110ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
+        "context-menu-out":
+          "context-menu-out 85ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
+      },
       colors: {
         discord: {
           sidebar: "#1e1f22",

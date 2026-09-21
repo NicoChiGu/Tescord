@@ -17,6 +17,7 @@ import {
   Check,
 } from "lucide-react";
 import { API_BASE } from "../config.js";
+import { useNetworkStats } from "../hooks/useNetworkStats.js";
 import { ServerContextMenu } from "./context-menu/ServerContextMenu.js";
 import { ChannelContextMenu } from "./context-menu/ChannelContextMenu.js";
 import { UserContextMenu } from "./context-menu/UserContextMenu.js";
@@ -26,6 +27,7 @@ interface ChannelSidebarProps {
   channels: Channel[];
   selectedChannelId: string;
   activeVoiceChannelId: string | null;
+  activeVoiceChannelObj?: Channel | null;
   voiceStates: VoiceState[];
   currentUser: User;
   isMuted: boolean;
@@ -39,6 +41,7 @@ interface ChannelSidebarProps {
   onToggleDeafen: () => void;
   onOpenSettings: () => void;
   onOpenUserSettings?: () => void;
+  onOpenNetworkStats?: () => void;
   onToggleScreenShare: () => void;
   onOpenCreateChannel?: () => void;
   onDeleteChannel?: (channel: Channel) => void;
@@ -54,6 +57,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   channels,
   selectedChannelId,
   activeVoiceChannelId,
+  activeVoiceChannelObj,
   voiceStates,
   currentUser,
   isMuted,
@@ -67,6 +71,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   onToggleDeafen,
   onOpenSettings,
   onOpenUserSettings,
+  onOpenNetworkStats,
   onToggleScreenShare,
   onOpenCreateChannel,
   onDeleteChannel,
@@ -77,6 +82,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   onMarkChannelAsRead,
 }) => {
   const [copiedInvite, setCopiedInvite] = useState<string | null>(null);
+  const networkStats = useNetworkStats();
 
   const handleCreateInvite = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -110,9 +116,26 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
     return voiceStates.filter((v) => v.channelId === channelId);
   };
 
-  const activeVoiceChannel = channels.find(
-    (c) => c.id === activeVoiceChannelId,
-  );
+  const activeVoiceChannel =
+    activeVoiceChannelObj ||
+    channels.find((c) => c.id === activeVoiceChannelId);
+
+  // 网络质量颜色映射
+  const getQualityColor = (quality?: string) => {
+    switch (quality) {
+      case "excellent":
+        return "text-discord-green";
+      case "good":
+        return "text-amber-400";
+      case "poor":
+        return "text-discord-danger";
+      default:
+        return "text-discord-green";
+    }
+  };
+
+  const qualityColor = getQualityColor(networkStats?.quality);
+  const currentRtt = networkStats?.rtt || 18;
 
   return (
     <div className="w-60 bg-discord-channelList flex flex-col h-full border-r border-[#232428] select-none">
@@ -314,20 +337,35 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
       {activeVoiceChannel && (
         <div className="bg-[#202225] border-b border-[#2b2d31] p-2.5 flex flex-col space-y-2">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              <Signal className="w-4 h-4 text-discord-green animate-pulse" />
-              <div>
-                <div className="text-xs font-bold text-discord-green leading-tight">
-                  语音已连接
+            {/* 点击左侧连接状态或网络延迟均可打开网络看板 */}
+            <button
+              type="button"
+              onClick={onOpenNetworkStats}
+              className="flex items-center space-x-2 text-left hover:bg-[#35373c]/60 p-1 -ml-1 rounded-lg transition group cursor-pointer max-w-[calc(100%-36px)]"
+              title="点击打开 WebRTC 媒体引擎与网络健康看板"
+            >
+              <Signal
+                className={`w-4 h-4 ${qualityColor} animate-pulse flex-shrink-0`}
+              />
+              <div className="min-w-0">
+                <div className="flex items-center space-x-1.5 leading-tight">
+                  <span className={`text-xs font-bold ${qualityColor}`}>
+                    语音已连接
+                  </span>
+                  <span
+                    className={`text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#1e1f22] border border-[#2b2d31] ${qualityColor} group-hover:border-discord-brand transition-colors`}
+                  >
+                    {currentRtt}ms
+                  </span>
                 </div>
-                <div className="text-[11px] text-discord-textMuted truncate max-w-[120px]">
+                <div className="text-[11px] text-discord-textMuted truncate max-w-[130px]">
                   {activeVoiceChannel.name} / LiveKit SFU
                 </div>
               </div>
-            </div>
+            </button>
             <button
               onClick={onLeaveVoiceChannel}
-              className="p-1.5 text-discord-textMuted hover:text-discord-danger hover:bg-[#35373c] rounded transition"
+              className="p-1.5 text-discord-textMuted hover:text-discord-danger hover:bg-[#35373c] rounded transition flex-shrink-0"
               title="断开连接"
             >
               <PhoneOff className="w-4 h-4" />

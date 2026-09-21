@@ -151,8 +151,8 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
             <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted mb-2">
               频道名称 <span className="text-red-400">*</span>
             </label>
-            <div className="relative">
-              <span className="absolute left-3 top-2.5 text-discord-textMuted">
+            <div className="relative flex items-center">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center text-discord-textMuted pointer-events-none select-none">
                 {type === "TEXT" ? "#" : "🔊"}
               </span>
               <input

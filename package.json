@@ -8,12 +8,18 @@
     "dev:desktop": "pnpm --filter @tescord/desktop dev",
     "livekit": "powershell -ExecutionPolicy Bypass -File ./scripts/start-livekit.ps1",
     "build": "turbo run build",
+    "build:web": "turbo run build --filter=@tescord/web...",
+    "test:context-menu": "node ./scripts/test-context-menu.mjs",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
   },
   "devDependencies": {
-    "turbo": "^2.4.4",
+    "@playwright/test": "^1.63.0",
+    "playwright": "^1.63.0",
     "prettier": "^3.5.3",
+    "turbo": "^2.4.4",
     "typescript": "^5.8.2"
   },
   "packageManager": "pnpm@11.9.0"

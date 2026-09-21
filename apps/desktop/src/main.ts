@@ -8,6 +8,8 @@ import {
   Menu,
   nativeImage,
   Notification,
+  clipboard,
+  shell,
 } from "electron";
 import path from "path";
 import http from "http";
@@ -189,6 +191,77 @@ function createWindow() {
       nodeIntegration: false,
       contextIsolation: true,
     },
+  });
+
+  // 注册 WebContents 原生右键上下文菜单 (编辑、选中文本、链接、图片及开发者调试)
+  mainWindow.webContents.on("context-menu", (_event, params) => {
+    const menuTemplate: Electron.MenuItemConstructorOptions[] = [];
+
+    // 1. 可编辑区域：输入框、文本域等
+    if (params.isEditable) {
+      menuTemplate.push(
+        { role: "undo", label: "撤销" },
+        { role: "redo", label: "重做" },
+        { type: "separator" },
+        { role: "cut", label: "剪切", enabled: params.editFlags.canCut },
+        { role: "copy", label: "复制", enabled: params.editFlags.canCopy },
+        { role: "paste", label: "粘贴", enabled: params.editFlags.canPaste },
+        { type: "separator" },
+        { role: "selectAll", label: "全选", enabled: params.editFlags.canSelectAll },
+      );
+    } else if (params.selectionText && params.selectionText.trim().length > 0) {
+      // 2. 选中文本区域
+      menuTemplate.push(
+        { role: "copy", label: "复制", enabled: params.editFlags.canCopy },
+        { role: "selectAll", label: "全选", enabled: params.editFlags.canSelectAll },
+      );
+    }
+
+    // 3. 超链接右键
+    if (params.linkURL) {
+      if (menuTemplate.length > 0) menuTemplate.push({ type: "separator" });
+      menuTemplate.push(
+        {
+          label: "复制链接地址",
+          click: () => clipboard.writeText(params.linkURL),
+        },
+        {
+          label: "在外部浏览器中打开",
+          click: () => shell.openExternal(params.linkURL),
+        },
+      );
+    }
+
+    // 4. 图片右键
+    if (params.hasImageContents && params.srcURL) {
+      if (menuTemplate.length > 0) menuTemplate.push({ type: "separator" });
+      menuTemplate.push({
+        label: "复制图片链接",
+        click: () => clipboard.writeText(params.srcURL),
+      });
+    }
+
+    // 5. 开发者调试辅助（仅在存在有效操作项且处于非 production 环境时追加）
+    if (menuTemplate.length > 0 && process.env.NODE_ENV !== "production") {
+      menuTemplate.push(
+        { type: "separator" },
+        {
+          label: "检查元素 (Inspect Element)",
+          click: () => {
+            mainWindow?.webContents.inspectElement(params.x, params.y);
+          },
+        },
+        {
+          role: "reload",
+          label: "重新加载页面",
+        },
+      );
+    }
+
+    // 仅当存在有效菜单项时弹出系统原生上下文菜单
+    if (menuTemplate.length > 0 && mainWindow) {
+      Menu.buildFromTemplate(menuTemplate).popup({ window: mainWindow });
+    }
   });
 
   // 窗口关闭事件拦截：常驻系统托盘，防止误关

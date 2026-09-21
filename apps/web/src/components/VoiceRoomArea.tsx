@@ -18,7 +18,6 @@ import {
   Sparkles,
   Maximize2,
   ShieldCheck,
-  Activity,
   Wifi,
   Sliders,
   X,
@@ -67,7 +66,6 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
 }) => {
   const { isMobile } = useViewport();
   const [isVideoEnabled, setIsVideoEnabled] = useState(false);
-  const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
   const [isMixerOpen, setIsMixerOpen] = useState(false);
   const [isTheaterMode, setIsTheaterMode] = useState(false);
   const [activeVolumeUserId, setActiveVolumeUserId] = useState<string | null>(
@@ -318,25 +316,6 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
             <Sliders className="w-3.5 h-3.5 text-discord-brand" />
             <span className="hidden sm:inline">伴音混音器</span>
             <span className="sm:hidden">混音</span>
-          </button>
-
-          {/* 网络健康看板 */}
-          <button
-            onClick={() => setIsStatsModalOpen(!isStatsModalOpen)}
-            className={`flex items-center space-x-1 sm:space-x-1.5 px-2 sm:px-2.5 py-1 rounded-lg text-xs font-semibold border transition ${
-              isStatsModalOpen
-                ? "bg-discord-brand text-white border-discord-brand"
-                : "bg-[#1e1f22] text-discord-textMuted border-[#2b2d31] hover:text-white hover:border-[#383a40]"
-            }`}
-            title="查看当前 WebRTC 媒体链路与网络健康指标"
-          >
-            <Activity className="w-3.5 h-3.5 text-discord-green" />
-            <span className="hidden sm:inline">网络看板</span>
-            {localStats && (
-              <span className="text-discord-green font-mono">
-                {localStats.rtt}ms
-              </span>
-            )}
           </button>
         </div>
       </div>
@@ -878,137 +857,6 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
             <span className="text-discord-green font-bold bg-discord-green/10 px-2 py-0.5 rounded">
               已合成立体声
             </span>
-          </div>
-        </div>
-      )}
-
-      {/* 实时网络健康看板模态浮层 */}
-      {isStatsModalOpen && (
-        <div className="absolute inset-0 z-40 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
-          <div className="bg-[#313338] w-full max-w-lg rounded-2xl border border-[#3f4147] shadow-2xl overflow-hidden flex flex-col">
-            <div className="px-6 py-4 border-b border-[#2b2d31] flex items-center justify-between bg-[#2b2d31]/60">
-              <div className="flex items-center space-x-2">
-                <Activity className="w-5 h-5 text-discord-green" />
-                <h4 className="font-bold text-discord-textHeader">
-                  WebRTC 媒体引擎与网络健康看板
-                </h4>
-              </div>
-              <button
-                onClick={() => setIsStatsModalOpen(false)}
-                className="p-1 text-discord-textMuted hover:text-white rounded"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
-              <div className="bg-[#2b2d31] p-4 rounded-xl border border-[#383a40]">
-                <div className="text-xs font-bold text-discord-textMuted uppercase mb-3 flex items-center justify-between">
-                  <span>本地上行网络指标 (Local Upstream)</span>
-                  <span className="text-discord-green font-bold bg-discord-green/10 px-2 py-0.5 rounded">
-                    极佳 (Excellent)
-                  </span>
-                </div>
-                <div className="grid grid-cols-4 gap-3 text-center">
-                  <div className="bg-[#1e1f22] p-2.5 rounded-lg">
-                    <div className="text-[11px] text-discord-textMuted mb-0.5">
-                      往返延迟 RTT
-                    </div>
-                    <div className="text-lg font-bold text-discord-green font-mono">
-                      {localStats?.rtt || 18}{" "}
-                      <span className="text-xs font-normal">ms</span>
-                    </div>
-                  </div>
-                  <div className="bg-[#1e1f22] p-2.5 rounded-lg">
-                    <div className="text-[11px] text-discord-textMuted mb-0.5">
-                      丢包率 Loss
-                    </div>
-                    <div className="text-lg font-bold text-discord-textHeader font-mono">
-                      {localStats?.packetLoss || 0}{" "}
-                      <span className="text-xs font-normal">%</span>
-                    </div>
-                  </div>
-                  <div className="bg-[#1e1f22] p-2.5 rounded-lg">
-                    <div className="text-[11px] text-discord-textMuted mb-0.5">
-                      抖动 Jitter
-                    </div>
-                    <div className="text-lg font-bold text-discord-textHeader font-mono">
-                      {localStats?.jitter || 1.1}{" "}
-                      <span className="text-xs font-normal">ms</span>
-                    </div>
-                  </div>
-                  <div className="bg-[#1e1f22] p-2.5 rounded-lg">
-                    <div className="text-[11px] text-discord-textMuted mb-0.5">
-                      推流码率
-                    </div>
-                    <div className="text-lg font-bold text-discord-brand font-mono">
-                      {localStats?.bitrate ||
-                        audioEngine.config.audioBitrate / 1000}{" "}
-                      <span className="text-xs font-normal">kbps</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-[#2b2d31] p-4 rounded-xl border border-[#383a40] space-y-2 text-xs">
-                <div className="font-bold text-discord-textHeader mb-1">
-                  媒体会话属性
-                </div>
-                <div className="flex justify-between py-1 border-b border-[#35373c]">
-                  <span className="text-discord-textMuted">音频编码格式</span>
-                  <span className="text-white font-mono">
-                    Opus 48kHz (高清晰度立体声)
-                  </span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-[#35373c]">
-                  <span className="text-discord-textMuted">视频编码与广播</span>
-                  <span className="text-discord-brand font-mono">
-                    H.264 / VP8 Simulcast 自适应码率
-                  </span>
-                </div>
-                <div className="flex justify-between py-1 border-b border-[#35373c]">
-                  <span className="text-discord-textMuted">传输加密协议</span>
-                  <span className="text-discord-green font-mono">
-                    {channel.isE2EE
-                      ? "WebRTC SFrame (AES-256-GCM 盲中继)"
-                      : "DTLS 1.2 / SRTP AES-128-GCM"}
-                  </span>
-                </div>
-                {channel.isE2EE && (
-                  <div className="flex justify-between py-1 border-b border-[#35373c]">
-                    <span className="text-discord-textMuted">SFrame 语音加密帧流</span>
-                    <span className="text-emerald-400 font-mono text-[11px]">
-                      已加密 {sframeStats.framesEncrypted} 帧 / 已解密 {sframeStats.framesDecrypted} 帧 (防重放拦截: {sframeStats.framesDroppedReplay})
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between py-1 border-b border-[#35373c]">
-                  <span className="text-discord-textMuted">神经网络降噪</span>
-                  <span className="text-white font-mono">
-                    {isNoiseSuppressionEnabled
-                      ? "RNNoise WASM (480 采样点分帧)"
-                      : "已旁路直通"}
-                  </span>
-                </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-discord-textMuted">语音活动检测</span>
-                  <span className="text-white font-mono">
-                    {isPTTMode
-                      ? `按键说话 [${audioEngine.config.pushToTalkKey || "Space"}]`
-                      : `智能 VAD 门限 (${audioEngine.config.vadSensitivity}%)`}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-[#2b2d31] px-6 py-3 border-t border-[#383a40] flex justify-end">
-              <button
-                onClick={() => setIsStatsModalOpen(false)}
-                className="px-5 py-1.5 rounded-lg bg-discord-brand text-white text-sm font-semibold hover:bg-discord-brand-hover transition"
-              >
-                关闭
-              </button>
-            </div>
           </div>
         </div>
       )}
