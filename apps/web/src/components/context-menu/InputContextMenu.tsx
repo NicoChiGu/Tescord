@@ -120,7 +120,7 @@ export const InputContextMenu: React.FC<InputContextMenuProps> = ({
         inputRef.current.focus();
         inputRef.current.setSelectionRange(
           start + prefix.length,
-          start + prefix.length + content.length
+          start + prefix.length + content.length,
         );
       }
     }, 0);
@@ -156,7 +156,10 @@ export const InputContextMenu: React.FC<InputContextMenuProps> = ({
           <ContextMenuShortcut>Ctrl+C</ContextMenuShortcut>
         </ContextMenuItem>
 
-        <ContextMenuItem onClick={handlePaste} className="hover:bg-discord-brand">
+        <ContextMenuItem
+          onClick={handlePaste}
+          className="hover:bg-discord-brand"
+        >
           <div className="flex items-center space-x-2">
             <ClipboardPaste className="w-4 h-4 text-discord-textMuted" />
             <span>{pasteTip || "粘贴"}</span>

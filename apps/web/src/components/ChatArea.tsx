@@ -32,12 +32,14 @@ import {
   ChevronDown,
   History,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { MarkdownRenderer } from "./chat/MarkdownRenderer.js";
 import { EmojiPickerPopover } from "./chat/EmojiPickerPopover.js";
 import { LightboxModal } from "./chat/LightboxModal.js";
 import { MobileActionSheet } from "./chat/MobileActionSheet.js";
 import { MentionInput, MentionInputHandle } from "./chat/MentionInput.js";
 import { TypingIndicator } from "./chat/TypingIndicator.js";
+import { PinnedMessagesPopover } from "./PinnedMessagesPopover.js";
 import { UserProfilePopout } from "./profile/UserProfilePopout.js";
 import { MessageContextMenu } from "./context-menu/MessageContextMenu.js";
 import { UserContextMenu } from "./context-menu/UserContextMenu.js";
@@ -89,7 +91,7 @@ interface ChatMessageItemProps {
   onMentionUser?: (username: string) => void;
   onOpenProfile?: (
     author: { id: string; username: string; avatarUrl?: string | null },
-    rect: DOMRect
+    rect: DOMRect,
   ) => void;
   onOpenProfileByName?: (username: string, rect: DOMRect) => void;
   isHighlighted?: boolean;
@@ -97,9 +99,7 @@ interface ChatMessageItemProps {
 }
 
 const isImageMime = (mime: string, name: string) => {
-  return (
-    mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(name)
-  );
+  return mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(name);
 };
 
 const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
@@ -155,8 +155,8 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
           msg.isPinned
             ? "bg-discord-brand/5 border-l-2 border-yellow-500/80"
             : isHighlighted
-            ? ""
-            : "hover:bg-[#2e3035]"
+              ? ""
+              : "hover:bg-[#2e3035]"
         }`}
       >
         {/* 引用回复提示条 */}
@@ -196,7 +196,7 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
               onClick={(e) =>
                 onOpenProfile?.(
                   msg.author,
-                  e.currentTarget.getBoundingClientRect()
+                  e.currentTarget.getBoundingClientRect(),
                 )
               }
               className="w-10 h-10 rounded-full flex-shrink-0 cursor-pointer hover:opacity-80 transition mt-0.5"
@@ -214,7 +214,7 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                   onClick={(e) =>
                     onOpenProfile?.(
                       msg.author,
-                      e.currentTarget.getBoundingClientRect()
+                      e.currentTarget.getBoundingClientRect(),
                     )
                   }
                   className="font-semibold text-discord-textHeader text-sm cursor-pointer hover:underline"
@@ -385,9 +385,7 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
             <EmojiPickerPopover
               isOpen={activeEmojiPickerMsgId === msg.id}
               onClose={() => setActiveEmojiPickerMsgId(null)}
-              onSelectEmoji={(emoji: string) =>
-                onReactionAdd?.(msg.id, emoji)
-              }
+              onSelectEmoji={(emoji: string) => onReactionAdd?.(msg.id, emoji)}
             />
           </div>
 
@@ -457,9 +455,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onToggleMobileDrawer,
   onToggleMobileMemberList,
 }) => {
+  const { t } = useTranslation(["chat", "common"]);
   const { isMobile, isDesktop } = useViewport();
   const isCompact = !isDesktop;
-  const [mobileActionMessage, setMobileActionMessage] = useState<Message | null>(null);
+  const [mobileActionMessage, setMobileActionMessage] =
+    useState<Message | null>(null);
   const [inputText, setInputText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const mentionInputRef = useRef<MentionInputHandle>(null);
@@ -471,11 +471,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
   const handleOpenProfile = (
     author: { id: string; username: string; avatarUrl?: string | null },
-    rect: DOMRect
+    rect: DOMRect,
   ) => {
     const member =
       guild?.members?.find(
-        (m) => m.userId === author.id || m.user?.id === author.id
+        (m) => m.userId === author.id || m.user?.id === author.id,
       ) || null;
     const fullUser: User = member?.user || {
       id: author.id,
@@ -497,7 +497,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     const member = guild?.members?.find(
       (m) =>
         m.user?.username?.toLowerCase() === cleanName ||
-        m.nickname?.toLowerCase() === cleanName
+        m.nickname?.toLowerCase() === cleanName,
     );
     if (member && member.user) {
       setSelectedUserPopout({
@@ -508,7 +508,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       return;
     }
     const msgAuthor = messages.find(
-      (m) => m.author.username.toLowerCase() === cleanName
+      (m) => m.author.username.toLowerCase() === cleanName,
     )?.author;
     if (msgAuthor) {
       setSelectedUserPopout({
@@ -546,7 +546,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   >({});
   const [searchQuery, setSearchQuery] = useState("");
   const [showFingerprintModal, setShowFingerprintModal] = useState(false);
-  const [safetyNumber, setSafetyNumber] = useState<string>("E2EE-A1B2-C3D4-E5F6-0001");
+  const [safetyNumber, setSafetyNumber] = useState<string>(
+    "E2EE-A1B2-C3D4-E5F6-0001",
+  );
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -554,8 +556,17 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const processedMessageIdsRef = useRef<Set<string>>(new Set());
 
   // 消息高亮与跳转定位状态
-  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<
+    string | null
+  >(null);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 频道置顶消息面板状态与已固定消息备忘
+  const [isPinnedPopoverOpen, setIsPinnedPopoverOpen] = useState(false);
+  const pinnedMessages = React.useMemo(
+    () => messages.filter((m) => m.isPinned),
+    [messages],
+  );
 
   // 视口距离底部与顶部状态（离开底部则显示顶部“跳到最新”横幅与底部渐变，离开顶部则显示顶部渐变）
   const [isNearBottom, setIsNearBottom] = useState(true);
@@ -575,7 +586,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
   const handleScroll = () => {
     if (!scrollContainerRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    const { scrollTop, scrollHeight, clientHeight } =
+      scrollContainerRef.current;
     const nearBottom = scrollHeight - scrollTop - clientHeight < 120;
     setIsNearBottom(nearBottom);
     setHasScrolledTop(scrollTop > 16);
@@ -718,11 +730,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     }
   };
 
-  // 切换频道时重置滚动到底部，并重置高亮与离开状态
+  // 切换频道时重置滚动到底部，并重置高亮、置顶弹窗与离开状态
   useEffect(() => {
     scrollToBottom(false);
     setIsNearBottom(true);
     setHighlightedMessageId(null);
+    setIsPinnedPopoverOpen(false);
   }, [channel.id]);
 
   // 新消息到达时：如果原本就在底部，或者发送者是当前用户自己，自动平滑滚到底部
@@ -765,7 +778,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   useEffect(() => {
     let isCancelled = false;
     const processMessages = async () => {
-      const updates: Record<string, { text: string; fingerprint?: string }> = {};
+      const updates: Record<string, { text: string; fingerprint?: string }> =
+        {};
       let hasUpdates = false;
 
       for (const msg of messages) {
@@ -1024,11 +1038,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           <div className="relative flex items-center">
             <input
               type="text"
-              placeholder={
-                channel.isE2EE
-                  ? "密文搜索..."
-                  : "搜索..."
-              }
+              placeholder={channel.isE2EE ? "密文搜索..." : "搜索..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="bg-discord-sidebar text-xs text-discord-textNormal rounded px-2 py-1 pr-6 focus:outline-none focus:ring-1 focus:ring-discord-brand w-20 xs:w-28 sm:w-40 transition-all focus:w-36 sm:focus:w-52"
@@ -1045,6 +1055,31 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               <Search className="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 text-discord-textMuted pointer-events-none" />
             )}
           </div>
+          {/* 频道置顶消息入口 (Discord 原生图钉设计) */}
+          <button
+            type="button"
+            onClick={() => setIsPinnedPopoverOpen((prev) => !prev)}
+            className={`relative p-1 rounded hover:bg-[#35373c] transition ${
+              isPinnedPopoverOpen || pinnedMessages.length > 0
+                ? "text-discord-textHeader"
+                : "text-discord-textMuted hover:text-discord-textHeader"
+            }`}
+            title={`已固定的消息 (${pinnedMessages.length})`}
+          >
+            <Pin
+              className={`w-5 h-5 rotate-45 transition ${
+                pinnedMessages.length > 0
+                  ? "text-amber-400 fill-amber-400/20"
+                  : ""
+              }`}
+            />
+            {pinnedMessages.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-discord-brand text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center border-2 border-discord-chat shadow">
+                {pinnedMessages.length > 99 ? "99+" : pinnedMessages.length}
+              </span>
+            )}
+          </button>
+
           <button
             onClick={() => {
               if (isCompact && onToggleMobileMemberList) {
@@ -1059,13 +1094,27 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             <Users className="w-5 h-5" />
           </button>
         </div>
+
+        {/* 已固定的消息浮层面板 (Pinned Messages Popover) */}
+        {isPinnedPopoverOpen && (
+          <PinnedMessagesPopover
+            channelName={channel.name}
+            pinnedMessages={pinnedMessages}
+            decryptedContents={decryptedContents}
+            currentUser={currentUser}
+            onClose={() => setIsPinnedPopoverOpen(false)}
+            onJumpToMessage={handleJumpToMessage}
+            onUnpinMessage={onTogglePin}
+          />
+        )}
       </div>
 
       {/* 端侧搜索结果提示条 */}
       {searchQuery && (
         <div className="bg-discord-brand/10 border-b border-discord-brand/30 px-4 py-1.5 flex items-center justify-between text-xs text-discord-brand">
           <span>
-            🔍 端侧本地倒排索引全文匹配：找到 <b>{displayedMessages.length}</b> 条匹配消息
+            🔍 端侧本地倒排索引全文匹配：找到 <b>{displayedMessages.length}</b>{" "}
+            条匹配消息
           </span>
           <button
             onClick={() => setSearchQuery("")}
@@ -1088,7 +1137,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           >
             <div className="flex items-center space-x-2 text-xs text-discord-textMuted">
               <History className="w-4 h-4 text-discord-brand flex-shrink-0 group-hover:text-discord-brand-hover transition-colors" />
-              <span className="text-discord-textHeader font-medium">您正在查看较旧的消息</span>
+              <span className="text-discord-textHeader font-medium">
+                您正在查看较旧的消息
+              </span>
             </div>
             <button
               type="button"
@@ -1111,7 +1162,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           }`}
           style={{
             backdropFilter: "blur(4px)",
-            WebkitMaskImage: "linear-gradient(to bottom, black 0%, transparent 100%)",
+            WebkitMaskImage:
+              "linear-gradient(to bottom, black 0%, transparent 100%)",
             maskImage: "linear-gradient(to bottom, black 0%, transparent 100%)",
           }}
         >
@@ -1183,7 +1235,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           }`}
           style={{
             backdropFilter: "blur(4px)",
-            WebkitMaskImage: "linear-gradient(to top, black 0%, transparent 100%)",
+            WebkitMaskImage:
+              "linear-gradient(to top, black 0%, transparent 100%)",
             maskImage: "linear-gradient(to top, black 0%, transparent 100%)",
           }}
         >
@@ -1275,7 +1328,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             disabled={isUploading}
             onClick={() => fileInputRef.current?.click()}
             className="flex items-center justify-center text-discord-textMuted hover:text-discord-textHeader transition disabled:opacity-50 shrink-0"
-            title="上传文件或图片 (支持 MinIO 直传)"
+            title={t("chat:uploadFile")}
           >
             {isUploading ? (
               <Loader2 className="w-5 h-5 animate-spin text-discord-brand" />
@@ -1289,8 +1342,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             ref={mentionInputRef}
             placeholder={
               isMobile
-                ? `发送到 #${channel.name}`
-                : `发送消息到 #${channel.name} (键入 @ 快捷提及，支持 Markdown、剧透 ||文字|| 与截图粘贴)`
+                ? t("chat:sendToChannel", { name: channel.name })
+                : t("chat:sendToChannelPlaceholder", { name: channel.name })
             }
             members={guild?.members || []}
             roles={guild?.roles || []}
@@ -1305,7 +1358,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               type="button"
               onClick={() => setIsInputEmojiOpen(!isInputEmojiOpen)}
               className="flex items-center justify-center text-discord-textMuted hover:text-discord-textHeader transition shrink-0"
-              title="选择常用 Emoji"
+              title={t("chat:selectEmoji")}
             >
               <Smile className="w-5 h-5" />
             </button>
@@ -1364,7 +1417,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 <b className="text-discord-textHeader">
                   Signal Double Ratchet (双棘轮)
                 </b>{" "}
-                算法。消息由 ECDH P-256 临时公钥协商派生一次一密 (One-Time Message Key) 封装。
+                算法。消息由 ECDH P-256 临时公钥协商派生一次一密 (One-Time
+                Message Key) 封装。
               </p>
               <div className="bg-[#1e1f22] p-3 rounded-lg border border-[#2b2d31]">
                 <div className="text-[11px] text-discord-textMuted mb-1">
@@ -1375,9 +1429,18 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 </div>
               </div>
               <ul className="list-disc pl-4 space-y-1 text-[11px]">
-                <li>前向保密性 (Forward Secrecy)：旧消息密钥阅后即焚，无法推演后续通信。</li>
-                <li>破后自愈 (Break-in Recovery)：每轮会话触发 DH 棘轮，密钥泄漏自动恢复安全。</li>
-                <li>服务端盲中继：数据库仅存 JSON 密文信封，管理员无法查看任何明文。</li>
+                <li>
+                  前向保密性 (Forward
+                  Secrecy)：旧消息密钥阅后即焚，无法推演后续通信。
+                </li>
+                <li>
+                  破后自愈 (Break-in Recovery)：每轮会话触发 DH
+                  棘轮，密钥泄漏自动恢复安全。
+                </li>
+                <li>
+                  服务端盲中继：数据库仅存 JSON
+                  密文信封，管理员无法查看任何明文。
+                </li>
               </ul>
             </div>
 

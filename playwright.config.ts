@@ -22,6 +22,7 @@ export default defineConfig({
     ignoreHTTPSErrors: true,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
+    locale: "zh-CN",
   },
 
   /* 默认重点测试 Chromium (兼容 Electron 渲染环境) */

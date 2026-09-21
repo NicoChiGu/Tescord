@@ -12,7 +12,9 @@ export const ContextMenu: React.FC<
     onOpenChange?.(open);
   };
 
-  return <ContextMenuPrimitive.Root onOpenChange={handleOpenChange} {...props} />;
+  return (
+    <ContextMenuPrimitive.Root onOpenChange={handleOpenChange} {...props} />
+  );
 };
 export const ContextMenuGroup = ContextMenuPrimitive.Group;
 export const ContextMenuPortal = ContextMenuPrimitive.Portal;
@@ -65,7 +67,7 @@ if (typeof window !== "undefined") {
     (e: MouseEvent) => {
       setLastContextMenuPoint({ x: e.clientX, y: e.clientY });
     },
-    true
+    true,
   );
 }
 
@@ -83,14 +85,16 @@ if (typeof window !== "undefined") {
  */
 export function useContextMenuPositionReady(
   node: HTMLElement | null,
-  isSubMenu: boolean = false
+  isSubMenu: boolean = false,
 ) {
   const [isReady, setIsReady] = React.useState(false);
 
   React.useLayoutEffect(() => {
     if (!node) return;
 
-    const wrapper = node.closest<HTMLElement>("[data-radix-popper-content-wrapper]");
+    const wrapper = node.closest<HTMLElement>(
+      "[data-radix-popper-content-wrapper]",
+    );
     if (!wrapper) {
       setIsReady(true);
       return;
@@ -119,7 +123,8 @@ export function useContextMenuPositionReady(
           const rect = wrapper.getBoundingClientRect();
 
           // 校验 a：防屏幕左上角 (0, 0) 初始错误锚点
-          const isClickFarFromOrigin = Math.hypot(lastPoint.x, lastPoint.y) > 35;
+          const isClickFarFromOrigin =
+            Math.hypot(lastPoint.x, lastPoint.y) > 35;
           if (isClickFarFromOrigin && rect.left < 20 && rect.top < 20) {
             return false;
           }
@@ -182,7 +187,9 @@ export function useContextMenuPositionReady(
     return () => {
       scheduleClearContextMenuPoint(200);
       if (node) {
-        const wrapper = node.closest<HTMLElement>("[data-radix-popper-content-wrapper]");
+        const wrapper = node.closest<HTMLElement>(
+          "[data-radix-popper-content-wrapper]",
+        );
         if (wrapper) {
           wrapper.style.transform = "translate(0, -200%)";
         }
@@ -204,145 +211,160 @@ export function useContextMenuPositionReady(
 export const ContextMenuTrigger = React.forwardRef<
   React.ElementRef<typeof ContextMenuPrimitive.Trigger>,
   React.ComponentPropsWithoutRef<typeof ContextMenuPrimitive.Trigger>
->(({ children, style, onContextMenu, onPointerDown, onPointerMove, onPointerUp, onPointerCancel, ...props }, ref) => {
-  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
-  const startPosRef = React.useRef<{ x: number; y: number } | null>(null);
-  const currentPosRef = React.useRef<{ x: number; y: number } | null>(null);
-  const isLongPressTriggeredRef = React.useRef(false);
+>(
+  (
+    {
+      children,
+      style,
+      onContextMenu,
+      onPointerDown,
+      onPointerMove,
+      onPointerUp,
+      onPointerCancel,
+      ...props
+    },
+    ref,
+  ) => {
+    const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+    const startPosRef = React.useRef<{ x: number; y: number } | null>(null);
+    const currentPosRef = React.useRef<{ x: number; y: number } | null>(null);
+    const isLongPressTriggeredRef = React.useRef(false);
 
-  const clearTimer = React.useCallback(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    startPosRef.current = null;
-    currentPosRef.current = null;
-  }, []);
-
-  // 捕获并拦截长按抬起后的合成点击，防止穿透到内部 button 或被 Radix 误认为 outside click
-  const installClickSuppressor = React.useCallback(() => {
-    const suppressClick = (e: Event) => {
-      const target = e.target as HTMLElement | null;
-      // 若用户点击的是弹出的右键菜单内部（或子菜单），正常放行
-      if (target && target.closest("[data-radix-menu-content]")) {
-        return;
+    const clearTimer = React.useCallback(() => {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
       }
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
+      startPosRef.current = null;
+      currentPosRef.current = null;
+    }, []);
+
+    // 捕获并拦截长按抬起后的合成点击，防止穿透到内部 button 或被 Radix 误认为 outside click
+    const installClickSuppressor = React.useCallback(() => {
+      const suppressClick = (e: Event) => {
+        const target = e.target as HTMLElement | null;
+        // 若用户点击的是弹出的右键菜单内部（或子菜单），正常放行
+        if (target && target.closest("[data-radix-menu-content]")) {
+          return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+      };
+
+      window.addEventListener("click", suppressClick, true);
+      window.addEventListener("touchend", suppressClick, true);
+      window.addEventListener("pointerup", suppressClick, true);
+
+      setTimeout(() => {
+        window.removeEventListener("click", suppressClick, true);
+        window.removeEventListener("touchend", suppressClick, true);
+        window.removeEventListener("pointerup", suppressClick, true);
+        isLongPressTriggeredRef.current = false;
+      }, 400);
+    }, []);
+
+    const handlePointerDown = (e: React.PointerEvent<HTMLSpanElement>) => {
+      onPointerDown?.(e);
+
+      // PC 端纯鼠标右键交由原有原生逻辑处理
+      if (e.pointerType === "mouse") return;
+
+      clearTimer();
+      isLongPressTriggeredRef.current = false;
+
+      const coords = { x: e.clientX, y: e.clientY };
+      startPosRef.current = coords;
+      currentPosRef.current = coords;
+      const target = e.target as HTMLElement | null;
+
+      timerRef.current = setTimeout(() => {
+        isLongPressTriggeredRef.current = true;
+        const point = currentPosRef.current || coords;
+        setLastContextMenuPoint(point);
+
+        // 触觉反馈震动
+        if (typeof navigator !== "undefined" && navigator.vibrate) {
+          try {
+            navigator.vibrate(40);
+          } catch {}
+        }
+
+        // 派发原生 contextmenu 事件到触发目标，激活 Radix 原生 handleOpen
+        if (target) {
+          const contextMenuEvent = new MouseEvent("contextmenu", {
+            bubbles: true,
+            cancelable: true,
+            clientX: point.x,
+            clientY: point.y,
+            screenX: point.x,
+            screenY: point.y,
+            button: 2,
+            buttons: 2,
+          });
+          target.dispatchEvent(contextMenuEvent);
+        }
+
+        installClickSuppressor();
+      }, 450);
     };
 
-    window.addEventListener("click", suppressClick, true);
-    window.addEventListener("touchend", suppressClick, true);
-    window.addEventListener("pointerup", suppressClick, true);
+    const handleContextMenu = (e: React.MouseEvent<HTMLSpanElement>) => {
+      setLastContextMenuPoint({ x: e.clientX, y: e.clientY });
+      onContextMenu?.(e);
+    };
 
-    setTimeout(() => {
-      window.removeEventListener("click", suppressClick, true);
-      window.removeEventListener("touchend", suppressClick, true);
-      window.removeEventListener("pointerup", suppressClick, true);
-      isLongPressTriggeredRef.current = false;
-    }, 400);
-  }, []);
+    const handlePointerMove = (e: React.PointerEvent<HTMLSpanElement>) => {
+      onPointerMove?.(e);
 
-  const handlePointerDown = (e: React.PointerEvent<HTMLSpanElement>) => {
-    onPointerDown?.(e);
+      if (e.pointerType === "mouse" || !startPosRef.current) return;
 
-    // PC 端纯鼠标右键交由原有原生逻辑处理
-    if (e.pointerType === "mouse") return;
+      currentPosRef.current = { x: e.clientX, y: e.clientY };
+      const dx = Math.abs(e.clientX - startPosRef.current.x);
+      const dy = Math.abs(e.clientY - startPosRef.current.y);
 
-    clearTimer();
-    isLongPressTriggeredRef.current = false;
-
-    const coords = { x: e.clientX, y: e.clientY };
-    startPosRef.current = coords;
-    currentPosRef.current = coords;
-    const target = e.target as HTMLElement | null;
-
-    timerRef.current = setTimeout(() => {
-      isLongPressTriggeredRef.current = true;
-      const point = currentPosRef.current || coords;
-      setLastContextMenuPoint(point);
-
-      // 触觉反馈震动
-      if (typeof navigator !== "undefined" && navigator.vibrate) {
-        try {
-          navigator.vibrate(40);
-        } catch {}
+      // 位移容差 10px：超过 10px 说明用户正在滚动列表，取消长按
+      if (dx > 10 || dy > 10) {
+        clearTimer();
       }
+    };
 
-      // 派发原生 contextmenu 事件到触发目标，激活 Radix 原生 handleOpen
-      if (target) {
-        const contextMenuEvent = new MouseEvent("contextmenu", {
-          bubbles: true,
-          cancelable: true,
-          clientX: point.x,
-          clientY: point.y,
-          screenX: point.x,
-          screenY: point.y,
-          button: 2,
-          buttons: 2,
-        });
-        target.dispatchEvent(contextMenuEvent);
-      }
+    const handlePointerUpOrCancel = (
+      e: React.PointerEvent<HTMLSpanElement>,
+    ) => {
+      if (e.type === "pointerup") onPointerUp?.(e);
+      if (e.type === "pointercancel") onPointerCancel?.(e);
 
-      installClickSuppressor();
-    }, 450);
-  };
-
-  const handleContextMenu = (e: React.MouseEvent<HTMLSpanElement>) => {
-    setLastContextMenuPoint({ x: e.clientX, y: e.clientY });
-    onContextMenu?.(e);
-  };
-
-  const handlePointerMove = (e: React.PointerEvent<HTMLSpanElement>) => {
-    onPointerMove?.(e);
-
-    if (e.pointerType === "mouse" || !startPosRef.current) return;
-
-    currentPosRef.current = { x: e.clientX, y: e.clientY };
-    const dx = Math.abs(e.clientX - startPosRef.current.x);
-    const dy = Math.abs(e.clientY - startPosRef.current.y);
-
-    // 位移容差 10px：超过 10px 说明用户正在滚动列表，取消长按
-    if (dx > 10 || dy > 10) {
+      if (e.pointerType === "mouse") return;
       clearTimer();
-    }
-  };
+    };
 
-  const handlePointerUpOrCancel = (e: React.PointerEvent<HTMLSpanElement>) => {
-    if (e.type === "pointerup") onPointerUp?.(e);
-    if (e.type === "pointercancel") onPointerCancel?.(e);
+    React.useEffect(() => {
+      return () => clearTimer();
+    }, [clearTimer]);
 
-    if (e.pointerType === "mouse") return;
-    clearTimer();
-  };
-
-  React.useEffect(() => {
-    return () => clearTimer();
-  }, [clearTimer]);
-
-  return (
-    <ContextMenuPrimitive.Trigger
-      ref={ref}
-      style={{
-        WebkitTouchCallout: "none",
-        WebkitUserSelect: "none",
-        userSelect: "none",
-        ...style,
-      }}
-      onContextMenu={handleContextMenu}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUpOrCancel}
-      onPointerCancel={handlePointerUpOrCancel}
-      {...props}
-    >
-      {children}
-    </ContextMenuPrimitive.Trigger>
-  );
-});
+    return (
+      <ContextMenuPrimitive.Trigger
+        ref={ref}
+        style={{
+          WebkitTouchCallout: "none",
+          WebkitUserSelect: "none",
+          userSelect: "none",
+          ...style,
+        }}
+        onContextMenu={handleContextMenu}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUpOrCancel}
+        onPointerCancel={handlePointerUpOrCancel}
+        {...props}
+      >
+        {children}
+      </ContextMenuPrimitive.Trigger>
+    );
+  },
+);
 ContextMenuTrigger.displayName = ContextMenuPrimitive.Trigger.displayName;
-
 
 export const ContextMenuSubTrigger = React.forwardRef<
   React.ElementRef<typeof ContextMenuPrimitive.SubTrigger>,
@@ -376,10 +398,12 @@ export const ContextMenuSubContent = React.forwardRef<
       if (typeof forwardedRef === "function") {
         forwardedRef(el);
       } else if (forwardedRef) {
-        (forwardedRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+        (
+          forwardedRef as React.MutableRefObject<HTMLDivElement | null>
+        ).current = el;
       }
     },
-    [forwardedRef]
+    [forwardedRef],
   );
 
   return (
@@ -418,10 +442,12 @@ export const ContextMenuContent = React.forwardRef<
       if (typeof forwardedRef === "function") {
         forwardedRef(el);
       } else if (forwardedRef) {
-        (forwardedRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+        (
+          forwardedRef as React.MutableRefObject<HTMLDivElement | null>
+        ).current = el;
       }
     },
-    [forwardedRef]
+    [forwardedRef],
   );
 
   return (
@@ -446,7 +472,6 @@ export const ContextMenuContent = React.forwardRef<
   );
 });
 ContextMenuContent.displayName = ContextMenuPrimitive.Content.displayName;
-
 
 export const ContextMenuItem = React.forwardRef<
   React.ElementRef<typeof ContextMenuPrimitive.Item>,

@@ -8,6 +8,9 @@ import {
   ConnectionQuality,
   Participant,
   VideoQuality,
+  supportsAV1,
+  supportsVP9,
+  supportsH265,
 } from "livekit-client";
 import {
   NetworkStats,
@@ -16,9 +19,178 @@ import {
   evaluateNetworkQuality,
   ScreenShareOptions,
   SCREEN_SHARE_PRESETS,
+  VideoCodecType,
+  CodecCapabilityInfo,
+  DEFAULT_VIDEO_CODEC,
+  MIN_CUSTOM_BITRATE,
+  MAX_CUSTOM_BITRATE,
+  VoiceConnectionStatus,
+  StreamDetailedStats,
+  ConnectionTopology,
 } from "@tescord/types";
 import { resolveLiveKitUrl } from "../config";
 import { audioMixer } from "./audioMixer.js";
+import { audioEngine } from "./audioEngine.js";
+import { useSettingsStore } from "../stores/useSettingsStore.js";
+import { bitrateCalculator } from "./stats/BitrateCalculator.js";
+
+export type { StreamDetailedStats };
+
+let cachedH265Supported: boolean | null = null;
+let cachedH265Reason: string | undefined = undefined;
+
+export async function detectSupportedVideoCodecsAsync(): Promise<CodecCapabilityInfo[]> {
+  if (cachedH265Supported === null) {
+    let supported = false;
+    let isIntel = false;
+
+    // 1. Electron 桌面端原生 GPU 显卡探测 (Intel 0x8086 / NVIDIA 0x10de / AMD 0x1002)
+    if (typeof window !== "undefined" && window.electronAPI?.getGPUInfo) {
+      try {
+        const gpu = await window.electronAPI.getGPUInfo();
+        if (gpu?.isIntel || gpu?.isNvidia || gpu?.isAmd) {
+          supported = true;
+          isIntel = Boolean(gpu?.isIntel);
+        }
+      } catch (e) {
+        console.warn("getGPUInfo detection error:", e);
+      }
+    }
+
+    // 2. Web 浏览器端通过标准 WebCodecs 异步校验底层硬件加速 (Chrome/Edge 107+ HEVC)
+    if (!supported && typeof VideoEncoder !== "undefined" && typeof VideoEncoder.isConfigSupported === "function") {
+      try {
+        const configEnc = await VideoEncoder.isConfigSupported({
+          codec: "hev1.1.6.L93.B0", // HEVC Main Profile, Level 3.1
+          width: 1920,
+          height: 1080,
+          bitrate: 3000000,
+          framerate: 60,
+          hardwareAcceleration: "prefer-hardware",
+        });
+        if (configEnc.supported) {
+          supported = true;
+        }
+      } catch {}
+    }
+
+    if (!supported && typeof VideoDecoder !== "undefined" && typeof VideoDecoder.isConfigSupported === "function") {
+      try {
+        const configDec = await VideoDecoder.isConfigSupported({
+          codec: "hev1.1.6.L93.B0",
+          hardwareAcceleration: "prefer-hardware",
+        });
+        if (configDec.supported) {
+          supported = true;
+        }
+      } catch {}
+    }
+
+    // 3. WebRTC RTCRtpSender 能力回退校验
+    if (!supported && typeof RTCRtpSender !== "undefined" && typeof RTCRtpSender.getCapabilities === "function") {
+      try {
+        const caps = RTCRtpSender.getCapabilities("video");
+        if (
+          caps?.codecs?.some(
+            (c) =>
+              c.mimeType.toLowerCase() === "video/h265" ||
+              c.mimeType.toLowerCase() === "video/hevc",
+          )
+        ) {
+          supported = true;
+        }
+      } catch {}
+    }
+
+    cachedH265Supported = supported;
+    if (supported) {
+      cachedH265Reason = undefined;
+    } else {
+      cachedH265Reason = isIntel
+        ? "检测到 Intel 硬件支持，但当前浏览器未开启 WebRTC H265 支持"
+        : "当前浏览器或系统未启用 H.265 硬件加速";
+    }
+  }
+
+  return detectSupportedVideoCodecs();
+}
+
+export function detectSupportedVideoCodecs(): CodecCapabilityInfo[] {
+  const mimeTypes = new Set<string>();
+  if (
+    typeof RTCRtpSender !== "undefined" &&
+    typeof RTCRtpSender.getCapabilities === "function"
+  ) {
+    try {
+      const caps = RTCRtpSender.getCapabilities("video");
+      if (caps?.codecs) {
+        caps.codecs.forEach((c) => {
+          if (c.mimeType) mimeTypes.add(c.mimeType.toLowerCase());
+        });
+      }
+    } catch (e) {
+      console.warn("RTCRtpSender.getCapabilities error:", e);
+    }
+  }
+
+  const av1Supported = Boolean(supportsAV1() || mimeTypes.has("video/av1"));
+  const vp9Supported = Boolean(supportsVP9() || mimeTypes.has("video/vp9"));
+  const h265Supported = Boolean(
+    cachedH265Supported ??
+      (supportsH265() ||
+        mimeTypes.has("video/hevc") ||
+        mimeTypes.has("video/h265")),
+  );
+  const h264Supported =
+    mimeTypes.size === 0 ? true : mimeTypes.has("video/h264");
+  const vp8Supported = true; // VP8 通用兜底支持
+
+  return [
+    {
+      codec: "h264",
+      label: "H.264 (AVC)",
+      description:
+        "硬件加速普及度最高，极低 CPU 占用与功耗，高帧率竞技推流首选",
+      supported: h264Supported,
+      isHardwareAccelerated: true,
+    },
+    {
+      codec: "av1",
+      label: "AV1 (Next-Gen)",
+      description:
+        "次世代超高压缩比，同画质节省 40%+ 带宽，代码/文本演示极致锐利",
+      supported: av1Supported,
+      isHardwareAccelerated: av1Supported,
+      reason: av1Supported ? undefined : "当前浏览器或硬件暂不支持 AV1 编码",
+    },
+    {
+      codec: "vp9",
+      label: "VP9",
+      description: "高画质与 SVC 可伸缩分层支持，画质细腻抗弱网",
+      supported: vp9Supported,
+      isHardwareAccelerated: false,
+      reason: vp9Supported ? undefined : "当前环境不支持 VP9 编码",
+    },
+    {
+      codec: "vp8",
+      label: "VP8 (通用基准)",
+      description: "最广泛的设备兼容性，适合老旧低配设备与跨平台兜底",
+      supported: vp8Supported,
+      isHardwareAccelerated: false,
+    },
+    {
+      codec: "h265",
+      label: "H.265 (HEVC)",
+      description:
+        "高压缩比与硬件级加速，支持 Intel / NVIDIA 硬件编解码与极清直播",
+      supported: h265Supported,
+      isHardwareAccelerated: h265Supported,
+      reason: h265Supported
+        ? undefined
+        : cachedH265Reason || "当前环境未启用平台 HEVC 硬解或浏览器暂不支持",
+    },
+  ];
+}
 
 export interface ActiveScreenShare {
   track: any;
@@ -28,7 +200,9 @@ export interface ActiveScreenShare {
   preset?: string;
   resolution?: string;
   frameRate?: number;
+  codec?: string;
 }
+
 
 interface RemoteAudioTrackEntry {
   trackId: string;
@@ -37,6 +211,7 @@ interface RemoteAudioTrackEntry {
   element: HTMLAudioElement;
   sourceNode?: MediaStreamAudioSourceNode;
   gainNode?: GainNode;
+  analyserNode?: AnalyserNode;
 }
 
 interface ParticipantAudioControl {
@@ -49,7 +224,11 @@ interface ParticipantAudioControl {
 export class LiveKitService {
   private room: Room | null = null;
   public isConnected: boolean = false;
+  public connectionStatus: VoiceConnectionStatus = "disconnected";
   public currentRoomName: string | null = null;
+  private onConnectionStatusChangedCallbacks: Set<
+    (status: VoiceConnectionStatus) => void
+  > = new Set();
 
   // 本地推流音轨
   private localAudioPublication: LocalTrackPublication | null = null;
@@ -58,12 +237,24 @@ export class LiveKitService {
   // 远端单例 Web Audio 回放图谱与软压限混音器 (避免多路超额放大削波与多 AudioContext 耗尽崩溃)
   private playbackAudioContext: AudioContext | null = null;
   private masterCompressor: DynamicsCompressorNode | null = null;
+  private masterGainNode: GainNode | null = null;
+  private masterVolume: number = 100;
+
+  // 用户音量记忆持久化缓存 (identity -> volumePercent)
+  private userVolumeCache: Map<string, number> = new Map();
 
   // 远端音频控制: identity -> ParticipantAudioControl (支持每个成员独立管理麦克风与屏幕伴音多路音轨)
   private participantAudioMap: Map<string, ParticipantAudioControl> = new Map();
 
-  // 活跃讲话者集合 (Active Speakers)
+  // 活跃讲话者集合 (Active Speakers) - SFU 信令源与本地 Web Audio 能量源的双源融合
   private activeSpeakers: Set<string> = new Set();
+  private sfuActiveSpeakers: Set<string> = new Set();
+  private localActiveSpeakers: Set<string> = new Set();
+  private remoteSpeakingStates: Map<
+    string,
+    { isSpeaking: boolean; lastActive: number }
+  > = new Map();
+  private remoteEnergyTimer: any = null;
 
   // 网络状态监控: identity -> NetworkStats
   private networkStatsMap: Map<string, NetworkStats> = new Map();
@@ -107,10 +298,136 @@ export class LiveKitService {
   private onCameraTracksChangedCallbacks: Set<
     (tracks: Map<string, any>) => void
   > = new Set();
-  private onActiveCameraChangedCallbacks: Set<
-    (deviceId: string) => void
-  > = new Set();
+  private onActiveCameraChangedCallbacks: Set<(deviceId: string) => void> =
+    new Set();
 
+  // 麦克风音频输入设备状态
+  public selectedAudioInputDeviceId: string =
+    typeof localStorage !== "undefined"
+      ? localStorage.getItem("tescord_selected_audio_input_id") || "default"
+      : "default";
+  private onActiveAudioInputChangedCallbacks: Set<(deviceId: string) => void> =
+    new Set();
+
+  constructor() {
+    // 读取持久化的用户音量与全局输出音量
+    try {
+      if (typeof localStorage !== "undefined") {
+        const savedVols = localStorage.getItem("tescord_user_volumes");
+        if (savedVols) {
+          const parsed = JSON.parse(savedVols);
+          for (const [k, v] of Object.entries(parsed)) {
+            this.userVolumeCache.set(k, Number(v));
+          }
+        }
+        const savedMaster = localStorage.getItem("tescord_master_volume");
+        if (savedMaster !== null) {
+          this.masterVolume = clampVolume(Number(savedMaster));
+        }
+      }
+    } catch (e) {
+      console.warn(
+        "Failed to load user volumes or master volume from localStorage:",
+        e,
+      );
+    }
+
+    // 监听 AudioEngine 底层流重构或热换流事件，通话中自动热替换麦克风推流轨
+    audioEngine.onStreamChange(async (stream) => {
+      if (this.room && this.isConnected) {
+        console.log(
+          "🔄 检测到麦克风音频流变更，自动热同步 LiveKit 麦克风推流轨",
+        );
+        await this.publishMicrophoneStream(stream, this.currentAudioBitrate);
+      }
+    });
+  }
+
+  // 视频编码器、双编码降级与自定义码率设置 (H.264 / AV1 / VP9 / VP8 / H.265)
+  public preferredVideoCodec: VideoCodecType =
+    typeof localStorage !== "undefined"
+      ? (localStorage.getItem(
+          "tescord_preferred_video_codec",
+        ) as VideoCodecType) || "h264"
+      : "h264";
+  public enableBackupCodec: boolean =
+    typeof localStorage !== "undefined"
+      ? localStorage.getItem("tescord_enable_backup_codec") !== "false"
+      : true;
+  public customBitrate: number | null =
+    typeof localStorage !== "undefined" &&
+    localStorage.getItem("tescord_custom_video_bitrate")
+      ? Number(localStorage.getItem("tescord_custom_video_bitrate"))
+      : null;
+  private onVideoSettingsChangedCallbacks: Set<() => void> = new Set();
+
+  /**
+   * 动态探测并解析可用的有效视频编码器：若请求的编码器不被当前硬件/浏览器支持，自动平滑回退
+   */
+  public resolveEffectiveVideoCodec(
+    requestedCodec?: VideoCodecType,
+  ): VideoCodecType {
+    const target = requestedCodec || this.preferredVideoCodec || "h264";
+    const caps = detectSupportedVideoCodecs();
+    const match = caps.find((c) => c.codec === target);
+    if (match && match.supported) {
+      return target;
+    }
+    // 回退尝试 H.264，否则终极回退 VP8
+    const h264 = caps.find((c) => c.codec === "h264");
+    if (h264 && h264.supported) {
+      console.warn(`⚠️ 目标视频编码 [${target}] 不受支持，已安全降级为 H.264`);
+      return "h264";
+    }
+    console.warn(`⚠️ 目标视频编码 [${target}] 不受支持，已安全降级为 VP8`);
+    return "vp8";
+  }
+
+  public setPreferredVideoCodec(codec: VideoCodecType) {
+    this.preferredVideoCodec = codec;
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("tescord_preferred_video_codec", codec);
+    }
+    this.notifyVideoSettingsChanged();
+  }
+
+  public setEnableBackupCodec(enabled: boolean) {
+    this.enableBackupCodec = enabled;
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("tescord_enable_backup_codec", String(enabled));
+    }
+    this.notifyVideoSettingsChanged();
+  }
+
+  public setCustomBitrate(bitrate: number | null) {
+    this.customBitrate = bitrate;
+    if (typeof localStorage !== "undefined") {
+      if (bitrate !== null) {
+        localStorage.setItem("tescord_custom_video_bitrate", String(bitrate));
+      } else {
+        localStorage.removeItem("tescord_custom_video_bitrate");
+      }
+    }
+    this.notifyVideoSettingsChanged();
+  }
+
+  public onVideoSettingsChange(callback: () => void): () => void {
+    this.onVideoSettingsChangedCallbacks.add(callback);
+    callback();
+    return () => {
+      this.onVideoSettingsChangedCallbacks.delete(callback);
+    };
+  }
+
+  private notifyVideoSettingsChanged() {
+    this.onVideoSettingsChangedCallbacks.forEach((cb) => {
+      try {
+        cb();
+      } catch (err) {
+        console.warn("LiveKit video settings callback error:", err);
+      }
+    });
+  }
 
   // 1. 初始化或获取共享的音频混音上下文 (含软压限器 Soft Limiter)
   private getOrCreatePlaybackContext(): AudioContext {
@@ -147,7 +464,16 @@ export class LiveKitService {
         this.playbackAudioContext.currentTime,
       ); // 100ms 平滑释放
 
-      this.masterCompressor.connect(this.playbackAudioContext.destination);
+      // 全局母带输出音量控制 (Master Gain Node): 0% ~ 200% (0.0x ~ 2.0x)
+      this.masterGainNode = this.playbackAudioContext.createGain();
+      this.masterGainNode.gain.setValueAtTime(
+        this.masterVolume / 100,
+        this.playbackAudioContext.currentTime,
+      );
+
+      // 串联: masterCompressor -> masterGainNode -> destination
+      this.masterCompressor.connect(this.masterGainNode);
+      this.masterGainNode.connect(this.playbackAudioContext.destination);
     }
 
     if (this.playbackAudioContext.state === "suspended") {
@@ -155,6 +481,54 @@ export class LiveKitService {
     }
 
     return this.playbackAudioContext;
+  }
+
+  public setMasterVolume(volumePercent: number) {
+    const clamped = clampVolume(volumePercent);
+    this.masterVolume = clamped;
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem("tescord_master_volume", String(clamped));
+      }
+    } catch {}
+    if (this.masterGainNode && this.playbackAudioContext) {
+      this.masterGainNode.gain.setValueAtTime(
+        clamped / 100,
+        this.playbackAudioContext.currentTime,
+      );
+    }
+  }
+
+  public getMasterVolume(): number {
+    return this.masterVolume;
+  }
+
+  public setConnectionStatus(status: VoiceConnectionStatus) {
+    if (this.connectionStatus !== status) {
+      this.connectionStatus = status;
+      this.isConnected = status === "connected";
+      this.onConnectionStatusChangedCallbacks.forEach((cb) => {
+        try {
+          cb(status);
+        } catch (err) {
+          console.warn("LiveKit connectionStatus callback error:", err);
+        }
+      });
+    }
+  }
+
+  public getConnectionStatus(): VoiceConnectionStatus {
+    return this.connectionStatus;
+  }
+
+  public onConnectionStatusChange(
+    callback: (status: VoiceConnectionStatus) => void,
+  ): () => void {
+    this.onConnectionStatusChangedCallbacks.add(callback);
+    callback(this.connectionStatus);
+    return () => {
+      this.onConnectionStatusChangedCallbacks.delete(callback);
+    };
   }
 
   async joinRoom(
@@ -167,15 +541,42 @@ export class LiveKitService {
     try {
       this.leaveRoom();
       this.currentAudioBitrate = bitrate;
+      this.currentRoomName = roomName;
+      this.setConnectionStatus("connecting");
 
       // 预先激活回放音频上下文
       this.getOrCreatePlaybackContext();
+
+      // 判断是否处于 E2E 测试 Mock Token 环境
+      const isMock =
+        token.startsWith("mock_") ||
+        url.includes("mock") ||
+        (typeof window !== "undefined" && (window as any).__MOCK_LIVEKIT__);
+
+      if (isMock) {
+        // 在 E2E Mock 模式下模拟短暂握手过程 (60ms)，便于 UI 状态过渡与自动化断言
+        await new Promise((resolve) => setTimeout(resolve, 60));
+        this.isConnected = true;
+        this.setConnectionStatus("connected");
+        this.startNetworkStatsPolling();
+        this.notifyState(true);
+        return true;
+      }
+
+      const defaultCodec = this.resolveEffectiveVideoCodec(
+        this.preferredVideoCodec,
+      );
 
       this.room = new Room({
         adaptiveStream: true,
         dynacast: true,
         videoCaptureDefaults: {
           resolution: VideoPresets.h720.resolution,
+        },
+        publishDefaults: {
+          videoCodec: defaultCodec as any,
+          backupCodec: this.enableBackupCodec ? { codec: "vp8" } : false,
+          simulcast: true,
         },
       });
 
@@ -184,7 +585,7 @@ export class LiveKitService {
       const targetUrl = resolveLiveKitUrl(url);
       await this.room.connect(targetUrl, token);
       this.isConnected = true;
-      this.currentRoomName = roomName;
+      this.setConnectionStatus("connected");
 
       // 若提供了本地麦克风音频流，立即执行高品质 Opus 推流
       if (audioStream) {
@@ -199,9 +600,13 @@ export class LiveKitService {
 
       return true;
     } catch (err) {
-      console.error("LiveKit SFU connect failed (请确保 7880 端口 LiveKit 服务已启动):", err);
+      console.error(
+        "LiveKit SFU connect failed (请确保 7880 端口 LiveKit 服务已启动):",
+        err,
+      );
       this.isConnected = false;
       this.currentRoomName = null;
+      this.setConnectionStatus("disconnected");
       this.notifyState(false);
       return false;
     }
@@ -216,13 +621,46 @@ export class LiveKitService {
     if (!audioTrack) return;
 
     try {
-      if (this.localAudioPublication) {
-        await this.room.localParticipant.unpublishTrack(
-          this.localAudioPublication.track!,
-        );
+      // 1. 若当前发布的底层 MediaStreamTrack 已经是一致且处于活跃状态的实例，无需重复处理
+      if (
+        this.localAudioPublication?.track &&
+        (this.localAudioPublication.track as any).mediaStreamTrack ===
+          audioTrack &&
+        audioTrack.readyState === "live"
+      ) {
+        return;
+      }
+
+      // 2. 优先利用 WebRTC RTCRtpSender.replaceTrack 进行平滑热替换 (Zero-glitch hot swap)
+      if (this.localAudioPublication?.track) {
+        const localTrack = this.localAudioPublication.track;
+        if (typeof (localTrack as any).replaceTrack === "function") {
+          try {
+            await (localTrack as any).replaceTrack(audioTrack);
+            console.log(
+              `🎙️ 成功通过 replaceTrack 无缝热替换麦克风音轨 (Opus ${bitrate / 1000}kbps)`,
+            );
+            return;
+          } catch (replaceErr) {
+            console.warn(
+              "LiveKit replaceTrack 失败，回退至 unpublish/publish 重建:",
+              replaceErr,
+            );
+          }
+        }
+
+        // 3. 兜底策略：取消发布旧音轨
+        try {
+          await this.room.localParticipant.unpublishTrack(
+            this.localAudioPublication.track!,
+          );
+        } catch (unpubErr) {
+          console.warn("LiveKit unpublishTrack error:", unpubErr);
+        }
         this.localAudioPublication = null;
       }
 
+      // 4. 正式发布新音轨
       const publication = await this.room.localParticipant.publishTrack(
         audioTrack,
         {
@@ -276,12 +714,23 @@ export class LiveKitService {
             publication.source === Track.Source.ScreenShare ||
             publication.trackName?.includes("screen"))
         ) {
+          const pubCodec = (
+            publication.mimeType ||
+            (publication as any).videoCodec ||
+            ""
+          )
+            .replace(/^video\//i, "")
+            .toUpperCase();
+
           const shareInfo: ActiveScreenShare = {
             track,
             participantIdentity: participant.identity,
             isLocal: false,
-            resolution: "1080p (Simulcast)",
+            resolution: publication.dimensions
+              ? `${publication.dimensions.width}x${publication.dimensions.height}`
+              : "1080p (Simulcast)",
             frameRate: 60,
+            codec: pubCodec || undefined,
           };
           this.screenSharesMap.set(participant.identity, shareInfo);
           this.activeScreenShare = shareInfo;
@@ -327,8 +776,8 @@ export class LiveKitService {
     // 4.3 活跃讲话者监听 (Active Speakers)
     this.room.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
       const activeIds = speakers.map((s) => s.identity);
-      this.activeSpeakers = new Set(activeIds);
-      this.onActiveSpeakersChangedCallbacks.forEach((cb) => cb(activeIds));
+      this.sfuActiveSpeakers = new Set(activeIds);
+      this.syncCombinedActiveSpeakers();
     });
 
     // 4.4 远端成员断开连接
@@ -348,12 +797,12 @@ export class LiveKitService {
         }
         this.handleRemoteAudioUnsubscribed(participant.identity);
         this.networkStatsMap.delete(participant.identity);
-        this.activeSpeakers.delete(participant.identity);
+        this.sfuActiveSpeakers.delete(participant.identity);
+        this.localActiveSpeakers.delete(participant.identity);
+        this.remoteSpeakingStates.delete(participant.identity);
+        this.syncCombinedActiveSpeakers();
         this.onNetworkStatsChangedCallbacks.forEach((cb) =>
           cb(this.networkStatsMap),
-        );
-        this.onActiveSpeakersChangedCallbacks.forEach((cb) =>
-          cb(Array.from(this.activeSpeakers)),
         );
       },
     );
@@ -378,9 +827,29 @@ export class LiveKitService {
       },
     );
 
-    // 4.6 房间断开
+    // 4.6 房间连接成功与重连生命周期
+    this.room.on(RoomEvent.Connected, () => {
+      this.isConnected = true;
+      this.setConnectionStatus("connected");
+      this.notifyState(true);
+    });
+
+    this.room.on(RoomEvent.Reconnecting, () => {
+      this.setConnectionStatus("reconnecting");
+    });
+
+    this.room.on(RoomEvent.Reconnected, () => {
+      this.isConnected = true;
+      this.setConnectionStatus("connected");
+      this.notifyState(true);
+    });
+
+    // 4.7 房间断开
     this.room.on(RoomEvent.Disconnected, (reason?: any) => {
       this.cleanup();
+      this.isConnected = false;
+      this.currentRoomName = null;
+      this.setConnectionStatus("disconnected");
       this.notifyState(false);
       this.onDisconnectedCallbacks.forEach((cb) => cb(reason));
     });
@@ -393,15 +862,20 @@ export class LiveKitService {
     const identity = participant.identity;
     const audioElement = track.attach() as HTMLAudioElement;
 
+    // 优先读取本地持久化的音量记忆
+    const persistentVol = this.userVolumeCache.get(identity) ?? 100;
+
     let ctrl = this.participantAudioMap.get(identity);
     if (!ctrl) {
       ctrl = {
         identity,
-        volume: 100,
+        volume: persistentVol,
         muted: false,
         tracks: new Map(),
       };
       this.participantAudioMap.set(identity, ctrl);
+    } else if (this.userVolumeCache.has(identity)) {
+      ctrl.volume = persistentVol;
     }
 
     const trackId =
@@ -411,6 +885,7 @@ export class LiveKitService {
 
     let gainNode: GainNode | undefined;
     let sourceNode: MediaStreamAudioSourceNode | undefined;
+    let analyserNode: AnalyserNode | undefined;
 
     try {
       // 提取底层的真实 MediaStreamTrack 节点
@@ -421,6 +896,19 @@ export class LiveKitService {
         const mediaStream = new MediaStream([mediaTrack]);
         sourceNode = ctx.createMediaStreamSource(mediaStream);
         gainNode = ctx.createGain();
+
+        // 挂载高灵敏度 AnalyserNode 进行实时本地远端音量电平分析，彻底解决 Chromium 合成音轨缺失 RFC 6464 音频电平扩展头导致 SFU 不发信令的问题
+        try {
+          analyserNode = ctx.createAnalyser();
+          analyserNode.fftSize = 256;
+          analyserNode.smoothingTimeConstant = 0.2;
+          sourceNode.connect(analyserNode);
+        } catch (analyserErr) {
+          console.warn(
+            `[LiveKit] Failed to connect remote AnalyserNode for ${identity}:`,
+            analyserErr,
+          );
+        }
 
         // 换算 0% ~ 200% 增益 (Gain 系数 0.0 ~ 2.0)
         const gainVal = computeGain(ctrl.volume, ctrl.muted);
@@ -450,7 +938,12 @@ export class LiveKitService {
       element: audioElement,
       sourceNode,
       gainNode,
+      analyserNode,
     });
+
+    if (analyserNode) {
+      this.startRemoteAudioEnergyMonitoring();
+    }
   }
 
   private handleRemoteAudioUnsubscribed(identity: string, track?: any) {
@@ -460,6 +953,11 @@ export class LiveKitService {
     const trackId = track?.sid || track?.mediaStreamTrack?.id;
     if (trackId && ctrl.tracks.has(trackId)) {
       const entry = ctrl.tracks.get(trackId)!;
+      if (entry.analyserNode) {
+        try {
+          entry.analyserNode.disconnect();
+        } catch {}
+      }
       if (entry.gainNode) {
         try {
           entry.gainNode.disconnect();
@@ -479,10 +977,18 @@ export class LiveKitService {
       // 若该成员所有音轨均已移除，则清理该控制结构
       if (ctrl.tracks.size === 0) {
         this.participantAudioMap.delete(identity);
+        this.localActiveSpeakers.delete(identity);
+        this.remoteSpeakingStates.delete(identity);
+        this.syncCombinedActiveSpeakers();
       }
     } else {
       // 未指定 track 时，移除该成员名下的全部音轨 (如成员断开房间)
       ctrl.tracks.forEach((entry) => {
+        if (entry.analyserNode) {
+          try {
+            entry.analyserNode.disconnect();
+          } catch {}
+        }
         if (entry.gainNode) {
           try {
             entry.gainNode.disconnect();
@@ -501,12 +1007,39 @@ export class LiveKitService {
       });
       ctrl.tracks.clear();
       this.participantAudioMap.delete(identity);
+      this.localActiveSpeakers.delete(identity);
+      this.remoteSpeakingStates.delete(identity);
+      this.syncCombinedActiveSpeakers();
+    }
+
+    if (this.participantAudioMap.size === 0) {
+      this.stopRemoteAudioEnergyMonitoring();
     }
   }
 
   // 5. 多路远端语音独立音量控制 (0% ~ 200%)
   setParticipantVolume(identity: string, volumePercent: number) {
     const clampedVolume = clampVolume(volumePercent);
+
+    // 写入持久化缓存与 localStorage
+    this.userVolumeCache.set(identity, clampedVolume);
+    try {
+      useSettingsStore.getState().setUserVolume(identity, clampedVolume);
+    } catch (e) {
+      console.warn("Failed to sync user volume to useSettingsStore:", e);
+    }
+    try {
+      if (typeof localStorage !== "undefined") {
+        const obj: Record<string, number> = {};
+        this.userVolumeCache.forEach((v, k) => {
+          obj[k] = v;
+        });
+        localStorage.setItem("tescord_user_volumes", JSON.stringify(obj));
+      }
+    } catch (e) {
+      console.warn("Failed to persist user volume to localStorage:", e);
+    }
+
     let ctrl = this.participantAudioMap.get(identity);
 
     if (!ctrl) {
@@ -540,6 +1073,9 @@ export class LiveKitService {
   }
 
   getParticipantVolume(identity: string): number {
+    if (this.userVolumeCache.has(identity)) {
+      return this.userVolumeCache.get(identity)!;
+    }
     const ctrl = this.participantAudioMap.get(identity);
     return ctrl ? ctrl.volume : 100;
   }
@@ -585,46 +1121,177 @@ export class LiveKitService {
       const now = Date.now();
       const localIdentity = this.room?.localParticipant?.identity || "local-me";
 
-      // 6.1 获取或估算本人网络健康指标
-      let localRtt = 18;
+      // 6.1 获取真实本人网络健康与音视频统计指标
+      let localRtt: number | undefined = undefined;
       let localLoss = 0;
-      let localJitter = 1.2;
+      let localJitter = 0.8;
       let localBitrate = this.currentAudioBitrate / 1000;
+
+      let localVideoCodec =
+        this.activeScreenShare?.codec ||
+        (this.localCameraTrack
+          ? this.preferredVideoCodec.toUpperCase()
+          : undefined);
+      let localVideoResolution =
+        this.activeScreenShare?.resolution ||
+        (this.localCameraTrack ? "1280x720" : undefined);
+      let localVideoFps =
+        this.activeScreenShare?.frameRate ||
+        (this.localCameraTrack ? 30 : undefined);
+      let localVideoBitrate: number | undefined = undefined;
+
+      // 缓存远端轨道的统计信息：trackId -> { packetsLost, packetsReceived, jitter }
+      const remoteTrackStats = new Map<
+        string,
+        { packetsLost: number; packetsReceived: number; jitter: number }
+      >();
 
       if (this.room) {
         try {
-          const engine = (this.room as any).engine;
-          if (engine?.client?.getStats) {
-            const report = await engine.client.getStats();
-            report.forEach((stat: any) => {
-              if (stat.type === "remote-inbound-rtp" && stat.kind === "audio") {
-                if (stat.roundTripTime)
-                  localRtt = Math.round(stat.roundTripTime * 1000);
-                if (stat.fractionLost)
-                  localLoss = +(stat.fractionLost * 100).toFixed(1);
-                if (stat.jitter) localJitter = +(stat.jitter * 1000).toFixed(1);
-              }
-            });
+          const pcManager = (this.room as any).engine?.pcManager;
+          if (pcManager) {
+            const [pubReport, subReport] = (await Promise.all([
+              pcManager.publisher?.getStats() as Promise<any>,
+              pcManager.subscriber?.getStats() as Promise<any>,
+            ])) as [any, any];
+
+            // 1. 解析 Publisher (上行推流) 统计报告
+            if (pubReport) {
+              const codecMap = new Map<string, string>();
+              pubReport.forEach((stat: any) => {
+                if (stat.type === "codec" && stat.mimeType) {
+                  codecMap.set(stat.id, stat.mimeType);
+                }
+              });
+
+              pubReport.forEach((stat: any) => {
+                // 1.1 物理链路 ICE Candidate Pair RTT
+                if (
+                  stat.type === "candidate-pair" &&
+                  (stat.selected ||
+                    stat.nominated ||
+                    stat.state === "succeeded")
+                ) {
+                  if (typeof stat.currentRoundTripTime === "number") {
+                    localRtt = Math.round(stat.currentRoundTripTime * 1000);
+                  }
+                }
+
+                // 1.2 SFU 接收端通过 RTCP 报告回传的推流质量
+                if (stat.type === "remote-inbound-rtp") {
+                  if (
+                    typeof stat.roundTripTime === "number" &&
+                    stat.roundTripTime > 0
+                  ) {
+                    localRtt = Math.round(stat.roundTripTime * 1000);
+                  }
+                  if (typeof stat.fractionLost === "number") {
+                    localLoss = +(stat.fractionLost * 100).toFixed(1);
+                  }
+                  if (typeof stat.jitter === "number") {
+                    localJitter = +(stat.jitter * 1000).toFixed(1);
+                  }
+                } else if (
+                  stat.type === "outbound-rtp" &&
+                  stat.kind === "video"
+                ) {
+                  if (stat.codecId && codecMap.has(stat.codecId)) {
+                    localVideoCodec = codecMap
+                      .get(stat.codecId)!
+                      .replace(/^video\//i, "")
+                      .toUpperCase();
+                  }
+                  if (stat.frameWidth && stat.frameHeight) {
+                    localVideoResolution = `${stat.frameWidth}x${stat.frameHeight}`;
+                  }
+                  if (stat.framesPerSecond) {
+                    localVideoFps = Math.round(stat.framesPerSecond);
+                  }
+                  if (stat.targetBitrate) {
+                    localVideoBitrate = Math.round(stat.targetBitrate / 1000);
+                  }
+                }
+              });
+            }
+
+            // 2. 解析 Subscriber (下行拉流) 统计报告
+            if (subReport) {
+              subReport.forEach((stat: any) => {
+                if (stat.type === "inbound-rtp" && stat.trackIdentifier) {
+                  remoteTrackStats.set(stat.trackIdentifier, {
+                    packetsLost: stat.packetsLost || 0,
+                    packetsReceived: stat.packetsReceived || 0,
+                    jitter:
+                      typeof stat.jitter === "number"
+                        ? +(stat.jitter * 1000).toFixed(1)
+                        : 0.8,
+                  });
+                }
+              });
+            }
           }
-        } catch {}
+
+          // 若尚未生成有效 RTCP RTT，平滑使用 LiveKit 实时信令 RTT 测量
+          if (localRtt === undefined) {
+            const signalRtt = (this.room as any).engine?.client?.rtt;
+            if (typeof signalRtt === "number" && signalRtt > 0) {
+              localRtt = Math.round(signalRtt);
+            }
+          }
+        } catch (err) {
+          console.warn("[LiveKit] Failed to collect WebRTC getStats:", err);
+        }
       }
 
-      const quality = evaluateNetworkQuality(localRtt, localLoss);
+      // 兜底防御与健康评估
+      const finalLocalRtt = localRtt !== undefined ? Math.max(1, localRtt) : 18;
+      const quality = evaluateNetworkQuality(finalLocalRtt, localLoss);
 
       this.networkStatsMap.set(localIdentity, {
         identity: localIdentity,
-        rtt: Math.max(8, localRtt),
+        rtt: finalLocalRtt,
         packetLoss: localLoss,
-        jitter: Math.max(0.5, localJitter),
+        jitter: Math.max(0.1, localJitter),
         bitrate: localBitrate,
         codec: "Opus (48kHz)",
+        videoCodec: localVideoCodec,
+        videoResolution: localVideoResolution,
+        videoFramerate: localVideoFps,
+        videoBitrate: localVideoBitrate,
         quality,
         timestamp: now,
       });
 
-      // 6.2 遍历远端参与者指标
+      // 6.2 遍历远端参与者指标 (结合下行 track 实际统计与质量评分)
       if (this.room) {
         this.room.remoteParticipants.forEach((p) => {
+          let remoteLoss = 0;
+          let remoteJitter = 1.0;
+
+          // 查找该参与者的音视频 Track 实际接收指标
+          let totalLost = 0;
+          let totalRecv = 0;
+          let foundTrack = false;
+
+          p.trackPublications.forEach((pub) => {
+            const trackId = pub.track?.mediaStreamTrack?.id || pub.trackSid;
+            if (trackId && remoteTrackStats.has(trackId)) {
+              const s = remoteTrackStats.get(trackId)!;
+              totalLost += s.packetsLost;
+              totalRecv += s.packetsReceived;
+              remoteJitter = s.jitter;
+              foundTrack = true;
+            }
+          });
+
+          if (foundTrack && totalLost + totalRecv > 0) {
+            remoteLoss = +((totalLost / (totalLost + totalRecv)) * 100).toFixed(
+              1,
+            );
+          } else if (p.connectionQuality === ConnectionQuality.Poor) {
+            remoteLoss = 5.0;
+          }
+
           const pQuality =
             p.connectionQuality === ConnectionQuality.Excellent
               ? "excellent"
@@ -632,17 +1299,25 @@ export class LiveKitService {
                 ? "good"
                 : p.connectionQuality === ConnectionQuality.Poor
                   ? "poor"
-                  : "excellent";
+                  : evaluateNetworkQuality(finalLocalRtt, remoteLoss);
 
-          const baseRtt =
-            pQuality === "excellent" ? 24 : pQuality === "good" ? 85 : 190;
+          // 远端用户的 RTT 基于本地到 SFU 的真实延迟与连接质量等级推导
+          const rttMultiplier =
+            pQuality === "excellent" ? 1.0 : pQuality === "good" ? 1.4 : 2.5;
+          const remoteRtt = Math.round(finalLocalRtt * rttMultiplier);
+
+          const remoteShare = this.screenSharesMap.get(p.identity);
+
           this.networkStatsMap.set(p.identity, {
             identity: p.identity,
-            rtt: baseRtt,
-            packetLoss: pQuality === "poor" ? 6.5 : 0,
-            jitter: 1.2,
+            rtt: Math.max(1, remoteRtt),
+            packetLoss: remoteLoss,
+            jitter: remoteJitter,
             bitrate: 64,
             codec: "Opus (48kHz)",
+            videoCodec: remoteShare?.codec,
+            videoResolution: remoteShare?.resolution,
+            videoFramerate: remoteShare?.frameRate,
             quality: pQuality,
             timestamp: now,
           });
@@ -719,6 +1394,48 @@ export class LiveKitService {
     }
   }
 
+  getAudioInputDeviceId(): string {
+    return (
+      audioEngine.config.inputDeviceId ||
+      this.selectedAudioInputDeviceId ||
+      "default"
+    );
+  }
+
+  onActiveAudioInputChange(callback: (deviceId: string) => void): () => void {
+    this.onActiveAudioInputChangedCallbacks.add(callback);
+    callback(this.getAudioInputDeviceId());
+    return () => {
+      this.onActiveAudioInputChangedCallbacks.delete(callback);
+    };
+  }
+
+  private notifyActiveAudioInputChanged() {
+    const activeId = this.getAudioInputDeviceId();
+    this.onActiveAudioInputChangedCallbacks.forEach((cb) => {
+      try {
+        cb(activeId);
+      } catch (err) {
+        console.warn("Active audio input callback error:", err);
+      }
+    });
+  }
+
+  async switchAudioInputDevice(deviceId: string): Promise<boolean> {
+    this.selectedAudioInputDeviceId = deviceId;
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("tescord_selected_audio_input_id", deviceId);
+    }
+    this.notifyActiveAudioInputChanged();
+
+    // 联动 AudioEngine 热换流
+    const stream = await audioEngine.switchInputDevice(deviceId);
+    if (stream && this.room && this.isConnected) {
+      await this.publishMicrophoneStream(stream, this.currentAudioBitrate);
+    }
+    return true;
+  }
+
   getCameraDeviceId(): string {
     return this.selectedCameraDeviceId;
   }
@@ -766,7 +1483,10 @@ export class LiveKitService {
               deviceId && deviceId !== "default"
                 ? { deviceId: { exact: deviceId } }
                 : undefined;
-            await this.room.localParticipant.setCameraEnabled(true, cameraOptions);
+            await this.room.localParticipant.setCameraEnabled(
+              true,
+              cameraOptions,
+            );
           }
           const pub = this.room.localParticipant.getTrackPublication(
             Track.Source.Camera,
@@ -808,7 +1528,10 @@ export class LiveKitService {
     return true;
   }
 
-  async setCameraEnabled(enabled: boolean, deviceId?: string): Promise<boolean> {
+  async setCameraEnabled(
+    enabled: boolean,
+    deviceId?: string,
+  ): Promise<boolean> {
     const targetDeviceId = deviceId || this.selectedCameraDeviceId;
     if (deviceId && deviceId !== this.selectedCameraDeviceId) {
       this.selectedCameraDeviceId = deviceId;
@@ -824,7 +1547,19 @@ export class LiveKitService {
           targetDeviceId && targetDeviceId !== "default"
             ? { deviceId: { exact: targetDeviceId } }
             : undefined;
-        await this.room.localParticipant.setCameraEnabled(enabled, cameraOptions);
+        const effectiveCodec = this.resolveEffectiveVideoCodec(
+          this.preferredVideoCodec,
+        );
+        const publishOptions: any = {
+          videoCodec: effectiveCodec as any,
+          backupCodec: this.enableBackupCodec ? { codec: "vp8" } : false,
+          simulcast: true,
+        };
+        await this.room.localParticipant.setCameraEnabled(
+          enabled,
+          cameraOptions,
+          publishOptions,
+        );
         const pub = this.room.localParticipant.getTrackPublication(
           Track.Source.Camera,
         );
@@ -835,18 +1570,28 @@ export class LiveKitService {
     }
 
     // 若当前未建立 LiveKit SFU 媒体连接 (如单机离线模式或 E2E 测试环境)，通过原生 getUserMedia 获取本地视频流
-    if (enabled && !this.localCameraTrack && navigator.mediaDevices?.getUserMedia) {
+    if (
+      enabled &&
+      !this.localCameraTrack &&
+      navigator.mediaDevices?.getUserMedia
+    ) {
       try {
         const videoConstraints: any =
           targetDeviceId && targetDeviceId !== "default"
             ? { deviceId: { exact: targetDeviceId } }
             : true;
-        const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: videoConstraints,
+        });
         this.localCameraTrack = stream.getVideoTracks()[0] || null;
       } catch (e) {
         console.warn("Local camera fallback getUserMedia error:", e);
       }
-    } else if (!enabled && this.localCameraTrack && (!this.room || !this.isConnected)) {
+    } else if (
+      !enabled &&
+      this.localCameraTrack &&
+      (!this.room || !this.isConnected)
+    ) {
       try {
         if (typeof this.localCameraTrack.stop === "function") {
           this.localCameraTrack.stop();
@@ -907,6 +1652,20 @@ export class LiveKitService {
       const preset =
         SCREEN_SHARE_PRESETS[presetKey] || SCREEN_SHARE_PRESETS["1080p60"];
 
+      const targetCodec =
+        options?.videoCodec || this.preferredVideoCodec || "h264";
+      const effectiveCodec = this.resolveEffectiveVideoCodec(targetCodec);
+      const targetBitrate =
+        options?.customBitrate &&
+        options.customBitrate >= MIN_CUSTOM_BITRATE &&
+        options.customBitrate <= MAX_CUSTOM_BITRATE
+          ? options.customBitrate
+          : this.customBitrate &&
+              this.customBitrate >= MIN_CUSTOM_BITRATE &&
+              this.customBitrate <= MAX_CUSTOM_BITRATE
+            ? this.customBitrate
+            : preset.bitrate;
+
       const localIdentity = this.room?.localParticipant?.identity || "local";
 
       // 若当前未建立 LiveKit SFU 媒体连接 (如单机离线模式或 E2E 测试环境)，直接通过本地 MediaStreamTrack 维护状态
@@ -923,6 +1682,7 @@ export class LiveKitService {
           preset: presetKey,
           resolution: `${preset.width}x${preset.height}`,
           frameRate: preset.frameRate,
+          codec: effectiveCodec.toUpperCase(),
         };
 
         this.screenSharesMap.set(localIdentity, shareInfo);
@@ -932,13 +1692,25 @@ export class LiveKitService {
         return true;
       }
 
-      // 发布屏幕视频轨 (启用 Simulcast 多清晰度广播: 1080p/720p/360p)
+      // 开启 detail 细节优先提示，优化屏幕高频文字与代码清晰度，避免抗锯齿过度模糊
+      if ("contentHint" in videoTrack) {
+        (videoTrack as any).contentHint = "detail";
+      }
+
+      // 发布屏幕视频轨 (启用 Simulcast 多清晰度广播与指定编码格式)
+      // 显式传入 screenShareEncoding，修复 livekit-client 在屏幕分享场景下忽略 videoEncoding 的底层缺陷
       await this.room.localParticipant.publishTrack(videoTrack, {
         name: "screen-share-video",
         source: Track.Source.ScreenShare,
         simulcast: options?.simulcast !== false,
+        videoCodec: effectiveCodec as any,
+        backupCodec: this.enableBackupCodec ? { codec: "vp8" } : false,
         videoEncoding: {
-          maxBitrate: preset.bitrate,
+          maxBitrate: targetBitrate,
+          maxFramerate: preset.frameRate,
+        },
+        screenShareEncoding: {
+          maxBitrate: targetBitrate,
           maxFramerate: preset.frameRate,
         },
       });
@@ -957,12 +1729,7 @@ export class LiveKitService {
         this.localScreenAudioTrack = audioTrack;
       }
 
-      // 若伴音进行了麦克风混音，暂时静音独立麦克风轨道，防止观众听到双重回声
-      if (options?.mixedAudio && this.localAudioPublication?.track) {
-        try {
-          this.localAudioPublication.track.mute();
-        } catch {}
-      }
+      // 麦克风与屏幕伴音使用独立双轨推流，互不干扰，麦克风保持正常推流状态
 
       // 当用户在系统层或浏览器浮动条点击“停止共享”时，自动联动清理
       videoTrack.onended = () => {
@@ -977,6 +1744,7 @@ export class LiveKitService {
         preset: presetKey,
         resolution: `${preset.width}x${preset.height}`,
         frameRate: preset.frameRate,
+        codec: effectiveCodec.toUpperCase(),
       };
 
       this.screenSharesMap.set(this.room.localParticipant.identity, shareInfo);
@@ -995,30 +1763,46 @@ export class LiveKitService {
     try {
       if (this.room && this.isConnected) {
         if (this.localScreenVideoTrack) {
-          await this.room.localParticipant.unpublishTrack(
-            this.localScreenVideoTrack,
-          );
+          await this.room.localParticipant
+            .unpublishTrack(this.localScreenVideoTrack)
+            .catch((err) =>
+              console.warn("Unpublish screen video track error:", err),
+            );
         }
         if (this.localScreenAudioTrack) {
-          await this.room.localParticipant.unpublishTrack(
-            this.localScreenAudioTrack,
-          );
+          await this.room.localParticipant
+            .unpublishTrack(this.localScreenAudioTrack)
+            .catch((err) =>
+              console.warn("Unpublish screen audio track error:", err),
+            );
         }
-      }
-      if (this.localScreenVideoTrack) {
-        this.localScreenVideoTrack.stop();
-        this.localScreenVideoTrack = null;
-      }
-      if (this.localScreenAudioTrack) {
-        this.localScreenAudioTrack.stop();
-        this.localScreenAudioTrack = null;
-      }
-      if (this.localScreenStream) {
-        this.localScreenStream.getTracks().forEach((t) => t.stop());
-        this.localScreenStream = null;
       }
     } catch (e) {
       console.warn("Stop screen share error:", e);
+    } finally {
+      // 必须无条件停止底层物理 Track 并释放硬件捕获资源
+      if (this.localScreenVideoTrack) {
+        try {
+          this.localScreenVideoTrack.stop();
+        } catch {}
+        this.localScreenVideoTrack = null;
+      }
+      if (this.localScreenAudioTrack) {
+        try {
+          this.localScreenAudioTrack.stop();
+        } catch {}
+        this.localScreenAudioTrack = null;
+      }
+      if (this.localScreenStream) {
+        try {
+          this.localScreenStream.getTracks().forEach((t) => {
+            try {
+              t.stop();
+            } catch {}
+          });
+        } catch {}
+        this.localScreenStream = null;
+      }
     }
 
     // 恢复麦克风独立推流
@@ -1098,6 +1882,14 @@ export class LiveKitService {
     return this.screenSharesMap.get(identity) || null;
   }
 
+  get isSharingScreen(): boolean {
+    return Boolean(this.localScreenVideoTrack || this.activeScreenShare?.isLocal);
+  }
+
+  getLocalScreenVideoTrack(): any {
+    return this.localScreenVideoTrack;
+  }
+
   onScreenShareChange(callback: (share: ActiveScreenShare | null) => void) {
     this.onScreenShareChangedCallbacks.add(callback);
     callback(this.activeScreenShare);
@@ -1116,12 +1908,52 @@ export class LiveKitService {
     if (enabled) {
       // 默认尝试请求屏幕或窗口共享
       try {
+        const audioConstraints: MediaTrackConstraints = {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        };
         const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: { width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 60 } },
-          audio: true,
+          video: {
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: 60 },
+          },
+          audio: audioConstraints,
+          // @ts-ignore
+          systemAudio: "include",
+          // @ts-ignore
+          selfBrowserSurface: "exclude",
         });
         return this.startScreenShareWithStream(stream);
-      } catch (err) {
+      } catch (err: any) {
+        if (
+          err?.name === "NotReadableError" ||
+          err?.name === "TrackStartError" ||
+          err?.name === "OverconstrainedError" ||
+          (typeof err?.message === "string" &&
+            err.message.toLowerCase().includes("audio"))
+        ) {
+          try {
+            console.warn("⚠️ 伴音采集失败，自动降级为仅画面推流:", err);
+            const videoOnlyStream =
+              await navigator.mediaDevices.getDisplayMedia({
+                video: {
+                  width: { ideal: 1920 },
+                  height: { ideal: 1080 },
+                  frameRate: { ideal: 60 },
+                },
+                audio: false,
+              });
+            return this.startScreenShareWithStream(videoOnlyStream);
+          } catch (fallbackErr) {
+            console.warn(
+              "Screen share fallback request cancelled or error:",
+              fallbackErr,
+            );
+            return false;
+          }
+        }
         console.warn("Screen share request cancelled or error:", err);
         return false;
       }
@@ -1129,6 +1961,112 @@ export class LiveKitService {
       await this.stopScreenShare();
       return true;
     }
+  }
+
+  private syncCombinedActiveSpeakers() {
+    const combined = new Set<string>([
+      ...this.sfuActiveSpeakers,
+      ...this.localActiveSpeakers,
+    ]);
+
+    let isDifferent = combined.size !== this.activeSpeakers.size;
+    if (!isDifferent) {
+      for (const id of combined) {
+        if (!this.activeSpeakers.has(id)) {
+          isDifferent = true;
+          break;
+        }
+      }
+    }
+
+    if (isDifferent) {
+      this.activeSpeakers = combined;
+      const list = Array.from(combined);
+      this.onActiveSpeakersChangedCallbacks.forEach((cb) => {
+        try {
+          cb(list);
+        } catch (err) {
+          console.error(
+            "[LiveKit] onActiveSpeakersChange callback error:",
+            err,
+          );
+        }
+      });
+    }
+  }
+
+  private startRemoteAudioEnergyMonitoring() {
+    if (this.remoteEnergyTimer) return;
+
+    const sampleBuffer = new Uint8Array(128); // 256 / 2
+    this.remoteEnergyTimer = setInterval(() => {
+      if (this.participantAudioMap.size === 0) {
+        this.stopRemoteAudioEnergyMonitoring();
+        return;
+      }
+
+      const now = Date.now();
+      let hasChange = false;
+
+      this.participantAudioMap.forEach((ctrl, identity) => {
+        let maxAvgEnergy = 0;
+
+        ctrl.tracks.forEach((entry) => {
+          if (entry.analyserNode) {
+            try {
+              entry.analyserNode.getByteFrequencyData(sampleBuffer);
+              let sum = 0;
+              for (let i = 0; i < sampleBuffer.length; i++) {
+                sum += sampleBuffer[i];
+              }
+              const avg = sum / sampleBuffer.length;
+              if (avg > maxAvgEnergy) {
+                maxAvgEnergy = avg;
+              }
+            } catch {}
+          }
+        });
+
+        // 门限判断: avg >= 6 判定说话，辅以 250ms 滞后计时器 (Hangover) 滤除微弱停顿
+        const ENERGY_THRESHOLD = 6;
+        const HANGOVER_MS = 250;
+
+        let state = this.remoteSpeakingStates.get(identity);
+        if (!state) {
+          state = { isSpeaking: false, lastActive: 0 };
+          this.remoteSpeakingStates.set(identity, state);
+        }
+
+        if (maxAvgEnergy >= ENERGY_THRESHOLD) {
+          state.lastActive = now;
+          if (!state.isSpeaking) {
+            state.isSpeaking = true;
+            this.localActiveSpeakers.add(identity);
+            hasChange = true;
+          }
+        } else {
+          if (state.isSpeaking && now - state.lastActive > HANGOVER_MS) {
+            state.isSpeaking = false;
+            this.localActiveSpeakers.delete(identity);
+            hasChange = true;
+          }
+        }
+      });
+
+      if (hasChange) {
+        this.syncCombinedActiveSpeakers();
+      }
+    }, 35);
+  }
+
+  private stopRemoteAudioEnergyMonitoring() {
+    if (this.remoteEnergyTimer) {
+      clearInterval(this.remoteEnergyTimer);
+      this.remoteEnergyTimer = null;
+    }
+    this.localActiveSpeakers.clear();
+    this.remoteSpeakingStates.clear();
+    this.syncCombinedActiveSpeakers();
   }
 
   leaveRoom() {
@@ -1140,12 +2078,17 @@ export class LiveKitService {
     }
     this.isConnected = false;
     this.currentRoomName = null;
+    this.setConnectionStatus("disconnected");
     this.notifyState(false);
   }
 
   private cleanup() {
+    this.stopRemoteAudioEnergyMonitoring();
     this.stopNetworkStatsPolling();
     this.networkStatsMap.clear();
+    this.sfuActiveSpeakers.clear();
+    this.localActiveSpeakers.clear();
+    this.remoteSpeakingStates.clear();
     this.activeSpeakers.clear();
     if (this.activeScreenShare) {
       this.activeScreenShare = null;
@@ -1160,6 +2103,11 @@ export class LiveKitService {
     // 清理所有远端 Web Audio 节点与音轨
     this.participantAudioMap.forEach((ctrl) => {
       ctrl.tracks.forEach((entry) => {
+        if (entry.analyserNode) {
+          try {
+            entry.analyserNode.disconnect();
+          } catch {}
+        }
         if (entry.gainNode) {
           try {
             entry.gainNode.disconnect();
@@ -1218,6 +2166,250 @@ export class LiveKitService {
   private notifyState(connected: boolean) {
     this.onRoomStateChangedCallbacks.forEach((cb) => cb(connected));
   }
+
+  async getStreamDetailedStats(
+    targetIdentity?: string,
+  ): Promise<StreamDetailedStats> {
+    const isLocal =
+      !targetIdentity ||
+      targetIdentity === this.room?.localParticipant?.identity;
+    const identity =
+      targetIdentity || this.room?.localParticipant?.identity || "unknown";
+
+    const activeCodec = (
+      this.activeScreenShare?.codec ||
+      this.preferredVideoCodec ||
+      "H264"
+    ).toUpperCase();
+    let mimeType = `video/${activeCodec}, audio/opus`;
+    let videoInfo = isLocal ? "1280x720, 30FPS" : "纯音频流 (Opus 48kHz)";
+    let audioInfo = "48KHz, Stereo, 64Kbps (Opus)";
+    let encoder = "WebRTC Core (libwebrtc)";
+    let streamHost =
+      (this.room as any)?.serverUrl ||
+      (this.room as any)?.engine?.client?.serverUrl ||
+      "livekit.tescord.local";
+    let connectionMode = "SFU Direct (UDP / LiveKit Server)";
+    let protocol = "UDP";
+    let bufferLength = "12ms";
+    let decodedFrames: string | undefined = undefined;
+    let rtt = "N/A";
+    let packetLoss = "0.0%";
+    let jitter = "0.8ms";
+    let ipVersion: "IPv4" | "IPv6" = "IPv4";
+    let candidateType: "host" | "srflx" | "prflx" | "relay" = "host";
+
+    let totalBytesSent = 0;
+    let totalBytesReceived = 0;
+
+    // 尝试读取当前屏幕共享或摄像头推流/订阅元信息
+    const targetShare =
+      this.getScreenShare(identity) ||
+      (isLocal ? this.activeScreenShare : null);
+    if (targetShare) {
+      if (targetShare.resolution) {
+        videoInfo = `${targetShare.resolution}, ${targetShare.frameRate || 30}FPS`;
+      }
+      if (targetShare.codec) {
+        mimeType = `video/${targetShare.codec.toUpperCase()}, audio/opus`;
+      }
+    }
+
+    if (this.room) {
+      try {
+        const pcManager = (this.room as any).engine?.pcManager;
+        if (pcManager) {
+          const report = isLocal
+            ? await pcManager.publisher?.getStats()
+            : await pcManager.subscriber?.getStats();
+
+          if (report) {
+            const codecMap = new Map<string, string>();
+            let selectedCandidatePairId = "";
+
+            report.forEach((stat: any) => {
+              if (stat.type === "codec" && stat.mimeType) {
+                codecMap.set(stat.id, stat.mimeType);
+              }
+              if (stat.type === "transport" && stat.selectedCandidatePairId) {
+                selectedCandidatePairId = stat.selectedCandidatePairId;
+              }
+            });
+
+            // 远端参与者下行轨道匹配 (防止多成员多视频轨道统计冲突)
+            const targetTrackIds = new Set<string>();
+            if (!isLocal && identity && this.room) {
+              const remoteP = this.room.getParticipantByIdentity(identity);
+              if (remoteP) {
+                remoteP.trackPublications.forEach((pub: any) => {
+                  const tid = pub.track?.mediaStreamTrack?.id || pub.trackSid;
+                  if (tid) targetTrackIds.add(tid);
+                });
+              }
+            }
+
+            report.forEach((stat: any) => {
+              // 1. ICE Candidate Pair 物理拓扑
+              if (
+                stat.type === "candidate-pair" &&
+                (stat.nominated ||
+                  stat.state === "succeeded" ||
+                  stat.id === selectedCandidatePairId)
+              ) {
+                if (stat.currentRoundTripTime) {
+                  rtt = `${Math.round(stat.currentRoundTripTime * 1000)}ms`;
+                }
+                const localCand = report.get(stat.localCandidateId);
+                const remoteCand = report.get(stat.remoteCandidateId);
+                if (remoteCand?.protocol || localCand?.protocol) {
+                  protocol = (
+                    remoteCand?.protocol || localCand?.protocol
+                  ).toUpperCase();
+                }
+                if (remoteCand?.address) {
+                  streamHost = `${remoteCand.address}:${remoteCand.port || ""}`;
+                }
+
+                // 判断 IPv4 / IPv6
+                const checkAddr = remoteCand?.address || localCand?.address || "";
+                if (checkAddr.includes(":") && !checkAddr.startsWith("fe80:")) {
+                  ipVersion = "IPv6";
+                } else {
+                  ipVersion = "IPv4";
+                }
+
+                if (remoteCand?.candidateType) {
+                  candidateType = remoteCand.candidateType;
+                } else if (localCand?.candidateType) {
+                  candidateType = localCand.candidateType;
+                }
+
+                // SFU 架构下绝不是 P2P Direct，明确标记为 SFU 服务端连接架构
+                if (candidateType === "relay") {
+                  connectionMode = `SFU Relay (${protocol} / TURN ${ipVersion})`;
+                } else if (candidateType === "host") {
+                  connectionMode = `SFU Direct (${protocol} / Host ${ipVersion})`;
+                } else if (candidateType === "srflx") {
+                  connectionMode = `SFU Direct (${protocol} / STUN ${ipVersion})`;
+                } else {
+                  connectionMode = `SFU Direct (${protocol} / ${candidateType.toUpperCase()} ${ipVersion})`;
+                }
+              }
+
+              // 2. 下行接收统计 (Inbound RTP)
+              if (stat.type === "inbound-rtp") {
+                const matchTrack =
+                  targetTrackIds.size === 0 ||
+                  (stat.trackIdentifier &&
+                    targetTrackIds.has(stat.trackIdentifier));
+
+                if (matchTrack) {
+                  if (stat.bytesReceived) {
+                    totalBytesReceived += stat.bytesReceived;
+                  }
+                  if (stat.kind === "video") {
+                    if (stat.codecId && codecMap.has(stat.codecId)) {
+                      mimeType = codecMap.get(stat.codecId)!;
+                    }
+                    if (stat.frameWidth && stat.frameHeight) {
+                      videoInfo = `${stat.frameWidth}x${stat.frameHeight}, ${Math.round(stat.framesPerSecond || 30)}FPS`;
+                    }
+                    if (stat.framesDecoded !== undefined) {
+                      decodedFrames = `${stat.framesDecoded} frames (${stat.framesDropped || 0} dropped)`;
+                    }
+                    if (stat.jitter) {
+                      jitter = `${(stat.jitter * 1000).toFixed(1)}ms`;
+                    }
+                    if (stat.jitterBufferDelay && stat.jitterBufferEmittedCount) {
+                      const avgDelay =
+                        (stat.jitterBufferDelay / stat.jitterBufferEmittedCount) *
+                        1000;
+                      bufferLength = `${avgDelay.toFixed(1)}ms`;
+                    }
+                    if (stat.fractionLost) {
+                      packetLoss = `${(stat.fractionLost * 100).toFixed(1)}%`;
+                    }
+                  } else if (stat.kind === "audio") {
+                    audioInfo = `${stat.audioLevel !== undefined ? "Active" : "Stable"} 48KHz, Stereo, 64Kbps`;
+                    if (!videoInfo || videoInfo === "纯音频流 (Opus 48kHz)") {
+                      videoInfo = "纯音频流 (Opus 48kHz)";
+                    }
+                    if (stat.jitter && jitter === "0.8ms") {
+                      jitter = `${(stat.jitter * 1000).toFixed(1)}ms`;
+                    }
+                  }
+                }
+              }
+
+              // 3. 上行推流统计 (Outbound RTP)
+              if (stat.type === "outbound-rtp") {
+                if (stat.bytesSent) {
+                  totalBytesSent += stat.bytesSent;
+                }
+                if (stat.kind === "video") {
+                  if (stat.codecId && codecMap.has(stat.codecId)) {
+                    mimeType = codecMap.get(stat.codecId)!;
+                  }
+                  if (stat.frameWidth && stat.frameHeight) {
+                    videoInfo = `${stat.frameWidth}x${stat.frameHeight}, ${Math.round(stat.framesPerSecond || 30)}FPS`;
+                  }
+                  if (stat.framesEncoded !== undefined) {
+                    decodedFrames = `Encoded: ${stat.framesEncoded} frames`;
+                  }
+                }
+              }
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to get RTC detailed stream stats:", e);
+      }
+    }
+
+    // 4. 精确计算瞬时上行与下行比特率
+    const rateCalc = bitrateCalculator.compute(
+      `livekit-${identity}`,
+      totalBytesSent,
+      totalBytesReceived,
+    );
+
+    const downloadBitrate = isLocal
+      ? rateCalc.uploadFormatted
+      : rateCalc.downloadFormatted;
+    const uploadBitrate = isLocal ? rateCalc.uploadFormatted : undefined;
+
+    return {
+      participantIdentity: identity,
+      isLocal,
+      mimeType,
+      playerCore: "LiveKit WebRTC SFU Engine",
+      videoInfo,
+      audioInfo,
+      encoder,
+      streamHost,
+      connectionMode,
+      topology: "SFU_SERVER" as ConnectionTopology,
+      protocol,
+      bufferLength,
+      decodedFrames: decodedFrames || "N/A",
+      downloadBitrate,
+      uploadBitrate,
+      rawDownloadBitrateBps: isLocal ? rateCalc.uploadBps : rateCalc.downloadBps,
+      rawUploadBitrateBps: isLocal ? rateCalc.uploadBps : undefined,
+      totalBytesReceived,
+      totalBytesSent,
+      rtt,
+      packetLoss,
+      jitter,
+      holePunchStatus: "SFU 服务端转发连通",
+      ipVersion,
+      candidateType,
+    };
+  }
 }
 
 export const livekitService = new LiveKitService();
+
+if (typeof window !== "undefined") {
+  (window as any).__livekitService = livekitService;
+}

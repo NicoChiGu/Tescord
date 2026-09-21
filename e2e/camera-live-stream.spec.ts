@@ -69,12 +69,12 @@ test.describe("语音频道摄像头直播（Webcam Live Streaming）与舞台�
     await expect(serverButton).toBeVisible({ timeout: 10000 });
     await serverButton.click();
 
-    // 3. 点击加入语音频道
+    // 3. 双击加入语音频道
     const voiceChannelBtn = page
       .getByRole("button", { name: /语音闲聊|开黑开麦|voice/i })
       .first();
     await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
-    await voiceChannelBtn.click();
+    await voiceChannelBtn.dblclick();
 
     // 验证加入成功（主房或左侧栏断开连接按钮呈现）
     const leaveVoiceBtn = page
@@ -92,18 +92,24 @@ test.describe("语音频道摄像头直播（Webcam Live Streaming）与舞台�
     await expect(sidebarCameraBtn).toContainText("开视频");
 
     // 初始状态下：成员卡片展示圆形头像，未挂载 video 标签
-    const videoTileInitial = page.getByTestId("participant-video-tile-e2e_camera_user");
+    const videoTileInitial = page.getByTestId(
+      "participant-video-tile-e2e_camera_user",
+    );
     await expect(videoTileInitial).not.toBeVisible();
 
     // 5. 点击开启摄像头
     await centerCameraBtn.click();
 
     // 验证按钮样式变为已开启激活状态
-    await expect(centerCameraBtn).toHaveAttribute("title", "关闭摄像头", { timeout: 10000 });
+    await expect(centerCameraBtn).toHaveAttribute("title", "关闭摄像头", {
+      timeout: 10000,
+    });
     await expect(sidebarCameraBtn).toContainText("关视频", { timeout: 10000 });
 
     // 6. 验证成员卡片平滑切换为视频视口 (包含 <video> 与镜像样式)
-    const videoTile = page.getByTestId("participant-video-tile-e2e_camera_user");
+    const videoTile = page.getByTestId(
+      "participant-video-tile-e2e_camera_user",
+    );
     await expect(videoTile).toBeVisible({ timeout: 10000 });
 
     const videoEl = videoTile.locator("video");
@@ -126,7 +132,9 @@ test.describe("语音频道摄像头直播（Webcam Live Streaming）与舞台�
     // 9. 通过左下角侧边栏快捷开关关闭摄像头
     await sidebarCameraBtn.click();
     await expect(sidebarCameraBtn).toContainText("开视频", { timeout: 5000 });
-    await expect(centerCameraBtn).toHaveAttribute("title", "打开摄像头", { timeout: 5000 });
+    await expect(centerCameraBtn).toHaveAttribute("title", "打开摄像头", {
+      timeout: 5000,
+    });
 
     // 验证视频视口注销，平滑回退至头像展示
     await expect(videoTile).not.toBeVisible({ timeout: 5000 });

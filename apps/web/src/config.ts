@@ -25,7 +25,8 @@ export function resolveServerUrl(url: string | undefined | null): string {
   if (isFileProtocol) return url;
 
   // 如果是本地开发后端地址 (localhost:3001 或 127.0.0.1:3001)，转为相对路径走 Vite 代理
-  const localBackendRegex = /^https?:\/\/(localhost|127\.0\.0\.1):3001(\/.*)?$/i;
+  const localBackendRegex =
+    /^https?:\/\/(localhost|127\.0\.0\.1):3001(\/.*)?$/i;
   const match = url.match(localBackendRegex);
   if (match) {
     return match[2] || "/";
@@ -35,7 +36,10 @@ export function resolveServerUrl(url: string | undefined | null): string {
   if (typeof window !== "undefined" && window.location.hostname) {
     const currentHost = window.location.hostname;
     if (currentHost !== "localhost" && currentHost !== "127.0.0.1") {
-      return url.replace(/\/\/(localhost|127\.0\.0\.1):9000/i, `//${currentHost}:9000`);
+      return url.replace(
+        /\/\/(localhost|127\.0\.0\.1):9000/i,
+        `//${currentHost}:9000`,
+      );
     }
   }
 

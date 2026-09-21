@@ -10,6 +10,7 @@ import {
   Notification,
   clipboard,
   shell,
+  screen,
 } from "electron";
 import path from "path";
 import http from "http";
@@ -18,17 +19,40 @@ import {
   DesktopNotificationPayload,
   DesktopSource,
   UserStatus,
+  SupportedLocale,
 } from "@tescord/types";
+import { detectLocalNetwork, UPnPClient } from "./upnp.js";
+import { getDesktopLocale } from "./locales.js";
 
 // 开发环境下忽略自签名证书错误 (配合 Vite basicSsl HTTPS 开发模式)
 if (process.env.NODE_ENV !== "production") {
   app.commandLine.appendSwitch("ignore-certificate-errors");
 }
 
+// 硬件编解码加速与现代视频编码特性开关 (支持 H.264 / AV1 / H.265 HEVC 平台与 WebRTC 硬编硬解)
+app.commandLine.appendSwitch(
+  "enable-features",
+  [
+    "PlatformHEVCDecoderSupport",
+    "PlatformHEVCEncoderSupport",
+    "WebRtcAllowH265Send",
+    "WebRtcAllowH265Receive",
+  ].join(","),
+);
+app.commandLine.appendSwitch(
+  "force-fieldtrials",
+  "WebRTC-Video-H26xPacketBuffer/Enabled/",
+);
+app.commandLine.appendSwitch("enable-accelerated-video-decode");
+app.commandLine.appendSwitch("enable-accelerated-video-encode");
+app.commandLine.appendSwitch("ignore-gpu-blocklist");
+
 // 1. 单例进程保护 (Single Instance Lock)
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
-  console.log("⚠️ 检测到已有 Tescord 实例在运行，本进程将直接退出并唤醒前台窗口。");
+  console.log(
+    "⚠️ 检测到已有 Tescord 实例在运行，本进程将直接退出并唤醒前台窗口。",
+  );
   app.quit();
   process.exit(0);
 }
@@ -43,6 +67,7 @@ let tray: Tray | null = null;
 let isQuitting = false;
 let currentPTTKey: string | null = null;
 let currentUserStatus: UserStatus = "ONLINE";
+let currentLocale: SupportedLocale = "zh-CN";
 
 // 生成高保真矢量自适应托盘图标 (16x16 RGBA 蓝紫圆角徽标，零外部静态资源依赖)
 function createDefaultTrayIcon(): Electron.NativeImage {
@@ -68,14 +93,17 @@ function createDefaultTrayIcon(): Electron.NativeImage {
   return nativeImage.createFromBuffer(buffer, { width: size, height: size });
 }
 
-function updateTrayContextMenu(currentUserStatus: UserStatus = "ONLINE") {
+function updateTrayContextMenu(status: UserStatus = currentUserStatus) {
   if (!tray) return;
-
+  currentUserStatus = status;
+  const t = getDesktopLocale(currentLocale);
   const isAutoLaunch = app.getLoginItemSettings().openAtLogin;
+
+  tray.setToolTip(t.trayTooltip);
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: "打开 Tescord",
+      label: t.openApp,
       click: () => {
         if (mainWindow) {
           if (mainWindow.isMinimized()) mainWindow.restore();
@@ -86,10 +114,10 @@ function updateTrayContextMenu(currentUserStatus: UserStatus = "ONLINE") {
     },
     { type: "separator" },
     {
-      label: "在线状态",
+      label: t.statusMenu,
       submenu: [
         {
-          label: "🟢 在线 (Online)",
+          label: t.statusOnline,
           type: "radio",
           checked: currentUserStatus === "ONLINE",
           click: () => {
@@ -97,7 +125,7 @@ function updateTrayContextMenu(currentUserStatus: UserStatus = "ONLINE") {
           },
         },
         {
-          label: "🟡 闲置 (Idle)",
+          label: t.statusIdle,
           type: "radio",
           checked: currentUserStatus === "IDLE",
           click: () => {
@@ -105,7 +133,7 @@ function updateTrayContextMenu(currentUserStatus: UserStatus = "ONLINE") {
           },
         },
         {
-          label: "🔴 请勿打扰 (Do Not Disturb)",
+          label: t.statusDnd,
           type: "radio",
           checked: currentUserStatus === "DND",
           click: () => {
@@ -113,24 +141,24 @@ function updateTrayContextMenu(currentUserStatus: UserStatus = "ONLINE") {
           },
         },
         {
-          label: "⚪ 隐身 (Invisible)",
+          label: t.statusInvisible,
           type: "radio",
-          checked: currentUserStatus === "OFFLINE",
+          checked: currentUserStatus === "INVISIBLE",
           click: () => {
-            mainWindow?.webContents.send("tray-status-change", "OFFLINE");
+            mainWindow?.webContents.send("tray-status-change", "INVISIBLE");
           },
         },
       ],
     },
     { type: "separator" },
     {
-      label: "静音麦克风 (Ctrl+Shift+M)",
+      label: t.muteMic,
       click: () => {
         mainWindow?.webContents.send("toggle-global-mute");
       },
     },
     {
-      label: "开机自启动",
+      label: t.autoLaunch,
       type: "checkbox",
       checked: isAutoLaunch,
       click: (item) => {
@@ -142,7 +170,7 @@ function updateTrayContextMenu(currentUserStatus: UserStatus = "ONLINE") {
     },
     { type: "separator" },
     {
-      label: "退出 Tescord",
+      label: t.quit,
       click: () => {
         isQuitting = true;
         app.quit();
@@ -155,9 +183,10 @@ function updateTrayContextMenu(currentUserStatus: UserStatus = "ONLINE") {
 
 function setupSystemTray() {
   if (tray) return;
+  const t = getDesktopLocale(currentLocale);
   const icon = createDefaultTrayIcon();
   tray = new Tray(icon);
-  tray.setToolTip("Tescord 本地私有化实时通讯客户端");
+  tray.setToolTip(t.trayTooltip);
 
   updateTrayContextMenu();
 
@@ -179,6 +208,9 @@ function setupSystemTray() {
 }
 
 function createWindow() {
+  // 隐藏系统原生菜单栏 (去掉 Alt 菜单与原生白条)
+  Menu.setApplicationMenu(null);
+
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
@@ -186,6 +218,9 @@ function createWindow() {
     minHeight: 500,
     backgroundColor: "#313338",
     title: "Tescord 客户端",
+    frame: false,
+    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
@@ -193,27 +228,45 @@ function createWindow() {
     },
   });
 
+  // 监听窗口最大化与还原事件，向渲染进程实时广播以同步自定义顶栏按钮图标
+  mainWindow.on("maximize", () => {
+    mainWindow?.webContents.send("window-maximized-change", true);
+  });
+
+  mainWindow.on("unmaximize", () => {
+    mainWindow?.webContents.send("window-maximized-change", false);
+  });
+
   // 注册 WebContents 原生右键上下文菜单 (编辑、选中文本、链接、图片及开发者调试)
   mainWindow.webContents.on("context-menu", (_event, params) => {
+    const t = getDesktopLocale(currentLocale);
     const menuTemplate: Electron.MenuItemConstructorOptions[] = [];
 
     // 1. 可编辑区域：输入框、文本域等
     if (params.isEditable) {
       menuTemplate.push(
-        { role: "undo", label: "撤销" },
-        { role: "redo", label: "重做" },
+        { role: "undo", label: t.undo },
+        { role: "redo", label: t.redo },
         { type: "separator" },
-        { role: "cut", label: "剪切", enabled: params.editFlags.canCut },
-        { role: "copy", label: "复制", enabled: params.editFlags.canCopy },
-        { role: "paste", label: "粘贴", enabled: params.editFlags.canPaste },
+        { role: "cut", label: t.cut, enabled: params.editFlags.canCut },
+        { role: "copy", label: t.copy, enabled: params.editFlags.canCopy },
+        { role: "paste", label: t.paste, enabled: params.editFlags.canPaste },
         { type: "separator" },
-        { role: "selectAll", label: "全选", enabled: params.editFlags.canSelectAll },
+        {
+          role: "selectAll",
+          label: t.selectAll,
+          enabled: params.editFlags.canSelectAll,
+        },
       );
     } else if (params.selectionText && params.selectionText.trim().length > 0) {
       // 2. 选中文本区域
       menuTemplate.push(
-        { role: "copy", label: "复制", enabled: params.editFlags.canCopy },
-        { role: "selectAll", label: "全选", enabled: params.editFlags.canSelectAll },
+        { role: "copy", label: t.copy, enabled: params.editFlags.canCopy },
+        {
+          role: "selectAll",
+          label: t.selectAll,
+          enabled: params.editFlags.canSelectAll,
+        },
       );
     }
 
@@ -222,11 +275,11 @@ function createWindow() {
       if (menuTemplate.length > 0) menuTemplate.push({ type: "separator" });
       menuTemplate.push(
         {
-          label: "复制链接地址",
+          label: t.copyLink,
           click: () => clipboard.writeText(params.linkURL),
         },
         {
-          label: "在外部浏览器中打开",
+          label: t.openInBrowser,
           click: () => shell.openExternal(params.linkURL),
         },
       );
@@ -236,7 +289,7 @@ function createWindow() {
     if (params.hasImageContents && params.srcURL) {
       if (menuTemplate.length > 0) menuTemplate.push({ type: "separator" });
       menuTemplate.push({
-        label: "复制图片链接",
+        label: t.copyImageLink,
         click: () => clipboard.writeText(params.srcURL),
       });
     }
@@ -246,14 +299,14 @@ function createWindow() {
       menuTemplate.push(
         { type: "separator" },
         {
-          label: "检查元素 (Inspect Element)",
+          label: t.inspectElement,
           click: () => {
             mainWindow?.webContents.inspectElement(params.x, params.y);
           },
         },
         {
           role: "reload",
-          label: "重新加载页面",
+          label: t.reload,
         },
       );
     }
@@ -316,14 +369,52 @@ ipcMain.handle("get-desktop-sources", async (): Promise<DesktopSource[]> => {
     thumbnailSize: { width: 480, height: 270 },
     fetchWindowIcons: true,
   });
-  return sources.map((s) => ({
-    id: s.id,
-    name: s.name,
-    thumbnail: s.thumbnail.toDataURL(),
-    type: s.id.startsWith("screen") ? "screen" : "window",
-    appIcon:
-      s.appIcon && !s.appIcon.isEmpty() ? s.appIcon.toDataURL() : undefined,
-  }));
+
+  const displays = screen.getAllDisplays();
+  const primaryDisplay = screen.getPrimaryDisplay();
+
+  return sources.map((s, idx) => {
+    let displayDimensions: { width: number; height: number } | undefined;
+
+    if (s.id.startsWith("screen")) {
+      const displayId = (s as any).display_id;
+      const matchedDisplay = displays.find(
+        (d) => d.id.toString() === displayId,
+      );
+      const targetDisplay = matchedDisplay || displays[idx] || primaryDisplay;
+      if (targetDisplay) {
+        displayDimensions = {
+          width: Math.round(
+            targetDisplay.bounds.width * (targetDisplay.scaleFactor || 1),
+          ),
+          height: Math.round(
+            targetDisplay.bounds.height * (targetDisplay.scaleFactor || 1),
+          ),
+        };
+      }
+    } else {
+      if (primaryDisplay) {
+        displayDimensions = {
+          width: Math.round(
+            primaryDisplay.bounds.width * (primaryDisplay.scaleFactor || 1),
+          ),
+          height: Math.round(
+            primaryDisplay.bounds.height * (primaryDisplay.scaleFactor || 1),
+          ),
+        };
+      }
+    }
+
+    return {
+      id: s.id,
+      name: s.name,
+      thumbnail: s.thumbnail.toDataURL(),
+      type: s.id.startsWith("screen") ? "screen" : "window",
+      appIcon:
+        s.appIcon && !s.appIcon.isEmpty() ? s.appIcon.toDataURL() : undefined,
+      displayDimensions,
+    };
+  });
 });
 
 // 3. 注册按键说话 (PTT) 系统级热键
@@ -417,6 +508,13 @@ ipcMain.on("sync-user-status", (_event, status: UserStatus) => {
   updateTrayContextMenu(status);
 });
 
+ipcMain.on("sync-locale", (_event, locale: SupportedLocale) => {
+  if (locale === "zh-CN" || locale === "en-US" || locale === "ja-JP") {
+    currentLocale = locale;
+    updateTrayContextMenu(currentUserStatus);
+  }
+});
+
 // 7. 窗口控制接口
 ipcMain.handle("window-minimize", () => {
   mainWindow?.minimize();
@@ -432,6 +530,60 @@ ipcMain.handle("window-maximize", () => {
 
 ipcMain.handle("window-close", () => {
   mainWindow?.hide();
+});
+
+ipcMain.handle("window-is-maximized", () => {
+  return mainWindow?.isMaximized() ?? false;
+});
+
+// 原生网络穿透与 UPnP 自动打洞
+ipcMain.handle("desktop-detect-local-network", async () => {
+  return detectLocalNetwork();
+});
+
+ipcMain.handle(
+  "desktop-upnp-map-port",
+  async (_event, port: number, protocol?: "UDP" | "TCP") => {
+    return await UPnPClient.mapPort(port, protocol || "UDP");
+  },
+);
+
+ipcMain.handle(
+  "desktop-upnp-unmap-port",
+  async (_event, port: number, protocol?: "UDP" | "TCP") => {
+    return await UPnPClient.unmapPort(port, protocol || "UDP");
+  },
+);
+
+// 硬件加速与显卡供应商探测 (支持检测 Intel 0x8086 / NVIDIA 0x10de / AMD 0x1002)
+ipcMain.handle("get-gpu-info", async () => {
+  try {
+    const gpuInfo = await app.getGPUInfo("basic");
+    const featureStatus = app.getGPUFeatureStatus();
+    const isIntel = (gpuInfo as any)?.gpuDevice?.some(
+      (d: any) => d.vendorId === 0x8086,
+    );
+    const isNvidia = (gpuInfo as any)?.gpuDevice?.some(
+      (d: any) => d.vendorId === 0x10de,
+    );
+    const isAmd = (gpuInfo as any)?.gpuDevice?.some(
+      (d: any) => d.vendorId === 0x1002,
+    );
+    return {
+      gpuInfo,
+      featureStatus,
+      isIntel: Boolean(isIntel),
+      isNvidia: Boolean(isNvidia),
+      isAmd: Boolean(isAmd),
+    };
+  } catch (e) {
+    return {
+      isIntel: false,
+      isNvidia: false,
+      isAmd: false,
+      error: String(e),
+    };
+  }
 });
 
 // 单例唤醒监听

@@ -10,6 +10,7 @@ import { config } from "dotenv";
 import { prisma, seedInitialData } from "./db.js";
 import { AuthService } from "./services/auth.service.js";
 import { gatewayManager } from "./gateway.js";
+import { cacheStore } from "./cache.js";
 import { generateLiveKitToken } from "./livekit.js";
 import { storageService } from "./services/storage.service.js";
 import { permissionService } from "./services/permission.service.js";
@@ -25,6 +26,10 @@ import {
   CreateGuildDTO,
   UpdateGuildDTO,
   CreateChannelDTO,
+  CreateCategoryDTO,
+  UpdateCategoryDTO,
+  ReorderCategoriesDTO,
+  ReorderChannelsDTO,
   CreateInviteDTO,
   JoinInviteDTO,
   PresignedUploadRequest,
@@ -238,7 +243,19 @@ server.patch(
       const body = request.body as UpdateProfileDTO;
       const updated = await authService.updateProfile(userId, body);
 
-      // 通过网关广播状态更新事件
+      // 若修改了在线状态或个性签名，同步更新瞬时在线表并广播专属 PRESENCE_UPDATE
+      if (body.status || body.customStatus !== undefined) {
+        const presence = {
+          userId,
+          status: updated.status,
+          customStatus: updated.customStatus,
+          lastActiveAt: new Date().toISOString(),
+        };
+        await cacheStore.setUserPresence(userId, presence);
+        await gatewayManager.broadcastPresenceUpdate(userId, presence);
+      }
+
+      // 通过网关广播全量资料更新事件
       gatewayManager.broadcast({
         op: GatewayOpCode.DISPATCH,
         t: "USER_UPDATE",
@@ -254,6 +271,86 @@ server.patch(
   },
 );
 
+// 获取用户个人偏好设置 (UserSettingsDTO)
+server.get(
+  "/api/users/@me/settings",
+  { preValidation: [(server as any).authenticate] },
+  async (request: any, reply) => {
+    const userId = request.user?.sub;
+    if (!userId) {
+      return reply.status(401).send({ error: "无效用户" });
+    }
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { settings: true },
+    });
+    if (!user) {
+      return reply.status(404).send({ error: "用户不存在" });
+    }
+    if (!user.settings) {
+      return {};
+    }
+    try {
+      return JSON.parse(user.settings);
+    } catch {
+      return {};
+    }
+  },
+);
+
+// 增量/全量更新个人偏好设置 (UserSettingsDTO)
+server.patch(
+  "/api/users/@me/settings",
+  { preValidation: [(server as any).authenticate] },
+  async (request: any, reply) => {
+    const userId = request.user?.sub;
+    if (!userId) {
+      return reply.status(401).send({ error: "无效用户" });
+    }
+    try {
+      const incomingSettings = request.body || {};
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { settings: true },
+      });
+      if (!user) {
+        return reply.status(404).send({ error: "用户不存在" });
+      }
+      let existingSettings: Record<string, any> = {};
+      if (user.settings) {
+        try {
+          existingSettings = JSON.parse(user.settings);
+        } catch {}
+      }
+      const mergedSettings = {
+        ...existingSettings,
+        ...incomingSettings,
+        audio: {
+          ...(existingSettings.audio || {}),
+          ...(incomingSettings.audio || {}),
+        },
+        video: {
+          ...(existingSettings.video || {}),
+          ...(incomingSettings.video || {}),
+        },
+        userVolumes: {
+          ...(existingSettings.userVolumes || {}),
+          ...(incomingSettings.userVolumes || {}),
+        },
+      };
+      await prisma.user.update({
+        where: { id: userId },
+        data: { settings: JSON.stringify(mergedSettings) },
+      });
+      return mergedSettings;
+    } catch (err: any) {
+      return reply
+        .status(400)
+        .send({ error: err.message || "更新用户设置失败" });
+    }
+  },
+);
+
 // ==========================================
 // 2. 公会与频道 API (Guilds & Channels)
 // ==========================================
@@ -261,6 +358,9 @@ server.patch(
 server.get("/api/guilds", async () => {
   const guilds = await prisma.guild.findMany({
     include: {
+      categories: {
+        orderBy: { position: "asc" },
+      },
       channels: {
         orderBy: { position: "asc" },
       },
@@ -286,6 +386,11 @@ server.get("/api/guilds", async () => {
     },
   });
 
+  const allMemberIds = Array.from(
+    new Set(guilds.flatMap((g) => g.members.map((m) => m.userId))),
+  );
+  const presences = await cacheStore.batchGetPresences(allMemberIds);
+
   return guilds.map((g) => {
     const roleMap = new Map(g.roles.map((r) => [r.id, r]));
     return {
@@ -296,6 +401,14 @@ server.get("/api/guilds", async () => {
       ownerId: g.ownerId,
       createdAt: g.createdAt.toISOString(),
       updatedAt: g.updatedAt.toISOString(),
+      categories: g.categories.map((cat) => ({
+        id: cat.id,
+        guildId: cat.guildId,
+        name: cat.name,
+        position: cat.position,
+        createdAt: cat.createdAt.toISOString(),
+        updatedAt: cat.updatedAt.toISOString(),
+      })),
       channels: g.channels.map((c) => ({
         id: c.id,
         guildId: c.guildId,
@@ -336,6 +449,17 @@ server.get("/api/guilds", async () => {
             createdAt: r.createdAt.toISOString(),
           }));
 
+        const presence = m.user ? presences.get(m.userId) : null;
+        const isOnline =
+          presence &&
+          presence.status !== "OFFLINE" &&
+          presence.status !== "INVISIBLE";
+        const finalStatus = isOnline ? presence.status : "OFFLINE";
+        const finalCustomStatus =
+          presence?.customStatus !== undefined
+            ? presence.customStatus
+            : m.user?.customStatus;
+
         return {
           userId: m.userId,
           guildId: m.guildId,
@@ -346,6 +470,8 @@ server.get("/api/guilds", async () => {
           user: m.user
             ? {
                 ...m.user,
+                status: finalStatus,
+                customStatus: finalCustomStatus,
                 createdAt: m.user.createdAt.toISOString(),
               }
             : undefined,
@@ -410,21 +536,6 @@ server.post("/api/guilds", async (request, reply) => {
       iconUrl: iconUrl || null,
       description: (request.body as any)?.description || null,
       ownerId: owner.id,
-      channels: {
-        create: [
-          {
-            name: "常规",
-            type: "TEXT",
-            topic: "日常聊天交流",
-            position: 0,
-          },
-          {
-            name: "日常闲聊",
-            type: "VOICE",
-            position: 1,
-          },
-        ],
-      },
       roles: {
         create: [
           {
@@ -447,12 +558,49 @@ server.post("/api/guilds", async (request, reply) => {
       },
     },
     include: {
-      channels: true,
       roles: true,
     },
   });
 
-  const adminRole = guild.roles.find((r) => r.name === "Admin") || guild.roles[0];
+  const textCat = await prisma.channelCategory.create({
+    data: {
+      guildId: guild.id,
+      name: "文字频道",
+      position: 0,
+    },
+  });
+
+  const voiceCat = await prisma.channelCategory.create({
+    data: {
+      guildId: guild.id,
+      name: "语音频道",
+      position: 1,
+    },
+  });
+
+  const textChannel = await prisma.channel.create({
+    data: {
+      guildId: guild.id,
+      parentId: textCat.id,
+      name: "常规",
+      type: "TEXT",
+      topic: "日常聊天交流",
+      position: 0,
+    },
+  });
+
+  const voiceChannel = await prisma.channel.create({
+    data: {
+      guildId: guild.id,
+      parentId: voiceCat.id,
+      name: "日常闲聊",
+      type: "VOICE",
+      position: 1,
+    },
+  });
+
+  const adminRole =
+    guild.roles.find((r) => r.name === "Admin") || guild.roles[0];
   const member = await prisma.guildMember.create({
     data: {
       guildId: guild.id,
@@ -483,18 +631,50 @@ server.post("/api/guilds", async (request, reply) => {
     ownerId: guild.ownerId,
     createdAt: guild.createdAt.toISOString(),
     updatedAt: guild.updatedAt.toISOString(),
-    channels: guild.channels.map((c) => ({
-      id: c.id,
-      guildId: c.guildId,
-      name: c.name,
-      type: c.type as any,
-      topic: c.topic,
-      parentId: c.parentId,
-      position: c.position,
-      isE2EE: c.isE2EE,
-      bitrate: c.bitrate,
-      createdAt: c.createdAt.toISOString(),
-    })),
+    categories: [
+      {
+        id: textCat.id,
+        guildId: textCat.guildId,
+        name: textCat.name,
+        position: textCat.position,
+        createdAt: textCat.createdAt.toISOString(),
+        updatedAt: textCat.updatedAt.toISOString(),
+      },
+      {
+        id: voiceCat.id,
+        guildId: voiceCat.guildId,
+        name: voiceCat.name,
+        position: voiceCat.position,
+        createdAt: voiceCat.createdAt.toISOString(),
+        updatedAt: voiceCat.updatedAt.toISOString(),
+      },
+    ],
+    channels: [
+      {
+        id: textChannel.id,
+        guildId: textChannel.guildId,
+        name: textChannel.name,
+        type: textChannel.type as any,
+        topic: textChannel.topic,
+        parentId: textChannel.parentId,
+        position: textChannel.position,
+        isE2EE: textChannel.isE2EE,
+        bitrate: textChannel.bitrate,
+        createdAt: textChannel.createdAt.toISOString(),
+      },
+      {
+        id: voiceChannel.id,
+        guildId: voiceChannel.guildId,
+        name: voiceChannel.name,
+        type: voiceChannel.type as any,
+        topic: voiceChannel.topic,
+        parentId: voiceChannel.parentId,
+        position: voiceChannel.position,
+        isE2EE: voiceChannel.isE2EE,
+        bitrate: voiceChannel.bitrate,
+        createdAt: voiceChannel.createdAt.toISOString(),
+      },
+    ],
     roles: guild.roles.map((r) => ({
       id: r.id,
       guildId: r.guildId,
@@ -749,9 +929,7 @@ server.post("/api/guilds/:guildId/roles", async (request, reply) => {
     PermissionFlags.MANAGE_ROLES,
   );
   if (!hasPerm) {
-    return reply
-      .status(403)
-      .send({ error: "缺少管理角色权限 (MANAGE_ROLES)" });
+    return reply.status(403).send({ error: "缺少管理角色权限 (MANAGE_ROLES)" });
   }
 
   const body = (request.body || {}) as CreateRoleDTO;
@@ -963,9 +1141,7 @@ server.put("/api/guilds/:guildId/roles/positions", async (request, reply) => {
     PermissionFlags.MANAGE_ROLES,
   );
   if (!hasPerm) {
-    return reply
-      .status(403)
-      .send({ error: "缺少管理角色权限 (MANAGE_ROLES)" });
+    return reply.status(403).send({ error: "缺少管理角色权限 (MANAGE_ROLES)" });
   }
 
   const { roles } = (request.body || {}) as UpdateRolePositionsDTO;
@@ -1054,11 +1230,9 @@ server.patch(
       if (!isOwner) {
         for (const r of assignedRoles) {
           if (r.position >= actorHighestPos) {
-            return reply
-              .status(403)
-              .send({
-                error: `无法赋予等于或高于自身权重的角色: ${r.name}`,
-              });
+            return reply.status(403).send({
+              error: `无法赋予等于或高于自身权重的角色: ${r.name}`,
+            });
           }
         }
       }
@@ -1094,11 +1268,9 @@ server.patch(
           guildId,
         );
         if (!canManage) {
-          return reply
-            .status(403)
-            .send({
-              error: "无权修改该成员昵称（对方职级高于或等同于自身）",
-            });
+          return reply.status(403).send({
+            error: "无权修改该成员昵称（对方职级高于或等同于自身）",
+          });
         }
       }
     }
@@ -1107,9 +1279,7 @@ server.patch(
       where: { id: member.id },
       data: {
         roleIds:
-          body.roleIds !== undefined
-            ? JSON.stringify(body.roleIds)
-            : undefined,
+          body.roleIds !== undefined ? JSON.stringify(body.roleIds) : undefined,
         nickname: body.nickname !== undefined ? body.nickname : undefined,
       },
       include: {
@@ -1130,9 +1300,7 @@ server.patch(
 
     const allRoles = await prisma.role.findMany({ where: { guildId } });
     const roleMap = new Map(allRoles.map((r) => [r.id, r]));
-    const finalRoleIds: string[] = JSON.parse(
-      updatedMember.roleIds || "[]",
-    );
+    const finalRoleIds: string[] = JSON.parse(updatedMember.roleIds || "[]");
     const parsedRoles = finalRoleIds
       .map((id) => roleMap.get(id))
       .filter(Boolean)
@@ -1586,16 +1754,27 @@ server.post("/api/invites/:code/join", async (request, reply) => {
     },
   });
   if (isBanned) {
-    return reply
-      .status(403)
-      .send({ error: "您已被该服务器封禁，无法加入" });
+    return reply.status(403).send({ error: "您已被该服务器封禁，无法加入" });
   }
 
   let member = await prisma.guildMember.findUnique({
     where: {
       guildId_userId: { guildId: invite.guildId, userId: user.id },
     },
-    include: { user: true },
+    include: {
+      user: {
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          avatarUrl: true,
+          status: true,
+          customStatus: true,
+          bio: true,
+          createdAt: true,
+        },
+      },
+    },
   });
 
   if (!member) {
@@ -1604,14 +1783,40 @@ server.post("/api/invites/:code/join", async (request, reply) => {
       data: { uses: { increment: 1 } },
     });
 
+    const safeUserSelect = {
+      id: true,
+      username: true,
+      email: true,
+      avatarUrl: true,
+      status: true,
+      customStatus: true,
+      bio: true,
+      createdAt: true,
+    };
+
     member = await prisma.guildMember.create({
       data: {
         guildId: invite.guildId,
         userId: user.id,
         roleIds: "[]",
       },
-      include: { user: true },
+      include: {
+        user: {
+          select: safeUserSelect,
+        },
+      },
     });
+
+    const presence = await cacheStore.getUserPresence(member.userId);
+    const isOnline =
+      presence &&
+      presence.status !== "OFFLINE" &&
+      presence.status !== "INVISIBLE";
+    const finalStatus = isOnline ? presence.status : (member.user?.status || "ONLINE");
+    const finalCustomStatus =
+      presence?.customStatus !== undefined
+        ? presence.customStatus
+        : member.user?.customStatus;
 
     gatewayManager.broadcast({
       op: GatewayOpCode.DISPATCH,
@@ -1623,10 +1828,13 @@ server.post("/api/invites/:code/join", async (request, reply) => {
           guildId: member.guildId,
           nickname: member.nickname,
           roleIds: [],
+          roles: [],
           joinedAt: member.joinedAt.toISOString(),
           user: member.user
             ? {
                 ...member.user,
+                status: finalStatus as any,
+                customStatus: finalCustomStatus,
                 createdAt: member.user.createdAt.toISOString(),
               }
             : undefined,
@@ -1774,17 +1982,19 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
       .send({ error: "缺少管理频道权限 (MANAGE_CHANNELS)" });
   }
 
-  const { name, topic } = (request.body || {}) as {
+  const { name, topic, parentId, position } = (request.body || {}) as {
     name?: string;
     topic?: string;
+    parentId?: string | null;
+    position?: number;
   };
   const updatedChannel = await prisma.channel.update({
     where: { id: channelId },
     data: {
-      ...(name
-        ? { name: name.trim().toLowerCase().replace(/\s+/g, "-") }
-        : {}),
+      ...(name ? { name: name.trim().toLowerCase().replace(/\s+/g, "-") } : {}),
       ...(topic !== undefined ? { topic } : {}),
+      ...(parentId !== undefined ? { parentId } : {}),
+      ...(position !== undefined ? { position } : {}),
     },
   });
 
@@ -1808,6 +2018,271 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
   });
 
   return channelPayload;
+});
+
+// ==========================================
+// 频道分类与拖拽排序 API (Channel Categories & Positions)
+// ==========================================
+
+// 创建分类 (Category)
+server.post("/api/guilds/:guildId/categories", async (request, reply) => {
+  const { guildId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  const user = userId
+    ? await prisma.user.findUnique({ where: { id: userId } })
+    : await prisma.user.findFirst();
+  if (!user) {
+    return reply.status(401).send({ error: "需要登录" });
+  }
+
+  const canManage = await permissionService.hasGuildPermission(
+    user.id,
+    guildId,
+    PermissionFlags.MANAGE_CHANNELS,
+  );
+  if (!canManage) {
+    return reply
+      .status(403)
+      .send({ error: "缺少管理频道权限 (MANAGE_CHANNELS)" });
+  }
+
+  const { name, position: customPosition } = (request.body ||
+    {}) as CreateCategoryDTO;
+  if (!name || !name.trim()) {
+    return reply.status(400).send({ error: "分类名称不能为空" });
+  }
+
+  let position = customPosition;
+  if (position === undefined) {
+    const maxPosCat = await prisma.channelCategory.findFirst({
+      where: { guildId },
+      orderBy: { position: "desc" },
+    });
+    position = maxPosCat ? maxPosCat.position + 1 : 0;
+  }
+
+  const category = await prisma.channelCategory.create({
+    data: {
+      guildId,
+      name: name.trim(),
+      position,
+    },
+  });
+
+  const categoryPayload = {
+    id: category.id,
+    guildId: category.guildId,
+    name: category.name,
+    position: category.position,
+    createdAt: category.createdAt.toISOString(),
+    updatedAt: category.updatedAt.toISOString(),
+  };
+
+  gatewayManager.broadcast({
+    op: GatewayOpCode.DISPATCH,
+    t: GatewayEvents.CATEGORY_CREATE,
+    d: categoryPayload,
+  });
+
+  return categoryPayload;
+});
+
+// 编辑分类 (重命名/排序)
+server.patch("/api/categories/:categoryId", async (request, reply) => {
+  const { categoryId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  const user = userId
+    ? await prisma.user.findUnique({ where: { id: userId } })
+    : await prisma.user.findFirst();
+  if (!user) {
+    return reply.status(401).send({ error: "需要登录" });
+  }
+
+  const category = await prisma.channelCategory.findUnique({
+    where: { id: categoryId },
+  });
+  if (!category) {
+    return reply.status(404).send({ error: "分类不存在" });
+  }
+
+  const canManage = await permissionService.hasGuildPermission(
+    user.id,
+    category.guildId,
+    PermissionFlags.MANAGE_CHANNELS,
+  );
+  if (!canManage) {
+    return reply
+      .status(403)
+      .send({ error: "缺少管理频道权限 (MANAGE_CHANNELS)" });
+  }
+
+  const { name, position } = (request.body || {}) as UpdateCategoryDTO;
+  const updatedCategory = await prisma.channelCategory.update({
+    where: { id: categoryId },
+    data: {
+      ...(name ? { name: name.trim() } : {}),
+      ...(position !== undefined ? { position } : {}),
+    },
+  });
+
+  const categoryPayload = {
+    id: updatedCategory.id,
+    guildId: updatedCategory.guildId,
+    name: updatedCategory.name,
+    position: updatedCategory.position,
+    createdAt: updatedCategory.createdAt.toISOString(),
+    updatedAt: updatedCategory.updatedAt.toISOString(),
+  };
+
+  gatewayManager.broadcast({
+    op: GatewayOpCode.DISPATCH,
+    t: GatewayEvents.CATEGORY_UPDATE,
+    d: categoryPayload,
+  });
+
+  return categoryPayload;
+});
+
+// 删除分类 (保留子频道，将其 parentId 设为 null)
+server.delete("/api/categories/:categoryId", async (request, reply) => {
+  const { categoryId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  const user = userId
+    ? await prisma.user.findUnique({ where: { id: userId } })
+    : await prisma.user.findFirst();
+  if (!user) {
+    return reply.status(401).send({ error: "需要登录" });
+  }
+
+  const category = await prisma.channelCategory.findUnique({
+    where: { id: categoryId },
+  });
+  if (!category) {
+    return reply.status(404).send({ error: "分类不存在" });
+  }
+
+  const canManage = await permissionService.hasGuildPermission(
+    user.id,
+    category.guildId,
+    PermissionFlags.MANAGE_CHANNELS,
+  );
+  if (!canManage) {
+    return reply
+      .status(403)
+      .send({ error: "缺少管理频道权限 (MANAGE_CHANNELS)" });
+  }
+
+  // 将该分类下所有频道的 parentId 置空 (孤儿保留)
+  await prisma.channel.updateMany({
+    where: { parentId: categoryId },
+    data: { parentId: null },
+  });
+
+  // 删除该分类
+  await prisma.channelCategory.delete({
+    where: { id: categoryId },
+  });
+
+  gatewayManager.broadcast({
+    op: GatewayOpCode.DISPATCH,
+    t: GatewayEvents.CATEGORY_DELETE,
+    d: { categoryId, guildId: category.guildId },
+  });
+
+  return { success: true, categoryId, guildId: category.guildId };
+});
+
+// 批量更新分类排序 (拖拽排序)
+server.patch("/api/guilds/:guildId/categories/positions", async (request, reply) => {
+  const { guildId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  const user = userId
+    ? await prisma.user.findUnique({ where: { id: userId } })
+    : await prisma.user.findFirst();
+  if (!user) {
+    return reply.status(401).send({ error: "需要登录" });
+  }
+
+  const canManage = await permissionService.hasGuildPermission(
+    user.id,
+    guildId,
+    PermissionFlags.MANAGE_CHANNELS,
+  );
+  if (!canManage) {
+    return reply
+      .status(403)
+      .send({ error: "缺少管理频道权限 (MANAGE_CHANNELS)" });
+  }
+
+  const { categories } = (request.body || {}) as ReorderCategoriesDTO;
+  if (!Array.isArray(categories)) {
+    return reply.status(400).send({ error: "参数格式错误" });
+  }
+
+  await prisma.$transaction(
+    categories.map((cat) =>
+      prisma.channelCategory.update({
+        where: { id: cat.id },
+        data: { position: cat.position },
+      }),
+    ),
+  );
+
+  gatewayManager.broadcast({
+    op: GatewayOpCode.DISPATCH,
+    t: GatewayEvents.CATEGORY_POSITIONS_UPDATE,
+    d: { guildId, categories },
+  });
+
+  return { success: true, categories };
+});
+
+// 批量更新频道排序与所属分类 (拖拽移动与排序)
+server.patch("/api/guilds/:guildId/channels/positions", async (request, reply) => {
+  const { guildId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  const user = userId
+    ? await prisma.user.findUnique({ where: { id: userId } })
+    : await prisma.user.findFirst();
+  if (!user) {
+    return reply.status(401).send({ error: "需要登录" });
+  }
+
+  const canManage = await permissionService.hasGuildPermission(
+    user.id,
+    guildId,
+    PermissionFlags.MANAGE_CHANNELS,
+  );
+  if (!canManage) {
+    return reply
+      .status(403)
+      .send({ error: "缺少管理频道权限 (MANAGE_CHANNELS)" });
+  }
+
+  const { channels } = (request.body || {}) as ReorderChannelsDTO;
+  if (!Array.isArray(channels)) {
+    return reply.status(400).send({ error: "参数格式错误" });
+  }
+
+  await prisma.$transaction(
+    channels.map((ch) =>
+      prisma.channel.update({
+        where: { id: ch.id },
+        data: {
+          position: ch.position,
+          ...(ch.parentId !== undefined ? { parentId: ch.parentId } : {}),
+        },
+      }),
+    ),
+  );
+
+  gatewayManager.broadcast({
+    op: GatewayOpCode.DISPATCH,
+    t: GatewayEvents.CHANNEL_POSITIONS_UPDATE,
+    d: { guildId, channels },
+  });
+
+  return { success: true, channels };
 });
 
 // 退出公会
@@ -2422,7 +2897,9 @@ server.get("/api/e2ee/keys/prekey/:targetUserId", async (request, reply) => {
   const { targetUserId } = request.params as any;
   const bundle = e2eeService.getPreKey(targetUserId);
   if (!bundle) {
-    return reply.status(404).send({ error: "目标用户尚未发布端到端加密公钥束" });
+    return reply
+      .status(404)
+      .send({ error: "目标用户尚未发布端到端加密公钥束" });
   }
   return bundle;
 });
@@ -2482,6 +2959,43 @@ server.get("/api/channels/:channelId/e2ee/status", async (request, reply) => {
 });
 
 // ==========================================
+// 4.9 WebRTC STUN/TURN 动态穿透中继凭据分发
+// ==========================================
+
+server.get("/api/network/ice-servers", async () => {
+  const turnHost =
+    process.env.COTURN_HOST || process.env.TURN_HOST || "127.0.0.1";
+  const turnPort =
+    process.env.COTURN_PORT || process.env.TURN_PORT || "3478";
+  const turnUser =
+    process.env.COTURN_USER || process.env.TURN_USER || "tescorduser";
+  const turnPass =
+    process.env.COTURN_PASSWORD || process.env.TURN_PASSWORD || "tescordpass";
+
+  return {
+    iceServers: [
+      // 1. Cloudflare 高可用全球双栈 IPv4 / IPv6 STUN
+      { urls: "stun:stun.cloudflare.com:3478" },
+      // 2. 国内主流高可用 STUN
+      { urls: "stun:stun.qq.com:3478" },
+      { urls: "stun:stun.miwifi.com:8443" },
+      { urls: "stun:stun.chat.bilibili.com:3478" },
+      // 3. 本地私有化 / 云端 Coturn STUN & TURN (UDP/TCP 双协议，解决对称 NAT 无法打洞问题)
+      { urls: `stun:${turnHost}:${turnPort}` },
+      {
+        urls: [
+          `turn:${turnHost}:${turnPort}?transport=udp`,
+          `turn:${turnHost}:${turnPort}?transport=tcp`,
+        ],
+        username: turnUser,
+        credential: turnPass,
+      },
+    ],
+    turnActive: true,
+  };
+});
+
+// ==========================================
 // 5. LiveKit 媒体 Token 生成
 // ==========================================
 
@@ -2528,7 +3042,9 @@ async function start() {
     await storageService.init();
 
     // 历史服务器向下兼容自动补齐 @everyone 基础角色
-    const existingGuilds = await prisma.guild.findMany({ select: { id: true } });
+    const existingGuilds = await prisma.guild.findMany({
+      select: { id: true },
+    });
     for (const g of existingGuilds) {
       await permissionService.ensureEveryoneRole(g.id);
     }

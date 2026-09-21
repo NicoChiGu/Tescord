@@ -44,7 +44,11 @@ export const BansTab: React.FC<BansTabProps> = ({ guild, onUnbanMember }) => {
 
   const handleUnban = async (ban: GuildBan) => {
     const name = ban.user?.username || "该用户";
-    if (window.confirm(`确定要解除对 “${name}” 的封禁吗？解封后对方可重新凭邀请码进入服务器。`)) {
+    if (
+      window.confirm(
+        `确定要解除对 “${name}” 的封禁吗？解封后对方可重新凭邀请码进入服务器。`,
+      )
+    ) {
       try {
         await onUnbanMember(ban.userId);
         setBans((prev) => prev.filter((b) => b.userId !== ban.userId));

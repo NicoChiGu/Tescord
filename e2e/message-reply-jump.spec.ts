@@ -174,7 +174,9 @@ test.describe("消息引用跳转原文与高亮交互端到端验收 (Discord-P
     await page.goto("/");
 
     // 1. 进入首个服务器并等待进入 general 频道
-    const serverBtn = page.getByRole("button", { name: /Tescord 极客研发部|极客/i }).first();
+    const serverBtn = page
+      .getByRole("button", { name: /Tescord 极客研发部|极客/i })
+      .first();
     await expect(serverBtn).toBeVisible({ timeout: 10000 });
     await serverBtn.click();
 
@@ -189,7 +191,9 @@ test.describe("消息引用跳转原文与高亮交互端到端验收 (Discord-P
     const replyBar = replyMessageEl.locator('[title="点击跳转至被引用的原文"]');
     await expect(replyBar).toBeVisible();
     await expect(replyBar).toContainText("@Alice");
-    await expect(replyBar).toContainText("【原文】这是一条很重要的早前历史讨论内容");
+    await expect(replyBar).toContainText(
+      "【原文】这是一条很重要的早前历史讨论内容",
+    );
 
     // 3. 点击引用条，触发平滑跳转至原消息
     await replyBar.click();
@@ -197,7 +201,9 @@ test.describe("消息引用跳转原文与高亮交互端到端验收 (Discord-P
     // 4. 验证原消息元素被送入视口，并且被赋予高亮动画样式 animate-message-highlight
     const originMessageEl = page.locator(`#message-${originMsgId}`);
     await expect(originMessageEl).toBeVisible({ timeout: 5000 });
-    await expect(originMessageEl).toHaveClass(/animate-message-highlight/, { timeout: 3000 });
+    await expect(originMessageEl).toHaveClass(/animate-message-highlight/, {
+      timeout: 3000,
+    });
 
     // 5. 验证因离开底部，输入框上方浮现 Discord 经典的“跳到最新”胶囊按钮
     const jumpToPresentBtn = page.getByTitle("跳到最新消息");
@@ -226,7 +232,9 @@ test.describe("消息引用跳转原文与高亮交互端到端验收 (Discord-P
     // 验证自动清除搜索过滤，并且原消息重新出现并成功获得高亮动画类
     await expect(searchInput).toHaveValue("", { timeout: 3000 });
     await expect(originMessageEl).toBeVisible({ timeout: 5000 });
-    await expect(originMessageEl).toHaveClass(/animate-message-highlight/, { timeout: 3000 });
+    await expect(originMessageEl).toHaveClass(/animate-message-highlight/, {
+      timeout: 3000,
+    });
 
     // 8. 测试容灾提示：点击引用了已删除消息的引用条
     // 先滚回底部
@@ -243,7 +251,7 @@ test.describe("消息引用跳转原文与高亮交互端到端验收 (Discord-P
 
     // 过滤掉非关键的网络错误与 WebSocket 连接警告
     const criticalErrors = consoleErrors.filter(
-      (err) => !err.includes("net::ERR_") && !err.includes("WebSocket")
+      (err) => !err.includes("net::ERR_") && !err.includes("WebSocket"),
     );
     expect(criticalErrors).toHaveLength(0);
   });

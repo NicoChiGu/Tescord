@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { User, Guild, UserStatus } from "@tescord/types";
 import {
   ContextMenu,
@@ -16,6 +17,7 @@ import {
 import { usePermissions } from "../../hooks/usePermissions.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { livekitService } from "../../services/livekit.js";
+import { gatewayClient } from "../../services/gateway.js";
 import {
   AtSign,
   Volume2,
@@ -27,6 +29,11 @@ import {
   Settings,
   Headphones,
   Circle,
+  User as UserIcon,
+  Info,
+  MessageSquare,
+  RotateCcw,
+  ScreenShareOff,
 } from "lucide-react";
 
 interface UserContextMenuProps {
@@ -39,7 +46,12 @@ interface UserContextMenuProps {
   guild?: Guild | null;
   children: React.ReactNode;
   isInVoice?: boolean;
+  isStreaming?: boolean;
+  onStopScreenShare?: () => void;
   onMention?: (username: string) => void;
+  onOpenProfile?: (userId: string) => void;
+  onSendMessage?: (userId: string) => void;
+  onShowStats?: () => void;
   onOpenUserSettings?: () => void;
   onOpenAudioSettings?: () => void;
   onKickMember?: (userId: string, username: string) => void;
@@ -47,13 +59,16 @@ interface UserContextMenuProps {
 }
 
 const STATUS_CONFIG: Record<
-  UserStatus,
+  Exclude<UserStatus, "OFFLINE">,
   { label: string; color: string }
 > = {
   ONLINE: { label: "在线", color: "bg-emerald-500" },
   IDLE: { label: "离开", color: "bg-amber-500" },
   DND: { label: "请勿打扰", color: "bg-rose-500" },
-  OFFLINE: { label: "隐身", color: "bg-gray-400" },
+  INVISIBLE: {
+    label: "隐身",
+    color: "border-2 border-gray-400 bg-transparent",
+  },
 };
 
 export const UserContextMenu: React.FC<UserContextMenuProps> = ({
@@ -61,12 +76,18 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
   guild,
   children,
   isInVoice = false,
+  isStreaming = false,
+  onStopScreenShare,
   onMention,
+  onOpenProfile,
+  onSendMessage,
+  onShowStats,
   onOpenUserSettings,
   onOpenAudioSettings,
   onKickMember,
   onBanMember,
 }) => {
+  const { t } = useTranslation("contextMenu");
   const { user: currentUser, updateProfile } = useAuthStore();
   const { canKickMembers, canBanMembers } = usePermissions(guild);
   const [copiedId, setCopiedId] = useState(false);
@@ -87,12 +108,24 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
       if (currentVol !== undefined) {
         setVolume(currentVol);
       }
+
+      // 订阅底层全局音量变动，确保与中间卡片滑块以及其他位置的改动双向同步
+      const unsubscribe = livekitService.onParticipantVolumeChange((identity, newVol) => {
+        if (identity === targetUser.id) {
+          setVolume(newVol);
+        }
+      });
+
+      return () => {
+        unsubscribe();
+      };
     }
   }, [targetUser.id, isMe]);
 
   const handleStatusChange = async (newStatus: string) => {
     try {
       const status = newStatus as UserStatus;
+      gatewayClient.updateStatus(status, currentUser?.customStatus);
       await updateProfile({ status });
       window.electronAPI?.syncUserStatus(status);
     } catch (e) {
@@ -121,7 +154,17 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
   };
 
   return (
-    <ContextMenu>
+    <ContextMenu
+      onOpenChange={(open) => {
+        if (open && !isMe) {
+          // 菜单弹出瞬间强制同步最新音量快照，防止旧值反向覆盖
+          const latestVol = livekitService.getParticipantVolume(targetUser.id);
+          if (latestVol !== undefined) {
+            setVolume(latestVol);
+          }
+        }
+      }}
+    >
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-56">
         {isMe ? (
@@ -129,10 +172,16 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
           <>
             <ContextMenuLabel>在线状态</ContextMenuLabel>
             <ContextMenuRadioGroup
-              value={currentUser?.status || "ONLINE"}
+              value={
+                currentUser?.status === "OFFLINE"
+                  ? "INVISIBLE"
+                  : currentUser?.status || "ONLINE"
+              }
               onValueChange={handleStatusChange}
             >
-              {(Object.keys(STATUS_CONFIG) as UserStatus[]).map((statusKey) => (
+              {(
+                Object.keys(STATUS_CONFIG) as (keyof typeof STATUS_CONFIG)[]
+              ).map((statusKey) => (
                 <ContextMenuRadioItem
                   key={statusKey}
                   value={statusKey}
@@ -192,6 +241,30 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
               {targetUser.username}
             </ContextMenuLabel>
 
+            {onOpenProfile && (
+              <ContextMenuItem
+                onClick={() => onOpenProfile(targetUser.id)}
+                className="hover:bg-discord-brand"
+              >
+                <div className="flex items-center space-x-2">
+                  <UserIcon className="w-4 h-4 text-discord-textMuted" />
+                  <span>个人资料</span>
+                </div>
+              </ContextMenuItem>
+            )}
+
+            {onSendMessage && (
+              <ContextMenuItem
+                onClick={() => onSendMessage(targetUser.id)}
+                className="hover:bg-discord-brand"
+              >
+                <div className="flex items-center space-x-2">
+                  <MessageSquare className="w-4 h-4 text-discord-textMuted" />
+                  <span>发送私信</span>
+                </div>
+              </ContextMenuItem>
+            )}
+
             {onMention && (
               <ContextMenuItem
                 onClick={() => onMention(targetUser.username)}
@@ -200,6 +273,32 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
                 <div className="flex items-center space-x-2">
                   <AtSign className="w-4 h-4 text-discord-textMuted" />
                   <span>@提及该用户</span>
+                </div>
+              </ContextMenuItem>
+            )}
+
+            {/* 直播与视频流属性查看 (Stats for Nerds) */}
+            {onShowStats && (
+              <ContextMenuItem
+                onClick={onShowStats}
+                className="hover:bg-discord-brand"
+              >
+                <div className="flex items-center space-x-2">
+                  <Info className="w-4 h-4 text-discord-brand" />
+                  <span>媒体属性与详细统计 (Stats)</span>
+                </div>
+              </ContextMenuItem>
+            )}
+
+            {/* 本人直播停止推流菜单入口 */}
+            {isStreaming && onStopScreenShare && (
+              <ContextMenuItem
+                onClick={onStopScreenShare}
+                className="hover:bg-discord-danger text-red-400 hover:text-white"
+              >
+                <div className="flex items-center space-x-2">
+                  <ScreenShareOff className="w-4 h-4 text-discord-danger group-hover:text-white" />
+                  <span>停止直播</span>
                 </div>
               </ContextMenuItem>
             )}
@@ -219,7 +318,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
                       ) : (
                         <Volume2 className="w-3.5 h-3.5" />
                       )}
-                      <span>用户独立音量</span>
+                      <span>{t("userVolume")}</span>
                     </span>
                     <span className="font-mono text-discord-textNormal">
                       {volume}%
@@ -233,6 +332,17 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
                     onChange={(e) => handleVolumeChange(Number(e.target.value))}
                     className="w-full h-1.5 bg-[#4e5058] rounded-lg appearance-none cursor-pointer accent-discord-brand"
                   />
+                  <div className="flex justify-between items-center text-[10px] text-discord-textMuted pt-0.5">
+                    <button
+                      type="button"
+                      onClick={() => handleVolumeChange(100)}
+                      className="hover:text-white hover:underline transition flex items-center space-x-1"
+                    >
+                      <RotateCcw className="w-2.5 h-2.5" />
+                      <span>{t("resetVolume")}</span>
+                    </button>
+                    <span>{t("maxVolume")}</span>
+                  </div>
                 </div>
 
                 <ContextMenuItem
@@ -245,7 +355,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
                     ) : (
                       <VolumeX className="w-4 h-4 text-discord-textMuted" />
                     )}
-                    <span>{volume === 0 ? "取消静音" : "静音"}</span>
+                    <span>{volume === 0 ? t("unmuteUser") : t("muteUser")}</span>
                   </div>
                 </ContextMenuItem>
               </>
@@ -256,7 +366,9 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
             {canKickMembers && (
               <ContextMenuItem
                 variant="danger"
-                onClick={() => onKickMember?.(targetUser.id, targetUser.username)}
+                onClick={() =>
+                  onKickMember?.(targetUser.id, targetUser.username)
+                }
               >
                 <div className="flex items-center space-x-2">
                   <UserX className="w-4 h-4" />
@@ -268,7 +380,9 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
             {canBanMembers && (
               <ContextMenuItem
                 variant="danger"
-                onClick={() => onBanMember?.(targetUser.id, targetUser.username)}
+                onClick={() =>
+                  onBanMember?.(targetUser.id, targetUser.username)
+                }
               >
                 <div className="flex items-center space-x-2">
                   <ShieldAlert className="w-4 h-4" />

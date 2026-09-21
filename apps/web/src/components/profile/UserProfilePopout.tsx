@@ -57,7 +57,14 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
 
   // 计算桌面端弹出卡片坐标与指向箭头垂直位置（自适应目标元素的左侧或右侧）
   const calculatePosition = (rect: DOMRect | null, measuredHeight?: number) => {
-    if (!rect) return { top: 0, left: 0, arrowTop: 24, arrowSide: "right" as const, isReady: false };
+    if (!rect)
+      return {
+        top: 0,
+        left: 0,
+        arrowTop: 24,
+        arrowSide: "right" as const,
+        isReady: false,
+      };
     const popoutWidth = 310;
     const margin = 12;
     const popoutHeight = measuredHeight || 440;
@@ -209,6 +216,8 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
         return "bg-[#f0b232]";
       case "DND":
         return "bg-[#f23f43]";
+      case "INVISIBLE":
+        return isSelf ? "border-2 border-[#80848e] bg-transparent" : "bg-[#80848e]";
       default:
         return "bg-[#80848e]";
     }
@@ -216,6 +225,7 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
 
   // 状态灯辅助图标
   const renderStatusBadge = (status?: string) => {
+    const isSelfInvisible = isSelf && status === "INVISIBLE";
     const colorClass = getStatusColor(status);
     return (
       <div
@@ -224,10 +234,12 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
           status === "ONLINE"
             ? "在线"
             : status === "IDLE"
-            ? "离开"
-            : status === "DND"
-            ? "请勿打扰"
-            : "离线"
+              ? "离开"
+              : status === "DND"
+                ? "请勿打扰"
+                : isSelfInvisible
+                  ? "隐身 (仅自己可见)"
+                  : "离线"
         }
       >
         {status === "DND" && (
@@ -235,6 +247,9 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
         )}
         {status === "IDLE" && (
           <div className="w-2 h-2 bg-[#232428] rounded-full -mt-0.5 -ml-0.5" />
+        )}
+        {isSelfInvisible && (
+          <div className="w-2 h-2 bg-[#232428] rounded-full" />
         )}
       </div>
     );
@@ -247,7 +262,9 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
   const popoutContent = (
     <div
       ref={popoutRef}
-      style={!isMobile ? { top: `${pos.top}px`, left: `${pos.left}px` } : undefined}
+      style={
+        !isMobile ? { top: `${pos.top}px`, left: `${pos.left}px` } : undefined
+      }
       className={`${
         isMobile
           ? "relative w-full max-w-[320px] mx-4"
@@ -323,205 +340,205 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
               alt={user.username}
               className="w-20 h-20 rounded-full bg-[#1e1f22] object-cover ring-[6px] ring-[#232428] shadow-md transition-all duration-150"
             />
-          {renderStatusBadge(user.status)}
-        </div>
-      </div>
-
-      {/* 3. 昵称、用户名与自定义个性签名 */}
-      <div className="px-4 pt-2 pb-2">
-        <h4
-          className="text-lg font-bold text-white leading-tight truncate hover:underline cursor-pointer"
-          style={{ color: highestColor || undefined }}
-        >
-          {member?.nickname || user.username}
-        </h4>
-        <div className="text-xs text-[#949ba4] font-medium mt-0.5">
-          @{user.username}
-        </div>
-
-        {user.customStatus && (
-          <div className="mt-2 text-xs text-[#dbdee1] flex items-center gap-1.5 bg-[#111214]/50 px-2.5 py-1.5 rounded-md border border-white/5">
-            <Radio className="w-3 h-3 text-[#5865f2] flex-shrink-0 animate-pulse" />
-            <span className="truncate">{user.customStatus}</span>
-          </div>
-        )}
-      </div>
-
-      {/* 分隔细线 */}
-      <div className="h-[1px] bg-white/5 mx-4 my-1" />
-
-      {/* 4. 内嵌深色详细信息面板 */}
-      <div className="mx-4 mb-3 p-3 rounded-lg bg-[#111214]/70 border border-white/5 space-y-3 max-h-56 overflow-y-auto custom-scrollbar">
-        {/* 关于我 (About Me) */}
-        <div>
-          <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#b5bac1] mb-1">
-            关于我
-          </div>
-          <div className="text-xs text-[#dbdee1] leading-relaxed whitespace-pre-wrap break-words">
-            {user.bio || "该成员暂未填写自我介绍。"}
+            {renderStatusBadge(user.status)}
           </div>
         </div>
 
-        {/* 成员起于 (Member Since) */}
-        <div>
-          <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#b5bac1] mb-1.5">
-            成员起于
+        {/* 3. 昵称、用户名与自定义个性签名 */}
+        <div className="px-4 pt-2 pb-2">
+          <h4
+            className="text-lg font-bold text-white leading-tight truncate hover:underline cursor-pointer"
+            style={{ color: highestColor || undefined }}
+          >
+            {member?.nickname || user.username}
+          </h4>
+          <div className="text-xs text-[#949ba4] font-medium mt-0.5">
+            @{user.username}
           </div>
-          <div className="space-y-1 text-xs text-[#949ba4]">
-            <div className="flex items-center gap-2">
-              <Calendar className="w-3.5 h-3.5 text-[#5865f2] flex-shrink-0" />
-              <span>
-                注册时间：
-                {new Date(user.createdAt).toLocaleDateString("zh-CN", {
-                  year: "numeric",
-                  month: "long",
-                  day: "numeric",
-                })}
-              </span>
+
+          {user.customStatus && (
+            <div className="mt-2 text-xs text-[#dbdee1] flex items-center gap-1.5 bg-[#111214]/50 px-2.5 py-1.5 rounded-md border border-white/5">
+              <Radio className="w-3 h-3 text-[#5865f2] flex-shrink-0 animate-pulse" />
+              <span className="truncate">{user.customStatus}</span>
             </div>
-            {member?.joinedAt && (
+          )}
+        </div>
+
+        {/* 分隔细线 */}
+        <div className="h-[1px] bg-white/5 mx-4 my-1" />
+
+        {/* 4. 内嵌深色详细信息面板 */}
+        <div className="mx-4 mb-3 p-3 rounded-lg bg-[#111214]/70 border border-white/5 space-y-3 max-h-56 overflow-y-auto custom-scrollbar">
+          {/* 关于我 (About Me) */}
+          <div>
+            <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#b5bac1] mb-1">
+              关于我
+            </div>
+            <div className="text-xs text-[#dbdee1] leading-relaxed whitespace-pre-wrap break-words">
+              {user.bio || "该成员暂未填写自我介绍。"}
+            </div>
+          </div>
+
+          {/* 成员起于 (Member Since) */}
+          <div>
+            <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#b5bac1] mb-1.5">
+              成员起于
+            </div>
+            <div className="space-y-1 text-xs text-[#949ba4]">
               <div className="flex items-center gap-2">
-                <Calendar className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                <Calendar className="w-3.5 h-3.5 text-[#5865f2] flex-shrink-0" />
                 <span>
-                  加入本服：
-                  {new Date(member.joinedAt).toLocaleDateString("zh-CN", {
+                  注册时间：
+                  {new Date(user.createdAt).toLocaleDateString("zh-CN", {
                     year: "numeric",
                     month: "long",
                     day: "numeric",
                   })}
                 </span>
               </div>
-            )}
+              {member?.joinedAt && (
+                <div className="flex items-center gap-2">
+                  <Calendar className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                  <span>
+                    加入本服：
+                    {new Date(member.joinedAt).toLocaleDateString("zh-CN", {
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* 身份组 (Roles) */}
+          {roles.length > 0 && (
+            <div>
+              <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#b5bac1] mb-1.5">
+                身份组 — {roles.length}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {roles.map((r) => (
+                  <span
+                    key={r.id}
+                    className="flex items-center gap-1.5 bg-[#2b2d31] hover:bg-[#35373c] text-xs px-2 py-1 rounded-md text-[#dbdee1] border border-white/5 transition max-w-full"
+                  >
+                    <span
+                      className="w-2 h-2 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: r.color || "#99aab5" }}
+                    />
+                    <span className="truncate">{r.name}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* 身份组 (Roles) */}
-        {roles.length > 0 && (
-          <div>
-            <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#b5bac1] mb-1.5">
-              身份组 — {roles.length}
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {roles.map((r) => (
-                <span
-                  key={r.id}
-                  className="flex items-center gap-1.5 bg-[#2b2d31] hover:bg-[#35373c] text-xs px-2 py-1 rounded-md text-[#dbdee1] border border-white/5 transition max-w-full"
+        {/* 5. 底部快捷操作与消息输入栏 */}
+        <div className="px-4 pb-3.5 space-y-2">
+          {!isSelf ? (
+            <>
+              {/* 仿 Discord 快捷输入框 */}
+              <form
+                onSubmit={handleSendQuickMessage}
+                className="relative flex items-center"
+              >
+                <input
+                  type="text"
+                  placeholder={`给 @${user.username} 发送消息`}
+                  value={quickMessage}
+                  onChange={(e) => setQuickMessage(e.target.value)}
+                  className="w-full bg-[#383a40] text-xs text-white placeholder-[#949ba4] rounded-md px-3 py-2 pr-9 focus:outline-none focus:ring-1 focus:ring-[#5865f2] border-none"
+                />
+                <button
+                  type="submit"
+                  disabled={!quickMessage.trim()}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center text-[#949ba4] hover:text-white disabled:opacity-30 disabled:hover:text-[#949ba4] transition"
+                  title="发送消息"
                 >
-                  <span
-                    className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: r.color || "#99aab5" }}
-                  />
-                  <span className="truncate">{r.name}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
+                  <Send className="w-3.5 h-3.5" />
+                </button>
+              </form>
 
-      {/* 5. 底部快捷操作与消息输入栏 */}
-      <div className="px-4 pb-3.5 space-y-2">
-        {!isSelf ? (
-          <>
-            {/* 仿 Discord 快捷输入框 */}
-            <form
-              onSubmit={handleSendQuickMessage}
-              className="relative flex items-center"
-            >
-              <input
-                type="text"
-                placeholder={`给 @${user.username} 发送消息`}
-                value={quickMessage}
-                onChange={(e) => setQuickMessage(e.target.value)}
-                className="w-full bg-[#383a40] text-xs text-white placeholder-[#949ba4] rounded-md px-3 py-2 pr-9 focus:outline-none focus:ring-1 focus:ring-[#5865f2] border-none"
-              />
-              <button
-                type="submit"
-                disabled={!quickMessage.trim()}
-                className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center text-[#949ba4] hover:text-white disabled:opacity-30 disabled:hover:text-[#949ba4] transition"
-                title="发送消息"
-              >
-                <Send className="w-3.5 h-3.5" />
-              </button>
-            </form>
+              {/* 快捷按钮组 */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleMention}
+                  className="flex-1 py-1.5 px-2 rounded bg-[#2b2d31] hover:bg-[#35373c] text-xs font-medium text-white flex items-center justify-center gap-1.5 transition"
+                  title="在当前输入框中 @提及"
+                >
+                  <AtSign className="w-3.5 h-3.5 text-[#5865f2]" />
+                  <span>@提及</span>
+                </button>
 
-            {/* 快捷按钮组 */}
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={handleMention}
-                className="flex-1 py-1.5 px-2 rounded bg-[#2b2d31] hover:bg-[#35373c] text-xs font-medium text-white flex items-center justify-center gap-1.5 transition"
-                title="在当前输入框中 @提及"
-              >
-                <AtSign className="w-3.5 h-3.5 text-[#5865f2]" />
-                <span>@提及</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleCopyId}
-                className="flex-1 py-1.5 px-2 rounded bg-[#2b2d31] hover:bg-[#35373c] text-xs font-medium text-white flex items-center justify-center gap-1.5 transition"
-                title="复制唯一用户 ID"
-              >
-                {copied ? (
-                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                ) : (
-                  <Copy className="w-3.5 h-3.5 text-gray-400" />
-                )}
-                <span>{copied ? "已复制" : "复制 ID"}</span>
-              </button>
-            </div>
-
-            {/* 管理员快捷操作栏 */}
-            {canModerate && (
-              <div className="flex items-center gap-2 pt-1">
-                {onKickMember && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onKickMember(user.id, user.username);
-                      onClose();
-                    }}
-                    className="flex-1 py-1 px-2 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 text-[11px] font-medium flex items-center justify-center gap-1 transition"
-                  >
-                    <UserMinus className="w-3 h-3" />
-                    <span>踢出成员</span>
-                  </button>
-                )}
-                {onBanMember && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onBanMember(user.id, user.username);
-                      onClose();
-                    }}
-                    className="flex-1 py-1 px-2 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 text-[11px] font-medium flex items-center justify-center gap-1 transition"
-                  >
-                    <Ban className="w-3 h-3" />
-                    <span>封禁成员</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={handleCopyId}
+                  className="flex-1 py-1.5 px-2 rounded bg-[#2b2d31] hover:bg-[#35373c] text-xs font-medium text-white flex items-center justify-center gap-1.5 transition"
+                  title="复制唯一用户 ID"
+                >
+                  {copied ? (
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                  ) : (
+                    <Copy className="w-3.5 h-3.5 text-gray-400" />
+                  )}
+                  <span>{copied ? "已复制" : "复制 ID"}</span>
+                </button>
               </div>
-            )}
-          </>
-        ) : (
-          /* 查看自己时展示“编辑个人资料”入口 */
-          <button
-            type="button"
-            onClick={() => {
-              onClose();
-              onOpenSettings?.();
-            }}
-            className="w-full py-2 px-3 rounded-md bg-[#5865f2] hover:bg-[#4752c4] text-white text-xs font-semibold flex items-center justify-center gap-2 transition shadow"
-          >
-            <Settings className="w-3.5 h-3.5" />
-            <span>编辑个人资料</span>
-          </button>
-        )}
+
+              {/* 管理员快捷操作栏 */}
+              {canModerate && (
+                <div className="flex items-center gap-2 pt-1">
+                  {onKickMember && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onKickMember(user.id, user.username);
+                        onClose();
+                      }}
+                      className="flex-1 py-1 px-2 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 text-[11px] font-medium flex items-center justify-center gap-1 transition"
+                    >
+                      <UserMinus className="w-3 h-3" />
+                      <span>踢出成员</span>
+                    </button>
+                  )}
+                  {onBanMember && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onBanMember(user.id, user.username);
+                        onClose();
+                      }}
+                      className="flex-1 py-1 px-2 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 text-[11px] font-medium flex items-center justify-center gap-1 transition"
+                    >
+                      <Ban className="w-3 h-3" />
+                      <span>封禁成员</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </>
+          ) : (
+            /* 查看自己时展示“编辑个人资料”入口 */
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                onOpenSettings?.();
+              }}
+              className="w-full py-2 px-3 rounded-md bg-[#5865f2] hover:bg-[#4752c4] text-white text-xs font-semibold flex items-center justify-center gap-2 transition shadow"
+            >
+              <Settings className="w-3.5 h-3.5" />
+              <span>编辑个人资料</span>
+            </button>
+          )}
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
 
   // 移动端挂载带模糊背景的弹窗容器；桌面端直接通过 Portal 挂载到 body
   if (isMobile) {

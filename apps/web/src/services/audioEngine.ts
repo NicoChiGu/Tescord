@@ -10,6 +10,7 @@ import {
   loadRnnoise,
 } from "@sapphi-red/web-noise-suppressor";
 import { DtlnWorkletNode, loadDtlnWorklet } from "./dtlnNode.js";
+import { useSettingsStore } from "../stores/useSettingsStore.js";
 
 export interface ABTestResult {
   rawUrl: string;
@@ -53,6 +54,14 @@ export class AudioEngine {
     pushToTalkReleaseDelay: 200,
     vadSensitivity: 25, // 0 - 100 阈值
     audioBitrate: 64000, // 64kbps Opus
+    inputDeviceId:
+      typeof localStorage !== "undefined"
+        ? localStorage.getItem("tescord_selected_audio_input_id") || undefined
+        : undefined,
+    outputDeviceId:
+      typeof localStorage !== "undefined"
+        ? localStorage.getItem("tescord_selected_audio_output_id") || undefined
+        : undefined,
   };
 
   public isRnnoiseReady: boolean = false;
@@ -73,9 +82,45 @@ export class AudioEngine {
   > = new Set();
   private onPTTChangeCallbacks: Set<(isPTTActive: boolean) => void> = new Set();
   private onErrorCallbacks: Set<(errorMessage: string) => void> = new Set();
+  private onStreamChangeCallbacks: Set<(stream: MediaStream) => void> =
+    new Set();
 
   constructor() {
+    this.hydrateFromSettingsStore();
     this.setupGlobalPTTListeners();
+  }
+
+  private hydrateFromSettingsStore() {
+    try {
+      const savedAudio = useSettingsStore.getState().audio;
+      if (savedAudio) {
+        this.config = { ...this.config, ...savedAudio };
+      }
+      useSettingsStore.subscribe((state) => {
+        if (state.audio) {
+          this.config = { ...this.config, ...state.audio };
+        }
+      });
+    } catch (e) {
+      console.warn("hydrateFromSettingsStore error:", e);
+    }
+  }
+
+  public onStreamChange(callback: (stream: MediaStream) => void): () => void {
+    this.onStreamChangeCallbacks.add(callback);
+    return () => {
+      this.onStreamChangeCallbacks.delete(callback);
+    };
+  }
+
+  private notifyStreamChange(stream: MediaStream) {
+    this.onStreamChangeCallbacks.forEach((cb) => {
+      try {
+        cb(stream);
+      } catch (e) {
+        console.warn("audioEngine onStreamChange error:", e);
+      }
+    });
   }
 
   // 1. 初始化麦克风与 Web Audio 核心管线
@@ -124,7 +169,11 @@ export class AudioEngine {
       await this.setupAudioGraph(this.rawMediaStream);
       this.startVADLoop();
 
-      return this.getStream();
+      const stream = this.getStream();
+      if (stream) {
+        this.notifyStreamChange(stream);
+      }
+      return stream;
     } catch (err: any) {
       const msg =
         err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError"
@@ -139,6 +188,90 @@ export class AudioEngine {
       this.onErrorCallbacks.forEach((cb) => cb(msg));
       return null;
     }
+  }
+
+  // 1.1 无缝热换硬件输入源 (Zero-glitch hot swap)
+  async switchInputDevice(deviceId: string): Promise<MediaStream | null> {
+    this.config.inputDeviceId = deviceId;
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("tescord_selected_audio_input_id", deviceId);
+    }
+
+    // 若当前 Web Audio 上下文与图元输出节点处于活跃状态，无缝热替换物理输入源
+    if (
+      this.audioContext &&
+      this.audioContext.state !== "closed" &&
+      this.sourceNode &&
+      this.inputGainNode &&
+      this.destinationNode &&
+      this.processedStream
+    ) {
+      try {
+        // 1. 断开旧 sourceNode 并释放旧麦克风硬件占用
+        try {
+          this.sourceNode.disconnect();
+        } catch {}
+        this.sourceNode = null;
+
+        if (this.rawMediaStream) {
+          this.rawMediaStream.getTracks().forEach((t) => t.stop());
+          this.rawMediaStream = null;
+        }
+
+        // 2. 根据当前降噪/高保真配置拉取新麦克风流
+        const constraints: MediaStreamConstraints = {
+          audio: this.config.highFidelityMusic
+            ? {
+                sampleRate: 48000,
+                channelCount: 2,
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false,
+                ...(deviceId && deviceId !== "default"
+                  ? { deviceId: { exact: deviceId } }
+                  : {}),
+              }
+            : {
+                sampleRate: 48000,
+                channelCount: 1,
+                echoCancellation: this.config.echoCancellation,
+                noiseSuppression: false,
+                autoGainControl: this.config.autoGainControl,
+                ...(deviceId && deviceId !== "default"
+                  ? { deviceId: { exact: deviceId } }
+                  : {}),
+              },
+          video: false,
+        };
+
+        this.rawMediaStream =
+          await navigator.mediaDevices.getUserMedia(constraints);
+
+        if (this.audioContext.state === "suspended") {
+          await this.audioContext.resume().catch(() => {});
+        }
+
+        // 3. 将新输入接入现有 inputGainNode (后端的 RNNoise / DTLN / AGC / VAD / destinationNode 完全保持运作)
+        this.sourceNode = this.audioContext.createMediaStreamSource(
+          this.rawMediaStream,
+        );
+        this.sourceNode.connect(this.inputGainNode);
+
+        console.log(
+          `🎙️ AudioEngine: 成功热切换至麦克风设备 [${deviceId}] (零断流)`,
+        );
+        this.notifyStreamChange(this.processedStream);
+        return this.processedStream;
+      } catch (err) {
+        console.warn(
+          "AudioEngine switchInputDevice hot swap 失败，降级完整初始化:",
+          err,
+        );
+      }
+    }
+
+    // 否则执行完整麦克风管线初始化
+    return await this.initMicrophone();
   }
 
   // 2. 搭建 Web Audio 图元与 RNNoise WASM / VAD / AGC 门限管线
@@ -196,7 +329,10 @@ export class AudioEngine {
   public getEffectiveNoiseMode(): NoiseSuppressionMode {
     if (this.config.highFidelityMusic) return "off";
     if (this.config.noiseSuppressionMode) {
-      if (!this.config.noiseSuppression && this.config.noiseSuppressionMode !== "off") {
+      if (
+        !this.config.noiseSuppression &&
+        this.config.noiseSuppressionMode !== "off"
+      ) {
         return "off";
       }
       return this.config.noiseSuppressionMode;
@@ -699,7 +835,9 @@ export class AudioEngine {
           const rawRms =
             totalSamples > 0 ? Math.sqrt(rawSumSquares / totalSamples) : 0.05;
           const rnnoiseRms =
-            totalSamples > 0 ? Math.sqrt(rnnoiseSumSquares / totalSamples) : 0.01;
+            totalSamples > 0
+              ? Math.sqrt(rnnoiseSumSquares / totalSamples)
+              : 0.01;
           const dtlnRms =
             totalSamples > 0 ? Math.sqrt(dtlnSumSquares / totalSamples) : 0.005;
 
@@ -754,7 +892,10 @@ export class AudioEngine {
     durationSec: number = 5,
     onCountdown?: (remainingSec: number) => void,
   ): Promise<ABTestResult> {
-    const triple = await this.recordTripleABComparison(durationSec, onCountdown);
+    const triple = await this.recordTripleABComparison(
+      durationSec,
+      onCountdown,
+    );
     const isDtln = this.config.noiseSuppressionMode === "dtln";
     return {
       rawUrl: triple.rawUrl,
@@ -788,15 +929,17 @@ export class AudioEngine {
   }
 
   updateConfig(newConfig: Partial<AudioProcessingConfig>) {
-    const needReinitMic =
+    const needFullReinit =
       (newConfig.highFidelityMusic !== undefined &&
         newConfig.highFidelityMusic !== this.config.highFidelityMusic) ||
       (newConfig.echoCancellation !== undefined &&
         newConfig.echoCancellation !== this.config.echoCancellation) ||
       (newConfig.autoGainControl !== undefined &&
-        newConfig.autoGainControl !== this.config.autoGainControl) ||
-      (newConfig.inputDeviceId !== undefined &&
-        newConfig.inputDeviceId !== this.config.inputDeviceId);
+        newConfig.autoGainControl !== this.config.autoGainControl);
+
+    const inputDeviceChanged =
+      newConfig.inputDeviceId !== undefined &&
+      newConfig.inputDeviceId !== this.config.inputDeviceId;
 
     const modeChanged =
       newConfig.noiseSuppressionMode !== undefined &&
@@ -824,10 +967,40 @@ export class AudioEngine {
       window.electronAPI.setPTTKeybind(newConfig.pushToTalkKey);
     }
 
-    if (needReinitMic && this.rawMediaStream) {
-      this.initMicrophone();
+    if (newConfig.inputDeviceId && typeof localStorage !== "undefined") {
+      localStorage.setItem(
+        "tescord_selected_audio_input_id",
+        newConfig.inputDeviceId,
+      );
+    }
+    if (newConfig.outputDeviceId && typeof localStorage !== "undefined") {
+      localStorage.setItem(
+        "tescord_selected_audio_output_id",
+        newConfig.outputDeviceId,
+      );
+    }
+
+    // 同步到持久化全局设置中心 (Zustand Persist + 云端自动上报)
+    try {
+      useSettingsStore.getState().setAudioConfig(newConfig);
+    } catch (e) {
+      console.warn("Sync to useSettingsStore failed:", e);
+    }
+
+    if (needFullReinit && this.rawMediaStream) {
+      this.initMicrophone().catch((err) => {
+        console.warn("audioEngine initMicrophone reinit error:", err);
+      });
+    } else if (inputDeviceChanged && this.rawMediaStream) {
+      this.switchInputDevice(newConfig.inputDeviceId!).catch((err) => {
+        console.warn("audioEngine switchInputDevice error:", err);
+      });
     } else {
-      if ((modeChanged || noiseSuppressionChanged) && this.inputGainNode && this.agcCompressorNode) {
+      if (
+        (modeChanged || noiseSuppressionChanged) &&
+        this.inputGainNode &&
+        this.agcCompressorNode
+      ) {
         this.applyNoiseSuppressionRouting();
       }
       this.updateGainAndAGC();
@@ -841,19 +1014,13 @@ export class AudioEngine {
     if (!this.audioContext) return;
     const now = this.audioContext.currentTime;
 
-    // 1. 手动增益 vs 自动增益
+    // 1. 手动输入前级增益 (0% ~ 200% -> 0.0x ~ 2.0x 物理增益倍数)
     if (this.inputGainNode) {
-      if (!this.config.autoGainControl) {
-        // 关闭 AGC: 使用用户手动配置的增益滑块 (0% ~ 200% -> 0.0x ~ 2.0x)
-        const manualGainVal = Math.max(
-          0,
-          Math.min(2, (this.config.manualGain ?? 100) / 100),
-        );
-        this.inputGainNode.gain.setValueAtTime(manualGainVal, now);
-      } else {
-        // 开启 AGC: 手动增益归一化为 1.0x 标准增益，由浏览器硬件 AGC 与压限器动态处理
-        this.inputGainNode.gain.setValueAtTime(1.0, now);
-      }
+      const manualGainVal = Math.max(
+        0,
+        Math.min(2, (this.config.manualGain ?? 100) / 100),
+      );
+      this.inputGainNode.gain.setValueAtTime(manualGainVal, now);
     }
 
     // 2. 自动增益范围/上限控制 (通过 DynamicsCompressor 压制过量背景杂音)

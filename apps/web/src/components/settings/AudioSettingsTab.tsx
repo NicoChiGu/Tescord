@@ -1,10 +1,17 @@
 import React, { useState, useEffect, useRef } from "react";
+import { audioEngine, TripleABTestResult } from "../../services/audioEngine.js";
 import {
-  audioEngine,
-  TripleABTestResult,
-} from "../../services/audioEngine.js";
-import { NoiseSuppressionMode } from "@tescord/types";
-import { livekitService } from "../../services/livekit.js";
+  NoiseSuppressionMode,
+  VideoCodecType,
+  CodecCapabilityInfo,
+  MIN_CUSTOM_BITRATE,
+  MAX_CUSTOM_BITRATE,
+} from "@tescord/types";
+import {
+  livekitService,
+  detectSupportedVideoCodecs,
+  detectSupportedVideoCodecsAsync,
+} from "../../services/livekit.js";
 import {
   Volume2,
   Mic,
@@ -32,6 +39,11 @@ import {
   VideoOff,
   Camera,
   RefreshCw,
+  Film,
+  Layers,
+  Gauge,
+  Info,
+  ShieldCheck,
 } from "lucide-react";
 
 interface AudioSettingsTabProps {
@@ -51,7 +63,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
   const [outputDevices, setOutputDevices] = useState<MediaDeviceInfo[]>([]);
   const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedInputId, setSelectedInputId] = useState<string>(
-    config.inputDeviceId || "default",
+    livekitService.getAudioInputDeviceId() || "default",
   );
   const [selectedOutputId, setSelectedOutputId] = useState<string>(
     config.outputDeviceId || "default",
@@ -68,8 +80,10 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
   const testVideoStreamRef = useRef<MediaStream | null>(null);
   const videoSectionRef = useRef<HTMLDivElement | null>(null);
 
-  // 输出音量与测试音频状态
-  const [outputVolume, setOutputVolume] = useState<number>(100);
+  // 输出音量与测试音频状态 (从 livekitService 读取持久化全局输出音量)
+  const [outputVolume, setOutputVolume] = useState<number>(() =>
+    livekitService.getMasterVolume(),
+  );
   const [isPlayingTestSound, setIsPlayingTestSound] = useState(false);
   const testAudioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -84,6 +98,53 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
   const [abCountdown, setABCountdown] = useState(5);
   const [abResult, setABResult] = useState<TripleABTestResult | null>(null);
   const [abError, setABError] = useState<string | null>(null);
+
+  // 视频编解码器与硬件加速配置状态
+  const [supportedCodecs, setSupportedCodecs] = useState<CodecCapabilityInfo[]>(
+    () => detectSupportedVideoCodecs(),
+  );
+  const [preferredCodec, setPreferredCodec] = useState<VideoCodecType>(
+    livekitService.preferredVideoCodec,
+  );
+  const [enableBackupCodec, setEnableBackupCodec] = useState<boolean>(
+    livekitService.enableBackupCodec,
+  );
+  const [customBitrate, setCustomBitrate] = useState<number | null>(
+    livekitService.customBitrate,
+  );
+
+  useEffect(() => {
+    const unsub = livekitService.onVideoSettingsChange(() => {
+      setPreferredCodec(livekitService.preferredVideoCodec);
+      setEnableBackupCodec(livekitService.enableBackupCodec);
+      setCustomBitrate(livekitService.customBitrate);
+    });
+    setSupportedCodecs(detectSupportedVideoCodecs());
+    detectSupportedVideoCodecsAsync().then((codecs) => {
+      setSupportedCodecs(codecs);
+    });
+    return () => unsub();
+  }, []);
+
+  const handleCodecSelect = (codec: VideoCodecType) => {
+    setPreferredCodec(codec);
+    livekitService.setPreferredVideoCodec(codec);
+  };
+
+  const handleBackupCodecToggle = (checked: boolean) => {
+    setEnableBackupCodec(checked);
+    livekitService.setEnableBackupCodec(checked);
+  };
+
+  const handleVideoBitrateChange = (val: number) => {
+    setCustomBitrate(val);
+    livekitService.setCustomBitrate(val);
+  };
+
+  const handleResetVideoBitrate = () => {
+    setCustomBitrate(null);
+    livekitService.setCustomBitrate(null);
+  };
 
   // 1. 枚举系统音频与视频硬件设备
   const refreshDevices = async () => {
@@ -100,7 +161,10 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
       setOutputDevices(outputs);
       setCameraDevices(cameras);
 
-      if (config.inputDeviceId) {
+      const activeInputId = livekitService.getAudioInputDeviceId();
+      if (activeInputId && inputs.some((i) => i.deviceId === activeInputId)) {
+        setSelectedInputId(activeInputId);
+      } else if (config.inputDeviceId) {
         setSelectedInputId(config.inputDeviceId);
       } else if (inputs.length > 0) {
         setSelectedInputId(inputs[0].deviceId);
@@ -126,11 +190,16 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
   useEffect(() => {
     refreshDevices();
     navigator.mediaDevices?.addEventListener?.("devicechange", refreshDevices);
+    const unsubAudioInput = livekitService.onActiveAudioInputChange((id) => {
+      setSelectedInputId(id);
+      setConfig((prev) => ({ ...prev, inputDeviceId: id }));
+    });
     return () => {
       navigator.mediaDevices?.removeEventListener?.(
         "devicechange",
         refreshDevices,
       );
+      unsubAudioInput();
     };
   }, []);
 
@@ -138,7 +207,10 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
   useEffect(() => {
     if (initialSubSection === "video" && videoSectionRef.current) {
       setTimeout(() => {
-        videoSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+        videoSectionRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
       }, 100);
     }
   }, [initialSubSection]);
@@ -167,9 +239,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
       const devId = deviceIdToUse || selectedCameraId;
       const constraints: MediaStreamConstraints = {
         video:
-          devId && devId !== "default"
-            ? { deviceId: { exact: devId } }
-            : true,
+          devId && devId !== "default" ? { deviceId: { exact: devId } } : true,
       };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -181,7 +251,9 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
 
       if (testVideoRef.current) {
         testVideoRef.current.srcObject = stream;
-        testVideoRef.current.play().catch((e) => console.warn("video play:", e));
+        testVideoRef.current
+          .play()
+          .catch((e) => console.warn("video play:", e));
       }
     } catch (err: any) {
       console.warn("启动摄像头测试失败:", err);
@@ -272,9 +344,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
     setSelectedInputId(deviceId);
     const newCfg = { ...config, inputDeviceId: deviceId };
     setConfig(newCfg);
-    audioEngine.updateConfig({ inputDeviceId: deviceId });
-    // 重启麦克风以切换硬件
-    await audioEngine.initMicrophone().catch((err) => {
+    await livekitService.switchAudioInputDevice(deviceId).catch((err) => {
       console.warn("切换输入设备失败:", err);
     });
   };
@@ -307,14 +377,18 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
 
     try {
       // 创建音频测试信号（生成平滑的双音调合成声音）
-      const audioCtx = new (window.AudioContext ||
-        (window as any).webkitAudioContext)();
+      const audioCtx = new (
+        window.AudioContext || (window as any).webkitAudioContext
+      )();
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
 
       osc.type = "sine";
       osc.frequency.setValueAtTime(440, audioCtx.currentTime); // A4 音
-      osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.3); // 滑音至 A5
+      osc.frequency.exponentialRampToValueAtTime(
+        880,
+        audioCtx.currentTime + 0.3,
+      ); // 滑音至 A5
 
       const calculatedGain = (outputVolume / 100) * 0.2;
       gain.gain.setValueAtTime(calculatedGain, audioCtx.currentTime);
@@ -538,7 +612,11 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                 min="0"
                 max="200"
                 value={outputVolume}
-                onChange={(e) => setOutputVolume(Number(e.target.value))}
+                onChange={(e) => {
+                  const val = Number(e.target.value);
+                  setOutputVolume(val);
+                  livekitService.setMasterVolume(val);
+                }}
                 className="w-full h-1.5 bg-[#1e1f22] rounded-lg appearance-none cursor-pointer accent-discord-brand"
               />
             </div>
@@ -638,7 +716,9 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                 min="0"
                 max="100"
                 value={config.vadSensitivity}
-                onChange={(e) => handleSensitivityChange(Number(e.target.value))}
+                onChange={(e) =>
+                  handleSensitivityChange(Number(e.target.value))
+                }
                 className="w-full h-1.5 bg-[#1e1f22] rounded-lg appearance-none cursor-pointer accent-discord-brand"
               />
               <div className="flex justify-between text-[10px] text-discord-textMuted">
@@ -712,7 +792,8 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             AI 智能降噪 (RNNoise 神经网络深度降噪)
           </h3>
           <p className="text-xs text-discord-textMuted mt-1">
-            采用前沿神经网络模型在您本地声卡流水线中直接消除噪音，不上传任何音频，100% 离线保护隐私。
+            采用前沿神经网络模型在您本地声卡流水线中直接消除噪音，不上传任何音频，100%
+            离线保护隐私。
           </p>
         </div>
 
@@ -723,7 +804,8 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             type="button"
             onClick={() => handleNoiseModeChange("rnnoise")}
             className={`p-4 rounded-xl border flex flex-col justify-between text-left transition relative ${
-              config.noiseSuppressionMode === "rnnoise" && config.noiseSuppression
+              config.noiseSuppressionMode === "rnnoise" &&
+              config.noiseSuppression
                 ? "border-discord-brand bg-discord-brand/10 text-white ring-1 ring-discord-brand/40 shadow-sm"
                 : "border-white/5 bg-[#2b2d31] text-gray-300 hover:bg-[#35373c]"
             }`}
@@ -769,7 +851,8 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-discord-textMuted leading-relaxed">
-                DTLN 双流 LSTM 深度网络。专门识别并削减机械键盘青轴打字声、敲桌子及不规则突发杂音。
+                DTLN 双流 LSTM
+                深度网络。专门识别并削减机械键盘青轴打字声、敲桌子及不规则突发杂音。
               </p>
             </div>
             <div className="mt-3 text-[10px] text-gray-400 font-medium">
@@ -795,7 +878,8 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                 </span>
               </div>
               <p className="text-[11px] text-discord-textMuted leading-relaxed">
-                直通模式 (未降噪)，不执行任何软件算法降噪，麦克风声音原汁原味直通传输。
+                直通模式
+                (未降噪)，不执行任何软件算法降噪，麦克风声音原汁原味直通传输。
               </p>
             </div>
             <div className="mt-3 text-[10px] text-gray-400 font-medium">
@@ -936,6 +1020,160 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             </div>
           </div>
         </div>
+
+        {/* 模块 3.2: 视频编码器与硬件加速配置 */}
+        <div className="bg-[#2b2d31] p-5 rounded-2xl border border-white/5 shadow-sm space-y-5">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <label className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+                <Film className="w-4 h-4 text-discord-brand" />
+                <span>推流编码格式与硬件加速 (Video Codecs)</span>
+              </label>
+              <p className="text-[11px] text-discord-textMuted">
+                为摄像头与屏幕共享设置默认视频编码器。系统已动态探测本地硬件编解码支持能力。
+              </p>
+            </div>
+            <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+              Auto-Adaptive
+            </span>
+          </div>
+
+          {/* 编码器选项网格 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+            {supportedCodecs.map((item) => {
+              const isSelected = preferredCodec === item.codec;
+              const isAvailable = item.supported;
+
+              return (
+                <button
+                  key={item.codec}
+                  type="button"
+                  data-testid={`codec-option-${item.codec}`}
+                  disabled={!isAvailable}
+                  onClick={() => handleCodecSelect(item.codec)}
+                  className={`p-3 rounded-xl border text-left transition relative flex flex-col justify-between ${
+                    isSelected
+                      ? "bg-discord-brand/10 border-discord-brand text-white shadow-sm"
+                      : isAvailable
+                        ? "bg-[#1e1f22] border-[#3f4147] text-gray-300 hover:border-gray-500 hover:bg-[#232428] cursor-pointer"
+                        : "bg-[#1e1f22]/50 border-white/5 text-gray-500 cursor-not-allowed opacity-60"
+                  }`}
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold flex items-center gap-1.5">
+                        {item.label}
+                        {isSelected && (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-discord-brand" />
+                        )}
+                      </span>
+                      <div className="flex items-center gap-1">
+                        {item.isHardwareAccelerated && isAvailable && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-medium flex items-center gap-0.5">
+                            <Zap className="w-2.5 h-2.5" />
+                            硬编加速
+                          </span>
+                        )}
+                        {!isAvailable && (
+                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-medium">
+                            暂不支持
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-[11px] leading-relaxed text-discord-textMuted">
+                      {item.description}
+                    </p>
+                  </div>
+                  {item.reason && !isAvailable && (
+                    <div className="mt-2 text-[10px] text-amber-400/90 flex items-center gap-1 bg-amber-400/10 px-2 py-1 rounded">
+                      <Info className="w-3 h-3 flex-shrink-0" />
+                      <span>{item.reason}</span>
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* 双编码兜底策略 (Backup Codec) 开关 */}
+          <div className="pt-2 border-t border-white/5 flex items-center justify-between">
+            <div className="space-y-0.5 max-w-lg">
+              <label className="text-xs font-semibold text-gray-200 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                <span>启用 VP8 双编码兜底降级 (Dual-Codec Fallback)</span>
+              </label>
+              <p className="text-[11px] text-discord-textMuted">
+                当您以 AV1、H.264 或 HEVC 推流时，系统底层同时推送一份轻量 VP8
+                备用流。若观众设备不支持高级格式，自动无缝切换至备用流，绝不黑屏。
+              </p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                data-testid="enable-backup-codec-checkbox"
+                checked={enableBackupCodec}
+                onChange={(e) => handleBackupCodecToggle(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-9 h-5 bg-[#3f4147] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-discord-brand"></div>
+            </label>
+          </div>
+
+          {/* 专业自定义推流码率控制 (Target Bitrate) */}
+          <div className="pt-2 border-t border-white/5 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <label className="text-xs font-semibold text-gray-200 flex items-center gap-1.5">
+                  <Gauge className="w-4 h-4 text-discord-brand" />
+                  <span>自定义目标推流码率 (Target Bitrate)</span>
+                </label>
+                <p className="text-[11px] text-discord-textMuted">
+                  覆盖默认画质档位预设码率。AV1/HEVC 建议 1500~3000 kbps，H.264
+                  电竞推流建议 4000~6000 kbps。
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <span
+                  data-testid="current-custom-bitrate-label"
+                  className="text-xs font-mono font-bold text-discord-brand bg-discord-brand/10 px-2 py-0.5 rounded border border-discord-brand/20"
+                >
+                  {customBitrate
+                    ? `${Math.round(customBitrate / 1000)} kbps`
+                    : "跟随预设 (自适应)"}
+                </span>
+                {customBitrate && (
+                  <button
+                    type="button"
+                    data-testid="reset-custom-bitrate-btn"
+                    onClick={handleResetVideoBitrate}
+                    className="text-[11px] text-gray-400 hover:text-white flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded hover:bg-white/10 transition"
+                  >
+                    <RotateCcw className="w-3 h-3" />
+                    <span>重置</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] text-gray-400 font-mono">500k</span>
+              <input
+                type="range"
+                data-testid="custom-bitrate-slider"
+                min={MIN_CUSTOM_BITRATE}
+                max={MAX_CUSTOM_BITRATE}
+                step={250_000}
+                value={customBitrate || 3_000_000}
+                onChange={(e) =>
+                  handleVideoBitrateChange(Number(e.target.value))
+                }
+                className="w-full h-1.5 bg-[#1e1f22] rounded-lg appearance-none cursor-pointer accent-discord-brand"
+              />
+              <span className="text-[10px] text-gray-400 font-mono">8000k</span>
+            </div>
+          </div>
+        </div>
       </section>
 
       {/* 模块 4：高级音频与声学实验室 (折叠收纳，专业用户展开) */}
@@ -952,7 +1190,8 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                 高级音频设置与降噪实验室
               </span>
               <p className="text-[11px] text-discord-textMuted">
-                包含 Opus 传输码率、回声消除、48kHz 高保真立体声及三轨 A/B/C 降噪对比测试
+                包含 Opus 传输码率、回声消除、48kHz 高保真立体声及三轨 A/B/C
+                降噪对比测试
               </p>
             </div>
           </div>
@@ -1081,9 +1320,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                   type="button"
                   onClick={() => handleToggle("autoGainControl")}
                   className={`w-10 h-5 flex items-center rounded-full p-0.5 transition duration-200 shrink-0 ${
-                    config.autoGainControl
-                      ? "bg-discord-brand"
-                      : "bg-[#1e1f22]"
+                    config.autoGainControl ? "bg-discord-brand" : "bg-[#1e1f22]"
                   }`}
                 >
                   <div
@@ -1147,7 +1384,8 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               </div>
 
               <p className="text-[11px] text-discord-textMuted">
-                一键录制 5 秒音频，系统将同步采集「原始原声」、「RNNoise 滤噪」和「DTLN 深度消键盘音」三条音轨，供您同屏试听对比效果。
+                一键录制 5 秒音频，系统将同步采集「原始原声」、「RNNoise
+                滤噪」和「DTLN 深度消键盘音」三条音轨，供您同屏试听对比效果。
               </p>
 
               {abError && (
@@ -1197,7 +1435,9 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                     <div className="bg-[#2b2d31] p-2.5 rounded-lg border border-white/5">
                       <div className="text-[11px] font-bold text-gray-400 mb-1 flex items-center justify-between">
                         <span>原始未过滤</span>
-                        <span className="text-[10px] text-rose-400">含环境音</span>
+                        <span className="text-[10px] text-rose-400">
+                          含环境音
+                        </span>
                       </div>
                       <audio
                         src={abResult.rawUrl}

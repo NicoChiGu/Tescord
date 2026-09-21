@@ -40,13 +40,17 @@ test.describe("编辑频道与服务器设置自适应模态框 (Modal) 交互�
 
     // 2. 在频道侧边栏定位频道条目
     const channelRow = page
-      .locator("button:has-text('general'), button:has-text('综合闲聊')")
+      .locator(
+        "button:has-text('general'), button:has-text('综合闲聊'), button:has-text('常规')",
+      )
       .first();
     await expect(channelRow).toBeVisible();
 
     // 3. 测试通过右键菜单打开“编辑频道”
     await channelRow.click({ button: "right" });
-    const editChannelMenuItem = page.getByRole("menuitem", { name: /编辑频道/i });
+    const editChannelMenuItem = page.getByRole("menuitem", {
+      name: /编辑频道/i,
+    });
     if (await editChannelMenuItem.isVisible()) {
       await editChannelMenuItem.click();
 
@@ -76,7 +80,7 @@ test.describe("编辑频道与服务器设置自适应模态框 (Modal) 交互�
 
     // 6. 测试通过频道悬浮小齿轮打开“编辑频道”
     const gearBtn = page.locator("[data-testid^='edit-channel-gear-']").first();
-    if (await gearBtn.count() > 0) {
+    if ((await gearBtn.count()) > 0) {
       await gearBtn.click({ force: true });
       const editModal = page.getByTestId("edit-channel-modal");
       await expect(editModal).toBeVisible();

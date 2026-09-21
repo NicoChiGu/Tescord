@@ -45,6 +45,21 @@ test.describe("直播屏幕分享与摄像头画面融合（画中画自由切�
           return stream;
         };
       }
+
+      // Mock Fullscreen API (保障 Headless 浏览器环境下 100% 触发与状态同步)
+      let currentFullscreenEl: Element | null = null;
+      Object.defineProperty(document, "fullscreenElement", {
+        get: () => currentFullscreenEl,
+        configurable: true,
+      });
+      Element.prototype.requestFullscreen = async function () {
+        currentFullscreenEl = this;
+        document.dispatchEvent(new Event("fullscreenchange"));
+      };
+      document.exitFullscreen = async function () {
+        currentFullscreenEl = null;
+        document.dispatchEvent(new Event("fullscreenchange"));
+      };
     });
 
     await page.route("**/api/auth/me", (route) => {
@@ -87,7 +102,12 @@ test.describe("直播屏幕分享与摄像头画面融合（画中画自由切�
       .getByRole("button", { name: /语音闲聊|开黑开麦|voice/i })
       .first();
     await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
-    await voiceChannelBtn.click();
+    await voiceChannelBtn.dblclick();
+
+    const joinPromptBtn = page.getByRole("button", { name: /加入语音通话|在此设备重新连接/i }).first();
+    if (await joinPromptBtn.isVisible({ timeout: 2500 }).catch(() => false)) {
+      await joinPromptBtn.click();
+    }
 
     const leaveVoiceBtn = page
       .getByRole("button", { name: "断开连接" })
@@ -136,6 +156,44 @@ test.describe("直播屏幕分享与摄像头画面融合（画中画自由切�
 
     // 验证卡片内展示 LIVE 直播中徽章
     await expect(videoTile.getByText(/LIVE/i)).toBeVisible();
+
+    // 验证直播推流期间麦克风保持开启（非静音），不被直播误关
+    const voiceMuteBtn = page.getByTestId("voice-toggle-mute-btn");
+    await expect(voiceMuteBtn).toBeVisible({ timeout: 5000 });
+    await expect(voiceMuteBtn).toHaveAttribute("title", "静音");
+
+    // 4.1 验证直播全屏播放功能：全屏按钮呈现、点击切换、双击全屏与快捷键全屏
+    const fullscreenBtn = page.getByTestId(
+      "fullscreen-btn-e2e_screenshare_user",
+    );
+    await expect(fullscreenBtn).toBeVisible({ timeout: 5000 });
+    await expect(fullscreenBtn).toHaveAttribute("title", "全屏播放 (F)");
+
+    // 点击全屏按钮进入全屏
+    await fullscreenBtn.click();
+    await expect(fullscreenBtn).toHaveAttribute("title", "退出全屏 (Esc / F)", {
+      timeout: 5000,
+    });
+    await expect(videoTile).toHaveClass(/!fixed/);
+
+    // 再次点击全屏按钮退出全屏
+    await fullscreenBtn.click();
+    await expect(fullscreenBtn).toHaveAttribute("title", "全屏播放 (F)", {
+      timeout: 5000,
+    });
+    await expect(videoTile).not.toHaveClass(/!fixed/);
+
+    // 验证双击视频卡片切换全屏
+    await videoTile.dblclick();
+    await expect(fullscreenBtn).toHaveAttribute("title", "退出全屏 (Esc / F)", {
+      timeout: 5000,
+    });
+
+    // 验证按键 F 退出全屏
+    await page.keyboard.press("f");
+    await expect(fullscreenBtn).toHaveAttribute("title", "全屏播放 (F)", {
+      timeout: 5000,
+    });
 
     // 5. 在直播中开启摄像头 -> 验证摄像头自动以画中画叠加到右下角
     const centerCameraBtn = page.getByTestId("voice-toggle-camera-btn");

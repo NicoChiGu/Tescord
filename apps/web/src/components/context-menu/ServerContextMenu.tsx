@@ -13,6 +13,7 @@ import {
   UserPlus,
   Settings,
   PlusCircle,
+  FolderPlus,
   LogOut,
   Copy,
   Check,
@@ -23,6 +24,7 @@ interface ServerContextMenuProps {
   guild: Guild;
   children: React.ReactNode;
   onOpenCreateChannel?: (guild: Guild) => void;
+  onOpenCreateCategory?: (guild: Guild) => void;
   onOpenServerSettings?: (guild: Guild) => void;
   onLeaveGuild?: (guild: Guild) => void;
   onMarkAsRead?: (guild: Guild) => void;
@@ -32,6 +34,7 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
   guild,
   children,
   onOpenCreateChannel,
+  onOpenCreateCategory,
   onOpenServerSettings,
   onLeaveGuild,
   onMarkAsRead,
@@ -103,15 +106,28 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
         {(canManageGuild || canManageChannels) && <ContextMenuSeparator />}
 
         {canManageChannels && (
-          <ContextMenuItem
-            onClick={() => onOpenCreateChannel?.(guild)}
-            className="hover:bg-discord-brand"
-          >
-            <div className="flex items-center space-x-2">
-              <PlusCircle className="w-4 h-4 text-discord-textMuted" />
-              <span>创建频道</span>
-            </div>
-          </ContextMenuItem>
+          <>
+            <ContextMenuItem
+              onClick={() => onOpenCreateChannel?.(guild)}
+              className="hover:bg-discord-brand"
+            >
+              <div className="flex items-center space-x-2">
+                <PlusCircle className="w-4 h-4 text-discord-textMuted" />
+                <span>创建频道</span>
+              </div>
+            </ContextMenuItem>
+
+            <ContextMenuItem
+              onClick={() => onOpenCreateCategory?.(guild)}
+              className="hover:bg-discord-brand"
+              data-testid="server-menu-create-category-btn"
+            >
+              <div className="flex items-center space-x-2">
+                <FolderPlus className="w-4 h-4 text-discord-textMuted" />
+                <span>创建分类</span>
+              </div>
+            </ContextMenuItem>
+          </>
         )}
 
         {canManageGuild && (

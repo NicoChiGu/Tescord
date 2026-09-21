@@ -13,10 +13,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   onNotificationClick: (
     callback: (data: { channelId?: string; guildId?: string }) => void,
   ) => {
-    const handler = (
-      _e: any,
-      data: { channelId?: string; guildId?: string },
-    ) => callback(data);
+    const handler = (_e: any, data: { channelId?: string; guildId?: string }) =>
+      callback(data);
     ipcRenderer.on("desktop-notification-clicked", handler);
     return () => {
       ipcRenderer.removeListener("desktop-notification-clicked", handler);
@@ -38,6 +36,7 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   syncUserStatus: (status: UserStatus) =>
     ipcRenderer.send("sync-user-status", status),
+  syncLocale: (locale: any) => ipcRenderer.send("sync-locale", locale),
 
   // 全局热键与静音
   onGlobalMuteToggle: (callback: () => void) => {
@@ -63,8 +62,28 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   setPTTKeybind: (key: string) => ipcRenderer.invoke("set-ptt-keybind", key),
 
-  // 窗口控制
   minimizeWindow: () => ipcRenderer.invoke("window-minimize"),
   maximizeWindow: () => ipcRenderer.invoke("window-maximize"),
   closeWindow: () => ipcRenderer.invoke("window-close"),
+  isWindowMaximized: () => ipcRenderer.invoke("window-is-maximized"),
+  onWindowMaximizedChange: (callback: (isMaximized: boolean) => void) => {
+    const handler = (_e: any, isMaximized: boolean) => callback(isMaximized);
+    ipcRenderer.on("window-maximized-change", handler);
+    return () => {
+      ipcRenderer.removeListener("window-maximized-change", handler);
+    };
+  },
+
+  // 显卡与硬件加速能力探测
+  getGPUInfo: () => ipcRenderer.invoke("get-gpu-info"),
+
+  // 原生网络穿透与 UPnP 自动打洞
+  network: {
+    detectLocalNetwork: () =>
+      ipcRenderer.invoke("desktop-detect-local-network"),
+    mapPort: (port: number, protocol?: "UDP" | "TCP") =>
+      ipcRenderer.invoke("desktop-upnp-map-port", port, protocol),
+    unmapPort: (port: number, protocol?: "UDP" | "TCP") =>
+      ipcRenderer.invoke("desktop-upnp-unmap-port", port, protocol),
+  },
 });

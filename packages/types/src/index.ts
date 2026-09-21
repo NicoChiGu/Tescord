@@ -3,7 +3,7 @@
 // ==========================================
 
 // 1. 用户模型与鉴权体系
-export type UserStatus = "ONLINE" | "IDLE" | "DND" | "OFFLINE";
+export type UserStatus = "ONLINE" | "IDLE" | "DND" | "OFFLINE" | "INVISIBLE";
 
 export interface User {
   id: string;
@@ -89,32 +89,143 @@ export interface PermissionDefinition {
 
 export const ALL_PERMISSIONS: PermissionDefinition[] = [
   // 通用管理
-  { flag: PermissionFlags.VIEW_AUDIT_LOG, name: "查看审计日志", description: "允许成员查看服务器管理操作的记录流水。", category: "GENERAL" },
-  { flag: PermissionFlags.MANAGE_GUILD, name: "管理服务器", description: "允许成员修改服务器名称、更换图标和全局设置。", category: "GENERAL" },
-  { flag: PermissionFlags.MANAGE_ROLES, name: "管理角色", description: "允许成员创建新角色并编辑低于此职级的角色与权限。", category: "GENERAL" },
-  { flag: PermissionFlags.MANAGE_CHANNELS, name: "管理频道", description: "允许成员创建、编辑或删除频道与分类。", category: "GENERAL" },
+  {
+    flag: PermissionFlags.VIEW_AUDIT_LOG,
+    name: "查看审计日志",
+    description: "允许成员查看服务器管理操作的记录流水。",
+    category: "GENERAL",
+  },
+  {
+    flag: PermissionFlags.MANAGE_GUILD,
+    name: "管理服务器",
+    description: "允许成员修改服务器名称、更换图标和全局设置。",
+    category: "GENERAL",
+  },
+  {
+    flag: PermissionFlags.MANAGE_ROLES,
+    name: "管理角色",
+    description: "允许成员创建新角色并编辑低于此职级的角色与权限。",
+    category: "GENERAL",
+  },
+  {
+    flag: PermissionFlags.MANAGE_CHANNELS,
+    name: "管理频道",
+    description: "允许成员创建、编辑或删除频道与分类。",
+    category: "GENERAL",
+  },
   // 成员处置与邀请
-  { flag: PermissionFlags.KICK_MEMBERS, name: "踢出成员", description: "允许成员将低于此职级的成员移出此服务器。", category: "MEMBERSHIP" },
-  { flag: PermissionFlags.BAN_MEMBERS, name: "封禁成员", description: "允许成员将低于此职级的成员永久封禁并列入黑名单。", category: "MEMBERSHIP" },
-  { flag: PermissionFlags.CREATE_INVITE, name: "创建邀请", description: "允许成员创建服务器邀请码邀请新用户加入。", category: "MEMBERSHIP" },
-  { flag: PermissionFlags.CHANGE_NICKNAME, name: "修改昵称", description: "允许成员修改自己在服务器内的专属昵称。", category: "MEMBERSHIP" },
-  { flag: PermissionFlags.MANAGE_NICKNAMES, name: "管理昵称", description: "允许成员修改其他成员的昵称。", category: "MEMBERSHIP" },
+  {
+    flag: PermissionFlags.KICK_MEMBERS,
+    name: "踢出成员",
+    description: "允许成员将低于此职级的成员移出此服务器。",
+    category: "MEMBERSHIP",
+  },
+  {
+    flag: PermissionFlags.BAN_MEMBERS,
+    name: "封禁成员",
+    description: "允许成员将低于此职级的成员永久封禁并列入黑名单。",
+    category: "MEMBERSHIP",
+  },
+  {
+    flag: PermissionFlags.CREATE_INVITE,
+    name: "创建邀请",
+    description: "允许成员创建服务器邀请码邀请新用户加入。",
+    category: "MEMBERSHIP",
+  },
+  {
+    flag: PermissionFlags.CHANGE_NICKNAME,
+    name: "修改昵称",
+    description: "允许成员修改自己在服务器内的专属昵称。",
+    category: "MEMBERSHIP",
+  },
+  {
+    flag: PermissionFlags.MANAGE_NICKNAMES,
+    name: "管理昵称",
+    description: "允许成员修改其他成员的昵称。",
+    category: "MEMBERSHIP",
+  },
   // 文本频道权限
-  { flag: PermissionFlags.VIEW_CHANNEL, name: "查看频道", description: "允许成员查看频道列表并阅读文本频道内容。", category: "TEXT" },
-  { flag: PermissionFlags.SEND_MESSAGES, name: "发送消息", description: "允许成员在文字频道中发送消息。", category: "TEXT" },
-  { flag: PermissionFlags.ATTACH_FILES, name: "发送附件", description: "允许成员在文字频道中上传图片、文件或媒体附件。", category: "TEXT" },
-  { flag: PermissionFlags.ADD_REACTIONS, name: "添加反应", description: "允许成员在已有消息上添加表情反应。", category: "TEXT" },
-  { flag: PermissionFlags.READ_MESSAGE_HISTORY, name: "阅读历史消息", description: "允许成员查看频道过去的聊天记录。", category: "TEXT" },
-  { flag: PermissionFlags.MANAGE_MESSAGES, name: "管理消息", description: "允许成员删除或置顶其他成员发送的消息。", category: "TEXT" },
+  {
+    flag: PermissionFlags.VIEW_CHANNEL,
+    name: "查看频道",
+    description: "允许成员查看频道列表并阅读文本频道内容。",
+    category: "TEXT",
+  },
+  {
+    flag: PermissionFlags.SEND_MESSAGES,
+    name: "发送消息",
+    description: "允许成员在文字频道中发送消息。",
+    category: "TEXT",
+  },
+  {
+    flag: PermissionFlags.ATTACH_FILES,
+    name: "发送附件",
+    description: "允许成员在文字频道中上传图片、文件或媒体附件。",
+    category: "TEXT",
+  },
+  {
+    flag: PermissionFlags.ADD_REACTIONS,
+    name: "添加反应",
+    description: "允许成员在已有消息上添加表情反应。",
+    category: "TEXT",
+  },
+  {
+    flag: PermissionFlags.READ_MESSAGE_HISTORY,
+    name: "阅读历史消息",
+    description: "允许成员查看频道过去的聊天记录。",
+    category: "TEXT",
+  },
+  {
+    flag: PermissionFlags.MANAGE_MESSAGES,
+    name: "管理消息",
+    description: "允许成员删除或置顶其他成员发送的消息。",
+    category: "TEXT",
+  },
   // 语音频道权限
-  { flag: PermissionFlags.CONNECT, name: "连接语音", description: "允许成员加入并收听语音频道。", category: "VOICE" },
-  { flag: PermissionFlags.SPEAK, name: "说话开麦", description: "允许成员在语音频道中自由开麦发言。", category: "VOICE" },
-  { flag: PermissionFlags.STREAM, name: "屏幕共享", description: "允许成员在语音频道中分享屏幕或摄像头视频流。", category: "VOICE" },
-  { flag: PermissionFlags.MUTE_MEMBERS, name: "禁言闭麦成员", description: "允许成员在语音频道中静音闭麦其他成员。", category: "VOICE" },
-  { flag: PermissionFlags.DEAFEN_MEMBERS, name: "禁听成员", description: "允许成员在语音频道中抑制其他成员的收听状态。", category: "VOICE" },
-  { flag: PermissionFlags.MOVE_MEMBERS, name: "移动成员", description: "允许成员在不同语音频道之间拖拽转移成员。", category: "VOICE" },
+  {
+    flag: PermissionFlags.CONNECT,
+    name: "连接语音",
+    description: "允许成员加入并收听语音频道。",
+    category: "VOICE",
+  },
+  {
+    flag: PermissionFlags.SPEAK,
+    name: "说话开麦",
+    description: "允许成员在语音频道中自由开麦发言。",
+    category: "VOICE",
+  },
+  {
+    flag: PermissionFlags.STREAM,
+    name: "屏幕共享",
+    description: "允许成员在语音频道中分享屏幕或摄像头视频流。",
+    category: "VOICE",
+  },
+  {
+    flag: PermissionFlags.MUTE_MEMBERS,
+    name: "禁言闭麦成员",
+    description: "允许成员在语音频道中静音闭麦其他成员。",
+    category: "VOICE",
+  },
+  {
+    flag: PermissionFlags.DEAFEN_MEMBERS,
+    name: "禁听成员",
+    description: "允许成员在语音频道中抑制其他成员的收听状态。",
+    category: "VOICE",
+  },
+  {
+    flag: PermissionFlags.MOVE_MEMBERS,
+    name: "移动成员",
+    description: "允许成员在不同语音频道之间拖拽转移成员。",
+    category: "VOICE",
+  },
   // 高级管理
-  { flag: PermissionFlags.ADMINISTRATOR, name: "管理员 (最高特权)", description: "拥有服务器的全部最高特权，无视其他所有权限限制，请极其慎重授予！", category: "ADVANCED" },
+  {
+    flag: PermissionFlags.ADMINISTRATOR,
+    name: "管理员 (最高特权)",
+    description:
+      "拥有服务器的全部最高特权，无视其他所有权限限制，请极其慎重授予！",
+    category: "ADVANCED",
+  },
 ];
 
 export interface Role {
@@ -147,7 +258,8 @@ export function computePermissions(roles: Role[]): number {
 }
 
 export function parseRoleIds(raw: any): string[] {
-  if (Array.isArray(raw)) return raw.filter((id): id is string => typeof id === "string");
+  if (Array.isArray(raw))
+    return raw.filter((id): id is string => typeof id === "string");
   if (typeof raw === "string") {
     try {
       const parsed = JSON.parse(raw);
@@ -163,6 +275,15 @@ export function parseRoleIds(raw: any): string[] {
 
 // 3. 频道与公会 (Guild / Server)
 export type ChannelType = "TEXT" | "VOICE";
+
+export interface ChannelCategory {
+  id: string;
+  guildId: string;
+  name: string;
+  position: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface Channel {
   id: string;
@@ -187,6 +308,21 @@ export interface GuildMember {
   user?: User;
 }
 
+export interface GuildMemberAddPayload {
+  guildId: string;
+  member: GuildMember;
+}
+
+export interface GuildMemberRemovePayload {
+  guildId: string;
+  userId: string;
+}
+
+export interface GuildMemberUpdatePayload {
+  guildId: string;
+  member: GuildMember;
+}
+
 export interface Guild {
   id: string;
   name: string;
@@ -194,6 +330,7 @@ export interface Guild {
   description?: string | null;
   ownerId: string;
   channels: Channel[];
+  categories?: ChannelCategory[];
   members: GuildMember[];
   roles?: Role[];
   createdAt: string;
@@ -311,6 +448,24 @@ export interface UpdateChannelDTO {
   isE2EE?: boolean;
 }
 
+export interface CreateCategoryDTO {
+  name: string;
+  position?: number;
+}
+
+export interface UpdateCategoryDTO {
+  name?: string;
+  position?: number;
+}
+
+export interface ReorderCategoriesDTO {
+  categories: { id: string; position: number }[];
+}
+
+export interface ReorderChannelsDTO {
+  channels: { id: string; position: number; parentId?: string | null }[];
+}
+
 export interface CreateInviteDTO {
   maxUses?: number;
   expiresInHours?: number;
@@ -385,6 +540,22 @@ export interface HelloPayload {
   heartbeatInterval: number; // 毫秒
 }
 
+export interface HeartbeatData {
+  clientTimestamp: number;
+  serverTimestamp?: number;
+}
+
+export type GatewayConnectionState =
+  "disconnected" | "connecting" | "connected" | "reconnecting";
+
+export type VoiceConnectionStatus =
+  "disconnected" | "connecting" | "connected" | "reconnecting";
+
+export interface GatewayPingStats {
+  ping: number; // 毫秒往返延迟 (RTT)
+  lastAckTimestamp: number;
+}
+
 export interface IdentifyPayload {
   token: string;
   sessionId?: string;
@@ -395,6 +566,8 @@ export interface IdentifyPayload {
   };
 }
 
+export type StreamTransmissionMode = "sfu" | "p2p_direct" | "p2p_relay";
+
 export interface VoiceStateUpdatePayload {
   guildId: string;
   channelId: string | null; // null 代表退出语音频道
@@ -403,6 +576,7 @@ export interface VoiceStateUpdatePayload {
   selfDeaf?: boolean;
   selfVideo?: boolean;
   streaming?: boolean;
+  streamMode?: StreamTransmissionMode;
 }
 
 export interface VoiceState {
@@ -415,6 +589,7 @@ export interface VoiceState {
   selfDeaf: boolean;
   selfVideo: boolean;
   streaming: boolean;
+  streamMode?: StreamTransmissionMode;
   user?: User;
 }
 
@@ -429,6 +604,33 @@ export interface ReadyPayload {
   user: Partial<User>;
   guilds: Guild[];
   voiceStates: VoiceState[];
+}
+
+export interface StatusUpdatePayload {
+  status: UserStatus;
+  customStatus?: string | null;
+}
+
+export interface UserPresence {
+  userId: string;
+  status: UserStatus;
+  customStatus?: string | null;
+  clientStatus?: {
+    web?: UserStatus;
+    desktop?: UserStatus;
+  };
+  lastActiveAt?: string;
+}
+
+export interface PresenceUpdateEvent {
+  userId: string;
+  status: UserStatus;
+  customStatus?: string | null;
+  clientStatus?: {
+    web?: UserStatus;
+    desktop?: UserStatus;
+  };
+  lastActiveAt?: string;
 }
 
 // 6. LiveKit 媒体 Token 协议
@@ -477,9 +679,124 @@ export interface AudioProcessingConfig {
   outputDeviceId?: string; // 输出设备 ID
 }
 
+export type VideoCodecType = "h264" | "av1" | "vp9" | "vp8" | "h265";
+
+export interface CodecCapabilityInfo {
+  codec: VideoCodecType;
+  label: string;
+  description: string;
+  supported: boolean;
+  isHardwareAccelerated?: boolean;
+  reason?: string;
+}
+
+export const DEFAULT_VIDEO_CODEC: VideoCodecType = "h264";
+export const MIN_CUSTOM_BITRATE = 500_000; // 500 kbps
+export const MAX_CUSTOM_BITRATE = 25_000_000; // 25 Mbps (支持 4K 60fps)
+
 export interface VideoSettingsConfig {
   cameraDeviceId?: string; // 选中的摄像头硬件 Device ID
   mirrorLocalPreview?: boolean; // 是否开启本地自拍镜像翻转 (默认 true)
+  preferredVideoCodec?: VideoCodecType; // 全局首选视频编码器 (默认 'h264')
+  customBitrate?: number; // 自定义推流目标码率 (bps, 500000 - 25000000)
+  enableBackupCodec?: boolean; // 是否启用 VP8 双编码兜底降级 (默认 true)
+}
+
+// 物理媒体连接架构与拓扑类型
+export type ConnectionTopology =
+  | "SFU_SERVER" // LiveKit 媒体服务器集中转发
+  | "P2P_MESH" // 纯语音全网状点对点打洞
+  | "P2P_DIRECT" // 屏幕共享点对点单向打洞
+  | "P2P_TREE_RELAY"; // 屏幕共享树状接力转发
+
+// 动态 ICE / TURN 服务器配置契约
+export interface ICEServerEntry {
+  urls: string | string[];
+  username?: string;
+  credential?: string;
+}
+
+export interface ICEServerConfigResponse {
+  iceServers: ICEServerEntry[];
+  turnActive: boolean;
+}
+
+// 详细媒体属性与实时统计报告契约 (Stats for nerds)
+export interface StreamDetailedStats {
+  participantIdentity: string;
+  isLocal: boolean;
+  mimeType: string;
+  playerCore: string;
+  videoInfo?: string;
+  audioInfo: string;
+  encoder: string;
+  streamHost: string;
+  connectionMode: string;
+  topology: ConnectionTopology;
+  protocol: string;
+  bufferLength: string;
+  decodedFrames?: string;
+  downloadBitrate: string; // 格式化瞬时下行速率与累计量 (如 "1.45 Mbps (12.4 MB)")
+  uploadBitrate?: string; // 格式化瞬时上行速率与累计量 (如 "850 Kbps (4.2 MB)")
+  rawDownloadBitrateBps?: number; // 瞬时下行真实速率 (bps)
+  rawUploadBitrateBps?: number; // 瞬时上行真实速率 (bps)
+  totalBytesReceived?: number; // 累计接收字节数
+  totalBytesSent?: number; // 累计发送字节数
+  rtt: string;
+  packetLoss: string;
+  jitter: string;
+  holePunchStatus?: string; // 打洞状态：如 "已打洞连通"、"打洞重试中 (1/3)"、"SFU 中继回退"
+  ipVersion?: "IPv4" | "IPv6"; // 实际协商候选的 IP 版本
+  candidateType?: "host" | "srflx" | "prflx" | "relay";
+}
+
+// 纯语音传输模式：SFU 服务端转发 或 P2P 全网状 Mesh 直连
+export type VoiceTransmissionMode = "sfu" | "p2p_mesh";
+
+// 语音通道状态信息
+export interface VoiceChannelStatusInfo {
+  mode: VoiceTransmissionMode;
+  isMeshActive: boolean;
+  isFallbackToSFU: boolean;
+  fallbackReason?: string;
+  peerCount: number;
+  rtt: number;
+  jitter: number;
+  packetLoss: number;
+  bitrate: number;
+  codec: string;
+}
+
+// 视频与直播通道状态信息
+export interface VideoChannelStatusInfo {
+  state: "idle" | "broadcasting" | "watching";
+  transmissionMode: StreamTransmissionMode;
+  codec?: string;
+  hardwareAcceleration?: string; // 如 'Intel QSV', 'NVIDIA NVENC', 'AMD AMF', 'WebCodecs', 'CPU'
+  resolution?: string;
+  framerate?: number;
+  bitrate?: number;
+  packetLoss?: number;
+}
+
+// 点对点网络质量与延迟评估报告
+export interface PeerLatencyReport {
+  targetUserId: string;
+  rtt: number; // 毫秒往返物理延迟
+  jitter?: number; // 抖动毫秒
+  packetLoss?: number; // 丢包率 (0.0 - 1.0)
+  connectionType: "LAN" | "P2P" | "RELAY" | "SFU";
+  updatedAt: number;
+}
+
+// 用户全量偏好设置 DTO (支持本地 Zustand Persist 持久化与后端云端漫游)
+export interface UserSettingsDTO {
+  audio: AudioProcessingConfig;
+  video: VideoSettingsConfig;
+  outputVolume: number; // 全局母带输出音量 (0 - 200, 默认 100)
+  userVolumes: Record<string, number>; // 针对特定成员的独立音量配置 (0 - 200)
+  language?: SupportedLocale; // 用户界面多语言首选项
+  voiceTransmissionMode?: VoiceTransmissionMode; // 纯语音偏好模式 (默认 sfu)
 }
 
 export interface CameraDeviceInfo {
@@ -495,6 +812,10 @@ export interface NetworkStats {
   jitter: number; // 网络抖动 Jitter (ms)
   bitrate: number; // 吞吐码率 (kbps)
   codec: string; // 音频编码 (如 'Opus')
+  videoCodec?: string; // 视频编码 (如 'H264', 'AV1', 'VP8')
+  videoResolution?: string; // 视频实时分辨率 (如 '1920x1080')
+  videoFramerate?: number; // 视频实时帧率 (fps)
+  videoBitrate?: number; // 视频实时码率 (kbps)
   quality: "excellent" | "good" | "poor" | "unknown"; // 综合网络健康等级
   timestamp: number;
 }
@@ -586,6 +907,7 @@ export const GatewayEvents = {
   MESSAGE_PIN_UPDATE: "MESSAGE_PIN_UPDATE",
   VOICE_STATE_UPDATE: "VOICE_STATE_UPDATE",
   USER_UPDATE: "USER_UPDATE",
+  PRESENCE_UPDATE: "PRESENCE_UPDATE",
   GUILD_CREATE: "GUILD_CREATE",
   GUILD_UPDATE: "GUILD_UPDATE",
   GUILD_DELETE: "GUILD_DELETE",
@@ -600,15 +922,100 @@ export const GatewayEvents = {
   CHANNEL_CREATE: "CHANNEL_CREATE",
   CHANNEL_UPDATE: "CHANNEL_UPDATE",
   CHANNEL_DELETE: "CHANNEL_DELETE",
+  CATEGORY_CREATE: "CATEGORY_CREATE",
+  CATEGORY_UPDATE: "CATEGORY_UPDATE",
+  CATEGORY_DELETE: "CATEGORY_DELETE",
+  CATEGORY_POSITIONS_UPDATE: "CATEGORY_POSITIONS_UPDATE",
+  CHANNEL_POSITIONS_UPDATE: "CHANNEL_POSITIONS_UPDATE",
   STREAM_START: "STREAM_START",
   STREAM_STOP: "STREAM_STOP",
   E2EE_KEY_EXCHANGE: "E2EE_KEY_EXCHANGE",
   E2EE_CHANNEL_UPDATE: "E2EE_CHANNEL_UPDATE",
   TYPING_START: "TYPING_START",
+  // P2P 直连与智能接力信令
+  P2P_SIGNAL: "P2P_SIGNAL",
+  P2P_TOPOLOGY_UPDATE: "P2P_TOPOLOGY_UPDATE",
+  P2P_QUALITY_REPORT: "P2P_QUALITY_REPORT",
+  P2P_FALLBACK_REQUEST: "P2P_FALLBACK_REQUEST",
 } as const;
 
 export type GatewayEventType =
   (typeof GatewayEvents)[keyof typeof GatewayEvents];
+
+export type NATType =
+  | "FullCone"
+  | "RestrictedCone"
+  | "PortRestrictedCone"
+  | "Symmetric"
+  | "IPv6Direct"
+  | "Unknown";
+
+export interface P2PSignalPayload {
+  guildId: string;
+  channelId: string;
+  senderId: string;
+  targetId?: string; // 目标接收用户ID（点对点直传时必填）
+  streamOwnerId: string; // 主播ID
+  type:
+    | "OFFER"
+    | "ANSWER"
+    | "ICE_CANDIDATE"
+    | "REQUEST_STREAM"
+    | "TOPOLOGY_SYNC"
+    | "FALLBACK_TO_SFU"
+    | "VOICE_OFFER"
+    | "VOICE_ANSWER"
+    | "VOICE_ICE_CANDIDATE"
+    | "VOICE_LEAVE";
+  sdp?: any;
+  candidate?: any;
+  transmissionMode?: StreamTransmissionMode;
+  timestamp?: number;
+}
+
+export interface P2PNodeMetrics {
+  userId: string;
+  natType: NATType;
+  hasIPv6: boolean;
+  rtt: number;
+  packetLoss: number;
+  downstreamCount: number;
+  maxDownstream: number;
+}
+
+export interface P2PTopologyNode {
+  peerId: string;
+  parentId: string | null;
+  childrenIds: string[];
+  transmissionMode: StreamTransmissionMode;
+  metrics?: P2PNodeMetrics;
+}
+
+export interface P2PTopologyUpdatePayload {
+  streamOwnerId: string;
+  channelId: string;
+  transmissionMode: StreamTransmissionMode;
+  nodes: Record<string, P2PTopologyNode>;
+  myParentId?: string | null;
+  myChildrenIds?: string[];
+}
+
+export interface P2PNetworkDiagnostics {
+  transmissionMode: StreamTransmissionMode;
+  natType: NATType;
+  hasIPv6: boolean;
+  activeCandidatePair?: {
+    localCandidateType: string;
+    remoteCandidateType: string;
+    protocol: string;
+    localAddress?: string;
+    remoteAddress?: string;
+  };
+  rtt: number;
+  packetLoss: number;
+  relayParentName?: string;
+  downstreamPeersCount: number;
+}
 
 export interface TypingIndicatorPayload {
   channelId: string;
@@ -623,7 +1030,7 @@ export interface TypingIndicatorPayload {
 
 // 10. 阶段四：屏幕分享直播、Simulcast 与桌面原生协议 (Phase 4 Contracts)
 
-export type ScreenShareResolution = "720p" | "1080p" | "1440p" | "4k";
+export type ScreenShareResolution = "480p" | "720p" | "1080p" | "1440p" | "4k";
 export type ScreenShareFps = 15 | 30 | 60;
 
 export interface ScreenSharePreset {
@@ -636,7 +1043,160 @@ export interface ScreenSharePreset {
   description: string;
 }
 
+export interface ResolutionInfo {
+  id: ScreenShareResolution;
+  label: string;
+  width: number;
+  height: number;
+  description: string;
+}
+
+export const RESOLUTION_OPTIONS: ResolutionInfo[] = [
+  {
+    id: "480p",
+    label: "480P (标清)",
+    width: 854,
+    height: 480,
+    description: "极低带宽开销，适合弱网及文档阅读",
+  },
+  {
+    id: "720p",
+    label: "720P (高清)",
+    width: 1280,
+    height: 720,
+    description: "省流低带宽，适合日常文档与演示",
+  },
+  {
+    id: "1080p",
+    label: "1080P (超清)",
+    width: 1920,
+    height: 1080,
+    description: "细腻清晰，代码与文本展示首选",
+  },
+  {
+    id: "1440p",
+    label: "2K 1440P (极清)",
+    width: 2560,
+    height: 1440,
+    description: "2K 细腻画质，高清大屏演示",
+  },
+  {
+    id: "4k",
+    label: "4K 2160P (原画)",
+    width: 3840,
+    height: 2160,
+    description: "4K 视网膜级原生画质呈现",
+  },
+];
+
+export const FPS_OPTIONS: ScreenShareFps[] = [15, 30, 60];
+
+export function getRecommendedBitrate(
+  resolution: ScreenShareResolution,
+  fps: ScreenShareFps,
+): number {
+  const table: Record<ScreenShareResolution, Record<ScreenShareFps, number>> = {
+    "480p": { 15: 500_000, 30: 800_000, 60: 1_200_000 },
+    "720p": { 15: 1_000_000, 30: 1_500_000, 60: 2_500_000 },
+    "1080p": { 15: 2_000_000, 30: 3_000_000, 60: 5_000_000 },
+    "1440p": { 15: 3_500_000, 30: 5_000_000, 60: 8_000_000 },
+    "4k": { 15: 6_000_000, 30: 10_000_000, 60: 16_000_000 },
+  };
+  return table[resolution]?.[fps] ?? 3_000_000;
+}
+
+/**
+ * 根据屏幕物理像素尺寸 (宽, 高)，按 16:9 比例计算该屏幕所支持的最大标准 16:9 分辨率档位。
+ * 支持 16:10、21:9、3:2 等非标比例屏幕安全等比内接映射。
+ */
+export function getMaxAllowed16x9Resolution(
+  screenWidth?: number,
+  screenHeight?: number,
+): ScreenShareResolution {
+  if (!screenWidth || !screenHeight || screenWidth <= 0 || screenHeight <= 0) {
+    return "1080p"; // 默认安全回退
+  }
+
+  // 横屏归一化（防止竖屏取反）
+  const w = Math.max(screenWidth, screenHeight);
+  const h = Math.min(screenWidth, screenHeight);
+
+  // 计算最大内接 16:9 尺寸的高（纵向像素）
+  // H_avail = min(H, floor(W * 9 / 16))
+  const hAvail = Math.min(h, Math.floor((w * 9) / 16));
+
+  // 按照阶梯划分 (带 32px 容差缓冲)
+  if (hAvail < 688) {
+    return "480p";
+  } else if (hAvail < 1048) {
+    return "720p";
+  } else if (hAvail < 1408) {
+    return "1080p";
+  } else if (hAvail < 2128) {
+    return "1440p";
+  } else {
+    return "4k";
+  }
+}
+
+/**
+ * 判定目标分辨率是否被最大允许分辨率支持 (基于 480p < 720p < 1080p < 1440p < 4k 顺序)
+ */
+export function isResolutionAllowed(
+  target: ScreenShareResolution,
+  maxAllowed: ScreenShareResolution,
+): boolean {
+  const order: ScreenShareResolution[] = [
+    "480p",
+    "720p",
+    "1080p",
+    "1440p",
+    "4k",
+  ];
+  const targetIdx = order.indexOf(target);
+  const maxIdx = order.indexOf(maxAllowed);
+  if (targetIdx === -1) return true;
+  if (maxIdx === -1) return true;
+  return targetIdx <= maxIdx;
+}
+
 export const SCREEN_SHARE_PRESETS: Record<string, ScreenSharePreset> = {
+  "480p15": {
+    id: "480p15",
+    name: "省流极低 (480p 15fps)",
+    width: 854,
+    height: 480,
+    frameRate: 15,
+    bitrate: 500_000,
+    description: "极限省流模式，超低带宽开销",
+  },
+  "480p30": {
+    id: "480p30",
+    name: "流畅标清 (480p 30fps)",
+    width: 854,
+    height: 480,
+    frameRate: 30,
+    bitrate: 800_000,
+    description: "极低带宽开销，适合弱网及文档阅读",
+  },
+  "480p60": {
+    id: "480p60",
+    name: "流畅高帧 (480p 60fps)",
+    width: 854,
+    height: 480,
+    frameRate: 60,
+    bitrate: 1_200_000,
+    description: "低带宽下的高帧率分享",
+  },
+  "720p15": {
+    id: "720p15",
+    name: "文档标清 (720p 15fps)",
+    width: 1280,
+    height: 720,
+    frameRate: 15,
+    bitrate: 1_000_000,
+    description: "清晰文字展示，低帧率省流",
+  },
   "720p30": {
     id: "720p30",
     name: "流畅标清 (720p 30fps)",
@@ -655,6 +1215,15 @@ export const SCREEN_SHARE_PRESETS: Record<string, ScreenSharePreset> = {
     bitrate: 2_500_000,
     description: "兼顾高帧率与画质，竞技游戏优先",
   },
+  "1080p15": {
+    id: "1080p15",
+    name: "静态高清 (1080p 15fps)",
+    width: 1920,
+    height: 1080,
+    frameRate: 15,
+    bitrate: 2_000_000,
+    description: "高分辨率代码与文档阅读首选",
+  },
   "1080p30": {
     id: "1080p30",
     name: "高清演示 (1080p 30fps)",
@@ -672,6 +1241,60 @@ export const SCREEN_SHARE_PRESETS: Record<string, ScreenSharePreset> = {
     frameRate: 60,
     bitrate: 5_000_000,
     description: "极致画质与丝滑流畅，高画质游戏直播",
+  },
+  "1440p15": {
+    id: "1440p15",
+    name: "2K静态 (1440p 15fps)",
+    width: 2560,
+    height: 1440,
+    frameRate: 15,
+    bitrate: 3_500_000,
+    description: "2K 超高解析度静态画面",
+  },
+  "1440p30": {
+    id: "1440p30",
+    name: "2K极清 (1440p 30fps)",
+    width: 2560,
+    height: 1440,
+    frameRate: 30,
+    bitrate: 5_000_000,
+    description: "2K 细腻画质，高清大屏演示",
+  },
+  "1440p60": {
+    id: "1440p60",
+    name: "2K高刷 (1440p 60fps)",
+    width: 2560,
+    height: 1440,
+    frameRate: 60,
+    bitrate: 8_000_000,
+    description: "2K 电竞高刷直播，超高解析度",
+  },
+  "4k15": {
+    id: "4k15",
+    name: "4K静态 (4K 15fps)",
+    width: 3840,
+    height: 2160,
+    frameRate: 15,
+    bitrate: 6_000_000,
+    description: "4K 视网膜级超精细文本与绘图",
+  },
+  "4k30": {
+    id: "4k30",
+    name: "4K原画 (4K 30fps)",
+    width: 3840,
+    height: 2160,
+    frameRate: 30,
+    bitrate: 10_000_000,
+    description: "4K 视网膜级原生画质呈现",
+  },
+  "4k60": {
+    id: "4k60",
+    name: "4K极限 (4K 60fps)",
+    width: 3840,
+    height: 2160,
+    frameRate: 60,
+    bitrate: 16_000_000,
+    description: "4K 60fps 旗舰级画质分享",
   },
 };
 
@@ -728,6 +1351,7 @@ export interface DesktopSource {
   thumbnail: string;
   type: "screen" | "window";
   appIcon?: string;
+  displayDimensions?: { width: number; height: number }; // 物理尺寸 (宽 x 高)
 }
 
 export interface ScreenShareOptions {
@@ -737,6 +1361,8 @@ export interface ScreenShareOptions {
   captureAudio: boolean;
   simulcast: boolean;
   mixedAudio?: boolean;
+  videoCodec?: VideoCodecType; // 本次屏幕分享指定编码器
+  customBitrate?: number; // 本次屏幕分享自定义目标码率 (bps)
 }
 
 export interface AudioMixerConfig {
@@ -779,6 +1405,13 @@ export interface AutoLaunchSettings {
   enabled: boolean;
   openAsHidden: boolean;
 }
+
+export interface DesktopWindowState {
+  isMaximized: boolean;
+  platform: string;
+}
+
+export type WindowControlAction = "minimize" | "maximize" | "close";
 
 export type VideoViewMode = "grid" | "theater" | "pip" | "fullscreen";
 
@@ -1330,9 +1963,7 @@ export class DoubleRatchetSession {
     this.rootKey = new Uint8Array(rootKey);
   }
 
-  public async initAsAlice(
-    peerDhPublicKey: CryptoKey | string,
-  ): Promise<void> {
+  public async initAsAlice(peerDhPublicKey: CryptoKey | string): Promise<void> {
     this.isChannelMode = false;
     if (typeof peerDhPublicKey === "string") {
       this.remoteDhPublicKey = await importDhPublicKey(peerDhPublicKey);
@@ -1350,10 +1981,7 @@ export class DoubleRatchetSession {
       this.localDhKeyPair.privateKey,
       this.remoteDhPublicKey,
     );
-    const { nextRootKey, chainKey } = await kdfRootKey(
-      this.rootKey,
-      dhSecret,
-    );
+    const { nextRootKey, chainKey } = await kdfRootKey(this.rootKey, dhSecret);
     this.rootKey = nextRootKey;
     this.sendingChainKey = chainKey;
     this.sendingSeq = 0;
@@ -1797,3 +2425,36 @@ export class ClientSideFtsEngine {
     return this.documents.size;
   }
 }
+
+// ==========================================
+// 19. 多语言与国际化契约 (i18n Localization)
+// ==========================================
+export type SupportedLocale = "zh-CN" | "en-US" | "ja-JP";
+
+export interface LocaleOption {
+  code: SupportedLocale;
+  label: string;
+  englishName: string;
+  nativeName: string;
+}
+
+export const SUPPORTED_LOCALES: LocaleOption[] = [
+  {
+    code: "zh-CN",
+    label: "简体中文",
+    englishName: "Simplified Chinese",
+    nativeName: "简体中文",
+  },
+  {
+    code: "en-US",
+    label: "English (US)",
+    englishName: "English (US)",
+    nativeName: "English (US)",
+  },
+  {
+    code: "ja-JP",
+    label: "日本語",
+    englishName: "Japanese",
+    nativeName: "日本語",
+  },
+];

@@ -21,7 +21,9 @@ export class DtlnWorkletNode extends AudioWorkletNode {
   }
 }
 
-export async function loadDtlnWorklet(audioContext: AudioContext): Promise<boolean> {
+export async function loadDtlnWorklet(
+  audioContext: AudioContext,
+): Promise<boolean> {
   try {
     if (!audioContext.audioWorklet) return false;
     const base = import.meta.env.BASE_URL || "./";

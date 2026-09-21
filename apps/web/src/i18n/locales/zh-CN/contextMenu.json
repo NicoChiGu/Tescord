@@ -1,0 +1,22 @@
+{
+  "copyText": "复制文本",
+  "quoteReply": "引用回复",
+  "pinMessage": "置顶消息",
+  "unpinMessage": "取消置顶",
+  "deleteMessage": "删除消息",
+  "editMessage": "编辑消息",
+  "copyMessageId": "复制消息 ID",
+  "copyChannelId": "复制频道 ID",
+  "copyGuildId": "复制服务器 ID",
+  "copyUserId": "复制用户 ID",
+  "mentionUser": "提及用户",
+  "sendMessage": "发送私信",
+  "muteUser": "静音成员",
+  "kickUser": "踢出成员",
+  "banUser": "封禁成员",
+  "addReaction": "添加反应",
+  "userVolume": "用户独立音量",
+  "resetVolume": "重置 100%",
+  "maxVolume": "上限 200%",
+  "unmuteUser": "取消静音"
+}

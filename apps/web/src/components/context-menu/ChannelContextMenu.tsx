@@ -24,6 +24,7 @@ interface ChannelContextMenuProps {
   guild?: Guild | null;
   children: React.ReactNode;
   onSelectChannel?: (channel: Channel) => void;
+  onJoinVoiceChannel?: (channel: Channel) => void;
   onEditChannel?: (channel: Channel) => void;
   onDeleteChannel?: (channel: Channel) => void;
   onMarkAsRead?: (channel: Channel) => void;
@@ -34,6 +35,7 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
   guild,
   children,
   onSelectChannel,
+  onJoinVoiceChannel,
   onEditChannel,
   onDeleteChannel,
   onMarkAsRead,
@@ -59,7 +61,12 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-56">
         <ContextMenuItem
-          onClick={() => onSelectChannel?.(channel)}
+          onClick={() => {
+            onSelectChannel?.(channel);
+            if (isVoice) {
+              onJoinVoiceChannel?.(channel);
+            }
+          }}
           className="hover:bg-discord-brand"
         >
           <div className="flex items-center space-x-2">

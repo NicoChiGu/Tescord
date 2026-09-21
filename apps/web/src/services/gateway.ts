@@ -3,7 +3,11 @@ import {
   GatewayPayload,
   GatewayEvents,
   HelloPayload,
+  HeartbeatData,
+  GatewayConnectionState,
+  GatewayPingStats,
   User,
+  UserStatus,
 } from "@tescord/types";
 import { GATEWAY_URL } from "../config.js";
 
@@ -15,6 +19,9 @@ export class GatewayClient {
   private handlers: Map<string, Set<EventHandler>> = new Map();
   private token: string = "";
   private isConnecting: boolean = false;
+  private connectionState: GatewayConnectionState = "disconnected";
+  private pingStats: GatewayPingStats | null = null;
+  private lastHeartbeatSentAt: number = 0;
   private sessionId: string =
     typeof crypto !== "undefined" && crypto.randomUUID
       ? crypto.randomUUID()
@@ -24,6 +31,29 @@ export class GatewayClient {
 
   getSessionId(): string {
     return this.sessionId;
+  }
+
+  getConnectionState(): GatewayConnectionState {
+    return this.connectionState;
+  }
+
+  getPingStats(): GatewayPingStats | null {
+    return this.pingStats;
+  }
+
+  onConnectionStateChange(handler: (state: GatewayConnectionState) => void) {
+    return this.on("GATEWAY_STATE_UPDATE", handler);
+  }
+
+  onPingChange(handler: (ping: GatewayPingStats) => void) {
+    return this.on("GATEWAY_PING_UPDATE", handler);
+  }
+
+  private setConnectionState(state: GatewayConnectionState) {
+    if (this.connectionState !== state) {
+      this.connectionState = state;
+      this.emit("GATEWAY_STATE_UPDATE", state);
+    }
   }
 
   connect(token: string) {
@@ -37,6 +67,9 @@ export class GatewayClient {
     }
 
     this.isConnecting = true;
+    if (this.connectionState !== "reconnecting") {
+      this.setConnectionState("connecting");
+    }
     try {
       this.ws = new WebSocket(this.gatewayUrl);
       this.setupSocket();
@@ -51,6 +84,7 @@ export class GatewayClient {
 
     this.ws.onopen = () => {
       this.isConnecting = false;
+      this.setConnectionState("connected");
     };
 
     this.ws.onmessage = (event) => {
@@ -64,6 +98,7 @@ export class GatewayClient {
 
     this.ws.onclose = () => {
       this.cleanup();
+      this.setConnectionState("disconnected");
       this.scheduleReconnect();
     };
 
@@ -107,9 +142,19 @@ export class GatewayClient {
         break;
       }
 
-      case GatewayOpCode.HEARTBEAT_ACK:
-        // 心跳正常回应
+      case GatewayOpCode.HEARTBEAT_ACK: {
+        const hbData = payload.d as HeartbeatData | undefined;
+        const now = Date.now();
+        const clientTs =
+          hbData?.clientTimestamp || this.lastHeartbeatSentAt || now;
+        const rtt = Math.max(1, now - clientTs);
+        this.pingStats = {
+          ping: rtt,
+          lastAckTimestamp: now,
+        };
+        this.emit("GATEWAY_PING_UPDATE", this.pingStats);
         break;
+      }
 
       case GatewayOpCode.DISPATCH: {
         if (payload.t === "READY" && payload.d?.sessionId) {
@@ -123,12 +168,22 @@ export class GatewayClient {
     }
   }
 
+  sendHeartbeat() {
+    this.lastHeartbeatSentAt = Date.now();
+    this.send({
+      op: GatewayOpCode.HEARTBEAT,
+      d: {
+        clientTimestamp: this.lastHeartbeatSentAt,
+      } as HeartbeatData,
+    });
+  }
+
   private startHeartbeat(interval: number) {
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    // 立即发起一次心跳，第一时间获取真实网关延迟
+    this.sendHeartbeat();
     this.heartbeatTimer = setInterval(() => {
-      this.send({
-        op: GatewayOpCode.HEARTBEAT,
-      });
+      this.sendHeartbeat();
     }, interval);
   }
 
@@ -140,6 +195,7 @@ export class GatewayClient {
   }
 
   private scheduleReconnect() {
+    this.setConnectionState("reconnecting");
     setTimeout(() => {
       if (this.token) {
         this.connect(this.token);
@@ -151,6 +207,10 @@ export class GatewayClient {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(payload));
     }
+  }
+
+  sendRaw(payload: GatewayPayload) {
+    this.send(payload);
   }
 
   on(event: string, handler: EventHandler) {
@@ -178,6 +238,7 @@ export class GatewayClient {
       selfDeaf?: boolean;
       selfVideo?: boolean;
       streaming?: boolean;
+      streamMode?: import("@tescord/types").StreamTransmissionMode;
     },
   ) {
     this.send({
@@ -196,6 +257,16 @@ export class GatewayClient {
       op: GatewayOpCode.DISPATCH,
       t: GatewayEvents.TYPING_START,
       d: { channelId },
+    });
+  }
+
+  updateStatus(status: UserStatus, customStatus?: string | null) {
+    this.send({
+      op: GatewayOpCode.STATUS_UPDATE,
+      d: {
+        status,
+        customStatus,
+      },
     });
   }
 

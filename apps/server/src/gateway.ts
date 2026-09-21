@@ -4,15 +4,24 @@ import {
   GatewayOpCode,
   GatewayPayload,
   HelloPayload,
+  HeartbeatData,
   IdentifyPayload,
   VoiceStateUpdatePayload,
   VoiceState,
   VoiceServerDisconnectPayload,
   GatewayEvents,
   TypingIndicatorPayload,
+  P2PSignalPayload,
+  P2PNodeMetrics,
+  UserStatus,
+  UserPresence,
+  StatusUpdatePayload,
+  PresenceUpdateEvent,
 } from "@tescord/types";
 import { prisma } from "./db.js";
 import { removeParticipantFromRoom } from "./livekit.js";
+import { p2pTopologyManager } from "./p2pTopology.js";
+import { cacheStore } from "./cache.js";
 
 interface ClientConnection {
   ws: WebSocket;
@@ -33,6 +42,25 @@ export class GatewayManager {
   private userSessions: Map<string, Map<string, ClientConnection>> = new Map();
   // 全网单用户仅存一个活跃语音会话：userId -> VoiceState
   private voiceStates: Map<string, VoiceState> = new Map();
+  // 离线防抖缓冲池：userId -> NodeJS.Timeout (3.5秒防抖)
+  private disconnectGraceTimers: Map<string, NodeJS.Timeout> = new Map();
+  private heartbeatSweepTimer: NodeJS.Timeout;
+
+  constructor() {
+    // 启动周期性心跳巡检（每 30 秒），及时识别并清理 TCP 僵尸假死连接
+    this.heartbeatSweepTimer = setInterval(() => {
+      for (const conn of this.connections) {
+        if (!conn.isAlive) {
+          console.log(
+            `[Gateway] Terminating dead connection for user ${conn.userId || "anonymous"}`,
+          );
+          conn.ws.terminate();
+        } else {
+          conn.isAlive = false;
+        }
+      }
+    }, 30000);
+  }
 
   handleConnection(ws: WebSocket) {
     const conn: ClientConnection = {
@@ -73,8 +101,13 @@ export class GatewayManager {
     switch (payload.op) {
       case GatewayOpCode.HEARTBEAT:
         conn.isAlive = true;
+        const hbData = payload.d as HeartbeatData | undefined;
         this.send(conn.ws, {
           op: GatewayOpCode.HEARTBEAT_ACK,
+          d: {
+            clientTimestamp: hbData?.clientTimestamp || Date.now(),
+            serverTimestamp: Date.now(),
+          } as HeartbeatData,
         });
         break;
 
@@ -115,6 +148,12 @@ export class GatewayManager {
           return;
         }
 
+        // 若存在断线缓冲定时器，立即清除（说明用户刷新页面重连成功，避免误触发离线）
+        if (this.disconnectGraceTimers.has(user.id)) {
+          clearTimeout(this.disconnectGraceTimers.get(user.id)!);
+          this.disconnectGraceTimers.delete(user.id);
+        }
+
         const sessionId = data?.sessionId || randomUUID();
         conn.userId = user.id;
         conn.sessionId = sessionId;
@@ -125,9 +164,28 @@ export class GatewayManager {
         }
         this.userSessions.get(user.id)!.set(sessionId, conn);
 
+        // 确定用户有效在线状态（若偏好是 OFFLINE 则默认唤醒为 ONLINE，若为 INVISIBLE/DND/IDLE 则保留偏好）
+        const userStatusPref = (user.status as UserStatus) || "ONLINE";
+        const effectiveStatus: UserStatus =
+          userStatusPref === "OFFLINE" ? "ONLINE" : userStatusPref;
+
+        const presence: UserPresence = {
+          userId: user.id,
+          status: effectiveStatus,
+          customStatus: user.customStatus,
+          clientStatus: {
+            web: effectiveStatus,
+          },
+          lastActiveAt: new Date().toISOString(),
+        };
+        await cacheStore.setUserPresence(user.id, presence);
+
         // 获取公会数据供客户端初始化
         const guilds = await prisma.guild.findMany({
           include: {
+            categories: {
+              orderBy: { position: "asc" },
+            },
             channels: {
               orderBy: { position: "asc" },
             },
@@ -153,6 +211,43 @@ export class GatewayManager {
           },
         });
 
+        // 动态水合所有公会成员的真实瞬时在线状态
+        const allMemberIds = Array.from(
+          new Set(guilds.flatMap((g) => g.members.map((m) => m.userId))),
+        );
+        const presences = await cacheStore.batchGetPresences(allMemberIds);
+
+        const hydratedGuilds = guilds.map((g) => ({
+          ...g,
+          members: g.members.map((m) => {
+            if (!m.user) return m;
+            if (m.userId === user.id) {
+              return {
+                ...m,
+                user: {
+                  ...m.user,
+                  status: effectiveStatus,
+                  customStatus: user.customStatus,
+                },
+              };
+            }
+            const p = presences.get(m.userId);
+            const isOnline =
+              p && p.status !== "OFFLINE" && p.status !== "INVISIBLE";
+            return {
+              ...m,
+              user: {
+                ...m.user,
+                status: isOnline ? p.status : "OFFLINE",
+                customStatus:
+                  p?.customStatus !== undefined
+                    ? p.customStatus
+                    : m.user.customStatus,
+              },
+            };
+          }),
+        }));
+
         // 发送 READY 事件，携带分配的 sessionId
         this.send(conn.ws, {
           op: GatewayOpCode.DISPATCH,
@@ -163,14 +258,50 @@ export class GatewayManager {
               id: user.id,
               username: user.username,
               avatarUrl: user.avatarUrl,
-              status: user.status,
+              status: effectiveStatus,
               customStatus: user.customStatus,
               bio: user.bio,
             },
-            guilds,
+            guilds: hydratedGuilds,
             voiceStates: Array.from(this.voiceStates.values()),
           },
         });
+
+        // 向共同公会成员广播在线状态更新 (PRESENCE_UPDATE)
+        await this.broadcastPresenceUpdate(user.id, presence);
+        break;
+      }
+
+      case GatewayOpCode.STATUS_UPDATE: {
+        if (!conn.userId) return;
+        const data = payload.d as StatusUpdatePayload;
+        if (!data || !data.status) return;
+
+        // 1. 更新数据库持久化偏好
+        await prisma.user.update({
+          where: { id: conn.userId },
+          data: {
+            status: data.status,
+            ...(data.customStatus !== undefined
+              ? { customStatus: data.customStatus }
+              : {}),
+          },
+        });
+
+        // 2. 更新瞬时缓存
+        const presence: UserPresence = {
+          userId: conn.userId,
+          status: data.status,
+          customStatus: data.customStatus,
+          clientStatus: {
+            web: data.status,
+          },
+          lastActiveAt: new Date().toISOString(),
+        };
+        await cacheStore.setUserPresence(conn.userId, presence);
+
+        // 3. 向共同公会广播 PRESENCE_UPDATE
+        await this.broadcastPresenceUpdate(conn.userId, presence);
         break;
       }
 
@@ -230,6 +361,7 @@ export class GatewayManager {
             selfDeaf: !!data.selfDeaf,
             selfVideo: !!data.selfVideo,
             streaming: !!data.streaming,
+            streamMode: data.streamMode || "sfu",
             user: user
               ? {
                   id: user.id,
@@ -248,6 +380,41 @@ export class GatewayManager {
             t: "VOICE_STATE_UPDATE",
             d: voiceState,
           });
+
+          // 如果用户开启了 P2P 模式直播，初始化拓扑并向频道内广播
+          if (
+            data.streaming &&
+            (data.streamMode === "p2p_direct" ||
+              data.streamMode === "p2p_relay")
+          ) {
+            const topology = p2pTopologyManager.registerStream(
+              data.channelId,
+              data.guildId,
+              conn.userId,
+              data.streamMode,
+            );
+            this.broadcastChannel(data.channelId, {
+              op: GatewayOpCode.DISPATCH,
+              t: GatewayEvents.P2P_TOPOLOGY_UPDATE,
+              d: topology,
+            });
+          } else if (
+            !data.streaming &&
+            existingVoice?.streaming &&
+            existingVoice.channelId
+          ) {
+            p2pTopologyManager.unregisterStream(existingVoice.channelId);
+            this.broadcastChannel(existingVoice.channelId, {
+              op: GatewayOpCode.DISPATCH,
+              t: GatewayEvents.P2P_TOPOLOGY_UPDATE,
+              d: {
+                streamOwnerId: conn.userId,
+                channelId: existingVoice.channelId,
+                transmissionMode: "sfu",
+                nodes: {},
+              },
+            });
+          }
         } else {
           // 退出语音：仅当当前持有语音的 sessionId 发起时才处理，避免无关标签页关闭误退
           if (!existingVoice || existingVoice.sessionId === conn.sessionId) {
@@ -266,6 +433,16 @@ export class GatewayManager {
                 streaming: false,
               },
             });
+
+            if (existingVoice?.channelId) {
+              p2pTopologyManager.removeViewer(
+                existingVoice.channelId,
+                conn.userId,
+              );
+              if (existingVoice.streaming) {
+                p2pTopologyManager.unregisterStream(existingVoice.channelId);
+              }
+            }
           }
         }
         break;
@@ -284,6 +461,78 @@ export class GatewayManager {
           if (!user) return;
 
           this.broadcastTyping(channelId, user);
+        } else if (payload.t === GatewayEvents.P2P_SIGNAL) {
+          const signalData = payload.d as P2PSignalPayload;
+          if (!signalData || !conn.userId) return;
+          signalData.senderId = conn.userId;
+
+          if (signalData.targetId) {
+            this.sendToUser(signalData.targetId, {
+              op: GatewayOpCode.DISPATCH,
+              t: GatewayEvents.P2P_SIGNAL,
+              d: signalData,
+            });
+          } else if (signalData.channelId) {
+            this.broadcastChannel(
+              signalData.channelId,
+              {
+                op: GatewayOpCode.DISPATCH,
+                t: GatewayEvents.P2P_SIGNAL,
+                d: signalData,
+              },
+              conn.userId,
+            );
+          }
+        } else if (payload.t === GatewayEvents.P2P_TOPOLOGY_UPDATE) {
+          const { channelId, initialMetrics } = (payload.d || {}) as {
+            channelId: string;
+            initialMetrics?: P2PNodeMetrics;
+          };
+          if (!channelId || !conn.userId) return;
+          const result = p2pTopologyManager.addViewer(
+            channelId,
+            conn.userId,
+            initialMetrics,
+          );
+          if (result) {
+            this.broadcastChannel(channelId, {
+              op: GatewayOpCode.DISPATCH,
+              t: GatewayEvents.P2P_TOPOLOGY_UPDATE,
+              d: result.payload,
+            });
+          }
+        } else if (payload.t === GatewayEvents.P2P_QUALITY_REPORT) {
+          const { channelId, metrics } = (payload.d || {}) as {
+            channelId: string;
+            metrics: P2PNodeMetrics;
+          };
+          if (!channelId || !conn.userId || !metrics) return;
+          const updatedTopology = p2pTopologyManager.reportMetrics(
+            channelId,
+            conn.userId,
+            metrics,
+          );
+          if (updatedTopology) {
+            this.broadcastChannel(channelId, {
+              op: GatewayOpCode.DISPATCH,
+              t: GatewayEvents.P2P_TOPOLOGY_UPDATE,
+              d: updatedTopology,
+            });
+          }
+        } else if (payload.t === GatewayEvents.P2P_FALLBACK_REQUEST) {
+          const { channelId } = (payload.d || {}) as { channelId: string };
+          if (!channelId || !conn.userId) return;
+          const updatedTopology = p2pTopologyManager.removeViewer(
+            channelId,
+            conn.userId,
+          );
+          if (updatedTopology) {
+            this.broadcastChannel(channelId, {
+              op: GatewayOpCode.DISPATCH,
+              t: GatewayEvents.P2P_TOPOLOGY_UPDATE,
+              d: updatedTopology,
+            });
+          }
         }
         break;
       }
@@ -295,7 +544,7 @@ export class GatewayManager {
 
   broadcastTyping(
     channelId: string,
-    user: { id: string; username: string; avatarUrl?: string | null }
+    user: { id: string; username: string; avatarUrl?: string | null },
   ) {
     const payload: GatewayPayload<TypingIndicatorPayload> = {
       op: GatewayOpCode.DISPATCH,
@@ -315,6 +564,26 @@ export class GatewayManager {
     for (const conn of this.connections) {
       if (conn.userId !== user.id && conn.ws.readyState === WebSocket.OPEN) {
         conn.ws.send(data);
+      }
+    }
+  }
+
+  broadcastChannel(
+    channelId: string,
+    payload: GatewayPayload,
+    excludeUserId?: string,
+  ) {
+    const data = JSON.stringify(payload);
+    for (const [userId, voiceState] of this.voiceStates.entries()) {
+      if (voiceState.channelId === channelId && userId !== excludeUserId) {
+        const sessions = this.userSessions.get(userId);
+        if (sessions) {
+          for (const conn of sessions.values()) {
+            if (conn.ws.readyState === WebSocket.OPEN) {
+              conn.ws.send(data);
+            }
+          }
+        }
       }
     }
   }
@@ -350,6 +619,20 @@ export class GatewayManager {
         sessions.delete(conn.sessionId);
         if (sessions.size === 0) {
           this.userSessions.delete(conn.userId);
+
+          // 最后一个 Session 断开，启动 3.5 秒断线防抖缓冲
+          const userId = conn.userId;
+          if (this.disconnectGraceTimers.has(userId)) {
+            clearTimeout(this.disconnectGraceTimers.get(userId)!);
+          }
+          const timer = setTimeout(async () => {
+            this.disconnectGraceTimers.delete(userId);
+            const currentSessions = this.userSessions.get(userId);
+            if (!currentSessions || currentSessions.size === 0) {
+              await this.setUserOffline(userId);
+            }
+          }, 3500);
+          this.disconnectGraceTimers.set(userId, timer);
         }
       }
 
@@ -374,6 +657,65 @@ export class GatewayManager {
       }
     }
     this.connections.delete(conn);
+  }
+
+  async setUserOffline(userId: string) {
+    const offlinePresence: UserPresence = {
+      userId,
+      status: "OFFLINE",
+      lastActiveAt: new Date().toISOString(),
+    };
+    await cacheStore.setUserPresence(userId, offlinePresence);
+    await this.broadcastPresenceUpdate(userId, offlinePresence);
+  }
+
+  async broadcastPresenceUpdate(userId: string, presence: UserPresence) {
+    try {
+      // 1. 获取该用户加入的所有公会
+      const userMemberships = await prisma.guildMember.findMany({
+        where: { userId },
+        select: { guildId: true },
+      });
+      const guildIds = userMemberships.map((m) => m.guildId);
+
+      // 2. 获取这些公会中的所有成员 ID
+      const mutualMembers = await prisma.guildMember.findMany({
+        where: { guildId: { in: guildIds } },
+        select: { userId: true },
+      });
+      const targetUserIds = new Set(mutualMembers.map((m) => m.userId));
+      targetUserIds.add(userId);
+
+      // 3. 向所有相关在线设备推送
+      for (const targetId of targetUserIds) {
+        const sessions = this.userSessions.get(targetId);
+        if (!sessions || sessions.size === 0) continue;
+
+        // 若当前用户处于 INVISIBLE 隐身状态，他人视角统一显示为 OFFLINE
+        const visibleStatus =
+          targetId !== userId && presence.status === "INVISIBLE"
+            ? "OFFLINE"
+            : presence.status;
+
+        const eventPayload: GatewayPayload<PresenceUpdateEvent> = {
+          op: GatewayOpCode.DISPATCH,
+          t: GatewayEvents.PRESENCE_UPDATE,
+          d: {
+            userId,
+            status: visibleStatus,
+            customStatus: presence.customStatus,
+            clientStatus: presence.clientStatus,
+            lastActiveAt: presence.lastActiveAt,
+          },
+        };
+
+        for (const sConn of sessions.values()) {
+          this.send(sConn.ws, eventPayload);
+        }
+      }
+    } catch (err) {
+      console.error("[Gateway] broadcastPresenceUpdate error:", err);
+    }
   }
 }
 

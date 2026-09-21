@@ -29,7 +29,7 @@
 | **`audio-webrtc`**      | **音视频与算法专家** | LiveKit SFU 媒体服务集成、WebRTC PeerConnection 生命周期管理、AudioWorklet 隔离线程、RNNoise WASM 神经网络降噪管线、声卡混音与 Coturn 网络穿透。 |
 | **`backend-devops`**    | **后端与运维专家**   | Fastify REST API、WebSocket 网关长连接状态机、PostgreSQL + Prisma 数据建模、Redis Pub/Sub 广播、MinIO 对象存储与 Docker Compose 生产编排。       |
 | **`security-crypto`**   | **安全与密码学专家** | SFrame (WebRTC Insertable Streams) 音频端到端加密、Double Ratchet 文本频道加密、Argon2id/JWT 身份鉴权与安全审计。                                |
-| **`qa-verification`**   | **质量与验证专家**   | 编写 Vitest 自动化单元测试、Playwright 跨端并发集成测试、端到端自动化验收、弱网丢包模拟与降噪信噪比客观评估。                                  |
+| **`qa-verification`**   | **质量与验证专家**   | 编写 Vitest 自动化单元测试、Playwright 跨端并发集成测试、端到端自动化验收、弱网丢包模拟与降噪信噪比客观评估。                                    |
 
 ---
 

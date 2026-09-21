@@ -42,7 +42,7 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
       onPasteFiles,
       onChangeText,
     },
-    ref
+    ref,
   ) => {
     const editorRef = useRef<HTMLDivElement>(null);
     const [isEmpty, setIsEmpty] = useState(true);
@@ -103,7 +103,7 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
         span.textContent = `@${name}`;
         return span;
       },
-      []
+      [],
     );
 
     // 插入 Tag 到当前光标处
@@ -149,7 +149,7 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
         setMentionQuery("");
         handleContentChange();
       },
-      [createMentionTagElement, handleContentChange]
+      [createMentionTagElement, handleContentChange],
     );
 
     // 暴露 ImperativeHandle 给父组件
@@ -193,11 +193,13 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
           handleContentChange();
         },
         getPlainText: () => {
-          return editorRef.current ? serializeToPlainText(editorRef.current) : "";
+          return editorRef.current
+            ? serializeToPlainText(editorRef.current)
+            : "";
         },
         getElement: () => editorRef.current,
       }),
-      [insertMentionAtCursor, serializeToPlainText, handleContentChange]
+      [insertMentionAtCursor, serializeToPlainText, handleContentChange],
     );
 
     // 监听全局 @提及 事件 (来自成员列表或右键菜单)
@@ -280,7 +282,7 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
               .filter(Boolean) as Role[];
             memberRoles.sort((a, b) => b.position - a.position);
             const coloredRole = memberRoles.find(
-              (r) => r.color && r.color !== "#000000" && r.color !== "#99aab5"
+              (r) => r.color && r.color !== "#000000" && r.color !== "#99aab5",
             );
             if (coloredRole) {
               roleColor = coloredRole.color || undefined;
@@ -377,7 +379,7 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
         if (e.key === "ArrowUp") {
           e.preventDefault();
           setSelectedIndex(
-            (prev) => (prev - 1 + candidates.length) % candidates.length
+            (prev) => (prev - 1 + candidates.length) % candidates.length,
           );
           return;
         }
@@ -523,7 +525,7 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
         />
       </div>
     );
-  }
+  },
 );
 
 MentionInput.displayName = "MentionInput";

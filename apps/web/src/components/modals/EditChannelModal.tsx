@@ -1,5 +1,12 @@
 import React, { useState, useEffect } from "react";
-import { X, Hash, Volume2, ShieldCheck, Trash2, AlertTriangle } from "lucide-react";
+import {
+  X,
+  Hash,
+  Volume2,
+  ShieldCheck,
+  Trash2,
+  AlertTriangle,
+} from "lucide-react";
 import { Channel, Guild } from "@tescord/types";
 import { API_BASE } from "../../config.js";
 
@@ -22,6 +29,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
 }) => {
   const [name, setName] = useState("");
   const [topic, setTopic] = useState("");
+  const [parentId, setParentId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -31,6 +39,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
     if (channel) {
       setName(channel.name || "");
       setTopic(channel.topic || "");
+      setParentId(channel.parentId || null);
       setError(null);
       setConfirmDelete(false);
     }
@@ -70,6 +79,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
         body: JSON.stringify({
           name: name.trim(),
           topic: topic.trim(),
+          parentId: parentId || null,
         }),
       });
 
@@ -162,7 +172,10 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
         </div>
 
         {/* 表单内容 */}
-        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto">
+        <form
+          onSubmit={handleSubmit}
+          className="px-6 py-5 space-y-5 max-h-[70vh] overflow-y-auto"
+        >
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs px-3 py-2 rounded-lg flex items-center gap-2">
               <AlertTriangle className="w-4 h-4 shrink-0" />
@@ -215,6 +228,26 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
               maxLength={1024}
               className="w-full bg-[#1e1f22] text-discord-textNormal border border-black/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-discord-brand transition placeholder-gray-500 resize-none"
             />
+          </div>
+
+          {/* 所属分类 */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted mb-2">
+              所属分类
+            </label>
+            <select
+              value={parentId || ""}
+              onChange={(e) => setParentId(e.target.value || null)}
+              className="w-full bg-[#1e1f22] text-discord-textNormal border border-black/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-discord-brand transition cursor-pointer"
+              data-testid="edit-channel-category-select"
+            >
+              <option value="">(无分类 / 顶部未分组)</option>
+              {guild?.categories?.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  📁 {cat.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* 频道属性信息卡片 */}

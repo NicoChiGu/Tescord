@@ -21,7 +21,8 @@ class SoundEffectManager {
 
     const AudioContextClass =
       window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext;
 
     if (!AudioContextClass) return null;
 
@@ -49,7 +50,7 @@ class SoundEffectManager {
     type: OscillatorType = "sine",
     peakGain: number = 0.15,
     attackTime: number = 0.008,
-    releaseTime: number = 0.02
+    releaseTime: number = 0.02,
   ) {
     const osc = ctx.createOscillator();
     const gainNode = ctx.createGain();
@@ -62,7 +63,7 @@ class SoundEffectManager {
     gainNode.gain.linearRampToValueAtTime(peakGain, startTime + attackTime);
     gainNode.gain.exponentialRampToValueAtTime(
       0.0001,
-      startTime + duration + releaseTime
+      startTime + duration + releaseTime,
     );
 
     osc.connect(gainNode);
@@ -73,14 +74,17 @@ class SoundEffectManager {
     osc.stop(stopTime);
 
     // 播放完成后主动断开音频图节点，防止内存泄露
-    setTimeout(() => {
-      try {
-        osc.disconnect();
-        gainNode.disconnect();
-      } catch {
-        // 节点已被回收时忽略
-      }
-    }, (stopTime - ctx.currentTime + 0.1) * 1000);
+    setTimeout(
+      () => {
+        try {
+          osc.disconnect();
+          gainNode.disconnect();
+        } catch {
+          // 节点已被回收时忽略
+        }
+      },
+      (stopTime - ctx.currentTime + 0.1) * 1000,
+    );
   }
 
   /**
@@ -88,8 +92,13 @@ class SoundEffectManager {
    */
   private playNotes(
     ctx: AudioContext,
-    notes: Array<{ freq: number; duration: number; type?: OscillatorType; gain?: number }>,
-    gap: number = 0.02
+    notes: Array<{
+      freq: number;
+      duration: number;
+      type?: OscillatorType;
+      gain?: number;
+    }>,
+    gap: number = 0.02,
   ) {
     let currentTime = ctx.currentTime + 0.005; // 微量延时，避免硬件时钟抖动
 
@@ -100,7 +109,7 @@ class SoundEffectManager {
         currentTime,
         note.duration,
         note.type || "sine",
-        note.gain ?? 0.15
+        note.gain ?? 0.15,
       );
       currentTime += note.duration + gap;
     });
@@ -147,7 +156,7 @@ class SoundEffectManager {
               { freq: 330, duration: 0.05, type: "triangle", gain: 0.13 },
               { freq: 220, duration: 0.09, type: "triangle", gain: 0.11 },
             ],
-            0.015
+            0.015,
           );
           break;
 
@@ -160,7 +169,7 @@ class SoundEffectManager {
               { freq: 330, duration: 0.05, type: "sine", gain: 0.14 },
               { freq: 440, duration: 0.08, type: "sine", gain: 0.16 },
             ],
-            0.015
+            0.015,
           );
           break;
 
@@ -173,7 +182,7 @@ class SoundEffectManager {
               { freq: 659.25, duration: 0.06, type: "sine", gain: 0.16 }, // E5
               { freq: 783.99, duration: 0.11, type: "sine", gain: 0.18 }, // G5
             ],
-            0.02
+            0.02,
           );
           break;
 
@@ -184,9 +193,9 @@ class SoundEffectManager {
             [
               { freq: 783.99, duration: 0.05, type: "sine", gain: 0.16 }, // G5
               { freq: 659.25, duration: 0.05, type: "sine", gain: 0.14 }, // E5
-              { freq: 523.25, duration: 0.10, type: "sine", gain: 0.12 }, // C5
+              { freq: 523.25, duration: 0.1, type: "sine", gain: 0.12 }, // C5
             ],
-            0.02
+            0.02,
           );
           break;
 
@@ -198,7 +207,7 @@ class SoundEffectManager {
               { freq: 587.33, duration: 0.04, type: "sine", gain: 0.08 }, // D5
               { freq: 880.0, duration: 0.06, type: "sine", gain: 0.09 }, // A5
             ],
-            0.015
+            0.015,
           );
           break;
 
@@ -210,7 +219,7 @@ class SoundEffectManager {
               { freq: 880.0, duration: 0.04, type: "sine", gain: 0.09 }, // A5
               { freq: 587.33, duration: 0.06, type: "sine", gain: 0.07 }, // D5
             ],
-            0.015
+            0.015,
           );
           break;
 

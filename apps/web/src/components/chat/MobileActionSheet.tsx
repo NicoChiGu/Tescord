@@ -2,16 +2,7 @@ import React, { useState } from "react";
 import { Message, Guild } from "@tescord/types";
 import { usePermissions } from "../../hooks/usePermissions.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
-import {
-  Reply,
-  Pin,
-  Edit2,
-  Trash2,
-  Copy,
-  Check,
-  X,
-  Smile,
-} from "lucide-react";
+import { Reply, Pin, Edit2, Trash2, Copy, Check, X, Smile } from "lucide-react";
 import { EmojiPickerPopover } from "./EmojiPickerPopover.js";
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🚀", "🎉", "🔥"];
@@ -161,7 +152,9 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
             >
               <Pin
                 className={`w-5 h-5 ${
-                  message.isPinned ? "text-amber-400 fill-amber-400" : "text-discord-textMuted"
+                  message.isPinned
+                    ? "text-amber-400 fill-amber-400"
+                    : "text-discord-textMuted"
                 }`}
               />
               <span className="text-sm font-medium">

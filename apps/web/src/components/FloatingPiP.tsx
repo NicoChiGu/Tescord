@@ -78,6 +78,11 @@ export const FloatingPiP: React.FC<FloatingPiPProps> = ({
       <div className="absolute bottom-2 left-2 bg-black/70 backdrop-blur-sm px-2 py-0.5 rounded text-[10px] text-discord-textMuted flex items-center space-x-1 pointer-events-none">
         <ScreenShare className="w-3 h-3 text-discord-brand" />
         <span>画中画浮窗</span>
+        {share.codec && (
+          <span className="font-mono text-[9px] bg-discord-brand/30 text-discord-brand px-1 rounded font-bold">
+            {share.codec}
+          </span>
+        )}
       </div>
     </div>
   );

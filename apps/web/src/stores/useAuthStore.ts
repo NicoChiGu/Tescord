@@ -21,6 +21,7 @@ interface AuthState {
   login: (dto: LoginDTO) => Promise<void>;
   register: (dto: RegisterDTO) => Promise<void>;
   logout: () => void;
+  setUser: (user: User | null) => void;
   updateProfile: (dto: UpdateProfileDTO) => Promise<void>;
   refreshAuth: () => Promise<boolean>;
   getAuthHeaders: () => Record<string, string>;
@@ -28,6 +29,7 @@ interface AuthState {
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
+  setUser: (user) => set({ user }),
   accessToken: localStorage.getItem("tescord_access_token"),
   refreshToken: localStorage.getItem("tescord_refresh_token"),
   token: localStorage.getItem("tescord_access_token"),

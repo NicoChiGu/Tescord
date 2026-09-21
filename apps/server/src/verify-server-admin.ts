@@ -60,12 +60,16 @@ async function runVerification() {
     headers: { Authorization: `Bearer ${adminToken}` },
   });
   const roles = await rolesRes.json();
-  const everyoneRole = roles.find((r: any) => r.isDefault || r.name === "@everyone");
+  const everyoneRole = roles.find(
+    (r: any) => r.isDefault || r.name === "@everyone",
+  );
   const adminRole = roles.find((r: any) => r.name === "Admin");
   if (!everyoneRole || !adminRole) {
     throw new Error("❌ 自动初始化的 @everyone 或 Admin 身份组缺失！");
   }
-  console.log(`✓ 验证 @everyone (ID: ${everyoneRole.id}) 与 Admin (ID: ${adminRole.id}) 均已初始化`);
+  console.log(
+    `✓ 验证 @everyone (ID: ${everyoneRole.id}) 与 Admin (ID: ${adminRole.id}) 均已初始化`,
+  );
 
   // 3. 更新服务器概览设置
   console.log("\n[Step 3] 修改服务器概览信息 (名称/描述/图标)...");
@@ -109,21 +113,27 @@ async function runVerification() {
 
   // 5. 管理员创建新角色并分配给普通用户
   console.log("\n[Step 5] 创建新角色 Moderator 并分配给普通用户...");
-  const createRoleRes = await fetch(`${BASE_URL}/api/guilds/${guild.id}/roles`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${adminToken}`,
+  const createRoleRes = await fetch(
+    `${BASE_URL}/api/guilds/${guild.id}/roles`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        name: "Moderator",
+        color: "#1abc9c",
+        hoist: true,
+        permissions:
+          PermissionFlags.KICK_MEMBERS | PermissionFlags.MANAGE_MESSAGES,
+      }),
     },
-    body: JSON.stringify({
-      name: "Moderator",
-      color: "#1abc9c",
-      hoist: true,
-      permissions: PermissionFlags.KICK_MEMBERS | PermissionFlags.MANAGE_MESSAGES,
-    }),
-  });
+  );
   const modRole = await createRoleRes.json();
-  console.log(`✓ 新角色 Moderator 创建成功: ${modRole.name} (ID: ${modRole.id})`);
+  console.log(
+    `✓ 新角色 Moderator 创建成功: ${modRole.name} (ID: ${modRole.id})`,
+  );
 
   const assignRoleRes = await fetch(
     `${BASE_URL}/api/guilds/${guild.id}/members/${normalUser.id}`,
@@ -161,7 +171,9 @@ async function runVerification() {
     },
   );
   if (illegalRoleRes.status === 403) {
-    console.log("✓ 防越权校验生效：低职级用户试图越权赋予高权重角色被成功拦截 (403 Forbidden)");
+    console.log(
+      "✓ 防越权校验生效：低职级用户试图越权赋予高权重角色被成功拦截 (403 Forbidden)",
+    );
   } else {
     throw new Error(`❌ 越权拦截失效，返回状态码: ${illegalRoleRes.status}`);
   }
@@ -188,7 +200,9 @@ async function runVerification() {
     headers: { Authorization: `Bearer ${normalToken}` },
   });
   if (rejoinRes.status === 403) {
-    console.log("✓ 封禁拦截生效：已被封禁的用户凭邀请码加入被拒绝 (403 Forbidden)");
+    console.log(
+      "✓ 封禁拦截生效：已被封禁的用户凭邀请码加入被拒绝 (403 Forbidden)",
+    );
   } else {
     throw new Error(`❌ 封禁拦截失效，返回状态码: ${rejoinRes.status}`);
   }

@@ -54,8 +54,7 @@ export function usePermissions(
     // 兼容初始超管账号
     const isSuperAdmin =
       currentUser?.id === userId &&
-      (currentUser?.username === "admin" ||
-        currentUser?.username === "Jackey");
+      (currentUser?.username === "admin" || currentUser?.username === "Jackey");
 
     if (isOwner || isSuperAdmin) {
       return {
@@ -83,9 +82,7 @@ export function usePermissions(
       (r) => r.isDefault || r.name === "@everyone",
     );
     const memberRoleIds = parseRoleIds(member.roleIds);
-    const memberRoles = guildRoles.filter((r) =>
-      memberRoleIds.includes(r.id),
-    );
+    const memberRoles = guildRoles.filter((r) => memberRoleIds.includes(r.id));
 
     let userPerms = everyoneRole ? everyoneRole.permissions : 0;
     userPerms = computePermissions(memberRoles) | userPerms;
@@ -105,10 +102,7 @@ export function usePermissions(
       canKickMembers: hasPermission(userPerms, PermissionFlags.KICK_MEMBERS),
       canBanMembers: hasPermission(userPerms, PermissionFlags.BAN_MEMBERS),
       canCreateInvite: hasPermission(userPerms, PermissionFlags.CREATE_INVITE),
-      canViewAuditLog: hasPermission(
-        userPerms,
-        PermissionFlags.VIEW_AUDIT_LOG,
-      ),
+      canViewAuditLog: hasPermission(userPerms, PermissionFlags.VIEW_AUDIT_LOG),
       canManageNicknames: hasPermission(
         userPerms,
         PermissionFlags.MANAGE_NICKNAMES,

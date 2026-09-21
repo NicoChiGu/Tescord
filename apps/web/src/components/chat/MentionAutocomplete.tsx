@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { User, GuildMember, Role } from "@tescord/types";
+import { User, GuildMember, Role, UserStatus } from "@tescord/types";
 import { AtSign, Volume2, ShieldCheck } from "lucide-react";
 
 export interface MentionCandidate {
@@ -8,7 +8,7 @@ export interface MentionCandidate {
   displayName: string; // 渲染名，如 昵称
   username?: string;
   avatarUrl?: string | null;
-  status?: "ONLINE" | "IDLE" | "DND" | "OFFLINE";
+  status?: UserStatus;
   roleColor?: string;
   roleName?: string;
   isSpecial?: boolean;
@@ -36,7 +36,7 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
   useEffect(() => {
     if (!listRef.current) return;
     const activeItem = listRef.current.querySelector<HTMLElement>(
-      `[data-index="${selectedIndex}"]`
+      `[data-index="${selectedIndex}"]`,
     );
     if (activeItem) {
       activeItem.scrollIntoView({ block: "nearest" });
@@ -118,10 +118,10 @@ export const MentionAutocomplete: React.FC<MentionAutocompleteProps> = ({
                       cand.status === "ONLINE"
                         ? "bg-[#23a55a]"
                         : cand.status === "IDLE"
-                        ? "bg-[#f0b232]"
-                        : cand.status === "DND"
-                        ? "bg-[#f23f43]"
-                        : "bg-[#80848e]"
+                          ? "bg-[#f0b232]"
+                          : cand.status === "DND"
+                            ? "bg-[#f23f43]"
+                            : "bg-[#80848e]"
                     }`}
                   />
                 </div>

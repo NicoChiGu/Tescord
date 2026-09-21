@@ -1,11 +1,13 @@
 import React, { useState } from "react";
 import { X, Hash, Volume2, ShieldCheck } from "lucide-react";
-import { Channel, ChannelType } from "@tescord/types";
+import { Channel, ChannelCategory, ChannelType } from "@tescord/types";
 import { API_BASE } from "../../config.js";
 
 interface CreateChannelModalProps {
   isOpen: boolean;
   guildId: string;
+  categories?: ChannelCategory[];
+  initialCategoryId?: string | null;
   onClose: () => void;
   onChannelCreated: (channel: Channel) => void;
 }
@@ -13,15 +15,28 @@ interface CreateChannelModalProps {
 export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
   isOpen,
   guildId,
+  categories = [],
+  initialCategoryId = null,
   onClose,
   onChannelCreated,
 }) => {
   const [name, setName] = useState("");
   const [type, setType] = useState<ChannelType>("TEXT");
+  const [parentId, setParentId] = useState<string | null>(initialCategoryId);
   const [topic, setTopic] = useState("");
   const [isE2EE, setIsE2EE] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      setParentId(initialCategoryId || null);
+      setName("");
+      setTopic("");
+      setIsE2EE(false);
+      setError(null);
+    }
+  }, [isOpen, initialCategoryId]);
 
   if (!isOpen) return null;
 
@@ -43,6 +58,7 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
         body: JSON.stringify({
           name: name.trim(),
           type,
+          parentId: parentId || undefined,
           topic: topic.trim() || undefined,
           isE2EE,
         }),
@@ -162,8 +178,29 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
                 onChange={(e) => setName(e.target.value)}
                 placeholder="例如：极客日常"
                 className="w-full bg-[#1e1f22] text-discord-textHeader pl-8 pr-3 py-2.5 rounded text-sm focus:outline-none focus:ring-2 focus:ring-discord-brand transition border border-transparent focus:border-discord-brand"
+                data-testid="create-channel-name-input"
               />
             </div>
+          </div>
+
+          {/* 所属分类 */}
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted mb-2">
+              所属分类
+            </label>
+            <select
+              value={parentId || ""}
+              onChange={(e) => setParentId(e.target.value || null)}
+              className="w-full bg-[#1e1f22] text-discord-textHeader px-3 py-2.5 rounded text-sm focus:outline-none focus:ring-2 focus:ring-discord-brand transition border border-transparent cursor-pointer"
+              data-testid="channel-category-select"
+            >
+              <option value="">(无分类 / 顶部独立频道)</option>
+              {categories.map((cat) => (
+                <option key={cat.id} value={cat.id}>
+                  📁 {cat.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* 频道话题 (仅文字频道) */}

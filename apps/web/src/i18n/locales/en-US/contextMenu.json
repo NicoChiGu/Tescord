@@ -1,0 +1,22 @@
+{
+  "copyText": "Copy Text",
+  "quoteReply": "Quote Reply",
+  "pinMessage": "Pin Message",
+  "unpinMessage": "Unpin Message",
+  "deleteMessage": "Delete Message",
+  "editMessage": "Edit Message",
+  "copyMessageId": "Copy Message ID",
+  "copyChannelId": "Copy Channel ID",
+  "copyGuildId": "Copy Server ID",
+  "copyUserId": "Copy User ID",
+  "mentionUser": "Mention User",
+  "sendMessage": "Direct Message",
+  "muteUser": "Mute Member",
+  "kickUser": "Kick Member",
+  "banUser": "Ban Member",
+  "addReaction": "Add Reaction",
+  "userVolume": "User Volume",
+  "resetVolume": "Reset 100%",
+  "maxVolume": "Max 200%",
+  "unmuteUser": "Unmute User"
+}

@@ -1,0 +1,22 @@
+{
+  "createServer": "サーバーを作成",
+  "serverName": "サーバー名",
+  "serverNamePlaceholder": "サーバー名を入力...",
+  "serverSettings": "サーバー設定",
+  "overview": "概要",
+  "roles": "役職",
+  "channels": "チャンネル管理",
+  "members": "メンバー",
+  "auditLog": "監査ログ",
+  "bans": "BANリスト",
+  "deleteServer": "サーバーを削除",
+  "deleteServerConfirm": "本当にこのサーバーを削除しますか？この操作は取り消せません。",
+  "createChannel": "チャンネルを作成",
+  "channelName": "チャンネル名",
+  "channelType": "チャンネルの種類",
+  "textChannel": "テキストチャンネル",
+  "voiceChannel": "ボイスチャンネル",
+  "inviteFriends": "友達を招待",
+  "inviteLink": "招待リンク",
+  "copyInviteLink": "招待リンクをコピー"
+}

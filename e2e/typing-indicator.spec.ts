@@ -73,14 +73,14 @@ test.describe("打字指示器 (Typing Indicator) 端到端交互与动效验收
           });
         }
       },
-      { channelId: currentChannelId || "c-general" }
+      { channelId: currentChannelId || "c-general" },
     );
 
     // 验证指示器平滑淡入并呈现三点跳跃动效与文案
     await expect(typingIndicator).toHaveClass(/opacity-100/, { timeout: 3000 });
     await expect(typingIndicator.getByTestId("typing-dots")).toBeVisible();
     await expect(typingIndicator.getByTestId("typing-text")).toContainText(
-      "Alice 正在输入..."
+      "Alice 正在输入...",
     );
 
     // 3. 模拟二人同时打字：Alice 和 Bob 正在输入
@@ -96,11 +96,11 @@ test.describe("打字指示器 (Typing Indicator) 端到端交互与动效验收
           });
         }
       },
-      { channelId: currentChannelId || "c-general" }
+      { channelId: currentChannelId || "c-general" },
     );
 
     await expect(typingIndicator.getByTestId("typing-text")).toContainText(
-      "Alice 和 Bob 正在输入..."
+      "Alice 和 Bob 正在输入...",
     );
 
     // 4. 模拟三人同时打字：Alice、Bob 和 Charlie 正在输入
@@ -116,11 +116,11 @@ test.describe("打字指示器 (Typing Indicator) 端到端交互与动效验收
           });
         }
       },
-      { channelId: currentChannelId || "c-general" }
+      { channelId: currentChannelId || "c-general" },
     );
 
     await expect(typingIndicator.getByTestId("typing-text")).toContainText(
-      "Alice、Bob 和 Charlie 正在输入..."
+      "Alice、Bob 和 Charlie 正在输入...",
     );
 
     // 5. 模拟四人以上同时打字：数人 正在输入...
@@ -136,11 +136,11 @@ test.describe("打字指示器 (Typing Indicator) 端到端交互与动效验收
           });
         }
       },
-      { channelId: currentChannelId || "c-general" }
+      { channelId: currentChannelId || "c-general" },
     );
 
     await expect(typingIndicator.getByTestId("typing-text")).toContainText(
-      "数人 正在输入..."
+      "数人 正在输入...",
     );
 
     // 6. 验证主动输入时的节流触发
@@ -184,12 +184,12 @@ test.describe("打字指示器 (Typing Indicator) 端到端交互与动效验收
           });
         }
       },
-      { channelId: currentChannelId || "c-general" }
+      { channelId: currentChannelId || "c-general" },
     );
 
     // David 发送消息后，退回至 3 人输入
     await expect(typingIndicator.getByTestId("typing-text")).toContainText(
-      "Alice、Bob 和 Charlie 正在输入..."
+      "Alice、Bob 和 Charlie 正在输入...",
     );
 
     // 其余 3 人陆续发出消息
@@ -209,7 +209,7 @@ test.describe("打字指示器 (Typing Indicator) 端到端交互与动效验收
           });
         }
       },
-      { channelId: currentChannelId || "c-general" }
+      { channelId: currentChannelId || "c-general" },
     );
 
     // 所有用户发言完毕后，打字指示器即刻平滑隐藏 (opacity-0)，槽位保留
@@ -217,7 +217,7 @@ test.describe("打字指示器 (Typing Indicator) 端到端交互与动效验收
 
     // 8. 确保无任何致命控制台报错
     const criticalErrors = consoleErrors.filter(
-      (err) => !err.includes("net::ERR_") && !err.includes("WebSocket")
+      (err) => !err.includes("net::ERR_") && !err.includes("WebSocket"),
     );
     expect(criticalErrors).toHaveLength(0);
   });

@@ -25,13 +25,17 @@ test.describe("右侧成员列表展开/隐藏动画端到端验收", () => {
     });
   });
 
-  test("桌面端 (≥1024px)：成员列表支持平滑宽度展开与收起动画 (0px <-> 240px)", async ({ page }) => {
+  test("桌面端 (≥1024px)：成员列表支持平滑宽度展开与收起动画 (0px <-> 240px)", async ({
+    page,
+  }) => {
     // 1. 设置桌面端宽屏视口 (1280x800)
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/");
 
     // 进入首个服务器并切换至文本频道
-    const serverButton = page.getByRole("button", { name: /Tescord 极客总部|极客/i }).first();
+    const serverButton = page
+      .getByRole("button", { name: /Tescord 极客总部|极客/i })
+      .first();
     await expect(serverButton).toBeVisible({ timeout: 10000 });
     await serverButton.click();
 
@@ -59,13 +63,17 @@ test.describe("右侧成员列表展开/隐藏动画端到端验收", () => {
     await expect(memberAside).toHaveAttribute("aria-hidden", "false");
   });
 
-  test("平板与移动端 (<1024px)：成员列表以浮层抽屉平滑滑入滑出，遮罩双向淡入淡出", async ({ page }) => {
+  test("平板与移动端 (<1024px)：成员列表以浮层抽屉平滑滑入滑出，遮罩双向淡入淡出", async ({
+    page,
+  }) => {
     // 1. 设置 iPad 平板端视口 (820x1180)
     await page.setViewportSize({ width: 820, height: 1180 });
     await page.goto("/");
 
     // 进入首个服务器并切换至文本频道
-    const serverButton = page.getByRole("button", { name: /Tescord 极客总部|极客/i }).first();
+    const serverButton = page
+      .getByRole("button", { name: /Tescord 极客总部|极客/i })
+      .first();
     await expect(serverButton).toBeVisible({ timeout: 10000 });
     await serverButton.click();
 

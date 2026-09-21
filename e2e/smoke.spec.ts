@@ -17,19 +17,23 @@ test.describe("Tescord Web 端到端冒烟与核心交互验收", () => {
     await expect(root).toBeVisible();
 
     // 验证未登录时弹出的登录认证引导
-    const loginHeading = page.getByRole("heading", { name: /欢迎回到 Tescord|登录/i });
+    const loginHeading = page.getByRole("heading", {
+      name: /欢迎回到 Tescord|登录/i,
+    });
     await expect(loginHeading).toBeVisible({ timeout: 10000 });
 
     const loginButton = page.getByRole("button", { name: /登\s*录/i });
     await expect(loginButton).toBeVisible();
 
     // 验证快捷填充测试账号按钮可见
-    const quickAccountBtn = page.getByRole("button", { name: /Jackey 系统管理员|纯净测试/i }).first();
+    const quickAccountBtn = page
+      .getByRole("button", { name: /Jackey 系统管理员|纯净测试/i })
+      .first();
     await expect(quickAccountBtn).toBeVisible();
 
     // 确保没有致命控制台错误
     const criticalErrors = consoleErrors.filter(
-      (err) => !err.includes("net::ERR_") && !err.includes("WebSocket")
+      (err) => !err.includes("net::ERR_") && !err.includes("WebSocket"),
     );
     expect(criticalErrors).toHaveLength(0);
   });
@@ -60,18 +64,24 @@ test.describe("Tescord Web 端到端冒烟与核心交互验收", () => {
     await page.goto("/");
 
     // 1. 确认服务器列表渲染并点击进入首个可用服务器
-    const serverButton = page.getByRole("button", { name: /Tescord 极客总部|极客/i }).first();
+    const serverButton = page
+      .getByRole("button", { name: /Tescord 极客总部|极客/i })
+      .first();
     await expect(serverButton).toBeVisible({ timeout: 10000 });
     await serverButton.click();
 
-    // 2. 确认频道列表加载并展示默认文字频道 (如 general)
-    const generalChannel = page.getByRole("button", { name: "general" });
+    // 2. 确认频道列表加载并展示默认文字频道 (如 常规 / general)
+    const generalChannel = page.getByRole("button", {
+      name: /general|常规|综合闲聊/i,
+    });
     await expect(generalChannel).toBeVisible({ timeout: 5000 });
 
     // 3. 确认底部用户控制栏与语音状态按钮
     await expect(page.getByRole("button", { name: "静音" })).toBeVisible();
     await expect(page.getByRole("button", { name: "闭麦拒听" })).toBeVisible();
-    const audioSettingsBtn = page.getByRole("button", { name: "音频与降噪设置" });
+    const audioSettingsBtn = page.getByRole("button", {
+      name: "音频与降噪设置",
+    });
     await expect(audioSettingsBtn).toBeVisible();
 
     // 4. 验证 Radix UI 右键菜单唤起与关闭 (ServerContextMenu)，并严格断言防初始锚点 (0, 0) 闪烁
@@ -98,14 +108,18 @@ test.describe("Tescord Web 端到端冒烟与核心交互验收", () => {
     // 4.1 再次唤起右键菜单，验证菜单项可以正常按下触发并关闭菜单
     await serverButton.click({ button: "right" });
     await expect(contextMenu).toBeVisible({ timeout: 5000 });
-    const markAsReadMenuItem = page.locator('[role="menuitem"]', { hasText: "标记为已读" });
+    const markAsReadMenuItem = page.locator('[role="menuitem"]', {
+      hasText: "标记为已读",
+    });
     await expect(markAsReadMenuItem).toBeVisible();
     await markAsReadMenuItem.click();
     await expect(contextMenu).not.toBeVisible();
 
     // 5. 验证音频与智能降噪控制中心模态框呼出与关闭
     await audioSettingsBtn.click();
-    const modalHeading = page.getByRole("heading", { name: /语音引擎与 RNNoise|降噪控制中心/i });
+    const modalHeading = page.getByRole("heading", {
+      name: /语音引擎与 RNNoise|降噪控制中心/i,
+    });
     await expect(modalHeading).toBeVisible({ timeout: 5000 });
     await expect(page.getByText(/RNNoise 神经网络深度降噪/i)).toBeVisible();
 

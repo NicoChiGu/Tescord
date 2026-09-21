@@ -45,12 +45,14 @@ test.describe("频道创建单向数据流与防重复/防强制跳频端到端�
     await page.goto("/");
 
     // 1. 进入首个可用服务器并等待加载
-    const serverBtn = page.getByRole("button", { name: /Tescord 极客总部|极客/i }).first();
+    const serverBtn = page
+      .getByRole("button", { name: /Tescord|极客/i })
+      .first();
     await expect(serverBtn).toBeVisible({ timeout: 10000 });
     await serverBtn.click();
 
     // 确认初始文字频道可见
-    const generalChannel = page.getByRole("button", { name: "general" });
+    const generalChannel = page.getByRole("button", { name: /general|常规/i }).first();
     await expect(generalChannel).toBeVisible({ timeout: 5000 });
 
     // 2. 点击侧边栏文字频道旁的“创建频道”按钮
@@ -79,7 +81,9 @@ test.describe("频道创建单向数据流与防重复/防强制跳频端到端�
     await expect(modalHeading).not.toBeVisible({ timeout: 5000 });
 
     // 5. 核心断言：在界面上，该新建频道有且仅有 1 个（彻底解决原先同时展示两个相同创建频道的问题）
-    const channelItems = page.locator(`button:has-text("${uniqueChannelName}")`);
+    const channelItems = page.locator(
+      `button:has-text("${uniqueChannelName}")`,
+    );
     await expect(channelItems).toHaveCount(1, { timeout: 8000 });
 
     // 6. 核心断言：创建者本人在创建后主动聚焦到该新频道（呈现选中高亮样式）
@@ -96,8 +100,11 @@ test.describe("频道创建单向数据流与防重复/防强制跳频端到端�
       ({ channelName }) => {
         const w = window as any;
         // 查找当前公会
-        const currentGuildId =
-          document.querySelector('[title="生成并复制邀请码"]') ? "" : "";
+        const currentGuildId = document.querySelector(
+          '[title="生成并复制邀请码"]',
+        )
+          ? ""
+          : "";
         if (w.__gatewayClient?.emit) {
           // 模拟网络重复推送相同的频道创建事件（带伪造但同名的事件测试防卫）
           w.__gatewayClient.emit("CHANNEL_CREATE", {
@@ -118,7 +125,9 @@ test.describe("频道创建单向数据流与防重复/防强制跳频端到端�
     await page.reload();
     await expect(serverBtn).toBeVisible({ timeout: 10000 });
     await serverBtn.click();
-    const channelAfterReload = page.locator(`button:has-text("${uniqueChannelName}")`);
+    const channelAfterReload = page.locator(
+      `button:has-text("${uniqueChannelName}")`,
+    );
     await expect(channelAfterReload).toHaveCount(1, { timeout: 8000 });
 
     // 9. 检查没有任何 React duplicate key 报错

@@ -104,7 +104,8 @@ export const RolesTab: React.FC<RolesTabProps> = ({
   const isEveryone =
     selectedRole?.isDefault || selectedRole?.name === "@everyone";
   const canEditSelectedRole =
-    isOwner || (isEveryone ? true : actorHighestPos > (selectedRole?.position ?? 0));
+    isOwner ||
+    (isEveryone ? true : actorHighestPos > (selectedRole?.position ?? 0));
   const canDeleteSelectedRole =
     !isEveryone && (isOwner || actorHighestPos > (selectedRole?.position ?? 0));
 
@@ -212,7 +213,8 @@ export const RolesTab: React.FC<RolesTabProps> = ({
                     <span
                       className="w-2.5 h-2.5 rounded-full shrink-0"
                       style={{
-                        backgroundColor: r.color || (isDef ? "#99aab5" : "#5865f2"),
+                        backgroundColor:
+                          r.color || (isDef ? "#99aab5" : "#5865f2"),
                       }}
                     />
                     <span className="truncate">

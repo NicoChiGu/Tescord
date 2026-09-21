@@ -1,0 +1,22 @@
+{
+  "createServer": "创建服务器",
+  "serverName": "服务器名称",
+  "serverNamePlaceholder": "输入服务器名称...",
+  "serverSettings": "服务器设置",
+  "overview": "概览",
+  "roles": "身份组",
+  "channels": "频道管理",
+  "members": "成员列表",
+  "auditLog": "审计日志",
+  "bans": "封禁名单",
+  "deleteServer": "解散服务器",
+  "deleteServerConfirm": "你确定要解散此服务器吗？此操作无法撤销。",
+  "createChannel": "创建频道",
+  "channelName": "频道名称",
+  "channelType": "频道类型",
+  "textChannel": "文字频道",
+  "voiceChannel": "语音频道",
+  "inviteFriends": "邀请好友",
+  "inviteLink": "邀请链接",
+  "copyInviteLink": "复制邀请链接"
+}

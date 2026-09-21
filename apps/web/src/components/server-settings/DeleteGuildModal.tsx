@@ -61,7 +61,8 @@ export const DeleteGuildModal: React.FC<DeleteGuildModalProps> = ({
             吗？
           </p>
           <p className="text-xs text-rose-400">
-            此操作具有破坏性且<strong>无法撤销</strong>。该服务器下的所有频道、聊天记录、媒体附件和身份组都将被永久清除。
+            此操作具有破坏性且<strong>无法撤销</strong>
+            。该服务器下的所有频道、聊天记录、媒体附件和身份组都将被永久清除。
           </p>
         </div>
 

@@ -49,7 +49,7 @@ test.describe("WebRTC 网络延迟迁移与网络健康看板端到端验收", (
       .filter({ has: page.locator("svg.lucide-volume-2") })
       .first();
     await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
-    await voiceChannelBtn.click();
+    await voiceChannelBtn.dblclick();
 
     // 3. 验证语音房间右上角：存在“伴音混音器”，且绝不存在“网络看板”
     const mixerBtn = page.getByRole("button", { name: /伴音混音器|混音/i });
@@ -63,9 +63,11 @@ test.describe("WebRTC 网络延迟迁移与网络健康看板端到端验收", (
     await expect(voiceConnectedLabel).toBeVisible({ timeout: 5000 });
 
     // 验证左下角在“语音已连接”右侧展示了网络延迟数字徽标 (如 18ms)
-    const latencyBadge = page.locator("button", {
-      hasText: "语音已连接",
-    }).locator("span", { hasText: /ms$/ });
+    const latencyBadge = page
+      .locator("button", {
+        hasText: "语音已连接",
+      })
+      .locator("span", { hasText: /ms$/ });
     await expect(latencyBadge).toBeVisible();
     const latencyText = await latencyBadge.innerText();
     expect(latencyText).toMatch(/\d+ms/);

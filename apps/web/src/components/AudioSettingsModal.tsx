@@ -226,7 +226,8 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
                 <span>
                   {config.noiseSuppressionMode === "dtln"
                     ? "DTLN 双流 LSTM (消键盘音)"
-                    : config.noiseSuppressionMode === "off" || !config.noiseSuppression
+                    : config.noiseSuppressionMode === "off" ||
+                        !config.noiseSuppression
                       ? "直通模式 (未降噪)"
                       : "RNNoise WASM 480分帧"}
                 </span>
@@ -234,7 +235,9 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
             </div>
 
             <p className="text-xs text-discord-textMuted mb-3 leading-relaxed">
-              支持在独立的 AudioWorklet 隔离线程中运行 RNN / LSTM 神经网络模型。RNNoise 专注极速底噪滤除，DTLN 专注消除机械键盘青轴敲击与非平稳爆音。
+              支持在独立的 AudioWorklet 隔离线程中运行 RNN / LSTM
+              神经网络模型。RNNoise 专注极速底噪滤除，DTLN
+              专注消除机械键盘青轴敲击与非平稳爆音。
             </p>
 
             {/* 3 档分段卡片选择器 */}
@@ -244,7 +247,8 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
                 type="button"
                 onClick={() => handleNoiseModeChange("off")}
                 className={`p-3 rounded-lg border text-left transition flex flex-col justify-between ${
-                  config.noiseSuppressionMode === "off" || !config.noiseSuppression
+                  config.noiseSuppressionMode === "off" ||
+                  !config.noiseSuppression
                     ? "border-discord-danger bg-discord-danger/10 text-white shadow-sm"
                     : "border-[#383a40] bg-[#1e1f22] text-discord-textNormal hover:bg-[#35373c]"
                 }`}
@@ -252,7 +256,8 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-xs">直通原声 (未降噪)</span>
-                    {(config.noiseSuppressionMode === "off" || !config.noiseSuppression) && (
+                    {(config.noiseSuppressionMode === "off" ||
+                      !config.noiseSuppression) && (
                       <CheckCircle2 className="w-3.5 h-3.5 text-discord-danger" />
                     )}
                   </div>
@@ -267,7 +272,8 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
                 type="button"
                 onClick={() => handleNoiseModeChange("rnnoise")}
                 className={`p-3 rounded-lg border text-left transition flex flex-col justify-between ${
-                  config.noiseSuppressionMode === "rnnoise" && config.noiseSuppression
+                  config.noiseSuppressionMode === "rnnoise" &&
+                  config.noiseSuppression
                     ? "border-discord-brand bg-discord-brand/10 text-white shadow-sm"
                     : "border-[#383a40] bg-[#1e1f22] text-discord-textNormal hover:bg-[#35373c]"
                 }`}
@@ -275,9 +281,10 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-xs">RNNoise 标准轻量</span>
-                    {config.noiseSuppressionMode === "rnnoise" && config.noiseSuppression && (
-                      <CheckCircle2 className="w-3.5 h-3.5 text-discord-brand" />
-                    )}
+                    {config.noiseSuppressionMode === "rnnoise" &&
+                      config.noiseSuppression && (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-discord-brand" />
+                      )}
                   </div>
                   <p className="text-[10px] text-discord-textMuted">
                     150KB WASM 极低算力，消除风扇风噪与平稳室内底噪
@@ -290,7 +297,8 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
                 type="button"
                 onClick={() => handleNoiseModeChange("dtln")}
                 className={`p-3 rounded-lg border text-left transition flex flex-col justify-between relative overflow-hidden ${
-                  config.noiseSuppressionMode === "dtln" && config.noiseSuppression
+                  config.noiseSuppressionMode === "dtln" &&
+                  config.noiseSuppression
                     ? "border-discord-green bg-discord-green/10 text-white shadow-sm ring-1 ring-discord-green/30"
                     : "border-[#383a40] bg-[#1e1f22] text-discord-textNormal hover:bg-[#35373c]"
                 }`}
@@ -584,7 +592,8 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
                     手动麦克风输入增益
                   </span>
                   <span className="text-xs font-mono font-bold text-discord-brand">
-                    {config.manualGain ?? 100}% ({((config.manualGain ?? 100) / 100).toFixed(2)}x)
+                    {config.manualGain ?? 100}% (
+                    {((config.manualGain ?? 100) / 100).toFixed(2)}x)
                   </span>
                 </div>
                 <input
@@ -662,7 +671,8 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
               )}
             </div>
             <p className="text-xs text-discord-textMuted mb-3">
-              点击下方按钮录制 5 秒音频，系统将同时捕获原始带噪声音频、RNNoise 滤噪及 DTLN 深度消键盘音音频供您同屏试听对比。
+              点击下方按钮录制 5 秒音频，系统将同时捕获原始带噪声音频、RNNoise
+              滤噪及 DTLN 深度消键盘音音频供您同屏试听对比。
             </p>
 
             {abError && (
@@ -715,7 +725,9 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
                         <Volume2 className="w-3.5 h-3.5 text-discord-danger" />
                         <span>原始未滤音轨</span>
                       </div>
-                      <span className="text-[10px] text-discord-textMuted">含敲击爆音</span>
+                      <span className="text-[10px] text-discord-textMuted">
+                        含敲击爆音
+                      </span>
                     </div>
                     <audio
                       src={abResult.rawUrl}

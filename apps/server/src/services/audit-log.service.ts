@@ -41,14 +41,16 @@ export class AuditLogService {
       id: log.id,
       guildId: log.guildId,
       userId: log.userId,
-      user: log.user ? {
-        id: log.user.id,
-        username: log.user.username,
-        avatarUrl: log.user.avatarUrl,
-        email: "",
-        status: "ONLINE",
-        createdAt: "",
-      } : undefined,
+      user: log.user
+        ? {
+            id: log.user.id,
+            username: log.user.username,
+            avatarUrl: log.user.avatarUrl,
+            email: "",
+            status: "ONLINE",
+            createdAt: "",
+          }
+        : undefined,
       action: log.action,
       targetId: log.targetId,
       targetName: log.targetName,
@@ -95,7 +97,8 @@ export class AuditLogService {
     });
 
     return logs.map((log) => {
-      let changes: Record<string, { old?: any; new?: any }> | undefined = undefined;
+      let changes: Record<string, { old?: any; new?: any }> | undefined =
+        undefined;
       if (log.changesJson) {
         try {
           changes = JSON.parse(log.changesJson);

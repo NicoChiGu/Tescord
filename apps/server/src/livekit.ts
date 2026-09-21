@@ -69,4 +69,3 @@ export async function generateLiveKitToken(
     url: livekitUrl,
   };
 }
-

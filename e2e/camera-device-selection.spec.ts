@@ -186,10 +186,12 @@ test.describe("Discord 风格摄像头设备选择与视频预览全链路验收
       .getByRole("button", { name: /语音闲聊|开黑开麦|voice/i })
       .first();
     await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
-    await voiceChannelBtn.click();
+    await voiceChannelBtn.dblclick();
 
     // 验证加入成功
-    await expect(page.getByRole("button", { name: "断开连接" }).first()).toBeVisible({
+    await expect(
+      page.getByRole("button", { name: "断开连接" }).first(),
+    ).toBeVisible({
       timeout: 8000,
     });
 

@@ -3,6 +3,8 @@ import bcrypt from "bcryptjs";
 import { FastifyInstance } from "fastify";
 import {
   AuthTokens,
+  GatewayEvents,
+  GatewayOpCode,
   LoginDTO,
   RegisterDTO,
   UpdateProfileDTO,
@@ -11,6 +13,7 @@ import {
 } from "@tescord/types";
 import { prisma } from "../db.js";
 import { cacheStore } from "../cache.js";
+import { gatewayManager } from "../gateway.js";
 
 export class AuthService {
   private fastify: FastifyInstance;
@@ -121,11 +124,29 @@ export class AuthService {
     // 自动将新用户加入默认公会 (若存在)
     const defaultGuild = await prisma.guild.findFirst();
     if (defaultGuild) {
-      await prisma.guildMember.create({
+      const member = await prisma.guildMember.create({
         data: {
           guildId: defaultGuild.id,
           userId: user.id,
           nickname: user.username,
+          roleIds: "[]",
+        },
+      });
+
+      gatewayManager.broadcast({
+        op: GatewayOpCode.DISPATCH,
+        t: GatewayEvents.GUILD_MEMBER_ADD,
+        d: {
+          guildId: defaultGuild.id,
+          member: {
+            userId: member.userId,
+            guildId: member.guildId,
+            nickname: member.nickname,
+            roleIds: [],
+            roles: [],
+            joinedAt: member.joinedAt.toISOString(),
+            user: this.formatUser(user),
+          },
         },
       });
     }

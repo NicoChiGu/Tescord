@@ -114,7 +114,9 @@ export const MembersTab: React.FC<MembersTabProps> = ({
 
   const handleKick = async (member: GuildMember) => {
     const name = member.nickname || member.user?.username || "该成员";
-    const reason = window.prompt(`请输入将 “${name}” 踢出服务器的理由（可选）：`);
+    const reason = window.prompt(
+      `请输入将 “${name}” 踢出服务器的理由（可选）：`,
+    );
     if (reason !== null) {
       try {
         await onKickMember(member.userId, reason || undefined);
@@ -311,7 +313,9 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                         {roles
                           .filter((r) => !r.isDefault && r.name !== "@everyone")
                           .map((r) => {
-                            const isAssigned = parseRoleIds(m.roleIds).includes(r.id);
+                            const isAssigned = parseRoleIds(m.roleIds).includes(
+                              r.id,
+                            );
                             const canAssignThisRole =
                               isOwner || actorHighestPos > r.position;
 
@@ -324,8 +328,8 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                                   !canAssignThisRole
                                     ? "opacity-40 cursor-not-allowed text-gray-500"
                                     : isAssigned
-                                    ? "bg-[#5865f2]/20 text-[#5865f2] font-semibold"
-                                    : "text-gray-300 hover:bg-white/5"
+                                      ? "bg-[#5865f2]/20 text-[#5865f2] font-semibold"
+                                      : "text-gray-300 hover:bg-white/5"
                                 }`}
                               >
                                 <div className="flex items-center gap-2 truncate">

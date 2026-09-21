@@ -65,11 +65,31 @@ export async function seedInitialData(): Promise<void> {
         },
       });
 
-      // 5. 创建默认文字与语音频道
+      // 5. 创建默认文字与语音分类
+      const textCat = await prisma.channelCategory.create({
+        data: {
+          id: "cat_default_text_01",
+          guildId: guild.id,
+          name: "文字频道",
+          position: 0,
+        },
+      });
+
+      const voiceCat = await prisma.channelCategory.create({
+        data: {
+          id: "cat_default_voice_01",
+          guildId: guild.id,
+          name: "语音频道",
+          position: 1,
+        },
+      });
+
+      // 6. 创建默认文字与语音频道
       const textChannel = await prisma.channel.create({
         data: {
           id: "chn_default_text_01",
           guildId: guild.id,
+          parentId: textCat.id,
           name: "general",
           type: "TEXT",
           topic: "欢迎来到 Tescord 本地私有化即时通讯系统",
@@ -81,6 +101,7 @@ export async function seedInitialData(): Promise<void> {
         data: {
           id: "chn_default_voice_01",
           guildId: guild.id,
+          parentId: voiceCat.id,
           name: "voice-chat",
           type: "VOICE",
           position: 1,
@@ -92,6 +113,7 @@ export async function seedInitialData(): Promise<void> {
         data: {
           id: "chn_default_text_02",
           guildId: guild.id,
+          parentId: textCat.id,
           name: "crypto-vault",
           type: "TEXT",
           topic: "端到端加密专属测试信道",
@@ -100,7 +122,7 @@ export async function seedInitialData(): Promise<void> {
         },
       });
 
-      // 6. 插入欢迎消息
+      // 7. 插入欢迎消息
       await prisma.message.create({
         data: {
           id: "msg_welcome_01",
@@ -116,7 +138,7 @@ export async function seedInitialData(): Promise<void> {
       );
     }
 
-    // 7. 确保测试用户存在 (Alice & Bob 幂等初始化，纯净无公会)
+    // 8. 确保测试用户存在 (Alice & Bob 幂等初始化，纯净无公会)
     const testSalt = await bcrypt.genSalt(10);
 
     const existingAlice = await prisma.user.findUnique({
@@ -135,7 +157,9 @@ export async function seedInitialData(): Promise<void> {
           bio: "Tescord 测试账号 (纯净无公会)",
         },
       });
-      console.log("👤 测试用户 Alice 注入完成: alice@tescord.local / alicepassword123");
+      console.log(
+        "👤 测试用户 Alice 注入完成: alice@tescord.local / alicepassword123",
+      );
     }
 
     const existingBob = await prisma.user.findUnique({
@@ -154,9 +178,60 @@ export async function seedInitialData(): Promise<void> {
           bio: "Tescord 测试账号 (纯净无公会)",
         },
       });
-      console.log("👤 测试用户 Bob 注入完成: bob@tescord.local / bobpassword123");
+      console.log(
+        "👤 测试用户 Bob 注入完成: bob@tescord.local / bobpassword123",
+      );
     }
+
+    // 9. 自动检测并迁移存量公会的频道分类
+    await ensureDefaultCategoriesAndMigrate();
   } catch (error) {
     console.error("❌ 初始化种子数据异常:", error);
+  }
+}
+
+/**
+ * 确保所有公会均存在默认分类并对未挂载分类的存量频道进行平滑归纳
+ */
+export async function ensureDefaultCategoriesAndMigrate(): Promise<void> {
+  try {
+    const guilds = await prisma.guild.findMany({
+      include: {
+        categories: true,
+        channels: true,
+      },
+    });
+
+    for (const guild of guilds) {
+      if (guild.categories.length === 0) {
+        const textCat = await prisma.channelCategory.create({
+          data: {
+            guildId: guild.id,
+            name: "文字频道",
+            position: 0,
+          },
+        });
+        const voiceCat = await prisma.channelCategory.create({
+          data: {
+            guildId: guild.id,
+            name: "语音频道",
+            position: 1,
+          },
+        });
+
+        for (const channel of guild.channels) {
+          if (!channel.parentId) {
+            const targetCategoryId =
+              channel.type === "VOICE" ? voiceCat.id : textCat.id;
+            await prisma.channel.update({
+              where: { id: channel.id },
+              data: { parentId: targetCategoryId },
+            });
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.error("❌ 自动迁移存量频道分类异常:", err);
   }
 }

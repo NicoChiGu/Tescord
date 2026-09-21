@@ -1,0 +1,47 @@
+{
+  "save": "保存",
+  "cancel": "キャンセル",
+  "confirm": "確認",
+  "delete": "削除",
+  "close": "閉じる",
+  "edit": "編集",
+  "copy": "コピー",
+  "copied": "コピーしました",
+  "retry": "再試行",
+  "back": "戻る",
+  "next": "次へ",
+  "search": "検索",
+  "loading": "読み込み中...",
+  "refresh": "更新",
+  "enabled": "有効",
+  "disabled": "無効",
+  "status": {
+    "online": "オンライン",
+    "idle": "退席中",
+    "dnd": "取り込み中",
+    "invisible": "オンライン状態を隠す",
+    "offline": "オフライン",
+    "onlineDesc": "通常通り通知やメッセージを受信します",
+    "idleDesc": "離席中または一時的な非アクティブ",
+    "dndDesc": "デスクトップ通知とサウンドをミュートします",
+    "invisibleDesc": "オフラインとして表示されますが、すべての機能を利用できます"
+  },
+  "titleBar": {
+    "gatewayConnected": "WebSocket ゲートウェイ: 接続済み",
+    "gatewayDisconnected": "WebSocket ゲートウェイ: 未接続",
+    "gatewayLatency": "遅延",
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "元に戻す",
+    "close": "閉じる"
+  },
+  "user": {
+    "mute": "マイクをミュート",
+    "unmute": "マイクのミュート解除",
+    "deafen": "スピーカーをミュート",
+    "undeafen": "スピーカーのミュート解除",
+    "userSettings": "ユーザー設定",
+    "copyUserId": "ユーザー ID をコピー",
+    "viewProfile": "プロフィールを表示"
+  }
+}

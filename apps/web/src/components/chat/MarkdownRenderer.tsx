@@ -12,7 +12,7 @@ interface MarkdownRendererProps {
 function parseMentionsInNode(
   node: React.ReactNode,
   onMentionClick?: (username: string, rect: DOMRect) => void,
-  currentUsername?: string
+  currentUsername?: string,
 ): React.ReactNode {
   if (typeof node === "string") {
     const mentionRegex = /@([a-zA-Z0-9_\u4e00-\u9fa5]+)/g;
@@ -43,7 +43,7 @@ function parseMentionsInNode(
             if (!isSpecial) {
               onMentionClick?.(
                 targetName,
-                e.currentTarget.getBoundingClientRect()
+                e.currentTarget.getBoundingClientRect(),
               );
             }
           }}
@@ -51,8 +51,8 @@ function parseMentionsInNode(
             isSpecial
               ? "bg-[#5865f2]/20 hover:bg-[#5865f2]/35 text-[#c9cdfb] cursor-default"
               : isMe
-              ? "bg-[#f0b232]/20 hover:bg-[#f0b232]/35 text-[#f0b232] font-semibold cursor-pointer"
-              : "bg-[#5865f2]/15 hover:bg-[#5865f2] text-[#c9cdfb] hover:text-white cursor-pointer"
+                ? "bg-[#f0b232]/20 hover:bg-[#f0b232]/35 text-[#f0b232] font-semibold cursor-pointer"
+                : "bg-[#5865f2]/15 hover:bg-[#5865f2] text-[#c9cdfb] hover:text-white cursor-pointer"
           }`}
           title={
             isSpecial
@@ -61,7 +61,7 @@ function parseMentionsInNode(
           }
         >
           @{targetName}
-        </span>
+        </span>,
       );
       lastIndex = mentionRegex.lastIndex;
     }
@@ -77,7 +77,7 @@ function parseMentionsInNode(
     return React.cloneElement(node, {
       ...(node.props as any),
       children: React.Children.map(children, (child) =>
-        parseMentionsInNode(child, onMentionClick, currentUsername)
+        parseMentionsInNode(child, onMentionClick, currentUsername),
       ),
     });
   }
@@ -144,11 +144,7 @@ export const MarkdownRenderer: React.FC<MarkdownRendererProps> = ({
     <div className="text-[14px] leading-[1.375rem] text-discord-textNormal break-words font-normal">
       {segments.map((seg, idx) => {
         if (typeof seg !== "string") {
-          return (
-            <Spoiler key={idx}>
-              {wrapMentions(seg.spoiler)}
-            </Spoiler>
-          );
+          return <Spoiler key={idx}>{wrapMentions(seg.spoiler)}</Spoiler>;
         }
 
         return (

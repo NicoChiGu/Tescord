@@ -1,0 +1,47 @@
+{
+  "save": "Save",
+  "cancel": "Cancel",
+  "confirm": "Confirm",
+  "delete": "Delete",
+  "close": "Close",
+  "edit": "Edit",
+  "copy": "Copy",
+  "copied": "Copied",
+  "retry": "Retry",
+  "back": "Back",
+  "next": "Next",
+  "search": "Search",
+  "loading": "Loading...",
+  "refresh": "Refresh",
+  "enabled": "Enabled",
+  "disabled": "Disabled",
+  "status": {
+    "online": "Online",
+    "idle": "Idle",
+    "dnd": "Do Not Disturb",
+    "invisible": "Invisible",
+    "offline": "Offline",
+    "onlineDesc": "Receive notifications and messages normally",
+    "idleDesc": "Away or currently inactive",
+    "dndDesc": "Do not receive desktop notifications or sounds",
+    "invisibleDesc": "Appear offline, but with full access to all features"
+  },
+  "titleBar": {
+    "gatewayConnected": "WebSocket Gateway: Connected",
+    "gatewayDisconnected": "WebSocket Gateway: Disconnected",
+    "gatewayLatency": "Latency",
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "restore": "Restore",
+    "close": "Close"
+  },
+  "user": {
+    "mute": "Mute Microphone",
+    "unmute": "Unmute Microphone",
+    "deafen": "Deafen",
+    "undeafen": "Undeafen",
+    "userSettings": "User Settings",
+    "copyUserId": "Copy User ID",
+    "viewProfile": "View Profile"
+  }
+}

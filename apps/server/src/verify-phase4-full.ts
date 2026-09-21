@@ -11,6 +11,9 @@ import {
   UserStatus,
   evaluateNetworkQuality,
   clampVolume,
+  getMaxAllowed16x9Resolution,
+  isResolutionAllowed,
+  getRecommendedBitrate,
 } from "@tescord/types";
 
 config();
@@ -59,6 +62,86 @@ async function runFullPhase4Verification() {
       presets["720p30"].frameRate === 30 &&
       presets["720p30"].bitrate === 1_500_000,
     "720p 30fps 预设参数精确匹配 (1280x720, 30fps, 1.5Mbps)",
+  );
+
+  // 1.1.1 验证新增的 480p, 1440p (2K), 4K 预设与帧率矩阵覆盖
+  assert(Boolean(presets["480p30"]), "存在 480p 30fps 省流预设");
+  assert(Boolean(presets["1440p60"]), "存在 1440p (2K) 60fps 电竞极清预设");
+  assert(Boolean(presets["4k60"]), "存在 4K 60fps 旗舰原画预设");
+  assert(
+    presets["4k60"].width === 3840 && presets["4k60"].height === 2160,
+    "4K 预设尺寸符合 3840x2160",
+  );
+  assert(
+    presets["1440p60"].width === 2560 && presets["1440p60"].height === 1440,
+    "2K 预设尺寸符合 2560x1440",
+  );
+
+  // 1.1.2 验证基于屏幕物理长宽尺寸的 16:9 最大分辨率判定算法
+  console.log(
+    "\n--- 验证 4.1 屏幕物理尺寸 16:9 最大分辨率判定与非标比例映射 ---",
+  );
+  assert(
+    getMaxAllowed16x9Resolution(800, 600) === "480p",
+    "800x600 低分屏最大锁定 480p",
+  );
+  assert(
+    getMaxAllowed16x9Resolution(1366, 768) === "720p",
+    "1366x768 笔记本屏最大锁定 720p",
+  );
+  assert(
+    getMaxAllowed16x9Resolution(1920, 1080) === "1080p",
+    "1920x1080 标准全高清屏最大锁定 1080p",
+  );
+  assert(
+    getMaxAllowed16x9Resolution(1920, 1200) === "1080p",
+    "1920x1200 (16:10) 屏幕最大内接 16:9 锁定 1080p",
+  );
+  assert(
+    getMaxAllowed16x9Resolution(2560, 1440) === "1440p",
+    "2560x1440 (2K) 屏最大锁定 1440p",
+  );
+  assert(
+    getMaxAllowed16x9Resolution(2560, 1600) === "1440p",
+    "2560x1600 (16:10 MacBook) 屏幕最大内接 16:9 锁定 1440p",
+  );
+  assert(
+    getMaxAllowed16x9Resolution(3440, 1440) === "1440p",
+    "3440x1440 (21:9 带鱼屏) 纵向最大内接锁定 1440p",
+  );
+  assert(
+    getMaxAllowed16x9Resolution(3840, 2160) === "4k",
+    "3840x2160 (4K) 屏解锁全量 4K 选项",
+  );
+
+  // 1.1.3 验证硬性禁用判定逻辑
+  assert(
+    isResolutionAllowed("1080p", "1080p") === true,
+    "1080p 屏允许使用 1080p",
+  );
+  assert(
+    isResolutionAllowed("720p", "1080p") === true,
+    "1080p 屏允许使用 720p",
+  );
+  assert(
+    isResolutionAllowed("1440p", "1080p") === false,
+    "1080p 屏硬性禁用 1440p (2K)",
+  );
+  assert(isResolutionAllowed("4k", "1080p") === false, "1080p 屏硬性禁用 4K");
+  assert(isResolutionAllowed("4k", "4k") === true, "4K 屏允许使用 4K");
+
+  // 1.1.4 验证推荐码率计算表
+  assert(
+    getRecommendedBitrate("480p", 30) === 800_000,
+    "480p 30fps 推荐码率 800kbps",
+  );
+  assert(
+    getRecommendedBitrate("1080p", 60) === 5_000_000,
+    "1080p 60fps 推荐码率 5.0Mbps",
+  );
+  assert(
+    getRecommendedBitrate("4k", 60) === 16_000_000,
+    "4K 60fps 推荐码率 16.0Mbps",
   );
 
   // 1.2 Simulcast 多清晰度分层算法计算验证 (Full, Half, Quarter)
@@ -204,7 +287,12 @@ async function runFullPhase4Verification() {
 
   // 2.3 验证双轨立体声混音器 (Software Stereo Mixer) 振幅叠加防爆音仿真
   class StereoMixerSimulator {
-    mixSample(micSample: number, sysSample: number, micGain: number, sysGain: number): number {
+    mixSample(
+      micSample: number,
+      sysSample: number,
+      micGain: number,
+      sysGain: number,
+    ): number {
       const mixed = micSample * micGain + sysSample * sysGain;
       // 模拟 Web Audio 广播级软压限器 (Soft Clipper: tanh 饱和传递曲线)
       return Math.tanh(mixed);
@@ -317,7 +405,10 @@ async function runFullPhase4Verification() {
   }
 
   const singleLock = new SingleInstanceLockSimulator();
-  assert(singleLock.requestLock() === true, "首个实例成功获取单例锁并创建主窗口");
+  assert(
+    singleLock.requestLock() === true,
+    "首个实例成功获取单例锁并创建主窗口",
+  );
   assert(
     singleLock.requestLock() === false,
     "重复启动的第二个实例被单例锁严格拦截，防止资源重复冲突",
@@ -398,11 +489,7 @@ async function runFullPhase4Verification() {
   );
 
   const longContent = "A".repeat(120);
-  const longNotif = buildNotification(
-    "Bot",
-    longContent,
-    "chan-text-01",
-  );
+  const longNotif = buildNotification("Bot", longContent, "chan-text-01");
   assert(
     longNotif.body.length === 83 && longNotif.body.endsWith("..."),
     "超长消息内容安全截断至 80 字符并附加省略号，避免通知栏排版溢出",

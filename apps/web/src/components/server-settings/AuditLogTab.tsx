@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { Guild, AuditLogEntry, AuditLogAction } from "@tescord/types";
-import { FileText, Filter, Shield, User, Clock, ArrowRight } from "lucide-react";
+import {
+  FileText,
+  Filter,
+  Shield,
+  User,
+  Clock,
+  ArrowRight,
+} from "lucide-react";
 import { API_BASE, resolveServerUrl } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 
@@ -8,10 +15,7 @@ interface AuditLogTabProps {
   guild: Guild;
 }
 
-const ACTION_DESCRIPTIONS: Record<
-  string,
-  { label: string; color: string }
-> = {
+const ACTION_DESCRIPTIONS: Record<string, { label: string; color: string }> = {
   [AuditLogAction.GUILD_UPDATE]: {
     label: "修改服务器基本信息",
     color: "bg-blue-500/20 text-blue-400",
@@ -119,7 +123,9 @@ export const AuditLogTab: React.FC<AuditLogTabProps> = ({ guild }) => {
             <option value={AuditLogAction.MEMBER_KICK}>踢出成员</option>
             <option value={AuditLogAction.MEMBER_BAN_ADD}>封禁成员</option>
             <option value={AuditLogAction.MEMBER_BAN_REMOVE}>解封成员</option>
-            <option value={AuditLogAction.MEMBER_ROLE_UPDATE}>更新成员角色</option>
+            <option value={AuditLogAction.MEMBER_ROLE_UPDATE}>
+              更新成员角色
+            </option>
             <option value={AuditLogAction.INVITE_DELETE}>删除邀请码</option>
             <option value="GUILD_OWNERSHIP_TRANSFER">转让所有权</option>
           </select>
@@ -160,7 +166,8 @@ export const AuditLogTab: React.FC<AuditLogTabProps> = ({ guild }) => {
                     <img
                       src={
                         resolveServerUrl(log.user?.avatarUrl) ||
-                        "https://api.dicebear.com/7.x/bottts/svg?seed=" + log.userId
+                        "https://api.dicebear.com/7.x/bottts/svg?seed=" +
+                          log.userId
                       }
                       alt={log.user?.username || "user"}
                       className="w-7 h-7 rounded-full bg-[#1e1f22] object-cover ring-1 ring-white/10 shrink-0"

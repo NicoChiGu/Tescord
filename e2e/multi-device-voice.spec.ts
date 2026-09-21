@@ -68,7 +68,7 @@ test.describe("多设备语音互斥接管与会话状态自动化验收 (Multi-
       .getByRole("button", { name: /语音闲聊|开黑开麦|voice/i })
       .first();
     await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
-    await voiceChannelBtn.click();
+    await voiceChannelBtn.dblclick();
 
     // 5. 确认已成功进入语音频道（底部呈现断开连接按钮或语音状态卡片）
     const leaveVoiceBtn = page
@@ -89,7 +89,9 @@ test.describe("多设备语音互斥接管与会话状态自动化验收 (Multi-
 
     // 7. 验证断开连接按钮消失，原语音面板退出，转而呈现语音转移提示横幅
     await expect(leaveVoiceBtn).not.toBeVisible({ timeout: 5000 });
-    const transferNotice = page.locator('[data-testid="voice-transfer-notice"]');
+    const transferNotice = page.locator(
+      '[data-testid="voice-transfer-notice"]',
+    );
     await expect(transferNotice).toBeVisible({ timeout: 5000 });
     await expect(transferNotice).toContainText("语音已转移至【桌面客户端】");
 
@@ -118,7 +120,9 @@ test.describe("多设备语音互斥接管与会话状态自动化验收 (Multi-
     await expect(transferNotice).toBeVisible({ timeout: 5000 });
     await expect(transferNotice).toContainText("语音已转移至【Web 浏览器】");
 
-    const dismissBtn = page.locator('[data-testid="dismiss-transfer-notice-btn"]');
+    const dismissBtn = page.locator(
+      '[data-testid="dismiss-transfer-notice-btn"]',
+    );
     await expect(dismissBtn).toBeVisible();
     await dismissBtn.click();
 

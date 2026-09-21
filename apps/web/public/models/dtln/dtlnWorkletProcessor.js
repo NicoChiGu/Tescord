@@ -1,6 +1,6 @@
 /**
  * DTLN (Dual-Signal Transformation LSTM Network) AudioWorkletProcessor
- * 
+ *
  * 专为 Tescord 打造的下一代非平稳深度降噪 AudioWorklet 处理器：
  * 1. 48kHz <-> 16kHz 抗混叠多相重采样（3:1 抽取与 1:3 插值）
  * 2. 512 点分帧与 50% 重叠相加 (Overlap-Add, 32ms 帧长 / 16ms 步长)
@@ -14,19 +14,19 @@ class DtlnWorkletProcessor extends AudioWorkletProcessor {
 
     this.enabled = true;
     this.intensity = 1.0; // 降噪强度 (0.0 ~ 1.0)
-    
+
     // 采样率与分帧常量 (48kHz 宿主 -> 16kHz 推理)
     this.inSampleRate = 48000;
     this.targetSampleRate = 16000;
     this.decimationFactor = 3; // 48000 / 16000 = 3
-    
+
     this.frameSize16k = 512; // 32ms @ 16kHz
-    this.hopSize16k = 256;   // 16ms 步长 (50% 重叠)
-    
+    this.hopSize16k = 256; // 16ms 步长 (50% 重叠)
+
     // 16kHz 环形输入与输出缓冲区
     this.inBuffer16k = new Float32Array(this.frameSize16k * 2);
     this.inBufferWriteIdx = 0;
-    
+
     this.outBuffer16k = new Float32Array(this.frameSize16k * 2);
     this.outBufferReadIdx = 0;
     this.outBufferWriteIdx = 0;
@@ -36,8 +36,8 @@ class DtlnWorkletProcessor extends AudioWorkletProcessor {
 
     // 抗混叠 FIR 低通滤波系数 (截止频率 ~7.2kHz @ 48kHz)
     this.firCoeffs = new Float32Array([
-      -0.003, -0.008, 0.005, 0.038, 0.098, 0.171, 0.224, 0.244,
-      0.224, 0.171, 0.098, 0.038, 0.005, -0.008, -0.003
+      -0.003, -0.008, 0.005, 0.038, 0.098, 0.171, 0.224, 0.244, 0.224, 0.171,
+      0.098, 0.038, 0.005, -0.008, -0.003,
     ]);
     this.firHistory = new Float32Array(this.firCoeffs.length);
     this.firHistoryIdx = 0;
@@ -45,7 +45,8 @@ class DtlnWorkletProcessor extends AudioWorkletProcessor {
     // 汉宁窗 (Hanning Window)
     this.window16k = new Float32Array(this.frameSize16k);
     for (let i = 0; i < this.frameSize16k; i++) {
-      this.window16k[i] = 0.5 * (1 - Math.cos((2 * Math.PI * i) / (this.frameSize16k - 1)));
+      this.window16k[i] =
+        0.5 * (1 - Math.cos((2 * Math.PI * i) / (this.frameSize16k - 1)));
     }
 
     // DTLN 核心声学状态机 (双层循环网络隐藏状态记忆)
@@ -63,9 +64,9 @@ class DtlnWorkletProcessor extends AudioWorkletProcessor {
     this.port.onmessage = (event) => {
       const data = event.data;
       if (!data) return;
-      if (data.type === 'SET_ENABLED') {
+      if (data.type === "SET_ENABLED") {
         this.enabled = !!data.enabled;
-      } else if (data.type === 'SET_INTENSITY') {
+      } else if (data.type === "SET_INTENSITY") {
         this.intensity = Math.max(0, Math.min(1, data.intensity));
       }
     };
@@ -75,10 +76,10 @@ class DtlnWorkletProcessor extends AudioWorkletProcessor {
   decimate48kTo16k(input48k, output16k) {
     const firLen = this.firCoeffs.length;
     let outIdx = 0;
-    
+
     for (let i = 0; i < input48k.length; i++) {
       this.firHistory[this.firHistoryIdx] = input48k[i];
-      
+
       // 每 3 个采样点提取一个 16kHz 点
       if (i % this.decimationFactor === 0) {
         let acc = 0;
@@ -88,7 +89,7 @@ class DtlnWorkletProcessor extends AudioWorkletProcessor {
         }
         output16k[outIdx++] = acc;
       }
-      
+
       this.firHistoryIdx = (this.firHistoryIdx + 1) % firLen;
     }
     return outIdx;
@@ -98,12 +99,12 @@ class DtlnWorkletProcessor extends AudioWorkletProcessor {
   interpolate16kTo48k(sample16k, outBuffer48k, offset) {
     const prev = this.upsamplePrev;
     const diff = sample16k - prev;
-    
+
     // 3 点三次/线性过渡插值
     outBuffer48k[offset] = prev + diff * 0.3333;
     outBuffer48k[offset + 1] = prev + diff * 0.6667;
     outBuffer48k[offset + 2] = sample16k;
-    
+
     this.upsamplePrev = sample16k;
   }
 
@@ -118,7 +119,7 @@ class DtlnWorkletProcessor extends AudioWorkletProcessor {
     // 2. 估计频域能量与瞬态冲击 (快速检测机械键盘敲击特征: 2k~6kHz 高频高陡度脉冲)
     let totalFrameEnergy = 0;
     let highFreqTransientEnergy = 0;
-    
+
     for (let i = 0; i < this.frameSize16k; i++) {
       const val = windowed[i];
       const energy = val * val;
@@ -128,18 +129,22 @@ class DtlnWorkletProcessor extends AudioWorkletProcessor {
       }
     }
 
-    const isTransientSpike = highFreqTransientEnergy > this.transientEnergyTracker * 4.0;
-    this.transientEnergyTracker = 0.95 * this.transientEnergyTracker + 0.05 * Math.max(0.0001, totalFrameEnergy);
+    const isTransientSpike =
+      highFreqTransientEnergy > this.transientEnergyTracker * 4.0;
+    this.transientEnergyTracker =
+      0.95 * this.transientEnergyTracker +
+      0.05 * Math.max(0.0001, totalFrameEnergy);
 
     // 3. 计算频域增益掩码 (Magnitude Masking)
     const suppressionRatio = isTransientSpike ? 0.05 : 0.85; // 键盘敲击脉冲时执行 95% 瞬态深度抑制
-    
+
     // 4. 重叠相加合成 (Overlap-Add Synthesis)
     for (let i = 0; i < this.frameSize16k; i++) {
       // 融合瞬态抑制与因果衰减
       const dry = frameIn[i];
       const wet = dry * suppressionRatio;
-      frameOut[i] = (dry * (1 - this.intensity) + wet * this.intensity) * this.window16k[i];
+      frameOut[i] =
+        (dry * (1 - this.intensity) + wet * this.intensity) * this.window16k[i];
     }
   }
 
@@ -160,13 +165,15 @@ class DtlnWorkletProcessor extends AudioWorkletProcessor {
     }
 
     // 1. 48kHz -> 16kHz 降采样 (128 点 -> 约 42 点)
-    const decBuffer = new Float32Array(Math.ceil(numSamples / this.decimationFactor));
+    const decBuffer = new Float32Array(
+      Math.ceil(numSamples / this.decimationFactor),
+    );
     const numDecSamples = this.decimate48kTo16k(inChannel, decBuffer);
 
     // 2. 写入 16kHz 环形输入缓冲
     for (let i = 0; i < numDecSamples; i++) {
       this.inBuffer16k[this.inBufferWriteIdx++] = decBuffer[i];
-      
+
       // 当累积满足 512 点帧长时，执行一帧 DTLN 深度推理
       if (this.inBufferWriteIdx >= this.frameSize16k) {
         const frameIn = new Float32Array(this.frameSize16k);
@@ -177,11 +184,13 @@ class DtlnWorkletProcessor extends AudioWorkletProcessor {
 
         // 重叠相加 (Overlap-Add) 进输出缓冲
         for (let j = 0; j < this.frameSize16k; j++) {
-          const outIdx = (this.outBufferWriteIdx + j) % this.outBuffer16k.length;
+          const outIdx =
+            (this.outBufferWriteIdx + j) % this.outBuffer16k.length;
           this.outBuffer16k[outIdx] += frameOut[j];
         }
 
-        this.outBufferWriteIdx = (this.outBufferWriteIdx + this.hopSize16k) % this.outBuffer16k.length;
+        this.outBufferWriteIdx =
+          (this.outBufferWriteIdx + this.hopSize16k) % this.outBuffer16k.length;
 
         // 步进移位 hopSize (256 点)
         this.inBuffer16k.copyWithin(0, this.hopSize16k, this.frameSize16k);
@@ -194,7 +203,8 @@ class DtlnWorkletProcessor extends AudioWorkletProcessor {
     while (outSampleOffset < numSamples) {
       const sample16k = this.outBuffer16k[this.outBufferReadIdx];
       this.outBuffer16k[this.outBufferReadIdx] = 0; // 取出后清零供下次重叠累加
-      this.outBufferReadIdx = (this.outBufferReadIdx + 1) % this.outBuffer16k.length;
+      this.outBufferReadIdx =
+        (this.outBufferReadIdx + 1) % this.outBuffer16k.length;
 
       this.interpolate16kTo48k(sample16k, outChannel, outSampleOffset);
       outSampleOffset += this.decimationFactor;
@@ -204,4 +214,4 @@ class DtlnWorkletProcessor extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor('dtln-worklet-processor', DtlnWorkletProcessor);
+registerProcessor("dtln-worklet-processor", DtlnWorkletProcessor);

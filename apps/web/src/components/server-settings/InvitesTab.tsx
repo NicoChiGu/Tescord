@@ -48,7 +48,11 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
   };
 
   const handleDeleteInvite = async (code: string) => {
-    if (window.confirm("确定要作废该邀请码吗？作废后使用该链接的新用户将无法加入。")) {
+    if (
+      window.confirm(
+        "确定要作废该邀请码吗？作废后使用该链接的新用户将无法加入。",
+      )
+    ) {
       try {
         const res = await fetch(`${API_BASE}/api/invites/${code}`, {
           method: "DELETE",
@@ -125,7 +129,9 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
               </label>
               <select
                 value={newExpireHours}
-                onChange={(e) => setNewExpireHours(parseInt(e.target.value, 10))}
+                onChange={(e) =>
+                  setNewExpireHours(parseInt(e.target.value, 10))
+                }
                 className="w-full bg-[#2b2d31] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#5865f2]"
               >
                 <option value={1}>1 小时</option>

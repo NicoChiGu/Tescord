@@ -62,7 +62,9 @@ async function runFullPhase5Verification() {
   );
   assert(
     securityHeaders["Strict-Transport-Security"].includes("max-age=31536000") &&
-      securityHeaders["Strict-Transport-Security"].includes("includeSubDomains") &&
+      securityHeaders["Strict-Transport-Security"].includes(
+        "includeSubDomains",
+      ) &&
       securityHeaders["Strict-Transport-Security"].includes("preload"),
     "HSTS 严格启用一年期 (31536000s) + 子域名包含 + Preload 预加载名单",
   );
@@ -115,7 +117,10 @@ async function runFullPhase5Verification() {
     requireDtlsSrtp: false,
   };
   const insecureCheck = validateDtlsSrtpParameters(insecureDtlsConfig);
-  assert(insecureCheck.valid === false, "禁用 requireDtlsSrtp 被系统强制拦截拦截");
+  assert(
+    insecureCheck.valid === false,
+    "禁用 requireDtlsSrtp 被系统强制拦截拦截",
+  );
   assert(
     insecureCheck.reasons.some((r) => r.includes("requireDtlsSrtp")),
     "明确指出未开启 requireDtlsSrtp 的严重隐患",
@@ -147,7 +152,10 @@ async function runFullPhase5Verification() {
   const headerBuf2 = encodeSFrameHeader(15, largeCtr);
   const parsedH2 = decodeSFrameHeader(headerBuf2);
   assert(parsedH2.kid === 15, "SFrame 头部支持最大 4-bit KID (15)");
-  assert(parsedH2.counter === largeCtr, "SFrame 头部支持 48-bit 超大帧计数器无精度丢失");
+  assert(
+    parsedH2.counter === largeCtr,
+    "SFrame 头部支持 48-bit 超大帧计数器无精度丢失",
+  );
 
   // 截断与非法数据包防御
   try {
@@ -158,7 +166,9 @@ async function runFullPhase5Verification() {
   }
 
   // 2.2 SFrame 真实音频帧 (Opus/PCM) 加密与解密全生命周期保真性
-  console.log("\n--- 验证 5.2 48kHz Opus 语音采样帧 SFrame AES-256-GCM 加密解密 ---");
+  console.log(
+    "\n--- 验证 5.2 48kHz Opus 语音采样帧 SFrame AES-256-GCM 加密解密 ---",
+  );
   const sframeKey = new Uint8Array(32);
   for (let i = 0; i < 32; i++) sframeKey[i] = (i * 7 + 13) & 0xff;
 
@@ -207,7 +217,10 @@ async function runFullPhase5Verification() {
     await decryptSFramePacket(encryptedPacket, attackerWrongKey);
     assert(false, "错误密钥绝不能成功解密密文帧");
   } catch {
-    assert(true, "SFU 或攻击者使用未授权密钥解密被 AES-GCM 彻底拒绝 (MAC 校验失败)");
+    assert(
+      true,
+      "SFU 或攻击者使用未授权密钥解密被 AES-GCM 彻底拒绝 (MAC 校验失败)",
+    );
   }
 
   // 2.4 数据防篡改测试 (Ciphertext Tamper Resistance)
@@ -239,7 +252,10 @@ async function runFullPhase5Verification() {
     replayFilter.checkAndAdd(15n) === false,
     "重复到达的第 15 帧被精确拦截",
   );
-  assert(replayFilter.checkAndAdd(100n) === true, "大步推进至第 100 帧更新窗口");
+  assert(
+    replayFilter.checkAndAdd(100n) === true,
+    "大步推进至第 100 帧更新窗口",
+  );
   assert(
     replayFilter.checkAndAdd(12n) === false,
     "严重落后窗口尺寸 (100 - 12 > 64) 的历史重放帧被绝对拒绝",
@@ -277,7 +293,9 @@ async function runFullPhase5Verification() {
   // ==========================================
   // 3. 验证 5.3：绝密频道端到端文本双棘轮加密体系 (Double Ratchet)
   // ==========================================
-  console.log("\n--- 3. 验证 5.3 绝密频道端到端文本双棘轮加密（Double Ratchet） ---");
+  console.log(
+    "\n--- 3. 验证 5.3 绝密频道端到端文本双棘轮加密（Double Ratchet） ---",
+  );
 
   // 3.1 ECDH P-256 密钥对生成与公钥指纹计算
   const aliceIdKeys = await generateDhKeyPair();
@@ -296,7 +314,10 @@ async function runFullPhase5Verification() {
   );
 
   const importedAlicePub = await importDhPublicKey(alicePubB64);
-  assert(Boolean(importedAlicePub), "导出的 Base64 公钥可无缝重新反序列化为 CryptoKey");
+  assert(
+    Boolean(importedAlicePub),
+    "导出的 Base64 公钥可无缝重新反序列化为 CryptoKey",
+  );
 
   const fpAlice = await computeFingerprint(alicePubB64);
   const fpBob = await computeFingerprint(bobPubB64);
@@ -314,7 +335,10 @@ async function runFullPhase5Verification() {
     signature: "base64_signed_prekey_signature_test",
     oneTimePreKeys: ["onetime_prekey_1", "onetime_prekey_2"],
   });
-  assert(testBundle.userId === "alice-user-id", "成功注册 Alice 的 PreKeyBundle");
+  assert(
+    testBundle.userId === "alice-user-id",
+    "成功注册 Alice 的 PreKeyBundle",
+  );
   assert(
     testBundle.oneTimePreKeys.length === 2,
     "成功池化 2 个一次性预共享公钥 (One-Time PreKeys)",
@@ -327,7 +351,10 @@ async function runFullPhase5Verification() {
   );
 
   const consumedOneTime = e2eeService.consumeOneTimePreKey("alice-user-id");
-  assert(consumedOneTime === "onetime_prekey_1", "一次性预共享公钥被安全消费一次即焚");
+  assert(
+    consumedOneTime === "onetime_prekey_1",
+    "一次性预共享公钥被安全消费一次即焚",
+  );
   assert(
     e2eeService.getPreKey("alice-user-id")?.oneTimePreKeys.length === 1,
     "池中剩余预共享密钥自适应缩减",
@@ -339,25 +366,26 @@ async function runFullPhase5Verification() {
   const bobRatchetKeyPair = await generateDhKeyPair();
   const bobRatchetPubB64 = await exportDhPublicKey(bobRatchetKeyPair.publicKey);
 
-  const aliceSession = new DoubleRatchetSession(
-    "alice",
-    "bob",
-    sharedSecret,
-  );
-  const bobSession = new DoubleRatchetSession(
-    "bob",
-    "alice",
-    sharedSecret,
-  );
+  const aliceSession = new DoubleRatchetSession("alice", "bob", sharedSecret);
+  const bobSession = new DoubleRatchetSession("bob", "alice", sharedSecret);
 
   await aliceSession.initAsAlice(bobRatchetPubB64);
   await bobSession.initAsBob(bobRatchetKeyPair);
 
   // 3.4 前向保密性 (Forward Secrecy - 连续发送单向对称链推演)
   console.log("\n--- 验证 5.3 前向保密性 (Forward Secrecy) 连续单向消息流 ---");
-  const msg1 = await aliceSession.ratchetEncrypt("第一条机密：项目代号 Tescord", "chan-e2ee-01");
-  const msg2 = await aliceSession.ratchetEncrypt("第二条机密：采用双棘轮+SFrame架构", "chan-e2ee-01");
-  const msg3 = await aliceSession.ratchetEncrypt("第三条机密：离线私钥永不上云", "chan-e2ee-01");
+  const msg1 = await aliceSession.ratchetEncrypt(
+    "第一条机密：项目代号 Tescord",
+    "chan-e2ee-01",
+  );
+  const msg2 = await aliceSession.ratchetEncrypt(
+    "第二条机密：采用双棘轮+SFrame架构",
+    "chan-e2ee-01",
+  );
+  const msg3 = await aliceSession.ratchetEncrypt(
+    "第三条机密：离线私钥永不上云",
+    "chan-e2ee-01",
+  );
 
   assert(msg1.sequenceNumber === 0, "第一条消息序号 Ns=0");
   assert(msg2.sequenceNumber === 1, "第二条消息序号 Ns=1");
@@ -418,7 +446,9 @@ async function runFullPhase5Verification() {
   console.log("\n--- 验证 5.3 密文信封防伪造与防篡改 ---");
   const tamperedEnvelope: EncryptedMessageEnvelope = {
     ...reply2,
-    ciphertext: bytesToBase64(new Uint8Array(base64ToBytes(reply2.ciphertext)).reverse()),
+    ciphertext: bytesToBase64(
+      new Uint8Array(base64ToBytes(reply2.ciphertext)).reverse(),
+    ),
   };
   try {
     await bobSession.ratchetDecrypt(tamperedEnvelope);
@@ -445,18 +475,39 @@ async function runFullPhase5Verification() {
   const channelRootKey = new Uint8Array(32).fill(0x55);
   const chanId = "chan-secret-guild-01";
 
-  const aliceChanSession = new DoubleRatchetSession("alice", "channel", channelRootKey);
-  const bobChanSession = new DoubleRatchetSession("bob", "channel", channelRootKey);
-  const charlieChanSession = new DoubleRatchetSession("charlie", "channel", channelRootKey);
+  const aliceChanSession = new DoubleRatchetSession(
+    "alice",
+    "channel",
+    channelRootKey,
+  );
+  const bobChanSession = new DoubleRatchetSession(
+    "bob",
+    "channel",
+    channelRootKey,
+  );
+  const charlieChanSession = new DoubleRatchetSession(
+    "charlie",
+    "channel",
+    channelRootKey,
+  );
 
   await aliceChanSession.initAsChannel(chanId, "alice");
   await bobChanSession.initAsChannel(chanId, "bob");
   await charlieChanSession.initAsChannel(chanId, "charlie");
 
   // Alice 在频道连续广播 3 条绝密消息
-  const aMsg1 = await aliceChanSession.ratchetEncrypt("频道公发：第一阶段启动", chanId);
-  const aMsg2 = await aliceChanSession.ratchetEncrypt("频道公发：配置密钥防护", chanId);
-  const aMsg3 = await aliceChanSession.ratchetEncrypt("频道公发：全员就绪", chanId);
+  const aMsg1 = await aliceChanSession.ratchetEncrypt(
+    "频道公发：第一阶段启动",
+    chanId,
+  );
+  const aMsg2 = await aliceChanSession.ratchetEncrypt(
+    "频道公发：配置密钥防护",
+    chanId,
+  );
+  const aMsg3 = await aliceChanSession.ratchetEncrypt(
+    "频道公发：全员就绪",
+    chanId,
+  );
 
   assert(aMsg1.sequenceNumber === 0, "Alice 频道第 1 条消息序号 Ns=0");
   assert(aMsg2.sequenceNumber === 1, "Alice 频道第 2 条消息序号 Ns=1");
@@ -464,25 +515,43 @@ async function runFullPhase5Verification() {
 
   // Bob 解密 Alice 的第 1 条消息
   const bobDec1 = await bobChanSession.ratchetDecrypt(aMsg1);
-  assert(bobDec1 === "频道公发：第一阶段启动", "Bob 成功解密 Alice 发送的第 1 条频道绝密消息");
+  assert(
+    bobDec1 === "频道公发：第一阶段启动",
+    "Bob 成功解密 Alice 发送的第 1 条频道绝密消息",
+  );
 
   // Charlie 乱序解密 (先收消息3，后收消息2)
   const charlieDec3 = await charlieChanSession.ratchetDecrypt(aMsg3);
   assert(charlieDec3 === "频道公发：全员就绪", "Charlie 乱序先行解密消息 3");
 
   const charlieDec2 = await charlieChanSession.ratchetDecrypt(aMsg2);
-  assert(charlieDec2 === "频道公发：配置密钥防护", "Charlie 迟到接收从暂存密钥解密消息 2");
+  assert(
+    charlieDec2 === "频道公发：配置密钥防护",
+    "Charlie 迟到接收从暂存密钥解密消息 2",
+  );
 
   // Alice 自身也能解密自己发出的消息 (如重载历史)
   const aliceDecOwn = await aliceChanSession.ratchetDecrypt(aMsg2);
-  assert(aliceDecOwn === "频道公发：配置密钥防护", "Alice 自身成功平滑解密自己的消息");
+  assert(
+    aliceDecOwn === "频道公发：配置密钥防护",
+    "Alice 自身成功平滑解密自己的消息",
+  );
 
   // Bob 发送回复，Alice 与 Charlie 都能解密
-  const bReply = await bobChanSession.ratchetEncrypt("Bob频道回复：收到指令", chanId);
+  const bReply = await bobChanSession.ratchetEncrypt(
+    "Bob频道回复：收到指令",
+    chanId,
+  );
   const aliceDecB = await aliceChanSession.ratchetDecrypt(bReply);
   const charlieDecB = await charlieChanSession.ratchetDecrypt(bReply);
-  assert(aliceDecB === "Bob频道回复：收到指令", "Alice 成功解密 Bob 的频道消息");
-  assert(charlieDecB === "Bob频道回复：收到指令", "Charlie 成功解密 Bob 的频道消息");
+  assert(
+    aliceDecB === "Bob频道回复：收到指令",
+    "Alice 成功解密 Bob 的频道消息",
+  );
+  assert(
+    charlieDecB === "Bob频道回复：收到指令",
+    "Charlie 成功解密 Bob 的频道消息",
+  );
 
   // 3.10 安全指纹 (Safety Number) 格式与一致性校验
   console.log("\n--- 验证 5.3 真实安全码 (Safety Number) 密码学一致性 ---");
@@ -523,7 +592,9 @@ async function runFullPhase5Verification() {
   console.log("\n--- 4. 验证 5.4 客户端本地密文倒排索引与离线全文检索 ---");
 
   // 4.1 中日韩与英文字词分词器测试
-  const tokens = tokenizeText("绝密频道使用 SFrame 语音和 Double Ratchet 文本加密！");
+  const tokens = tokenizeText(
+    "绝密频道使用 SFrame 语音和 Double Ratchet 文本加密！",
+  );
   assert(tokens.includes("绝密"), "分词器提取 CJK 二元分词 '绝密'");
   assert(tokens.includes("频道"), "分词器提取 CJK 二元分词 '频道'");
   assert(tokens.includes("sframe"), "分词器小写归一化提取英文单词 'sframe'");

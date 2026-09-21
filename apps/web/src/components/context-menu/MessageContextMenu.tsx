@@ -9,14 +9,7 @@ import {
 } from "../ui/context-menu.js";
 import { usePermissions } from "../../hooks/usePermissions.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
-import {
-  Reply,
-  Pin,
-  Edit2,
-  Trash2,
-  Copy,
-  Check,
-} from "lucide-react";
+import { Reply, Pin, Edit2, Trash2, Copy, Check } from "lucide-react";
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🚀", "🎉"];
 
@@ -122,7 +115,9 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
             <div className="flex items-center space-x-2">
               <Pin
                 className={`w-4 h-4 ${
-                  message.isPinned ? "text-amber-400 fill-amber-400" : "text-discord-textMuted"
+                  message.isPinned
+                    ? "text-amber-400 fill-amber-400"
+                    : "text-discord-textMuted"
                 }`}
               />
               <span>{message.isPinned ? "取消置顶" : "置顶消息"}</span>

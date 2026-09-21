@@ -17,6 +17,7 @@ model User {
   status       String         @default("ONLINE") // ONLINE | IDLE | DND | OFFLINE
   customStatus String?
   bio          String?
+  settings     String?        // 用户个人设置项 JSON (UserSettingsDTO)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
@@ -53,6 +54,7 @@ model Guild {
   updatedAt   DateTime      @updatedAt
 
   channels    Channel[]
+  categories  ChannelCategory[]
   members     GuildMember[]
   roles       Role[]
   invites     Invite[]
@@ -92,24 +94,40 @@ model Role {
   @@index([guildId])
 }
 
-// 3. 频道 (Channel)
-model Channel {
+// 3. 频道与分类 (Channel & Category)
+model ChannelCategory {
   id        String    @id @default(cuid())
   guildId   String
   guild     Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
   name      String
-  type      String    @default("TEXT") // TEXT | VOICE
-  topic     String?
-  parentId  String?   // 分类 Category ID
   position  Int       @default(0)
-  isE2EE    Boolean   @default(false)
-  bitrate   Int       @default(64000)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+
+  channels  Channel[]
+
+  @@index([guildId])
+}
+
+model Channel {
+  id        String           @id @default(cuid())
+  guildId   String
+  guild     Guild            @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  name      String
+  type      String           @default("TEXT") // TEXT | VOICE
+  topic     String?
+  parentId  String?          // 分类 Category ID
+  parent    ChannelCategory? @relation(fields: [parentId], references: [id], onDelete: SetNull)
+  position  Int              @default(0)
+  isE2EE    Boolean          @default(false)
+  bitrate   Int              @default(64000)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
 
   messages  Message[]
 
   @@index([guildId])
+  @@index([parentId])
 }
 
 // 4. 消息与互动反应

@@ -166,10 +166,17 @@ export const MemberList: React.FC<MemberListProps> = ({
 
     // 将成员分发到对应的分组
     for (const item of items) {
-      if (item.highestHoistedRole && groupMap.has(item.highestHoistedRole.id)) {
-        groupMap.get(item.highestHoistedRole.id)!.members.push(item);
-      } else if (item.status === "OFFLINE") {
+      const isItemOffline =
+        item.status === "OFFLINE" ||
+        (item.status === "INVISIBLE" && item.id !== currentUser.id);
+
+      if (isItemOffline) {
         defaultOfflineGroup.members.push(item);
+      } else if (
+        item.highestHoistedRole &&
+        groupMap.has(item.highestHoistedRole.id)
+      ) {
+        groupMap.get(item.highestHoistedRole.id)!.members.push(item);
       } else {
         defaultOnlineGroup.members.push(item);
       }
@@ -257,11 +264,18 @@ export const MemberList: React.FC<MemberListProps> = ({
                         m.status === "ONLINE"
                           ? "bg-emerald-500"
                           : m.status === "IDLE"
-                          ? "bg-amber-500"
-                          : m.status === "DND"
-                          ? "bg-rose-500"
-                          : "bg-gray-400"
+                            ? "bg-amber-500"
+                            : m.status === "DND"
+                              ? "bg-rose-500"
+                              : m.status === "INVISIBLE" && m.id === currentUser.id
+                                ? "border-gray-400 bg-transparent"
+                                : "bg-gray-400"
                       }`}
+                      title={
+                        m.status === "INVISIBLE" && m.id === currentUser.id
+                          ? "隐身 (仅自己可见)"
+                          : m.status
+                      }
                     />
                   </div>
 

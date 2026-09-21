@@ -68,7 +68,9 @@ test.describe("双引擎 AI 降噪（RNNoise + DTLN）与三轨 A/B 录音试听
 
     // 验证标题与描述文字
     await expect(
-      page.getByText(/RNNoise \/ DTLN 双引擎神经网络深度降噪|RNNoise 神经网络深度降噪/i),
+      page.getByText(
+        /RNNoise \/ DTLN 双引擎神经网络深度降噪|RNNoise 神经网络深度降噪/i,
+      ),
     ).toBeVisible();
 
     // 5. 验证 3 档分段卡片选择器
@@ -118,7 +120,7 @@ test.describe("双引擎 AI 降噪（RNNoise + DTLN）与三轨 A/B 录音试听
       .getByRole("button", { name: /语音闲聊|开黑开麦|voice/i })
       .first();
     await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
-    await voiceChannelBtn.click();
+    await voiceChannelBtn.dblclick();
 
     // 验证加入成功（底栏断开连接按钮呈现）
     const leaveVoiceBtn = page

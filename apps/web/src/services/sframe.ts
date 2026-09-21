@@ -38,7 +38,8 @@ export class SFrameManager {
   ): Promise<Uint8Array> {
     const enc = new TextEncoder();
     const salt = enc.encode(`TescordSFrameSalt:${roomName}`);
-    const password = passphrase || `tescord-default-voice-passphrase-${roomName}`;
+    const password =
+      passphrase || `tescord-default-voice-passphrase-${roomName}`;
 
     const baseKey = await crypto.subtle.importKey(
       "raw",

@@ -106,7 +106,9 @@ test.describe("消息视口顶部悬浮历史横幅与上下边缘渐变模糊�
     await page.goto("/");
 
     // 1. 进入服务器与频道
-    const serverBtn = page.getByRole("button", { name: /Tescord 极客研发部|极客/i }).first();
+    const serverBtn = page
+      .getByRole("button", { name: /Tescord 极客研发部|极客/i })
+      .first();
     await expect(serverBtn).toBeVisible({ timeout: 10000 });
     await serverBtn.click();
 
@@ -153,7 +155,7 @@ test.describe("消息视口顶部悬浮历史横幅与上下边缘渐变模糊�
 
     // 9. 确保控制台无严重报错
     const criticalErrors = consoleErrors.filter(
-      (err) => !err.includes("net::ERR_") && !err.includes("WebSocket")
+      (err) => !err.includes("net::ERR_") && !err.includes("WebSocket"),
     );
     expect(criticalErrors).toHaveLength(0);
   });

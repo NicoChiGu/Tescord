@@ -1,0 +1,22 @@
+{
+  "copyText": "テキストをコピー",
+  "quoteReply": "引用返信",
+  "pinMessage": "メッセージをピン留め",
+  "unpinMessage": "ピン留めを解除",
+  "deleteMessage": "メッセージを削除",
+  "editMessage": "メッセージを編集",
+  "copyMessageId": "メッセージ ID をコピー",
+  "copyChannelId": "チャンネル ID をコピー",
+  "copyGuildId": "サーバー ID をコピー",
+  "copyUserId": "ユーザー ID をコピー",
+  "mentionUser": "ユーザーをメンション",
+  "sendMessage": "ダイレクトメッセージを送信",
+  "muteUser": "メンバーをミュート",
+  "kickUser": "メンバーをキック",
+  "banUser": "メンバーをBAN",
+  "addReaction": "リアクションを追加",
+  "userVolume": "ユーザー個別音量",
+  "resetVolume": "100%にリセット",
+  "maxVolume": "上限 200%",
+  "unmuteUser": "ミュート解除"
+}
