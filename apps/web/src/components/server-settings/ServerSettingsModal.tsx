@@ -325,7 +325,17 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex bg-[#313338] text-white animate-in fade-in duration-150">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in p-0 sm:p-4 md:p-6 lg:p-8"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div
+        data-testid="server-settings-modal"
+        onClick={(e) => e.stopPropagation()}
+        className="relative flex w-full h-full sm:h-[88vh] sm:max-h-[850px] sm:max-w-4xl md:max-w-5xl bg-[#313338] text-white sm:rounded-2xl shadow-2xl overflow-hidden border border-transparent sm:border-[#3f4147] animate-in zoom-in-95 duration-150"
+      >
       {/* 左侧：分类导航栏 */}
       <div className="w-60 bg-[#2b2d31] p-6 flex flex-col justify-between shrink-0 select-none border-r border-[#1f2023]">
         <div className="space-y-6">
@@ -445,10 +455,11 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
       {/* 右侧：主配置画布 */}
       <div className="flex-1 flex flex-col min-w-0 bg-[#313338] relative">
         {/* 右上角固定关闭按钮与 ESC 提示 */}
-        <div className="absolute top-6 right-8 flex flex-col items-center z-40">
+        <div className="absolute top-4 right-4 sm:top-6 sm:right-8 flex flex-col items-center z-40">
           <button
+            data-testid="close-server-settings-btn"
             onClick={onClose}
-            className="w-9 h-9 rounded-full border-2 border-white/20 hover:border-white flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/10 transition-all"
+            className="w-9 h-9 rounded-full border-2 border-white/20 hover:border-white flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
             title="关闭设置 (ESC)"
           >
             <X className="w-5 h-5" />
@@ -502,6 +513,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
         onClose={() => setIsDeleteModalOpen(false)}
         onConfirm={handleDeleteGuild}
       />
+      </div>
     </div>
   );
 };

@@ -1,5 +1,34 @@
-import { AccessToken } from "livekit-server-sdk";
+import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
 import { LiveKitTokenRequest, LiveKitTokenResponse } from "@tescord/types";
+
+export function getRoomServiceClient(
+  apiKey: string = process.env.LIVEKIT_API_KEY || "devkey",
+  apiSecret: string = process.env.LIVEKIT_API_SECRET || "secretsecretsecret",
+  livekitUrl: string = process.env.LIVEKIT_URL || "ws://localhost:7880",
+): RoomServiceClient {
+  const httpUrl =
+    process.env.LIVEKIT_HTTP_URL ||
+    livekitUrl.replace(/^ws:\/\//, "http://").replace(/^wss:\/\//, "https://");
+  return new RoomServiceClient(httpUrl, apiKey, apiSecret);
+}
+
+export async function removeParticipantFromRoom(
+  roomName: string,
+  identity: string,
+): Promise<void> {
+  try {
+    const svc = getRoomServiceClient();
+    await svc.removeParticipant(roomName, identity);
+    console.log(
+      `[LiveKit] Successfully removed participant ${identity} from room ${roomName}`,
+    );
+  } catch (err: any) {
+    console.warn(
+      `[LiveKit] Failed or skipped removing participant ${identity} from ${roomName}:`,
+      err?.message || err,
+    );
+  }
+}
 
 export async function generateLiveKitToken(
   req: LiveKitTokenRequest,
@@ -40,3 +69,4 @@ export async function generateLiveKitToken(
     url: livekitUrl,
   };
 }
+

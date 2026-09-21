@@ -1,5 +1,14 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Channel, Message, User, Attachment, Guild, GuildMember } from "@tescord/types";
+import {
+  Channel,
+  Message,
+  User,
+  Attachment,
+  Guild,
+  GuildMember,
+  GatewayEvents,
+  TypingIndicatorPayload,
+} from "@tescord/types";
 import {
   Hash,
   Lock,
@@ -20,17 +29,21 @@ import {
   Key,
   ShieldAlert,
   Menu,
+  ChevronDown,
+  History,
 } from "lucide-react";
 import { MarkdownRenderer } from "./chat/MarkdownRenderer.js";
 import { EmojiPickerPopover } from "./chat/EmojiPickerPopover.js";
 import { LightboxModal } from "./chat/LightboxModal.js";
 import { MobileActionSheet } from "./chat/MobileActionSheet.js";
 import { MentionInput, MentionInputHandle } from "./chat/MentionInput.js";
+import { TypingIndicator } from "./chat/TypingIndicator.js";
 import { UserProfilePopout } from "./profile/UserProfilePopout.js";
 import { MessageContextMenu } from "./context-menu/MessageContextMenu.js";
 import { UserContextMenu } from "./context-menu/UserContextMenu.js";
 import { InputContextMenu } from "./context-menu/InputContextMenu.js";
 import { API_BASE, resolveServerUrl } from "../config.js";
+import { gatewayClient } from "../services/gateway.js";
 import { doubleRatchetManager } from "../services/doubleRatchet.js";
 import { clientFtsStorage } from "../services/e2eeStorage.js";
 import { useViewport } from "../hooks/useViewport.js";
@@ -79,6 +92,8 @@ interface ChatMessageItemProps {
     rect: DOMRect
   ) => void;
   onOpenProfileByName?: (username: string, rect: DOMRect) => void;
+  isHighlighted?: boolean;
+  onJumpToMessage?: (messageId: string) => void;
 }
 
 const isImageMime = (mime: string, name: string) => {
@@ -106,6 +121,8 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
   onMentionUser,
   onOpenProfile,
   onOpenProfileByName,
+  isHighlighted,
+  onJumpToMessage,
 }) => {
   const isMe = msg.authorId === currentUser.id;
   const formattedTime = new Date(msg.createdAt).toLocaleTimeString([], {
@@ -129,21 +146,36 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
       onAddReaction={onReactionAdd}
     >
       <div
+        id={`message-${msg.id}`}
+        data-message-id={msg.id}
         {...longPressProps}
         className={`relative flex flex-col group -mx-2 sm:-mx-4 px-2 sm:px-4 py-1.5 rounded transition ${
+          isHighlighted ? "animate-message-highlight" : ""
+        } ${
           msg.isPinned
             ? "bg-discord-brand/5 border-l-2 border-yellow-500/80"
+            : isHighlighted
+            ? ""
             : "hover:bg-[#2e3035]"
         }`}
       >
         {/* 引用回复提示条 */}
         {msg.replyTo && (
-          <div className="flex items-center space-x-2 text-xs text-discord-textMuted mb-1 ml-10 pl-2 border-l-2 border-[#4e5058]">
-            <Reply className="w-3 h-3 text-discord-textMuted transform rotate-180" />
-            <span className="font-semibold text-discord-brand">
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              if (msg.replyTo?.id) {
+                onJumpToMessage?.(msg.replyTo.id);
+              }
+            }}
+            title="点击跳转至被引用的原文"
+            className="flex items-center space-x-2 text-xs text-discord-textMuted mb-1 ml-10 pl-2 border-l-2 border-[#4e5058] cursor-pointer hover:opacity-100 hover:text-discord-textNormal transition-all duration-150 group/reply"
+          >
+            <Reply className="w-3 h-3 text-discord-textMuted group-hover/reply:text-discord-brand transform rotate-180 transition-colors" />
+            <span className="font-semibold text-discord-brand group-hover/reply:underline">
               @{msg.replyTo.authorName}
             </span>
-            <span className="truncate max-w-md text-discord-textNormal opacity-80">
+            <span className="truncate max-w-md text-discord-textNormal opacity-80 group-hover/reply:opacity-100">
               {msg.replyTo.content}
             </span>
           </div>
@@ -517,11 +549,190 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const [safetyNumber, setSafetyNumber] = useState<string>("E2EE-A1B2-C3D4-E5F6-0001");
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const processedMessageIdsRef = useRef<Set<string>>(new Set());
 
+  // 消息高亮与跳转定位状态
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 视口距离底部与顶部状态（离开底部则显示顶部“跳到最新”横幅与底部渐变，离开顶部则显示顶部渐变）
+  const [isNearBottom, setIsNearBottom] = useState(true);
+  const [hasScrolledTop, setHasScrolledTop] = useState(false);
+
+  // 轻量全局提示浮层
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showToast = (msg: string) => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setToastMessage(msg);
+    toastTimerRef.current = setTimeout(() => {
+      setToastMessage(null);
+    }, 3000);
+  };
+
+  const handleScroll = () => {
+    if (!scrollContainerRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+    const nearBottom = scrollHeight - scrollTop - clientHeight < 120;
+    setIsNearBottom(nearBottom);
+    setHasScrolledTop(scrollTop > 16);
+  };
+
+  const scrollToBottom = (smooth = true) => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: smooth ? "smooth" : "auto",
+    });
+    setIsNearBottom(true);
+  };
+
+  const handleJumpToMessage = (targetMessageId: string) => {
+    if (!targetMessageId) return;
+
+    const targetMsg = messages.find((m) => m.id === targetMessageId);
+    if (!targetMsg) {
+      showToast("未找到被引用的原文，该消息可能已被删除");
+      return;
+    }
+
+    // 若当前有搜索词且该消息被过滤隐藏，自动清除搜索过滤
+    if (searchQuery.trim()) {
+      const inSearch = displayedMessages.some((m) => m.id === targetMessageId);
+      if (!inSearch) {
+        setSearchQuery("");
+      }
+    }
+
+    setTimeout(() => {
+      const el = document.getElementById(`message-${targetMessageId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+
+        if (highlightTimerRef.current) {
+          clearTimeout(highlightTimerRef.current);
+        }
+        setHighlightedMessageId(null);
+        requestAnimationFrame(() => {
+          setHighlightedMessageId(targetMessageId);
+          highlightTimerRef.current = setTimeout(() => {
+            setHighlightedMessageId(null);
+          }, 1900);
+        });
+      } else {
+        showToast("未找到被引用的原文，该消息可能已被删除");
+      }
+    }, 60);
+  };
+
+  // 打字指示器状态管理 (userId -> { username, timer })
+  const [typingUsersMap, setTypingUsersMap] = useState<
+    Map<string, { username: string; timer: any }>
+  >(new Map());
+  const lastTypingSentRef = useRef<number>(0);
+
+  // 切换频道时重置本地打字定时器与输入节流
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    setTypingUsersMap((prev) => {
+      prev.forEach((val) => clearTimeout(val.timer));
+      return new Map();
+    });
+    lastTypingSentRef.current = 0;
+  }, [channel.id]);
+
+  // 监听实时 TYPING_START 与 MESSAGE_CREATE 网关事件
+  useEffect(() => {
+    const unsubscribeTyping = gatewayClient.on(
+      GatewayEvents.TYPING_START,
+      (payload: TypingIndicatorPayload) => {
+        if (!payload || payload.channelId !== channel.id) return;
+        if (payload.userId === currentUser.id) return;
+
+        setTypingUsersMap((prev) => {
+          const next = new Map(prev);
+          const existing = next.get(payload.userId);
+          if (existing) {
+            clearTimeout(existing.timer);
+          }
+          const timer = setTimeout(() => {
+            setTypingUsersMap((current) => {
+              const updated = new Map(current);
+              updated.delete(payload.userId);
+              return updated;
+            });
+          }, 7000); // 7 秒 TTL 自动消除
+          next.set(payload.userId, {
+            username: payload.user?.username || "未知用户",
+            timer,
+          });
+          return next;
+        });
+      },
+    );
+
+    const unsubscribeMessage = gatewayClient.on(
+      GatewayEvents.MESSAGE_CREATE,
+      (msg: Message) => {
+        if (!msg || msg.channelId !== channel.id) return;
+        setTypingUsersMap((prev) => {
+          if (!prev.has(msg.authorId)) return prev;
+          const existing = prev.get(msg.authorId);
+          if (existing) clearTimeout(existing.timer);
+          const next = new Map(prev);
+          next.delete(msg.authorId);
+          return next;
+        });
+      },
+    );
+
+    return () => {
+      unsubscribeTyping();
+      unsubscribeMessage();
+    };
+  }, [channel.id, currentUser.id]);
+
+  // 当收到新消息时，若该作者正在打字，立即清除其打字状态
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const latestMsg = messages[messages.length - 1];
+    setTypingUsersMap((prev) => {
+      if (!prev.has(latestMsg.authorId)) return prev;
+      const existing = prev.get(latestMsg.authorId);
+      if (existing) clearTimeout(existing.timer);
+      const next = new Map(prev);
+      next.delete(latestMsg.authorId);
+      return next;
+    });
+  }, [messages]);
+
+  // 用户输入变动与打字状态节流发送 (3.5 秒窗口)
+  const handleInputChange = (text: string) => {
+    setInputText(text);
+    if (text.trim().length > 0) {
+      const now = Date.now();
+      if (now - lastTypingSentRef.current > 3500) {
+        lastTypingSentRef.current = now;
+        gatewayClient.sendTyping(channel.id);
+      }
+    }
+  };
+
+  // 切换频道时重置滚动到底部，并重置高亮与离开状态
+  useEffect(() => {
+    scrollToBottom(false);
+    setIsNearBottom(true);
+    setHighlightedMessageId(null);
+  }, [channel.id]);
+
+  // 新消息到达时：如果原本就在底部，或者发送者是当前用户自己，自动平滑滚到底部
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const latestMsg = messages[messages.length - 1];
+    const isMyMessage = latestMsg?.authorId === currentUser.id;
+    if (isNearBottom || isMyMessage) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
 
   // 监听全局 @提及 事件（来自右侧成员列表或用户浮层），追加至文本框并聚焦
@@ -724,6 +935,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     mentionInputRef.current?.clear();
     setReplyingTo(null);
     setPendingAttachments([]);
+    lastTypingSentRef.current = 0;
   };
 
   const handleSend = async (e: React.FormEvent) => {
@@ -750,7 +962,18 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-discord-chat relative">
+    <div
+      className="flex-1 flex flex-col h-full bg-discord-chat relative"
+      data-channel-id={channel.id}
+    >
+      {/* 全局轻量提示浮层（如引用原消息未找到/已删除） */}
+      {toastMessage && (
+        <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-[#111214]/95 border border-discord-danger/50 text-discord-danger px-4 py-2 rounded-lg shadow-2xl text-xs flex items-center space-x-2 animate-fade-in backdrop-blur-md">
+          <ShieldAlert className="w-4 h-4 flex-shrink-0" />
+          <span>{toastMessage}</span>
+        </div>
+      )}
+
       {/* 顶部标题栏 */}
       <div className="h-12 border-b border-[#232428] px-3 sm:px-4 flex items-center justify-between shadow-sm flex-shrink-0">
         <div className="flex items-center space-x-2 min-w-0">
@@ -853,56 +1076,119 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         </div>
       )}
 
-      {/* 聊天内容流 */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
-        {/* 欢迎卡片 */}
-        <div className="pt-4 pb-2 border-b border-[#35373c] mb-4">
-          <div className="w-16 h-16 rounded-full bg-[#2b2d31] flex items-center justify-center mb-2">
-            {channel.isE2EE ? (
-              <Lock className="w-8 h-8 text-discord-green" />
-            ) : (
-              <Hash className="w-8 h-8 text-discord-textHeader" />
-            )}
+      {/* 消息视口区域主容器：包含吸顶历史提示横幅与上下边缘渐变模糊遮罩 */}
+      <div className="flex-1 relative min-h-0 overflow-hidden flex flex-col">
+        {/* 顶部悬浮“正在查看较旧的消息”横幅 (Discord 经典 Full-width Top Banner) */}
+        {!isNearBottom && (
+          <div
+            onClick={() => scrollToBottom(true)}
+            className="absolute top-0 inset-x-0 z-20 animate-slide-down bg-[#2b2d31]/95 backdrop-blur-md border-b border-[#35373c] px-4 py-2 flex items-center justify-between shadow-md cursor-pointer hover:bg-[#313338] transition group"
+            title="跳到最新消息"
+            role="button"
+          >
+            <div className="flex items-center space-x-2 text-xs text-discord-textMuted">
+              <History className="w-4 h-4 text-discord-brand flex-shrink-0 group-hover:text-discord-brand-hover transition-colors" />
+              <span className="text-discord-textHeader font-medium">您正在查看较旧的消息</span>
+            </div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                scrollToBottom(true);
+              }}
+              className="flex items-center space-x-1.5 px-3 py-1 rounded bg-discord-brand hover:bg-[#4752c4] text-white text-xs font-semibold shadow transition transform active:scale-95 cursor-pointer"
+            >
+              <span>跳到最新</span>
+              <ChevronDown className="w-3.5 h-3.5 transition-transform group-hover:translate-y-0.5" />
+            </button>
           </div>
-          <h2 className="text-2xl font-bold text-discord-textHeader">
-            欢迎来到 #{channel.name}!
-          </h2>
-          <p className="text-sm text-discord-textMuted mt-1">
-            {channel.isE2EE
-              ? "这是一个端到端双棘轮加密绝密频道，所有消息均在客户端本地密文封装，服务器仅充当盲中继，零明文存储。"
-              : `这是 #${channel.name} 频道的起点。畅所欲言吧！`}
-          </p>
+        )}
+
+        {/* 顶部渐变模糊遮罩 (Gradient + Backdrop Blur + Mask, 滚动离开最顶部时平滑淡入) */}
+        <div
+          className={`absolute top-0 inset-x-0 h-7 pointer-events-none z-10 transition-opacity duration-300 ${
+            hasScrolledTop ? "opacity-100" : "opacity-0"
+          }`}
+          style={{
+            backdropFilter: "blur(4px)",
+            WebkitMaskImage: "linear-gradient(to bottom, black 0%, transparent 100%)",
+            maskImage: "linear-gradient(to bottom, black 0%, transparent 100%)",
+          }}
+        >
+          <div className="w-full h-full bg-gradient-to-b from-discord-chat/80 to-transparent" />
         </div>
 
-        {/* 消息项 */}
-        {displayedMessages.map((msg) => (
-          <ChatMessageItem
-            key={msg.id}
-            msg={msg}
-            guild={guild}
-            currentUser={currentUser}
-            decryptedContents={decryptedContents}
-            isMobile={isMobile}
-            activeEmojiPickerMsgId={activeEmojiPickerMsgId}
-            setActiveEmojiPickerMsgId={setActiveEmojiPickerMsgId}
-            setReplyingTo={(m: Message) => setReplyingTo(m)}
-            onTogglePin={onTogglePin}
-            onDeleteMessage={onDeleteMessage}
-            onReactionAdd={onReactionAdd}
-            onReactionRemove={onReactionRemove}
-            setLightboxImage={setLightboxImage}
-            setInputText={setInputText}
-            onOpenMobileActions={(m: Message) => setMobileActionMessage(m)}
-            onMentionUser={(username) =>
-              mentionInputRef.current?.insertMention(username, username)
-            }
-            onOpenProfile={(author, rect) => handleOpenProfile(author, rect)}
-            onOpenProfileByName={(name, rect) =>
-              handleOpenProfileByName(name, rect)
-            }
-          />
-        ))}
-        <div ref={messagesEndRef} />
+        {/* 聊天内容流 */}
+        <div
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto p-4 space-y-3"
+        >
+          {/* 欢迎卡片 */}
+          <div className="pt-4 pb-2 border-b border-[#35373c] mb-4">
+            <div className="w-16 h-16 rounded-full bg-[#2b2d31] flex items-center justify-center mb-2">
+              {channel.isE2EE ? (
+                <Lock className="w-8 h-8 text-discord-green" />
+              ) : (
+                <Hash className="w-8 h-8 text-discord-textHeader" />
+              )}
+            </div>
+            <h2 className="text-2xl font-bold text-discord-textHeader">
+              欢迎来到 #{channel.name}!
+            </h2>
+            <p className="text-sm text-discord-textMuted mt-1">
+              {channel.isE2EE
+                ? "这是一个端到端双棘轮加密绝密频道，所有消息均在客户端本地密文封装，服务器仅充当盲中继，零明文存储。"
+                : `这是 #${channel.name} 频道的起点。畅所欲言吧！`}
+            </p>
+          </div>
+
+          {/* 消息项 */}
+          {displayedMessages.map((msg) => (
+            <ChatMessageItem
+              key={msg.id}
+              msg={msg}
+              guild={guild}
+              currentUser={currentUser}
+              decryptedContents={decryptedContents}
+              isMobile={isMobile}
+              activeEmojiPickerMsgId={activeEmojiPickerMsgId}
+              setActiveEmojiPickerMsgId={setActiveEmojiPickerMsgId}
+              setReplyingTo={(m: Message) => setReplyingTo(m)}
+              onTogglePin={onTogglePin}
+              onDeleteMessage={onDeleteMessage}
+              onReactionAdd={onReactionAdd}
+              onReactionRemove={onReactionRemove}
+              setLightboxImage={setLightboxImage}
+              setInputText={setInputText}
+              onOpenMobileActions={(m: Message) => setMobileActionMessage(m)}
+              onMentionUser={(username) =>
+                mentionInputRef.current?.insertMention(username, username)
+              }
+              onOpenProfile={(author, rect) => handleOpenProfile(author, rect)}
+              onOpenProfileByName={(name, rect) =>
+                handleOpenProfileByName(name, rect)
+              }
+              isHighlighted={highlightedMessageId === msg.id}
+              onJumpToMessage={handleJumpToMessage}
+            />
+          ))}
+          <div ref={messagesEndRef} />
+        </div>
+
+        {/* 底部渐变模糊遮罩 (Gradient + Backdrop Blur + Mask, 离开底部时平滑淡入) */}
+        <div
+          className={`absolute bottom-0 inset-x-0 h-7 pointer-events-none z-10 transition-opacity duration-300 ${
+            !isNearBottom ? "opacity-100" : "opacity-0"
+          }`}
+          style={{
+            backdropFilter: "blur(4px)",
+            WebkitMaskImage: "linear-gradient(to top, black 0%, transparent 100%)",
+            maskImage: "linear-gradient(to top, black 0%, transparent 100%)",
+          }}
+        >
+          <div className="w-full h-full bg-gradient-to-t from-discord-chat/80 to-transparent" />
+        </div>
       </div>
 
       {/* 底部输入与附件区 */}
@@ -1010,7 +1296,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             roles={guild?.roles || []}
             onSendMessage={(text) => executeSendMessage(text)}
             onPasteFiles={(files) => handleFilesSelected(files)}
-            onChangeText={(text) => setInputText(text)}
+            onChangeText={(text) => handleInputChange(text)}
           />
 
           {/* 输入框表情选择器 */}
@@ -1044,6 +1330,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             <Send className="w-4 h-4 ml-0.5" />
           </button>
         </form>
+
+        {/* 输入框正下方的 Discord 经典原生风格打字指示器 (固定 20px 高度无回流) */}
+        <TypingIndicator
+          typingUsers={Array.from(typingUsersMap.entries()).map(
+            ([id, val]) => ({ id, username: val.username }),
+          )}
+        />
       </div>
 
       {/* 阶段五：端到端双棘轮密钥安全码与加密指纹模态框 */}

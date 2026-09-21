@@ -1,5 +1,10 @@
 import React, { useState, useEffect } from "react";
-import { audioEngine, ABTestResult } from "../services/audioEngine.js";
+import {
+  audioEngine,
+  ABTestResult,
+  TripleABTestResult,
+} from "../services/audioEngine.js";
+import { NoiseSuppressionMode } from "@tescord/types";
 import { livekitService } from "../services/livekit.js";
 import {
   Sparkles,
@@ -15,6 +20,8 @@ import {
   Cpu,
   Keyboard,
   Clock,
+  Zap,
+  ShieldCheck,
 } from "lucide-react";
 
 interface AudioSettingsModalProps {
@@ -34,10 +41,10 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
   // 按键录制状态
   const [isRecordingKeybind, setIsRecordingKeybind] = useState(false);
 
-  // A/B 降噪录音对比小工具状态
+  // A/B 降噪录音对比小工具状态 (升级为三轨并排对比)
   const [isABTesting, setIsABTesting] = useState(false);
   const [abCountdown, setABCountdown] = useState(5);
-  const [abResult, setABResult] = useState<ABTestResult | null>(null);
+  const [abResult, setABResult] = useState<TripleABTestResult | null>(null);
   const [abError, setABError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -108,6 +115,16 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
 
   if (!isOpen) return null;
 
+  const handleNoiseModeChange = (mode: NoiseSuppressionMode) => {
+    const newCfg = {
+      ...config,
+      noiseSuppressionMode: mode,
+      noiseSuppression: mode !== "off",
+    };
+    setConfig(newCfg);
+    audioEngine.setNoiseSuppressionMode(mode);
+  };
+
   const handleToggle = (key: keyof typeof config) => {
     const nextVal = !config[key];
     const newCfg = { ...config, [key]: nextVal };
@@ -160,7 +177,7 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
       setABResult(null);
       setABError(null);
 
-      const result = await audioEngine.recordABComparison(5, (sec) => {
+      const result = await audioEngine.recordTripleABComparison(5, (sec) => {
         setABCountdown(sec);
       });
 
@@ -195,40 +212,102 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
 
         {/* 选项内容滚动区 */}
         <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar">
-          {/* 1. RNNoise 神经网络降噪 */}
+          {/* 1. 双引擎 AI 神经网络降噪模式选择器 */}
           <div className="bg-[#2b2d31] p-4 rounded-xl border border-[#383a40]">
-            <div className="flex items-start justify-between">
-              <div className="flex items-start space-x-3">
-                <div className="p-2.5 bg-discord-green/20 text-discord-green rounded-lg mt-0.5">
-                  <Sparkles className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="text-sm font-bold text-discord-textHeader flex items-center space-x-2">
-                    <span>RNNoise 神经网络深度降噪</span>
-                    <span className="text-[10px] bg-discord-green text-white px-2 py-0.5 rounded-full font-semibold flex items-center space-x-1">
-                      <Cpu className="w-3 h-3" />
-                      <span>WASM 480 采样点分帧</span>
-                    </span>
-                  </div>
-                  <p className="text-xs text-discord-textMuted mt-1 leading-relaxed">
-                    在 Web Audio 独立的 AudioWorklet 隔离线程中运行 RNN
-                    递归神经网络模型，毫秒级消除机械键盘轴体声、风扇风噪及室内混响底噪，保证人声清脆通透。
-                  </p>
-                </div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center space-x-2">
+                <Sparkles className="w-5 h-5 text-discord-green" />
+                <span className="text-sm font-bold text-discord-textHeader">
+                  RNNoise 神经网络深度降噪 (DTLN 双引擎)
+                </span>
               </div>
+              <span className="text-[10px] bg-discord-green/20 text-discord-green px-2 py-0.5 rounded-full font-bold flex items-center space-x-1">
+                <Cpu className="w-3 h-3" />
+                <span>
+                  {config.noiseSuppressionMode === "dtln"
+                    ? "DTLN 双流 LSTM (消键盘音)"
+                    : config.noiseSuppressionMode === "off" || !config.noiseSuppression
+                      ? "直通模式 (未降噪)"
+                      : "RNNoise WASM 480分帧"}
+                </span>
+              </span>
+            </div>
+
+            <p className="text-xs text-discord-textMuted mb-3 leading-relaxed">
+              支持在独立的 AudioWorklet 隔离线程中运行 RNN / LSTM 神经网络模型。RNNoise 专注极速底噪滤除，DTLN 专注消除机械键盘青轴敲击与非平稳爆音。
+            </p>
+
+            {/* 3 档分段卡片选择器 */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              {/* 模式 1: 关闭 */}
               <button
-                onClick={() => handleToggle("noiseSuppression")}
-                className={`w-12 h-6 flex items-center rounded-full p-1 transition duration-300 ml-4 flex-shrink-0 ${
-                  config.noiseSuppression
-                    ? "bg-discord-green"
-                    : "bg-discord-sidebar"
+                type="button"
+                onClick={() => handleNoiseModeChange("off")}
+                className={`p-3 rounded-lg border text-left transition flex flex-col justify-between ${
+                  config.noiseSuppressionMode === "off" || !config.noiseSuppression
+                    ? "border-discord-danger bg-discord-danger/10 text-white shadow-sm"
+                    : "border-[#383a40] bg-[#1e1f22] text-discord-textNormal hover:bg-[#35373c]"
                 }`}
               >
-                <div
-                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition duration-300 ${
-                    config.noiseSuppression ? "translate-x-6" : "translate-x-0"
-                  }`}
-                />
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-xs">直通原声 (未降噪)</span>
+                    {(config.noiseSuppressionMode === "off" || !config.noiseSuppression) && (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-discord-danger" />
+                    )}
+                  </div>
+                  <p className="text-[10px] text-discord-textMuted">
+                    原始麦克风直通，适合安静录音室或硬件声卡降噪
+                  </p>
+                </div>
+              </button>
+
+              {/* 模式 2: RNNoise 标准轻量 */}
+              <button
+                type="button"
+                onClick={() => handleNoiseModeChange("rnnoise")}
+                className={`p-3 rounded-lg border text-left transition flex flex-col justify-between ${
+                  config.noiseSuppressionMode === "rnnoise" && config.noiseSuppression
+                    ? "border-discord-brand bg-discord-brand/10 text-white shadow-sm"
+                    : "border-[#383a40] bg-[#1e1f22] text-discord-textNormal hover:bg-[#35373c]"
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-xs">RNNoise 标准轻量</span>
+                    {config.noiseSuppressionMode === "rnnoise" && config.noiseSuppression && (
+                      <CheckCircle2 className="w-3.5 h-3.5 text-discord-brand" />
+                    )}
+                  </div>
+                  <p className="text-[10px] text-discord-textMuted">
+                    150KB WASM 极低算力，消除风扇风噪与平稳室内底噪
+                  </p>
+                </div>
+              </button>
+
+              {/* 模式 3: DTLN 深度净化 (推荐消除机械键盘音) */}
+              <button
+                type="button"
+                onClick={() => handleNoiseModeChange("dtln")}
+                className={`p-3 rounded-lg border text-left transition flex flex-col justify-between relative overflow-hidden ${
+                  config.noiseSuppressionMode === "dtln" && config.noiseSuppression
+                    ? "border-discord-green bg-discord-green/10 text-white shadow-sm ring-1 ring-discord-green/30"
+                    : "border-[#383a40] bg-[#1e1f22] text-discord-textNormal hover:bg-[#35373c]"
+                }`}
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold text-xs flex items-center space-x-1">
+                      <span>DTLN 深度净化</span>
+                    </span>
+                    <span className="text-[9px] bg-discord-green text-black px-1.5 py-0.2 rounded font-bold">
+                      消键盘音
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-discord-textMuted">
+                    时频双流 LSTM，专攻青轴打字、敲桌瞬态爆音
+                  </p>
+                </div>
               </button>
             </div>
           </div>
@@ -562,25 +641,28 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
             )}
           </div>
 
-          {/* 7. 降噪前后效果对比测试录音小工具 (A/B Test Tool) */}
+          {/* 7. 降噪前后效果对比测试录音小工具 (三轨 A/B/C Test Tool) */}
           <div className="bg-[#232428] p-4 rounded-xl border border-[#383a40]">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center space-x-2">
                 <Sliders className="w-4 h-4 text-discord-brand" />
                 <span className="text-sm font-bold text-discord-textHeader">
-                  AI 降噪前后效果 A/B 录音试听对比
+                  AI 降噪前后效果三轨录音试听对比
                 </span>
               </div>
               {abResult && (
-                <span className="text-xs bg-discord-green/20 text-discord-green px-2 py-0.5 rounded-full font-bold flex items-center space-x-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>+{abResult.noiseReductionDb} dB 噪声衰减</span>
-                </span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-[11px] bg-discord-brand/20 text-discord-brand px-2 py-0.5 rounded-full font-bold">
+                    RNNoise +{abResult.rnnoiseDbReduction} dB
+                  </span>
+                  <span className="text-[11px] bg-discord-green/20 text-discord-green px-2 py-0.5 rounded-full font-bold">
+                    DTLN +{abResult.dtlnDbReduction} dB
+                  </span>
+                </div>
               )}
             </div>
             <p className="text-xs text-discord-textMuted mb-3">
-              点击下方按钮录制 5 秒音频，系统将同时捕获原始带噪声音频与 RNNoise
-              神经网络滤噪音频供您直观回放对比。
+              点击下方按钮录制 5 秒音频，系统将同时捕获原始带噪声音频、RNNoise 滤噪及 DTLN 深度消键盘音音频供您同屏试听对比。
             </p>
 
             {abError && (
@@ -598,11 +680,12 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
 
             {!isABTesting && !abResult && (
               <button
+                type="button"
                 onClick={runABComparisonTest}
                 className="w-full py-2.5 rounded-lg bg-discord-brand hover:bg-discord-brand-hover text-white text-sm font-semibold transition flex items-center justify-center space-x-2 shadow-md"
               >
                 <Mic className="w-4 h-4" />
-                <span>开始 5 秒环境杂音录音测试</span>
+                <span>开始 5 秒环境与键盘杂音多轨录音测试</span>
               </button>
             )}
 
@@ -610,7 +693,7 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
               <div className="bg-[#1e1f22] p-4 rounded-lg flex flex-col items-center justify-center border border-discord-brand/40">
                 <div className="w-10 h-10 rounded-full border-4 border-discord-brand/20 border-t-discord-brand animate-spin mb-2" />
                 <div className="text-sm font-bold text-white flex items-center space-x-1.5">
-                  <span>请尝试敲击键盘、吹气或说话...</span>
+                  <span>请尝试敲击机械键盘、吹气或说话...</span>
                   <span className="text-discord-green">({abCountdown}s)</span>
                 </div>
                 <div className="w-48 h-1.5 bg-[#2b2d31] rounded-full overflow-hidden mt-3">
@@ -624,12 +707,15 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
 
             {abResult && (
               <div className="space-y-3 pt-1 animate-fadeIn">
-                <div className="grid grid-cols-2 gap-3">
-                  {/* 原始音频 */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  {/* 1. 原始音频 */}
                   <div className="bg-[#1e1f22] p-3 rounded-lg border border-[#313338]">
-                    <div className="text-xs font-bold text-discord-textMuted mb-1.5 flex items-center space-x-1">
-                      <Volume2 className="w-3.5 h-3.5 text-discord-danger" />
-                      <span>原始未滤噪音轨 (含敲击杂音)</span>
+                    <div className="text-xs font-bold text-discord-textMuted mb-1.5 flex items-center justify-between">
+                      <div className="flex items-center space-x-1">
+                        <Volume2 className="w-3.5 h-3.5 text-discord-danger" />
+                        <span>原始未滤音轨</span>
+                      </div>
+                      <span className="text-[10px] text-discord-textMuted">含敲击爆音</span>
                     </div>
                     <audio
                       src={abResult.rawUrl}
@@ -638,22 +724,50 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
                     />
                   </div>
 
-                  {/* 降噪音频 */}
-                  <div className="bg-[#1e1f22] p-3 rounded-lg border border-discord-green/30">
-                    <div className="text-xs font-bold text-discord-green mb-1.5 flex items-center space-x-1">
-                      <Sparkles className="w-3.5 h-3.5" />
-                      <span>RNNoise 滤噪后音轨 (纯净人声)</span>
+                  {/* 2. RNNoise 降噪 */}
+                  <div className="bg-[#1e1f22] p-3 rounded-lg border border-discord-brand/30">
+                    <div className="text-xs font-bold text-discord-brand mb-1.5 flex items-center justify-between">
+                      <div className="flex items-center space-x-1">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>RNNoise 滤噪</span>
+                      </div>
+                      <span className="text-[10px] bg-discord-brand/20 px-1.5 py-0.2 rounded font-bold">
+                        +{abResult.rnnoiseDbReduction} dB
+                      </span>
                     </div>
                     <audio
-                      src={abResult.denoisedUrl}
+                      src={abResult.rnnoiseUrl}
+                      controls
+                      className="w-full h-8 outline-none"
+                    />
+                  </div>
+
+                  {/* 3. DTLN 深度降噪 */}
+                  <div className="bg-[#1e1f22] p-3 rounded-lg border border-discord-green/40 ring-1 ring-discord-green/20">
+                    <div className="text-xs font-bold text-discord-green mb-1.5 flex items-center justify-between">
+                      <div className="flex items-center space-x-1">
+                        <Zap className="w-3.5 h-3.5" />
+                        <span>DTLN 深度净化</span>
+                      </div>
+                      <span className="text-[10px] bg-discord-green/20 text-discord-green px-1.5 py-0.2 rounded font-bold">
+                        +{abResult.dtlnDbReduction} dB
+                      </span>
+                    </div>
+                    <audio
+                      src={abResult.dtlnUrl}
                       controls
                       className="w-full h-8 outline-none"
                     />
                   </div>
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex justify-between items-center pt-1">
+                  <span className="text-[11px] text-discord-green flex items-center space-x-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>DTLN 对机械键盘瞬态脉冲噪声实现显著声学压制</span>
+                  </span>
                   <button
+                    type="button"
                     onClick={runABComparisonTest}
                     className="px-3 py-1.5 text-xs text-discord-textMuted hover:text-white rounded bg-[#2b2d31] hover:bg-[#35373c] transition flex items-center space-x-1.5"
                   >

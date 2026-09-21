@@ -6,21 +6,23 @@ import {
   GuildMember,
   Message,
   VoiceState,
+  VoiceServerDisconnectPayload,
   Attachment,
   parseRoleIds,
+  NoiseSuppressionMode,
 } from "@tescord/types";
 import { Sidebar } from "./components/Sidebar.js";
-import { ChannelSidebar } from "./components/ChannelSidebar.js";
+import { ChannelSidebar, VoiceTransferNotice } from "./components/ChannelSidebar.js";
 import { ChatArea } from "./components/ChatArea.js";
 import { VoiceRoomArea } from "./components/VoiceRoomArea.js";
 import { MemberList } from "./components/MemberList.js";
-import { AudioSettingsModal } from "./components/AudioSettingsModal.js";
 import { AuthModal } from "./components/auth/AuthModal.js";
 import { UserSettingsModal } from "./components/settings/UserSettingsModal.js";
 import { ServerSettingsModal } from "./components/server-settings/ServerSettingsModal.js";
 import { CreateGuildModal } from "./components/modals/CreateGuildModal.js";
 import { JoinGuildModal } from "./components/modals/JoinGuildModal.js";
 import { CreateChannelModal } from "./components/modals/CreateChannelModal.js";
+import { EditChannelModal } from "./components/modals/EditChannelModal.js";
 import { ScreenShareModal } from "./components/modals/ScreenShareModal.js";
 import { NetworkQualityModal } from "./components/modals/NetworkQualityModal.js";
 import { FloatingPiP } from "./components/FloatingPiP.js";
@@ -91,17 +93,24 @@ export const App: React.FC = () => {
   >(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [voiceStates, setVoiceStates] = useState<VoiceState[]>([]);
+  const [voiceTransferNotice, setVoiceTransferNotice] =
+    useState<VoiceTransferNotice | null>(null);
 
   // 音频与多媒体状态
   const [isMuted, setIsMuted] = useState(false);
   const [isDeafened, setIsDeafened] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [isVideoEnabled, setIsVideoEnabled] = useState(false);
   const [activeScreenShare, setActiveScreenShare] =
     useState<ActiveScreenShare | null>(null);
   const [showFloatingPiP, setShowFloatingPiP] = useState(true);
   const [isNoiseSuppressionEnabled, setIsNoiseSuppressionEnabled] =
     useState(true);
+  const [noiseSuppressionMode, setNoiseSuppressionMode] =
+    useState<NoiseSuppressionMode>(
+      audioEngine.config.noiseSuppressionMode || "rnnoise",
+    );
   const [showMemberList, setShowMemberList] = useState(true);
 
   // 内部引用，保证长存事件与异步回调中始终读取最新状态
@@ -116,14 +125,26 @@ export const App: React.FC = () => {
   const handleToggleMuteRef = useRef<() => void>(() => {});
 
   // 模态框显隐状态
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
+  const [userSettingsInitialTab, setUserSettingsInitialTab] =
+    useState<"profile" | "audio">("profile");
+  const [userSettingsSubSection, setUserSettingsSubSection] =
+    useState<"voice" | "video" | undefined>(undefined);
+  const handleOpenUserSettings = (
+    tab: "profile" | "audio" = "profile",
+    subSection?: "voice" | "video",
+  ) => {
+    setUserSettingsInitialTab(tab);
+    setUserSettingsSubSection(subSection);
+    setIsUserSettingsOpen(true);
+  };
   const [isServerSettingsOpen, setIsServerSettingsOpen] = useState(false);
   const [serverSettingsTargetGuild, setServerSettingsTargetGuild] =
     useState<Guild | null>(null);
   const [isCreateGuildOpen, setIsCreateGuildOpen] = useState(false);
   const [isJoinGuildOpen, setIsJoinGuildOpen] = useState(false);
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
+  const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [isScreenShareModalOpen, setIsScreenShareModalOpen] = useState(false);
   const [isNetworkQualityModalOpen, setIsNetworkQualityModalOpen] =
     useState(false);
@@ -294,7 +315,9 @@ export const App: React.FC = () => {
     const unbindGuildCreate = gatewayClient.on(
       "GUILD_CREATE",
       (newGuild: Guild) => {
-        setGuilds((prev) => [...prev, newGuild]);
+        setGuilds((prev) =>
+          prev.some((g) => g.id === newGuild.id) ? prev : [...prev, newGuild],
+        );
       },
     );
 
@@ -302,13 +325,25 @@ export const App: React.FC = () => {
       "CHANNEL_CREATE",
       (newChannel: Channel) => {
         setGuilds((prev) =>
-          prev.map((g) =>
-            g.id === newChannel.guildId
-              ? { ...g, channels: [...g.channels, newChannel] }
-              : g,
-          ),
+          prev.map((g) => {
+            if (g.id !== newChannel.guildId) return g;
+            const exists = g.channels.some((c) => c.id === newChannel.id);
+            if (exists) {
+              return {
+                ...g,
+                channels: g.channels.map((c) =>
+                  c.id === newChannel.id ? newChannel : c,
+                ),
+              };
+            }
+            return { ...g, channels: [...g.channels, newChannel] };
+          }),
         );
-        if (newChannel.guildId === selectedGuildIdRef.current) {
+        // 仅当当前用户处于该公会且未选中任何频道时才自动聚焦，避免打扰正在其他频道聊天的成员
+        if (
+          newChannel.guildId === selectedGuildIdRef.current &&
+          !selectedChannelRef.current
+        ) {
           setSelectedChannel(newChannel);
         }
       },
@@ -519,6 +554,37 @@ export const App: React.FC = () => {
       },
     );
 
+    const unbindVoiceDisconnect = gatewayClient.on(
+      "VOICE_SERVER_DISCONNECT",
+      async (data: VoiceServerDisconnectPayload) => {
+        if (data.reason === "VOICE_TRANSFER") {
+          const prevChannel =
+            currentChannels.find(
+              (c) => c.id === activeVoiceChannelIdRef.current,
+            ) || selectedChannelRef.current;
+
+          // 1. 彻底释放麦克风硬件与媒体流
+          sframeManager.disable();
+          audioEngine.stop();
+          await livekitService.leaveRoom();
+
+          // 2. 播放挂断提示音
+          soundManager.play("VOICE_LEAVE");
+
+          // 3. 重置本地活跃状态
+          setActiveVoiceChannelId(null);
+          setIsSpeaking(false);
+          setIsScreenSharing(false);
+
+          // 4. 展示转移提示卡片
+          setVoiceTransferNotice({
+            targetPlatform: data.targetPlatform || "其他设备",
+            previousChannel: prevChannel || null,
+          });
+        }
+      },
+    );
+
     return () => {
       unbindReady();
       unbindMsgCreate();
@@ -539,9 +605,29 @@ export const App: React.FC = () => {
       unbindChannelUpdate();
       unbindMemberRemove();
       unbindVoice();
+      unbindVoiceDisconnect();
       gatewayClient.disconnect();
     };
   }, [isAuthenticated, currentUser?.id]);
+
+  // 监听 LiveKit SFU 底层断开回调（仅在 DUPLICATE_IDENTITY 媒体层冲突被踢时触发兜底）
+  useEffect(() => {
+    const unbindLiveKitDisconnect = livekitService.onDisconnected((reason) => {
+      if (
+        activeVoiceChannelIdRef.current &&
+        (reason === 2 || String(reason).toLowerCase().includes("duplicate"))
+      ) {
+        sframeManager.disable();
+        audioEngine.stop();
+        setActiveVoiceChannelId(null);
+        setIsSpeaking(false);
+        setIsScreenSharing(false);
+      }
+    });
+    return () => {
+      unbindLiveKitDisconnect();
+    };
+  }, []);
 
   // 麦克风音量 VAD 感应与说话状态驱动 (纯本地 Web Audio 处理，独立于网关长连接生命周期)
   useEffect(() => {
@@ -762,40 +848,39 @@ export const App: React.FC = () => {
     }
   };
 
-  // 业务：编辑频道名称与信息 (右键菜单调用)
-  const handleEditChannel = async (channel: Channel) => {
-    const newName = window.prompt("请输入新的频道名称：", channel.name);
-    if (!newName || !newName.trim() || newName.trim() === channel.name) return;
-    try {
-      const token = localStorage.getItem("tescord_access_token");
-      const res = await fetch(`${API_BASE}/api/channels/${channel.id}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ name: newName.trim() }),
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        setGuilds((prev) =>
-          prev.map((g) =>
-            g.id === channel.guildId
-              ? {
-                  ...g,
-                  channels: g.channels.map((c) =>
-                    c.id === channel.id ? updated : c,
-                  ),
-                }
-              : g,
-          ),
-        );
-        if (selectedChannel?.id === channel.id) {
-          setSelectedChannel(updated);
-        }
-      }
-    } catch (err) {
-      console.error("Failed to update channel:", err);
+  // 业务：编辑频道名称与信息 (打开编辑频道 Modal)
+  const handleEditChannel = (channel: Channel) => {
+    setEditingChannel(channel);
+  };
+
+  const handleChannelUpdated = (updated: Channel) => {
+    setGuilds((prev) =>
+      prev.map((g) =>
+        g.id === updated.guildId
+          ? {
+              ...g,
+              channels: g.channels.map((c) =>
+                c.id === updated.id ? updated : c,
+              ),
+            }
+          : g,
+      ),
+    );
+    if (selectedChannel?.id === updated.id) {
+      setSelectedChannel(updated);
+    }
+  };
+
+  const handleChannelDeletedFromModal = (channelId: string) => {
+    setGuilds((prev) =>
+      prev.map((g) => ({
+        ...g,
+        channels: g.channels.filter((c) => c.id !== channelId),
+      })),
+    );
+    if (selectedChannel?.id === channelId) {
+      const remaining = currentChannels.filter((c) => c.id !== channelId);
+      setSelectedChannel(remaining.length > 0 ? remaining[0] : null);
     }
   };
 
@@ -887,6 +972,7 @@ export const App: React.FC = () => {
   // 加入语音频道
   const handleJoinVoiceChannel = async (channel: Channel) => {
     if (!currentUser) return;
+    setVoiceTransferNotice(null);
     setActiveVoiceChannelId(channel.id);
     setSelectedChannel(channel);
 
@@ -903,9 +989,13 @@ export const App: React.FC = () => {
     const processedStream = audioEngine.getStream();
 
     try {
+      const token = useAuthStore.getState().token;
       const res = await fetch(`${API_BASE}/api/livekit/token`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           roomName: channel.id,
           identity: currentUser.id,
@@ -931,7 +1021,7 @@ export const App: React.FC = () => {
     gatewayClient.updateVoiceState(channel.guildId, channel.id, {
       selfMute: isMuted,
       selfDeaf: isDeafened,
-      selfVideo: false,
+      selfVideo: isVideoEnabled,
       streaming: isScreenSharing,
     });
   };
@@ -941,6 +1031,11 @@ export const App: React.FC = () => {
     if (!activeVoiceChannelId || !selectedGuildId) return;
 
     const leavingChannelId = activeVoiceChannelId;
+
+    if (isVideoEnabled) {
+      await livekitService.setCameraEnabled(false);
+      setIsVideoEnabled(false);
+    }
 
     // 清理 SFrame 语音加密管线状态
     sframeManager.disable();
@@ -960,6 +1055,7 @@ export const App: React.FC = () => {
     setActiveVoiceChannelId(null);
     setIsSpeaking(false);
     setIsScreenSharing(false);
+    setVoiceTransferNotice(null);
 
     // 退出语音频道视角：自动平滑切换回当前公会的第一个/默认文字频道
     if (selectedChannel?.id === leavingChannelId || selectedChannel?.type === "VOICE") {
@@ -979,7 +1075,7 @@ export const App: React.FC = () => {
       gatewayClient.updateVoiceState(selectedGuildId, activeVoiceChannelId, {
         selfMute: nextMuted,
         selfDeaf: isDeafened,
-        selfVideo: false,
+        selfVideo: isVideoEnabled,
         streaming: isScreenSharing,
       });
     }
@@ -1000,17 +1096,47 @@ export const App: React.FC = () => {
       gatewayClient.updateVoiceState(selectedGuildId, activeVoiceChannelId, {
         selfMute: nextDeafened ? true : isMuted,
         selfDeaf: nextDeafened,
-        selfVideo: false,
+        selfVideo: isVideoEnabled,
         streaming: isScreenSharing,
       });
     }
   };
 
-  // 切换 AI 降噪
+  // 切换摄像头直播推流
+  const handleToggleCamera = async () => {
+    if (!activeVoiceChannelId || !selectedGuildId) return;
+    const nextVideo = !isVideoEnabled;
+    setIsVideoEnabled(nextVideo);
+    gatewayClient.updateVoiceState(selectedGuildId, activeVoiceChannelId, {
+      selfMute: isMuted,
+      selfDeaf: isDeafened,
+      selfVideo: nextVideo,
+      streaming: isScreenSharing,
+    });
+    try {
+      await livekitService.setCameraEnabled(nextVideo);
+    } catch (e) {
+      console.warn("LiveKit camera toggle error:", e);
+    }
+  };
+
+  // 切换 AI 降噪 (支持三档轮转：RNNoise 标准轻量 -> DTLN 深度消键盘音 -> 关闭)
   const handleToggleNoiseSuppression = () => {
-    const nextVal = !isNoiseSuppressionEnabled;
-    setIsNoiseSuppressionEnabled(nextVal);
-    audioEngine.updateConfig({ noiseSuppression: nextVal });
+    const currentMode = noiseSuppressionMode;
+
+    let nextMode: NoiseSuppressionMode = "rnnoise";
+    if (currentMode === "rnnoise") {
+      nextMode = "dtln";
+    } else if (currentMode === "dtln") {
+      nextMode = "off";
+    } else {
+      nextMode = "rnnoise";
+    }
+
+    const nextEnabled = nextMode !== "off";
+    setIsNoiseSuppressionEnabled(nextEnabled);
+    setNoiseSuppressionMode(nextMode);
+    audioEngine.setNoiseSuppressionMode(nextMode);
   };
 
   // 切换屏幕分享 (打开选择弹窗或停止分享)
@@ -1022,7 +1148,7 @@ export const App: React.FC = () => {
       gatewayClient.updateVoiceState(selectedGuildId, activeVoiceChannelId, {
         selfMute: isMuted,
         selfDeaf: isDeafened,
-        selfVideo: false,
+        selfVideo: isVideoEnabled,
         streaming: false,
       });
     } else {
@@ -1102,7 +1228,7 @@ export const App: React.FC = () => {
       gatewayClient.updateVoiceState(selectedGuildId, activeVoiceChannelId, {
         selfMute: isMuted,
         selfDeaf: isDeafened,
-        selfVideo: false,
+        selfVideo: isVideoEnabled,
         streaming: true,
       });
     } catch (err) {
@@ -1175,6 +1301,9 @@ export const App: React.FC = () => {
         isDeafened={isDeafened}
         isSpeaking={isSpeaking}
         isNoiseSuppressionEnabled={isNoiseSuppressionEnabled}
+        voiceTransferNotice={voiceTransferNotice}
+        onDismissVoiceTransferNotice={() => setVoiceTransferNotice(null)}
+        onReclaimVoice={(ch) => handleJoinVoiceChannel(ch)}
         onSelectChannel={(ch) => {
           setSelectedChannel(ch);
           if (isDrawer) {
@@ -1190,10 +1319,12 @@ export const App: React.FC = () => {
         onLeaveVoiceChannel={handleLeaveVoiceChannel}
         onToggleMute={handleToggleMute}
         onToggleDeafen={handleToggleDeafen}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-        onOpenUserSettings={() => setIsUserSettingsOpen(true)}
+        onOpenSettings={() => handleOpenUserSettings("audio")}
+        onOpenUserSettings={() => handleOpenUserSettings("profile")}
         onOpenNetworkStats={() => setIsNetworkQualityModalOpen(true)}
         onToggleScreenShare={handleToggleScreenShare}
+        isVideoEnabled={isVideoEnabled}
+        onToggleVideo={handleToggleCamera}
         onOpenCreateChannel={() => setIsCreateChannelOpen(true)}
         onDeleteChannel={handleDeleteChannel}
         onEditChannel={handleEditChannel}
@@ -1234,13 +1365,17 @@ export const App: React.FC = () => {
           isMuted={isMuted}
           isSpeaking={isSpeaking}
           isNoiseSuppressionEnabled={isNoiseSuppressionEnabled}
+          noiseSuppressionMode={noiseSuppressionMode}
           isScreenSharing={isScreenSharing}
+          isVideoEnabled={isVideoEnabled}
           onToggleMute={handleToggleMute}
           onToggleScreenShare={handleToggleScreenShare}
+          onToggleVideo={handleToggleCamera}
           onToggleNoiseSuppression={handleToggleNoiseSuppression}
           onLeave={handleLeaveVoiceChannel}
           onJoin={() => handleJoinVoiceChannel(selectedChannel)}
           onToggleMobileDrawer={() => setIsMobileDrawerOpen((prev) => !prev)}
+          onOpenVideoSettings={() => handleOpenUserSettings("audio", "video")}
         />
       ) : selectedChannel ? (
         <ChatArea
@@ -1288,7 +1423,7 @@ export const App: React.FC = () => {
               guild={currentGuild}
               currentUser={currentUser}
               onSendMessage={handleSendMessage}
-              onOpenUserSettings={() => setIsUserSettingsOpen(true)}
+              onOpenUserSettings={() => handleOpenUserSettings("profile")}
               onMention={(username) => {
                 window.dispatchEvent(
                   new CustomEvent("tescord:mention", { detail: { username } }),
@@ -1347,7 +1482,7 @@ export const App: React.FC = () => {
                 guild={currentGuild}
                 currentUser={currentUser}
                 onSendMessage={handleSendMessage}
-                onOpenUserSettings={() => setIsUserSettingsOpen(true)}
+                onOpenUserSettings={() => handleOpenUserSettings("profile")}
                 onMention={(username) => {
                   window.dispatchEvent(
                     new CustomEvent("tescord:mention", { detail: { username } }),
@@ -1361,17 +1496,21 @@ export const App: React.FC = () => {
         </div>
       )}
 
-      {/* 5. 语音与智能降噪设置弹窗 */}
-      <AudioSettingsModal
-        isOpen={isSettingsOpen}
-        onClose={() => setIsSettingsOpen(false)}
-        isInCall={!!activeVoiceChannelId}
-      />
-
-      {/* 6. 用户个人中心弹窗 */}
+      {/* 5. 用户个人与系统设置中心 (包含个人资料与全新音频菜单) */}
       <UserSettingsModal
         isOpen={isUserSettingsOpen}
-        onClose={() => setIsUserSettingsOpen(false)}
+        initialTab={userSettingsInitialTab}
+        initialSubSection={userSettingsSubSection}
+        onClose={() => {
+          setIsUserSettingsOpen(false);
+          setNoiseSuppressionMode(
+            audioEngine.config.noiseSuppressionMode || "rnnoise",
+          );
+          setIsNoiseSuppressionEnabled(
+            audioEngine.config.noiseSuppression !== false,
+          );
+        }}
+        isInCall={!!activeVoiceChannelId}
       />
 
       {/* 7. 创建服务器弹窗 */}
@@ -1379,7 +1518,9 @@ export const App: React.FC = () => {
         isOpen={isCreateGuildOpen}
         onClose={() => setIsCreateGuildOpen(false)}
         onGuildCreated={(newGuild) => {
-          setGuilds((prev) => [...prev, newGuild]);
+          setGuilds((prev) =>
+            prev.some((g) => g.id === newGuild.id) ? prev : [...prev, newGuild],
+          );
           setSelectedGuildId(newGuild.id);
           if (newGuild.channels && newGuild.channels.length > 0) {
             setSelectedChannel(newGuild.channels[0]);
@@ -1406,17 +1547,21 @@ export const App: React.FC = () => {
           guildId={selectedGuildId}
           onClose={() => setIsCreateChannelOpen(false)}
           onChannelCreated={(newChannel) => {
-            setGuilds((prev) =>
-              prev.map((g) =>
-                g.id === newChannel.guildId
-                  ? { ...g, channels: [...g.channels, newChannel] }
-                  : g,
-              ),
-            );
+            // 方案 B：频道列表统一由 WebSocket CHANNEL_CREATE 驱动，此处仅由创建者本人主动聚焦新频道
             setSelectedChannel(newChannel);
           }}
         />
       )}
+
+      {/* 9.1 编辑频道弹窗 */}
+      <EditChannelModal
+        isOpen={!!editingChannel}
+        channel={editingChannel}
+        guild={currentGuild}
+        onClose={() => setEditingChannel(null)}
+        onChannelUpdated={handleChannelUpdated}
+        onChannelDeleted={handleChannelDeletedFromModal}
+      />
 
       {/* 10. 阶段四：屏幕分享与窗口选择弹窗 */}
       <ScreenShareModal

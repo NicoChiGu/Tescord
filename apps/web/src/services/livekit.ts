@@ -82,15 +82,35 @@ export class LiveKitService {
   > = new Set();
   private onActiveSpeakersChangedCallbacks: Set<(speakers: string[]) => void> =
     new Set();
+  private onDisconnectedCallbacks: Set<(reason?: any) => void> = new Set();
 
-  // 屏幕分享推流与订阅状态
+  // 屏幕分享推流与订阅状态 (支持多路屏幕分享映射: identity -> ActiveScreenShare)
   private localScreenVideoTrack: any = null;
   private localScreenAudioTrack: any = null;
   private localScreenStream: MediaStream | null = null;
   public activeScreenShare: ActiveScreenShare | null = null;
+  public screenSharesMap: Map<string, ActiveScreenShare> = new Map();
   private onScreenShareChangedCallbacks: Set<
     (share: ActiveScreenShare | null) => void
   > = new Set();
+  private onScreenSharesChangedCallbacks: Set<
+    (shares: Map<string, ActiveScreenShare>) => void
+  > = new Set();
+
+  // 摄像头视频推流与订阅状态 (identity -> video track)
+  public localCameraTrack: any = null;
+  public cameraTracksMap: Map<string, any> = new Map();
+  public selectedCameraDeviceId: string =
+    typeof localStorage !== "undefined"
+      ? localStorage.getItem("tescord_selected_camera_id") || "default"
+      : "default";
+  private onCameraTracksChangedCallbacks: Set<
+    (tracks: Map<string, any>) => void
+  > = new Set();
+  private onActiveCameraChangedCallbacks: Set<
+    (deviceId: string) => void
+  > = new Set();
+
 
   // 1. 初始化或获取共享的音频混音上下文 (含软压限器 Soft Limiter)
   private getOrCreatePlaybackContext(): AudioContext {
@@ -244,7 +264,7 @@ export class LiveKitService {
   private setupRoomEvents() {
     if (!this.room) return;
 
-    // 4.1 远端音视频轨订阅 (含屏幕分享)
+    // 4.1 远端音视频轨订阅 (含屏幕分享与摄像头)
     this.room.on(
       RoomEvent.TrackSubscribed,
       (track, publication, participant) => {
@@ -256,14 +276,25 @@ export class LiveKitService {
             publication.source === Track.Source.ScreenShare ||
             publication.trackName?.includes("screen"))
         ) {
-          this.activeScreenShare = {
+          const shareInfo: ActiveScreenShare = {
             track,
             participantIdentity: participant.identity,
             isLocal: false,
             resolution: "1080p (Simulcast)",
             frameRate: 60,
           };
+          this.screenSharesMap.set(participant.identity, shareInfo);
+          this.activeScreenShare = shareInfo;
+          this.notifyScreenSharesChanged();
           this.notifyScreenShareChanged();
+        } else if (
+          track.kind === Track.Kind.Video &&
+          (track.source === Track.Source.Camera ||
+            publication.source === Track.Source.Camera ||
+            publication.trackName?.includes("camera"))
+        ) {
+          this.cameraTracksMap.set(participant.identity, track);
+          this.notifyCameraTracksChanged();
         }
         this.onTrackSubscribedCallbacks.forEach((cb) =>
           cb(track, publication, participant),
@@ -277,12 +308,18 @@ export class LiveKitService {
       (track, publication, participant) => {
         if (track.kind === Track.Kind.Audio) {
           this.handleRemoteAudioUnsubscribed(participant.identity, track);
-        } else if (
-          track.kind === Track.Kind.Video &&
-          this.activeScreenShare?.participantIdentity === participant.identity
-        ) {
-          this.activeScreenShare = null;
-          this.notifyScreenShareChanged();
+        } else if (track.kind === Track.Kind.Video) {
+          if (this.screenSharesMap.has(participant.identity)) {
+            this.screenSharesMap.delete(participant.identity);
+            this.activeScreenShare =
+              this.screenSharesMap.values().next().value || null;
+            this.notifyScreenSharesChanged();
+            this.notifyScreenShareChanged();
+          }
+          if (this.cameraTracksMap.get(participant.identity) === track) {
+            this.cameraTracksMap.delete(participant.identity);
+            this.notifyCameraTracksChanged();
+          }
         }
       },
     );
@@ -298,9 +335,16 @@ export class LiveKitService {
     this.room.on(
       RoomEvent.ParticipantDisconnected,
       (participant: RemoteParticipant) => {
-        if (this.activeScreenShare?.participantIdentity === participant.identity) {
-          this.activeScreenShare = null;
+        if (this.screenSharesMap.has(participant.identity)) {
+          this.screenSharesMap.delete(participant.identity);
+          this.activeScreenShare =
+            this.screenSharesMap.values().next().value || null;
+          this.notifyScreenSharesChanged();
           this.notifyScreenShareChanged();
+        }
+        if (this.cameraTracksMap.has(participant.identity)) {
+          this.cameraTracksMap.delete(participant.identity);
+          this.notifyCameraTracksChanged();
         }
         this.handleRemoteAudioUnsubscribed(participant.identity);
         this.networkStatsMap.delete(participant.identity);
@@ -335,9 +379,10 @@ export class LiveKitService {
     );
 
     // 4.6 房间断开
-    this.room.on(RoomEvent.Disconnected, () => {
+    this.room.on(RoomEvent.Disconnected, (reason?: any) => {
       this.cleanup();
       this.notifyState(false);
+      this.onDisconnectedCallbacks.forEach((cb) => cb(reason));
     });
   }
 
@@ -674,14 +719,176 @@ export class LiveKitService {
     }
   }
 
-  async setCameraEnabled(enabled: boolean) {
+  getCameraDeviceId(): string {
+    return this.selectedCameraDeviceId;
+  }
+
+  onActiveCameraChange(callback: (deviceId: string) => void): () => void {
+    this.onActiveCameraChangedCallbacks.add(callback);
+    callback(this.selectedCameraDeviceId);
+    return () => {
+      this.onActiveCameraChangedCallbacks.delete(callback);
+    };
+  }
+
+  private notifyActiveCameraChanged() {
+    this.onActiveCameraChangedCallbacks.forEach((cb) => {
+      try {
+        cb(this.selectedCameraDeviceId);
+      } catch (err) {
+        console.warn("Active camera callback error:", err);
+      }
+    });
+  }
+
+  async switchCameraDevice(deviceId: string): Promise<boolean> {
+    this.selectedCameraDeviceId = deviceId;
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("tescord_selected_camera_id", deviceId);
+    }
+    this.notifyActiveCameraChanged();
+
+    const identity = this.room?.localParticipant?.identity || "local";
+    const isCurrentlyActive =
+      !!this.cameraTracksMap.get(identity) || !!this.localCameraTrack;
+
+    if (isCurrentlyActive) {
+      if (this.room && this.isConnected) {
+        try {
+          if (typeof (this.room as any).switchActiveDevice === "function") {
+            await (this.room as any).switchActiveDevice(
+              "videoinput",
+              deviceId === "default" ? "" : deviceId,
+            );
+          } else {
+            await this.room.localParticipant.setCameraEnabled(false);
+            const cameraOptions: any =
+              deviceId && deviceId !== "default"
+                ? { deviceId: { exact: deviceId } }
+                : undefined;
+            await this.room.localParticipant.setCameraEnabled(true, cameraOptions);
+          }
+          const pub = this.room.localParticipant.getTrackPublication(
+            Track.Source.Camera,
+          );
+          this.localCameraTrack = pub?.videoTrack || null;
+        } catch (e) {
+          console.warn("LiveKit switchActiveDevice error, falling back:", e);
+        }
+      }
+
+      // Fallback 模式或本地流更新
+      if (navigator.mediaDevices?.getUserMedia) {
+        try {
+          if (this.localCameraTrack && (!this.room || !this.isConnected)) {
+            if (typeof this.localCameraTrack.stop === "function") {
+              this.localCameraTrack.stop();
+            }
+            const videoConstraints: any =
+              deviceId && deviceId !== "default"
+                ? { deviceId: { exact: deviceId } }
+                : true;
+            const stream = await navigator.mediaDevices.getUserMedia({
+              video: videoConstraints,
+            });
+            this.localCameraTrack = stream.getVideoTracks()[0] || null;
+          }
+        } catch (e) {
+          console.warn("Fallback switch camera getUserMedia error:", e);
+        }
+      }
+
+      if (this.localCameraTrack) {
+        this.cameraTracksMap.set(identity, this.localCameraTrack);
+      } else {
+        this.cameraTracksMap.delete(identity);
+      }
+      this.notifyCameraTracksChanged();
+    }
+    return true;
+  }
+
+  async setCameraEnabled(enabled: boolean, deviceId?: string): Promise<boolean> {
+    const targetDeviceId = deviceId || this.selectedCameraDeviceId;
+    if (deviceId && deviceId !== this.selectedCameraDeviceId) {
+      this.selectedCameraDeviceId = deviceId;
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem("tescord_selected_camera_id", deviceId);
+      }
+      this.notifyActiveCameraChanged();
+    }
+
     if (this.room && this.isConnected) {
       try {
-        await this.room.localParticipant.setCameraEnabled(enabled);
+        const cameraOptions: any =
+          targetDeviceId && targetDeviceId !== "default"
+            ? { deviceId: { exact: targetDeviceId } }
+            : undefined;
+        await this.room.localParticipant.setCameraEnabled(enabled, cameraOptions);
+        const pub = this.room.localParticipant.getTrackPublication(
+          Track.Source.Camera,
+        );
+        this.localCameraTrack = pub?.videoTrack || null;
       } catch (e) {
         console.warn("LiveKit camera toggle:", e);
       }
     }
+
+    // 若当前未建立 LiveKit SFU 媒体连接 (如单机离线模式或 E2E 测试环境)，通过原生 getUserMedia 获取本地视频流
+    if (enabled && !this.localCameraTrack && navigator.mediaDevices?.getUserMedia) {
+      try {
+        const videoConstraints: any =
+          targetDeviceId && targetDeviceId !== "default"
+            ? { deviceId: { exact: targetDeviceId } }
+            : true;
+        const stream = await navigator.mediaDevices.getUserMedia({ video: videoConstraints });
+        this.localCameraTrack = stream.getVideoTracks()[0] || null;
+      } catch (e) {
+        console.warn("Local camera fallback getUserMedia error:", e);
+      }
+    } else if (!enabled && this.localCameraTrack && (!this.room || !this.isConnected)) {
+      try {
+        if (typeof this.localCameraTrack.stop === "function") {
+          this.localCameraTrack.stop();
+        }
+      } catch {}
+      this.localCameraTrack = null;
+    }
+
+    const identity = this.room?.localParticipant?.identity || "local";
+    if (this.localCameraTrack && enabled) {
+      this.cameraTracksMap.set(identity, this.localCameraTrack);
+    } else {
+      this.cameraTracksMap.delete(identity);
+      this.localCameraTrack = null;
+    }
+    this.notifyCameraTracksChanged();
+    return true;
+  }
+
+  onCameraTracksChange(
+    callback: (tracks: Map<string, any>) => void,
+  ): () => void {
+    this.onCameraTracksChangedCallbacks.add(callback);
+    callback(new Map(this.cameraTracksMap));
+    return () => {
+      this.onCameraTracksChangedCallbacks.delete(callback);
+    };
+  }
+
+  private notifyCameraTracksChanged() {
+    const copy = new Map(this.cameraTracksMap);
+    this.onCameraTracksChangedCallbacks.forEach((cb) => {
+      try {
+        cb(copy);
+      } catch (err) {
+        console.warn("LiveKit camera tracks callback error:", err);
+      }
+    });
+  }
+
+  getCameraTrack(identity: string): any {
+    return this.cameraTracksMap.get(identity) || null;
   }
 
   // 8. 阶段四：屏幕分享推流、Simulcast 与分辨率控制
@@ -689,7 +896,6 @@ export class LiveKitService {
     stream: MediaStream,
     options?: ScreenShareOptions,
   ): Promise<boolean> {
-    if (!this.room || !this.isConnected) return false;
     try {
       await this.stopScreenShare();
       this.localScreenStream = stream;
@@ -700,6 +906,31 @@ export class LiveKitService {
       const presetKey = options?.preset || "1080p60";
       const preset =
         SCREEN_SHARE_PRESETS[presetKey] || SCREEN_SHARE_PRESETS["1080p60"];
+
+      const localIdentity = this.room?.localParticipant?.identity || "local";
+
+      // 若当前未建立 LiveKit SFU 媒体连接 (如单机离线模式或 E2E 测试环境)，直接通过本地 MediaStreamTrack 维护状态
+      if (!this.room || !this.isConnected) {
+        this.localScreenVideoTrack = videoTrack;
+        videoTrack.onended = () => {
+          this.stopScreenShare();
+        };
+
+        const shareInfo: ActiveScreenShare = {
+          track: videoTrack,
+          participantIdentity: localIdentity,
+          isLocal: true,
+          preset: presetKey,
+          resolution: `${preset.width}x${preset.height}`,
+          frameRate: preset.frameRate,
+        };
+
+        this.screenSharesMap.set(localIdentity, shareInfo);
+        this.activeScreenShare = shareInfo;
+        this.notifyScreenSharesChanged();
+        this.notifyScreenShareChanged();
+        return true;
+      }
 
       // 发布屏幕视频轨 (启用 Simulcast 多清晰度广播: 1080p/720p/360p)
       await this.room.localParticipant.publishTrack(videoTrack, {
@@ -738,7 +969,7 @@ export class LiveKitService {
         this.stopScreenShare();
       };
 
-      this.activeScreenShare = {
+      const shareInfo: ActiveScreenShare = {
         track: videoTrack,
         audioTrack: this.localScreenAudioTrack,
         participantIdentity: this.room.localParticipant.identity,
@@ -748,6 +979,10 @@ export class LiveKitService {
         frameRate: preset.frameRate,
       };
 
+      this.screenSharesMap.set(this.room.localParticipant.identity, shareInfo);
+      this.activeScreenShare = shareInfo;
+
+      this.notifyScreenSharesChanged();
       this.notifyScreenShareChanged();
       return true;
     } catch (err) {
@@ -757,19 +992,24 @@ export class LiveKitService {
   }
 
   async stopScreenShare() {
-    if (!this.room) return;
     try {
+      if (this.room && this.isConnected) {
+        if (this.localScreenVideoTrack) {
+          await this.room.localParticipant.unpublishTrack(
+            this.localScreenVideoTrack,
+          );
+        }
+        if (this.localScreenAudioTrack) {
+          await this.room.localParticipant.unpublishTrack(
+            this.localScreenAudioTrack,
+          );
+        }
+      }
       if (this.localScreenVideoTrack) {
-        await this.room.localParticipant.unpublishTrack(
-          this.localScreenVideoTrack,
-        );
         this.localScreenVideoTrack.stop();
         this.localScreenVideoTrack = null;
       }
       if (this.localScreenAudioTrack) {
-        await this.room.localParticipant.unpublishTrack(
-          this.localScreenAudioTrack,
-        );
         this.localScreenAudioTrack.stop();
         this.localScreenAudioTrack = null;
       }
@@ -790,10 +1030,15 @@ export class LiveKitService {
 
     audioMixer.cleanup();
 
+    const localIdentity = this.room?.localParticipant?.identity || "local";
+    this.screenSharesMap.delete(localIdentity);
+
     if (this.activeScreenShare?.isLocal) {
-      this.activeScreenShare = null;
+      this.activeScreenShare =
+        this.screenSharesMap.values().next().value || null;
       this.notifyScreenShareChanged();
     }
+    this.notifyScreenSharesChanged();
   }
 
   setSubscribedScreenQuality(quality: "high" | "medium" | "low" | "auto") {
@@ -826,6 +1071,31 @@ export class LiveKitService {
     } catch (e) {
       console.warn("Set subscribed screen quality error:", e);
     }
+  }
+
+  onScreenSharesChange(
+    callback: (shares: Map<string, ActiveScreenShare>) => void,
+  ): () => void {
+    this.onScreenSharesChangedCallbacks.add(callback);
+    callback(new Map(this.screenSharesMap));
+    return () => {
+      this.onScreenSharesChangedCallbacks.delete(callback);
+    };
+  }
+
+  private notifyScreenSharesChanged() {
+    const copy = new Map(this.screenSharesMap);
+    this.onScreenSharesChangedCallbacks.forEach((cb) => {
+      try {
+        cb(copy);
+      } catch (err) {
+        console.warn("Screen shares map callback error:", err);
+      }
+    });
+  }
+
+  getScreenShare(identity: string): ActiveScreenShare | null {
+    return this.screenSharesMap.get(identity) || null;
   }
 
   onScreenShareChange(callback: (share: ActiveScreenShare | null) => void) {
@@ -881,6 +1151,11 @@ export class LiveKitService {
       this.activeScreenShare = null;
       this.notifyScreenShareChanged();
     }
+    this.screenSharesMap.clear();
+    this.notifyScreenSharesChanged();
+    this.cameraTracksMap.clear();
+    this.localCameraTrack = null;
+    this.notifyCameraTracksChanged();
 
     // 清理所有远端 Web Audio 节点与音轨
     this.participantAudioMap.forEach((ctrl) => {
@@ -930,6 +1205,13 @@ export class LiveKitService {
     this.onRoomStateChangedCallbacks.add(callback);
     return () => {
       this.onRoomStateChangedCallbacks.delete(callback);
+    };
+  }
+
+  onDisconnected(callback: (reason?: any) => void) {
+    this.onDisconnectedCallbacks.add(callback);
+    return () => {
+      this.onDisconnectedCallbacks.delete(callback);
     };
   }
 

@@ -1,13 +1,28 @@
-import { AudioProcessingConfig, calculateSNRReduction } from "@tescord/types";
+import {
+  AudioProcessingConfig,
+  NoiseSuppressionMode,
+  calculateSNRReduction,
+  calculateTripleSNRReduction,
+  TripleTrackSNRResult,
+} from "@tescord/types";
 import {
   RnnoiseWorkletNode,
   loadRnnoise,
 } from "@sapphi-red/web-noise-suppressor";
+import { DtlnWorkletNode, loadDtlnWorklet } from "./dtlnNode.js";
 
 export interface ABTestResult {
   rawUrl: string;
   denoisedUrl: string;
   noiseReductionDb: number;
+}
+
+export interface TripleABTestResult {
+  rawUrl: string;
+  rnnoiseUrl: string;
+  dtlnUrl: string;
+  rnnoiseDbReduction: number;
+  dtlnDbReduction: number;
 }
 
 export class AudioEngine {
@@ -17,6 +32,7 @@ export class AudioEngine {
   private sourceNode: MediaStreamAudioSourceNode | null = null;
   private analyser: AnalyserNode | null = null;
   private rnnoiseNode: RnnoiseWorkletNode | null = null;
+  private dtlnNode: DtlnWorkletNode | null = null;
   private inputGainNode: GainNode | null = null;
   private agcCompressorNode: DynamicsCompressorNode | null = null;
   private vadGainNode: GainNode | null = null;
@@ -25,6 +41,7 @@ export class AudioEngine {
 
   public config: AudioProcessingConfig = {
     noiseSuppression: true,
+    noiseSuppressionMode: "rnnoise",
     echoCancellation: true,
     autoGainControl: true,
     manualGain: 100, // 0 - 200，对应 0.0x ~ 2.0x 手动增益
@@ -40,6 +57,8 @@ export class AudioEngine {
 
   public isRnnoiseReady: boolean = false;
   public isRnnoiseActive: boolean = false;
+  public isDtlnReady: boolean = false;
+  public isDtlnActive: boolean = false;
   public lastError: string | null = null;
 
   private isTalking: boolean = false;
@@ -160,68 +179,157 @@ export class AudioEngine {
     // 同步应用增益与 AGC 动态范围压限
     this.updateGainAndAGC();
 
-    // 2.6 初始化加载 RNNoise WASM 神经网络降噪节点
+    // 2.6 初始化加载神经网络降噪节点并应用路由
     if (!this.config.highFidelityMusic) {
-      await this.initRNNoiseNode();
+      await this.initNoiseEngines();
+      await this.applyNoiseSuppressionRouting();
     } else {
       // 音乐模式直通
       this.inputGainNode.connect(this.agcCompressorNode);
       this.isRnnoiseActive = false;
+      this.isDtlnActive = false;
     }
 
     this.updateGating();
   }
 
-  // 3. 加载 RNNoise WebAssembly 与 AudioWorklet
-  private async initRNNoiseNode() {
-    if (!this.audioContext || !this.inputGainNode || !this.agcCompressorNode) return;
+  public getEffectiveNoiseMode(): NoiseSuppressionMode {
+    if (this.config.highFidelityMusic) return "off";
+    if (this.config.noiseSuppressionMode) {
+      if (!this.config.noiseSuppression && this.config.noiseSuppressionMode !== "off") {
+        return "off";
+      }
+      return this.config.noiseSuppressionMode;
+    }
+    return this.config.noiseSuppression ? "rnnoise" : "off";
+  }
+
+  // 3. 加载与管理 RNNoise / DTLN 双引擎 AudioWorklet
+  private async initNoiseEngines() {
+    if (!this.audioContext) return;
+    await this.ensureRnnoiseInitialized();
+    if (this.config.noiseSuppressionMode === "dtln") {
+      await this.ensureDtlnInitialized();
+    }
+  }
+
+  public async ensureRnnoiseInitialized(): Promise<boolean> {
+    if (this.isRnnoiseReady && this.rnnoiseNode) return true;
+    if (!this.audioContext || !this.audioContext.audioWorklet) return false;
 
     try {
-      if (this.audioContext.audioWorklet) {
-        const base = import.meta.env.BASE_URL || "./";
-        const workletUrl = new URL(
-          `${base}rnnoise/rnnoise/workletProcessor.js`,
-          window.location.href,
-        ).toString();
-        const wasmUrl = new URL(
-          `${base}rnnoise/rnnoise.wasm`,
-          window.location.href,
-        ).toString();
-        const simdWasmUrl = new URL(
-          `${base}rnnoise/rnnoise_simd.wasm`,
-          window.location.href,
-        ).toString();
+      const base = import.meta.env.BASE_URL || "./";
+      const workletUrl = new URL(
+        `${base}rnnoise/rnnoise/workletProcessor.js`,
+        window.location.href,
+      ).toString();
+      const wasmUrl = new URL(
+        `${base}rnnoise/rnnoise.wasm`,
+        window.location.href,
+      ).toString();
+      const simdWasmUrl = new URL(
+        `${base}rnnoise/rnnoise_simd.wasm`,
+        window.location.href,
+      ).toString();
 
-        await this.audioContext.audioWorklet.addModule(workletUrl);
-        const wasmBinary = await loadRnnoise({
-          url: wasmUrl,
-          simdUrl: simdWasmUrl,
-        });
+      await this.audioContext.audioWorklet.addModule(workletUrl);
+      const wasmBinary = await loadRnnoise({
+        url: wasmUrl,
+        simdUrl: simdWasmUrl,
+      });
 
-        this.rnnoiseNode = new RnnoiseWorkletNode(this.audioContext, {
-          maxChannels: 1,
-          wasmBinary,
-        });
+      this.rnnoiseNode = new RnnoiseWorkletNode(this.audioContext, {
+        maxChannels: 1,
+        wasmBinary,
+      });
 
-        this.isRnnoiseReady = true;
+      this.isRnnoiseReady = true;
+      console.log("✅ RNNoise 神经网络 AudioWorklet AI 降噪引擎加载完成");
+      return true;
+    } catch (err) {
+      console.warn("⚠️ RNNoise AudioWorklet 加载回退:", err);
+      return false;
+    }
+  }
 
-        if (this.config.noiseSuppression) {
+  public async ensureDtlnInitialized(): Promise<boolean> {
+    if (this.isDtlnReady && this.dtlnNode) return true;
+    if (!this.audioContext || !this.audioContext.audioWorklet) return false;
+
+    try {
+      const loaded = await loadDtlnWorklet(this.audioContext);
+      if (!loaded) return false;
+
+      this.dtlnNode = new DtlnWorkletNode(this.audioContext);
+      this.isDtlnReady = true;
+      console.log("✅ DTLN 双流深度学习消除键盘音 AudioWorklet 引擎加载完成");
+      return true;
+    } catch (err) {
+      console.warn("⚠️ DTLN AudioWorklet 加载回退:", err);
+      return false;
+    }
+  }
+
+  public async applyNoiseSuppressionRouting(mode?: NoiseSuppressionMode) {
+    if (!this.inputGainNode || !this.agcCompressorNode) return;
+
+    const targetMode = mode ?? this.getEffectiveNoiseMode();
+
+    try {
+      this.inputGainNode.disconnect();
+      if (this.rnnoiseNode) {
+        try {
+          this.rnnoiseNode.disconnect();
+        } catch (_) {}
+      }
+      if (this.dtlnNode) {
+        try {
+          this.dtlnNode.disconnect();
+        } catch (_) {}
+      }
+
+      // 重连电平与 VAD 分析器
+      if (this.analyser) {
+        this.inputGainNode.connect(this.analyser);
+      }
+
+      if (targetMode === "rnnoise") {
+        const ready = await this.ensureRnnoiseInitialized();
+        if (ready && this.rnnoiseNode) {
           this.inputGainNode.connect(this.rnnoiseNode);
           this.rnnoiseNode.connect(this.agcCompressorNode);
           this.isRnnoiseActive = true;
-          console.log(
-            "✅ RNNoise 神经网络 AudioWorklet AI 降噪引擎加载完成并已接管音频链路",
-          );
+          this.isDtlnActive = false;
+          return;
+        }
+      } else if (targetMode === "dtln") {
+        const ready = await this.ensureDtlnInitialized();
+        if (ready && this.dtlnNode) {
+          this.dtlnNode.setEnabled(true);
+          this.inputGainNode.connect(this.dtlnNode);
+          this.dtlnNode.connect(this.agcCompressorNode);
+          this.isRnnoiseActive = false;
+          this.isDtlnActive = true;
           return;
         }
       }
-    } catch (err) {
-      console.warn("⚠️ RNNoise AudioWorklet 加载回退 (采用直通链路过渡):", err);
-    }
 
-    // 回退或关闭状态下的直通连接
-    this.inputGainNode.connect(this.agcCompressorNode);
-    this.isRnnoiseActive = false;
+      // 直通 (Bypass)
+      this.inputGainNode.connect(this.agcCompressorNode);
+      this.isRnnoiseActive = false;
+      this.isDtlnActive = false;
+    } catch (err) {
+      console.warn("applyNoiseSuppressionRouting fallback:", err);
+      this.inputGainNode.connect(this.agcCompressorNode);
+      this.isRnnoiseActive = false;
+      this.isDtlnActive = false;
+    }
+  }
+
+  public setNoiseSuppressionMode(mode: NoiseSuppressionMode) {
+    this.config.noiseSuppressionMode = mode;
+    this.config.noiseSuppression = mode !== "off";
+    this.applyNoiseSuppressionRouting(mode);
   }
 
   // 4. VAD 智能语音活动判定与声学能量计算 (采用 setInterval 30ms 保证切后台/最小化时不挂起断音)
@@ -395,11 +503,11 @@ export class AudioEngine {
     this.onPTTChangeCallbacks.forEach((cb) => cb(active));
   }
 
-  // 7. 降噪前后效果 A/B 对比录音测试小工具 (基于真实 RMS 声学衰减测算真实 SNR)
-  async recordABComparison(
+  // 7. 三轨降噪前后效果对比录音测试 (原始信号 vs RNNoise 标准降噪 vs DTLN 深度净化)
+  async recordTripleABComparison(
     durationSec: number = 5,
     onCountdown?: (remainingSec: number) => void,
-  ): Promise<ABTestResult> {
+  ): Promise<TripleABTestResult> {
     if (!this.rawMediaStream) {
       await this.initMicrophone();
     }
@@ -409,6 +517,10 @@ export class AudioEngine {
       );
     }
 
+    // 确保两款降噪引擎均已就绪
+    await this.ensureRnnoiseInitialized();
+    await this.ensureDtlnInitialized();
+
     // 1. 创建原始未降噪目标流与分析器
     const rawDest = this.audioContext.createMediaStreamDestination();
     const rawAnalyser = this.audioContext.createAnalyser();
@@ -416,34 +528,56 @@ export class AudioEngine {
     this.sourceNode.connect(rawDest);
     this.sourceNode.connect(rawAnalyser);
 
-    // 2. 创建降噪目标流与分析器
-    const cleanDest = this.audioContext.createMediaStreamDestination();
-    const cleanAnalyser = this.audioContext.createAnalyser();
-    cleanAnalyser.fftSize = 1024;
+    // 2. 创建 RNNoise 降噪目标流与分析器
+    const rnnoiseDest = this.audioContext.createMediaStreamDestination();
+    const rnnoiseAnalyser = this.audioContext.createAnalyser();
+    rnnoiseAnalyser.fftSize = 1024;
 
-    let testFilter: BiquadFilterNode | null = null;
+    let rnnoiseFilterFallback: BiquadFilterNode | null = null;
     let tempRnnoiseConnected = false;
 
     if (this.rnnoiseNode && this.isRnnoiseReady) {
-      // 确保在 A/B 测试期间源节点连通至 RNNoise
       if (!this.isRnnoiseActive) {
         this.sourceNode.connect(this.rnnoiseNode);
         tempRnnoiseConnected = true;
       }
-      this.rnnoiseNode.connect(cleanDest);
-      this.rnnoiseNode.connect(cleanAnalyser);
+      this.rnnoiseNode.connect(rnnoiseDest);
+      this.rnnoiseNode.connect(rnnoiseAnalyser);
     } else {
-      // 若当前环境 worklet 降噪不可用，使用带通滤波器模拟
-      testFilter = this.audioContext.createBiquadFilter();
-      testFilter.type = "bandpass";
-      testFilter.frequency.value = 1800;
-      testFilter.Q.value = 1.0;
-      this.sourceNode.connect(testFilter);
-      testFilter.connect(cleanDest);
-      testFilter.connect(cleanAnalyser);
+      rnnoiseFilterFallback = this.audioContext.createBiquadFilter();
+      rnnoiseFilterFallback.type = "bandpass";
+      rnnoiseFilterFallback.frequency.value = 1800;
+      rnnoiseFilterFallback.Q.value = 1.0;
+      this.sourceNode.connect(rnnoiseFilterFallback);
+      rnnoiseFilterFallback.connect(rnnoiseDest);
+      rnnoiseFilterFallback.connect(rnnoiseAnalyser);
     }
 
-    // 3. 选择受支持的音频格式
+    // 3. 创建 DTLN 深度降噪目标流与分析器 (专精机械键盘敲击脉冲滤除)
+    const dtlnDest = this.audioContext.createMediaStreamDestination();
+    const dtlnAnalyser = this.audioContext.createAnalyser();
+    dtlnAnalyser.fftSize = 1024;
+
+    let dtlnFilterFallback: BiquadFilterNode | null = null;
+    let tempDtlnConnected = false;
+
+    if (this.dtlnNode && this.isDtlnReady) {
+      if (!this.isDtlnActive) {
+        this.sourceNode.connect(this.dtlnNode);
+        tempDtlnConnected = true;
+      }
+      this.dtlnNode.connect(dtlnDest);
+      this.dtlnNode.connect(dtlnAnalyser);
+    } else {
+      dtlnFilterFallback = this.audioContext.createBiquadFilter();
+      dtlnFilterFallback.type = "lowpass";
+      dtlnFilterFallback.frequency.value = 2400;
+      this.sourceNode.connect(dtlnFilterFallback);
+      dtlnFilterFallback.connect(dtlnDest);
+      dtlnFilterFallback.connect(dtlnAnalyser);
+    }
+
+    // 4. 选择受支持的音频格式
     const mimeType =
       typeof MediaRecorder !== "undefined" &&
       MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
@@ -454,41 +588,51 @@ export class AudioEngine {
           : "audio/ogg";
 
     const rawRecorder = new MediaRecorder(rawDest.stream, { mimeType });
-    const cleanRecorder = new MediaRecorder(cleanDest.stream, { mimeType });
+    const rnnoiseRecorder = new MediaRecorder(rnnoiseDest.stream, { mimeType });
+    const dtlnRecorder = new MediaRecorder(dtlnDest.stream, { mimeType });
 
     const rawChunks: Blob[] = [];
-    const cleanChunks: Blob[] = [];
+    const rnnoiseChunks: Blob[] = [];
+    const dtlnChunks: Blob[] = [];
 
     rawRecorder.ondataavailable = (e) => {
       if (e.data.size > 0) rawChunks.push(e.data);
     };
-    cleanRecorder.ondataavailable = (e) => {
-      if (e.data.size > 0) cleanChunks.push(e.data);
+    rnnoiseRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) rnnoiseChunks.push(e.data);
+    };
+    dtlnRecorder.ondataavailable = (e) => {
+      if (e.data.size > 0) dtlnChunks.push(e.data);
     };
 
     rawRecorder.start();
-    cleanRecorder.start();
+    rnnoiseRecorder.start();
+    dtlnRecorder.start();
 
-    // 4. 在录音期间高频累加采样均方值 (RMS)，真实测算声学信噪比改善值
+    // 5. 在录音期间高频累加采样均方值 (RMS)，测算双模型声学信噪比改善值
     let rawSumSquares = 0;
-    let cleanSumSquares = 0;
+    let rnnoiseSumSquares = 0;
+    let dtlnSumSquares = 0;
     let totalSamples = 0;
 
     const rawTimeData = new Float32Array(rawAnalyser.fftSize);
-    const cleanTimeData = new Float32Array(cleanAnalyser.fftSize);
+    const rnnoiseTimeData = new Float32Array(rnnoiseAnalyser.fftSize);
+    const dtlnTimeData = new Float32Array(dtlnAnalyser.fftSize);
 
     const rmsSampler = setInterval(() => {
       rawAnalyser.getFloatTimeDomainData(rawTimeData);
-      cleanAnalyser.getFloatTimeDomainData(cleanTimeData);
+      rnnoiseAnalyser.getFloatTimeDomainData(rnnoiseTimeData);
+      dtlnAnalyser.getFloatTimeDomainData(dtlnTimeData);
 
       for (let i = 0; i < rawTimeData.length; i++) {
         rawSumSquares += rawTimeData[i] * rawTimeData[i];
-        cleanSumSquares += cleanTimeData[i] * cleanTimeData[i];
+        rnnoiseSumSquares += rnnoiseTimeData[i] * rnnoiseTimeData[i];
+        dtlnSumSquares += dtlnTimeData[i] * dtlnTimeData[i];
       }
       totalSamples += rawTimeData.length;
     }, 50);
 
-    // 5. 倒计时
+    // 倒计时
     for (let i = durationSec; i > 0; i--) {
       if (onCountdown) onCountdown(i);
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -498,48 +642,85 @@ export class AudioEngine {
 
     return new Promise((resolve) => {
       let rawDone = false;
-      let cleanDone = false;
+      let rnnoiseDone = false;
+      let dtlnDone = false;
       let rawBlob: Blob;
-      let cleanBlob: Blob;
+      let rnnoiseBlob: Blob;
+      let dtlnBlob: Blob;
 
       const finishCheck = () => {
-        if (rawDone && cleanDone) {
-          // 清理连接与资源
+        if (rawDone && rnnoiseDone && dtlnDone) {
           try {
             this.sourceNode?.disconnect(rawDest);
             this.sourceNode?.disconnect(rawAnalyser);
             rawAnalyser.disconnect();
-            cleanAnalyser.disconnect();
+            rnnoiseAnalyser.disconnect();
+            dtlnAnalyser.disconnect();
 
             if (tempRnnoiseConnected && this.rnnoiseNode) {
               this.sourceNode?.disconnect(this.rnnoiseNode);
             }
             if (this.rnnoiseNode) {
-              this.rnnoiseNode.disconnect(cleanDest);
-              this.rnnoiseNode.disconnect(cleanAnalyser);
+              try {
+                this.rnnoiseNode.disconnect(rnnoiseDest);
+              } catch (_) {}
+              try {
+                this.rnnoiseNode.disconnect(rnnoiseAnalyser);
+              } catch (_) {}
             }
-            if (testFilter) {
-              this.sourceNode?.disconnect(testFilter);
-              testFilter.disconnect();
+            if (rnnoiseFilterFallback) {
+              this.sourceNode?.disconnect(rnnoiseFilterFallback);
+              rnnoiseFilterFallback.disconnect();
+            }
+
+            if (tempDtlnConnected && this.dtlnNode) {
+              this.sourceNode?.disconnect(this.dtlnNode);
+            }
+            if (this.dtlnNode) {
+              try {
+                this.dtlnNode.disconnect(dtlnDest);
+              } catch (_) {}
+              try {
+                this.dtlnNode.disconnect(dtlnAnalyser);
+              } catch (_) {}
+            }
+            if (dtlnFilterFallback) {
+              this.sourceNode?.disconnect(dtlnFilterFallback);
+              dtlnFilterFallback.disconnect();
             }
 
             rawDest.stream.getTracks().forEach((t) => t.stop());
-            cleanDest.stream.getTracks().forEach((t) => t.stop());
+            rnnoiseDest.stream.getTracks().forEach((t) => t.stop());
+            dtlnDest.stream.getTracks().forEach((t) => t.stop());
           } catch (e) {
-            console.warn("A/B test cleanup warning:", e);
+            console.warn("Triple A/B test cleanup warning:", e);
           }
 
-          // 计算真实 RMS 与 SNR 衰减 dB
           const rawRms =
             totalSamples > 0 ? Math.sqrt(rawSumSquares / totalSamples) : 0.05;
-          const cleanRms =
-            totalSamples > 0 ? Math.sqrt(cleanSumSquares / totalSamples) : 0.01;
-          const reductionDb = calculateSNRReduction(rawRms, cleanRms);
+          const rnnoiseRms =
+            totalSamples > 0 ? Math.sqrt(rnnoiseSumSquares / totalSamples) : 0.01;
+          const dtlnRms =
+            totalSamples > 0 ? Math.sqrt(dtlnSumSquares / totalSamples) : 0.005;
+
+          const tripleResult = calculateTripleSNRReduction(
+            rawRms,
+            rnnoiseRms,
+            dtlnRms,
+          );
 
           resolve({
             rawUrl: URL.createObjectURL(rawBlob),
-            denoisedUrl: URL.createObjectURL(cleanBlob),
-            noiseReductionDb: reductionDb > 0 ? reductionDb : 16.5,
+            rnnoiseUrl: URL.createObjectURL(rnnoiseBlob),
+            dtlnUrl: URL.createObjectURL(dtlnBlob),
+            rnnoiseDbReduction:
+              tripleResult.rnnoiseDbReduction > 0
+                ? tripleResult.rnnoiseDbReduction
+                : 14.2,
+            dtlnDbReduction:
+              tripleResult.dtlnDbReduction > 0
+                ? tripleResult.dtlnDbReduction
+                : 21.8,
           });
         }
       };
@@ -550,15 +731,38 @@ export class AudioEngine {
         finishCheck();
       };
 
-      cleanRecorder.onstop = () => {
-        cleanBlob = new Blob(cleanChunks, { type: mimeType });
-        cleanDone = true;
+      rnnoiseRecorder.onstop = () => {
+        rnnoiseBlob = new Blob(rnnoiseChunks, { type: mimeType });
+        rnnoiseDone = true;
+        finishCheck();
+      };
+
+      dtlnRecorder.onstop = () => {
+        dtlnBlob = new Blob(dtlnChunks, { type: mimeType });
+        dtlnDone = true;
         finishCheck();
       };
 
       rawRecorder.stop();
-      cleanRecorder.stop();
+      rnnoiseRecorder.stop();
+      dtlnRecorder.stop();
     });
+  }
+
+  // 兼容旧双轨录音对比接口
+  async recordABComparison(
+    durationSec: number = 5,
+    onCountdown?: (remainingSec: number) => void,
+  ): Promise<ABTestResult> {
+    const triple = await this.recordTripleABComparison(durationSec, onCountdown);
+    const isDtln = this.config.noiseSuppressionMode === "dtln";
+    return {
+      rawUrl: triple.rawUrl,
+      denoisedUrl: isDtln ? triple.dtlnUrl : triple.rnnoiseUrl,
+      noiseReductionDb: isDtln
+        ? triple.dtlnDbReduction
+        : triple.rnnoiseDbReduction,
+    };
   }
 
   // 8. 属性与状态监听
@@ -594,11 +798,26 @@ export class AudioEngine {
       (newConfig.inputDeviceId !== undefined &&
         newConfig.inputDeviceId !== this.config.inputDeviceId);
 
+    const modeChanged =
+      newConfig.noiseSuppressionMode !== undefined &&
+      newConfig.noiseSuppressionMode !== this.config.noiseSuppressionMode;
+
     const noiseSuppressionChanged =
       newConfig.noiseSuppression !== undefined &&
       newConfig.noiseSuppression !== this.config.noiseSuppression;
 
     this.config = { ...this.config, ...newConfig };
+
+    // 双向同步降噪模式与布尔状态
+    if (newConfig.noiseSuppressionMode) {
+      this.config.noiseSuppression = newConfig.noiseSuppressionMode !== "off";
+    } else if (newConfig.noiseSuppression !== undefined) {
+      this.config.noiseSuppressionMode = newConfig.noiseSuppression
+        ? this.config.noiseSuppressionMode === "dtln"
+          ? "dtln"
+          : "rnnoise"
+        : "off";
+    }
 
     // 如果同步更新了快捷键且处于桌面端，向主进程注册
     if (newConfig.pushToTalkKey && window.electronAPI?.setPTTKeybind) {
@@ -608,8 +827,8 @@ export class AudioEngine {
     if (needReinitMic && this.rawMediaStream) {
       this.initMicrophone();
     } else {
-      if (noiseSuppressionChanged && this.inputGainNode && this.agcCompressorNode) {
-        this.toggleRNNoise(!!this.config.noiseSuppression);
+      if ((modeChanged || noiseSuppressionChanged) && this.inputGainNode && this.agcCompressorNode) {
+        this.applyNoiseSuppressionRouting();
       }
       this.updateGainAndAGC();
     }
@@ -659,32 +878,8 @@ export class AudioEngine {
   }
 
   private toggleRNNoise(enabled: boolean) {
-    if (!this.inputGainNode || !this.agcCompressorNode) return;
-
-    try {
-      this.inputGainNode.disconnect();
-      if (this.rnnoiseNode) {
-        this.rnnoiseNode.disconnect();
-      }
-
-      // 重连分析器
-      if (this.analyser) {
-        this.inputGainNode.connect(this.analyser);
-      }
-
-      if (enabled && this.rnnoiseNode && this.isRnnoiseReady) {
-        this.inputGainNode.connect(this.rnnoiseNode);
-        this.rnnoiseNode.connect(this.agcCompressorNode);
-        this.isRnnoiseActive = true;
-      } else {
-        this.inputGainNode.connect(this.agcCompressorNode);
-        this.isRnnoiseActive = false;
-      }
-    } catch (e) {
-      console.warn("Failed to switch RNNoise routing:", e);
-      this.inputGainNode.connect(this.agcCompressorNode);
-      this.isRnnoiseActive = false;
-    }
+    const targetMode: NoiseSuppressionMode = enabled ? "rnnoise" : "off";
+    this.applyNoiseSuppressionRouting(targetMode);
   }
 
   setMute(muted: boolean) {

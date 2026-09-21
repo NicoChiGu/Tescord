@@ -387,6 +387,7 @@ export interface HelloPayload {
 
 export interface IdentifyPayload {
   token: string;
+  sessionId?: string;
   properties: {
     os: string;
     browser: string;
@@ -397,6 +398,7 @@ export interface IdentifyPayload {
 export interface VoiceStateUpdatePayload {
   guildId: string;
   channelId: string | null; // null 代表退出语音频道
+  sessionId?: string;
   selfMute?: boolean;
   selfDeaf?: boolean;
   selfVideo?: boolean;
@@ -407,11 +409,26 @@ export interface VoiceState {
   userId: string;
   guildId: string;
   channelId: string | null;
+  sessionId?: string;
+  platform?: string;
   selfMute: boolean;
   selfDeaf: boolean;
   selfVideo: boolean;
   streaming: boolean;
   user?: User;
+}
+
+export interface VoiceServerDisconnectPayload {
+  reason: "VOICE_TRANSFER" | "KICKED" | "CHANNEL_DELETED";
+  newChannelId?: string | null;
+  targetPlatform?: string;
+}
+
+export interface ReadyPayload {
+  sessionId?: string;
+  user: Partial<User>;
+  guilds: Guild[];
+  voiceStates: VoiceState[];
 }
 
 // 6. LiveKit 媒体 Token 协议
@@ -430,6 +447,7 @@ export interface LiveKitTokenResponse {
 
 // 7. 音频设置与降噪配置
 export type AudioInputMode = "VAD" | "PTT";
+export type NoiseSuppressionMode = "off" | "rnnoise" | "dtln";
 
 export type SoundEffectType =
   | "MUTE"
@@ -442,7 +460,8 @@ export type SoundEffectType =
   | "USER_LEAVE";
 
 export interface AudioProcessingConfig {
-  noiseSuppression: boolean; // RNNoise AI 神经网络降噪
+  noiseSuppression: boolean; // RNNoise AI 神经网络降噪 (兼容旧布尔配置)
+  noiseSuppressionMode?: NoiseSuppressionMode; // 全新多引擎降噪模式：'off' | 'rnnoise' | 'dtln' (默认 'rnnoise')
   echoCancellation: boolean; // 回声消除 (AEC)
   autoGainControl: boolean; // 自动增益 (AGC)
   highFidelityMusic: boolean; // 48kHz 高保真立体声直通
@@ -456,6 +475,17 @@ export interface AudioProcessingConfig {
   agcGainRange?: number; // 自动增益范围/上限 (dB, 6 - 30，默认 18 dB)
   inputDeviceId?: string; // 输入设备 ID
   outputDeviceId?: string; // 输出设备 ID
+}
+
+export interface VideoSettingsConfig {
+  cameraDeviceId?: string; // 选中的摄像头硬件 Device ID
+  mirrorLocalPreview?: boolean; // 是否开启本地自拍镜像翻转 (默认 true)
+}
+
+export interface CameraDeviceInfo {
+  deviceId: string;
+  label: string;
+  groupId?: string;
 }
 
 export interface NetworkStats {
@@ -506,6 +536,28 @@ export function calculateSNRReduction(
   return Math.max(0, +db.toFixed(1));
 }
 
+export interface TripleTrackSNRResult {
+  rawRms: number;
+  rnnoiseRms: number;
+  dtlnRms: number;
+  rnnoiseDbReduction: number;
+  dtlnDbReduction: number;
+}
+
+export function calculateTripleSNRReduction(
+  rawRms: number,
+  rnnoiseRms: number,
+  dtlnRms: number,
+): TripleTrackSNRResult {
+  return {
+    rawRms,
+    rnnoiseRms,
+    dtlnRms,
+    rnnoiseDbReduction: calculateSNRReduction(rawRms, rnnoiseRms),
+    dtlnDbReduction: calculateSNRReduction(rawRms, dtlnRms),
+  };
+}
+
 // 8. 对象存储直传契约 (MinIO / S3)
 export interface PresignedUploadRequest {
   fileName: string;
@@ -552,10 +604,22 @@ export const GatewayEvents = {
   STREAM_STOP: "STREAM_STOP",
   E2EE_KEY_EXCHANGE: "E2EE_KEY_EXCHANGE",
   E2EE_CHANNEL_UPDATE: "E2EE_CHANNEL_UPDATE",
+  TYPING_START: "TYPING_START",
 } as const;
 
 export type GatewayEventType =
   (typeof GatewayEvents)[keyof typeof GatewayEvents];
+
+export interface TypingIndicatorPayload {
+  channelId: string;
+  userId: string;
+  user: {
+    id: string;
+    username: string;
+    avatarUrl?: string | null;
+  };
+  timestamp: number;
+}
 
 // 10. 阶段四：屏幕分享直播、Simulcast 与桌面原生协议 (Phase 4 Contracts)
 

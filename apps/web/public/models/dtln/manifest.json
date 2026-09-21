@@ -1,0 +1,9 @@
+{
+  "name": "DTLN-Dual-Signal-Transformation-LSTM",
+  "version": "1.0.0",
+  "sampleRate": 16000,
+  "frameSize": 512,
+  "hopSize": 256,
+  "author": "Tescord Offline Acoustic Lab",
+  "description": "Offline-first Dual-Signal Transformation LSTM Network for non-stationary noise and mechanical keyboard suppression"
+}

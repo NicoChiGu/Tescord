@@ -26,8 +26,459 @@ import {
   PictureInPicture2,
   Tv,
   Menu,
+  Pin,
+  PinOff,
+  ChevronUp,
+  Check,
+  Settings,
+  Camera,
+  ArrowLeftRight,
 } from "lucide-react";
 import { useViewport } from "../hooks/useViewport.js";
+
+interface VideoTrackPlayerProps {
+  track: any;
+  isMirrored?: boolean;
+  className?: string;
+  dataTestId?: string;
+}
+
+const VideoTrackPlayer: React.FC<VideoTrackPlayerProps> = ({
+  track,
+  isMirrored = false,
+  className = "w-full h-full object-cover",
+  dataTestId,
+}) => {
+  const videoElRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const el = videoElRef.current;
+    if (!el || !track) return;
+    try {
+      if (typeof track.attach === "function") {
+        track.attach(el);
+      } else if (track instanceof MediaStreamTrack) {
+        el.srcObject = new MediaStream([track]);
+      }
+    } catch (e) {
+      console.warn("VideoTrackPlayer attach error:", e);
+    }
+
+    return () => {
+      try {
+        if (typeof track.detach === "function" && el) {
+          track.detach(el);
+        } else if (el) {
+          el.srcObject = null;
+        }
+      } catch {}
+    };
+  }, [track]);
+
+  return (
+    <video
+      ref={videoElRef}
+      autoPlay
+      playsInline
+      muted
+      data-testid={dataTestId}
+      className={`${className} ${isMirrored ? "-scale-x-100" : ""}`}
+    />
+  );
+};
+
+interface ParticipantCardProps {
+  participant: VoiceState;
+  isMe: boolean;
+  speaking: boolean;
+  stats: NetworkStats | null;
+  volume: number;
+  onVolumeChange: (vol: number) => void;
+  isPinned: boolean;
+  onTogglePin: () => void;
+  cameraTrack: any;
+  screenShareTrack: any;
+  screenShareInfo?: ActiveScreenShare | null;
+  guild?: Guild | null;
+  currentUser: User;
+  isTheaterMode: boolean;
+  isNoiseSuppressionEnabled: boolean;
+  noiseSuppressionMode: "off" | "rnnoise" | "dtln";
+  isSpotlight?: boolean;
+  selectedQuality?: "high" | "medium" | "low" | "auto";
+  onQualitySelect?: (q: "high" | "medium" | "low" | "auto") => void;
+}
+
+const ParticipantCard: React.FC<ParticipantCardProps> = ({
+  participant,
+  isMe,
+  speaking,
+  stats,
+  volume,
+  onVolumeChange,
+  isPinned,
+  onTogglePin,
+  cameraTrack,
+  screenShareTrack,
+  screenShareInfo,
+  guild,
+  currentUser,
+  isTheaterMode,
+  isNoiseSuppressionEnabled,
+  noiseSuppressionMode,
+  isSpotlight = false,
+  selectedQuality = "auto",
+  onQualitySelect,
+}) => {
+  // 当同时存在屏幕分享与摄像头时，是否对调主次画面 (默认: 屏幕分享为主，摄像头小窗在右下角)
+  const [isSwapped, setIsSwapped] = useState(false);
+  const [isVolumeOpen, setIsVolumeOpen] = useState(false);
+
+  const hasCamera = Boolean(cameraTrack);
+  const hasScreen = Boolean(screenShareTrack);
+  const hasAnyVideo = hasCamera || hasScreen;
+
+  // 确定主画面轨与画中画 (PiP) 轨
+  const mainTrack = hasScreen && hasCamera
+    ? (isSwapped ? cameraTrack : screenShareTrack)
+    : (hasScreen ? screenShareTrack : cameraTrack);
+
+  const pipTrack = hasScreen && hasCamera
+    ? (isSwapped ? screenShareTrack : cameraTrack)
+    : null;
+
+  const isMainMirrored = hasScreen && hasCamera
+    ? (isSwapped ? isMe : false)
+    : (hasScreen ? false : isMe);
+
+  const isPipMirrored = hasScreen && hasCamera
+    ? (isSwapped ? false : isMe)
+    : false;
+
+  const mainFitClass = (hasScreen && hasCamera && !isSwapped) || (hasScreen && !hasCamera)
+    ? "w-full h-full object-contain bg-black"
+    : "w-full h-full object-cover";
+
+  const pipFitClass = isSwapped
+    ? "w-full h-full object-contain bg-black"
+    : "w-full h-full object-cover";
+
+  const targetUser =
+    participant.user || {
+      id: participant.userId,
+      username: isMe ? currentUser.username : "用户",
+      avatarUrl: undefined,
+    };
+
+  return (
+    <UserContextMenu
+      targetUser={targetUser}
+      guild={guild}
+      isInVoice={true}
+    >
+      <div
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          onTogglePin();
+        }}
+        onClick={() => {
+          // 在无视频且未聚焦时，点击卡片也可触发聚焦
+          if (!hasAnyVideo && !isSpotlight) {
+            onTogglePin();
+          } else if (hasAnyVideo && !isSpotlight) {
+            onTogglePin();
+          }
+        }}
+        data-testid={
+          hasAnyVideo
+            ? `participant-video-tile-${participant.userId}`
+            : undefined
+        }
+        className={`bg-[#2b2d31] rounded-xl flex flex-col items-center justify-center relative border-2 transition-all select-none overflow-hidden group cursor-pointer ${
+          isSpotlight
+            ? "w-full max-w-5xl aspect-video md:h-[62vh] shadow-2xl"
+            : isTheaterMode
+              ? "min-w-[140px] max-w-[160px] h-[130px] flex-shrink-0"
+              : "min-h-[140px] sm:min-h-[190px] aspect-video w-full"
+        } ${
+          speaking
+            ? "border-discord-green shadow-[0_0_20px_rgba(35,165,90,0.35)]"
+            : isPinned
+              ? "border-discord-brand shadow-[0_0_15px_rgba(88,101,242,0.3)]"
+              : "border-transparent hover:border-[#383a40]"
+        }`}
+      >
+        {hasAnyVideo ? (
+          <>
+            {/* 主视口视频流 (屏幕分享或摄像头) */}
+            <VideoTrackPlayer
+              track={mainTrack}
+              isMirrored={isMainMirrored}
+              className={mainFitClass}
+              dataTestId={`participant-main-video-${participant.userId}`}
+            />
+
+            {/* 右下角画中画 (PiP) 叠加小窗：当用户同时开屏幕分享与摄像头时展示 */}
+            {pipTrack && (
+              <div
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsSwapped((prev) => !prev);
+                }}
+                data-testid={`participant-pip-video-${participant.userId}`}
+                className={`absolute bottom-2.5 right-2.5 z-20 ${
+                  isSpotlight ? "w-36 sm:w-48 md:w-56" : "w-28 sm:w-36 md:w-44"
+                } aspect-video rounded-lg overflow-hidden border-2 border-white/30 hover:border-discord-brand shadow-2xl transition-all duration-200 hover:scale-105 cursor-pointer group/pip bg-black`}
+                title="点击切换主次画面"
+              >
+                <VideoTrackPlayer
+                  track={pipTrack}
+                  isMirrored={isPipMirrored}
+                  className={pipFitClass}
+                />
+                {/* 悬浮切换按钮遮罩 */}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/pip:opacity-100 transition flex items-center justify-center space-x-1.5 backdrop-blur-[2px]">
+                  <div
+                    data-testid={`pip-swap-btn-${participant.userId}`}
+                    className="bg-black/75 hover:bg-discord-brand p-1.5 rounded-full text-white shadow-lg transition"
+                  >
+                    <ArrowLeftRight className="w-3.5 h-3.5" />
+                  </div>
+                  <span className="text-[11px] text-white font-medium drop-shadow hidden sm:inline">
+                    切换
+                  </span>
+                </div>
+              </div>
+            )}
+          </>
+        ) : (
+          /* 纯音频模式：圆形头像与呼吸光环 */
+          <div className="flex flex-col items-center justify-center p-3 sm:p-4 w-full h-full">
+            <div className={`relative ${isTheaterMode ? "mb-1.5" : "mb-3"}`}>
+              <img
+                src={
+                  participant.user?.avatarUrl ||
+                  "https://api.dicebear.com/7.x/bottts/svg?seed=avatar"
+                }
+                alt={participant.user?.username || "用户"}
+                className={`rounded-full border-4 border-[#1e1f22] object-cover ${
+                  isSpotlight
+                    ? "w-28 h-28"
+                    : isTheaterMode
+                      ? "w-12 h-12"
+                      : "w-20 h-20"
+                } ${speaking ? "speaking-ring" : ""}`}
+              />
+              {participant.selfMute && (
+                <div className="absolute -bottom-1 -right-1 bg-discord-danger p-1 rounded-full text-white shadow-md">
+                  <MicOff className="w-2.5 h-2.5" />
+                </div>
+              )}
+            </div>
+
+            <div className="font-bold text-discord-textHeader text-xs flex items-center space-x-1 truncate max-w-full">
+              <span className="truncate">
+                {participant.user?.username || "匿名成员"}
+              </span>
+              {isMe && (
+                <span className="text-[10px] text-discord-textMuted">
+                  (你)
+                </span>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 右上角悬浮操作区：钉选/聚焦、Simulcast 切换、网络延迟指示 */}
+        <div className="absolute top-2 right-2 flex items-center space-x-1.5 z-20">
+          {isSpotlight ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onTogglePin();
+              }}
+              data-testid="stage-unpin-btn"
+              className="bg-black/75 hover:bg-white/20 px-2.5 py-1 rounded-md text-xs text-white flex items-center space-x-1 backdrop-blur-md border border-white/10 transition shadow-lg"
+              title="退出聚焦视图"
+            >
+              <PinOff className="w-3.5 h-3.5 text-discord-brand" />
+              <span className="hidden sm:inline font-semibold">退出聚焦</span>
+            </button>
+          ) : (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onTogglePin();
+              }}
+              data-testid={`pin-btn-${participant.userId}`}
+              className={`p-1 rounded-md backdrop-blur-md transition ${
+                isPinned
+                  ? "bg-discord-brand text-white shadow-md opacity-100"
+                  : "bg-black/60 hover:bg-discord-brand text-white opacity-0 group-hover:opacity-100"
+              }`}
+              title={isPinned ? "取消聚焦" : "聚焦放大卡片 (亦可双击)"}
+            >
+              {isPinned ? (
+                <PinOff className="w-3.5 h-3.5" />
+              ) : (
+                <Pin className="w-3.5 h-3.5" />
+              )}
+            </button>
+          )}
+
+          {/* Simulcast 清晰度拉流选择 (仅在远端屏幕分享时展示) */}
+          {hasScreen && !isMe && onQualitySelect && (
+            <div className="hidden sm:flex bg-black/75 backdrop-blur-md p-0.5 rounded-lg items-center space-x-0.5 border border-white/10 text-xs text-discord-textMuted">
+              <Layers className="w-3 h-3 ml-1 text-discord-brand" />
+              {(["auto", "high", "medium", "low"] as const).map((q) => (
+                <button
+                  key={q}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onQualitySelect(q);
+                  }}
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-semibold transition ${
+                    selectedQuality === q
+                      ? "bg-discord-brand text-white"
+                      : "hover:text-white"
+                  }`}
+                  title={
+                    q === "auto"
+                      ? "根据网络自适应清晰度"
+                      : q === "high"
+                        ? "强制 1080p 60fps"
+                        : q === "medium"
+                          ? "强制 720p 30fps"
+                          : "强制 360p 省流"
+                  }
+                >
+                  {q === "auto"
+                    ? "自适应"
+                    : q === "high"
+                      ? "1080p"
+                      : q === "medium"
+                        ? "720p"
+                        : "360p"}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {!isTheaterMode && (
+            <div
+              className="flex items-center space-x-1 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded-full text-[10px] text-discord-textMuted"
+              title={`RTT: ${stats?.rtt || 18}ms | 丢包: ${stats?.packetLoss || 0}% | 抖动: ${stats?.jitter || 1.1}ms`}
+            >
+              <Wifi className="w-3 h-3 text-discord-green" />
+              <span className="font-mono">
+                {stats ? `${stats.rtt}ms` : "18ms"}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* 底部左侧信息浮层 (用户名 + 直播徽章 + 静音标签 + 独立音量滑块) */}
+        <div className="absolute bottom-2 left-2 z-20 flex items-center space-x-1.5 bg-black/70 backdrop-blur-md px-2 py-1 rounded-lg text-white max-w-[55%] shadow-lg">
+          {speaking && (
+            <span className="w-2 h-2 rounded-full bg-discord-green animate-pulse flex-shrink-0" />
+          )}
+          <span className="font-semibold text-xs truncate">
+            {participant.user?.username || "匿名成员"}
+          </span>
+          {isMe && (
+            <span className="text-[10px] text-discord-textMuted flex-shrink-0">
+              (你)
+            </span>
+          )}
+          {hasScreen && (
+            <span className="text-[10px] bg-discord-danger text-white px-1.5 py-0.2 rounded font-bold flex-shrink-0 flex items-center space-x-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping mr-0.5" />
+              <span>LIVE</span>
+            </span>
+          )}
+          {participant.selfMute && (
+            <div className="bg-discord-danger p-0.5 rounded-full text-white flex-shrink-0">
+              <MicOff className="w-2.5 h-2.5" />
+            </div>
+          )}
+          {isMe && isNoiseSuppressionEnabled && !hasAnyVideo && (
+            <span className="hidden sm:flex text-[10px] bg-discord-green/20 text-discord-green px-1.5 py-0.5 rounded items-center space-x-1 font-medium">
+              <Sparkles className="w-2.5 h-2.5" />
+              <span>{noiseSuppressionMode === "dtln" ? "DTLN" : "RNNoise"}</span>
+            </span>
+          )}
+
+          {/* 对非本人的远端成员提供独立 0%~200% 音量调节 */}
+          {!isMe && (
+            <div className="relative flex-shrink-0">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsVolumeOpen(!isVolumeOpen);
+                }}
+                className={`text-[10px] px-1.5 py-0.5 rounded flex items-center space-x-0.5 border transition ${
+                  volume !== 100
+                    ? "bg-discord-brand/30 text-discord-brand border-discord-brand/50 font-bold"
+                    : "bg-black/50 text-discord-textMuted border-transparent hover:text-white"
+                }`}
+                title="调节该用户的远端独立音量 (0% - 200%)"
+              >
+                {volume === 0 ? (
+                  <VolumeX className="w-2.5 h-2.5 text-discord-danger" />
+                ) : volume > 100 ? (
+                  <Volume2 className="w-2.5 h-2.5 text-discord-brand" />
+                ) : (
+                  <Volume1 className="w-2.5 h-2.5" />
+                )}
+                <span>{volume}%</span>
+              </button>
+
+              {isVolumeOpen && (
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="absolute bottom-full left-0 mb-2 w-48 bg-[#1e1f22] p-3 rounded-xl border border-[#3f4147] shadow-2xl z-30 animate-fadeIn"
+                >
+                  <div className="flex justify-between items-center text-xs mb-1.5 font-bold">
+                    <span className="text-discord-textHeader">独立音量</span>
+                    <span className="text-discord-brand">{volume}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="200"
+                    value={volume}
+                    onChange={(e) => onVolumeChange(Number(e.target.value))}
+                    className="w-full h-1.5 bg-[#2b2d31] rounded-lg appearance-none cursor-pointer accent-discord-brand"
+                  />
+                  <div className="flex justify-between items-center text-[10px] text-discord-textMuted mt-2 pt-1 border-t border-[#2b2d31]">
+                    <button
+                      onClick={() => onVolumeChange(volume === 0 ? 100 : 0)}
+                      className="hover:underline flex items-center space-x-0.5"
+                    >
+                      {volume === 0 ? (
+                        <span className="text-discord-green font-semibold">
+                          取消静音
+                        </span>
+                      ) : (
+                        <span className="text-discord-danger">一键静音</span>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => onVolumeChange(100)}
+                      className="text-discord-textHeader hover:underline"
+                    >
+                      重置 100%
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </UserContextMenu>
+  );
+};
 
 interface VoiceRoomAreaProps {
   channel: Channel;
@@ -38,13 +489,17 @@ interface VoiceRoomAreaProps {
   isMuted: boolean;
   isSpeaking: boolean;
   isNoiseSuppressionEnabled: boolean;
+  noiseSuppressionMode?: "off" | "rnnoise" | "dtln";
   isScreenSharing: boolean;
+  isVideoEnabled?: boolean;
   onToggleMute: () => void;
   onToggleScreenShare: () => void;
+  onToggleVideo?: () => void;
   onToggleNoiseSuppression: () => void;
   onLeave: () => void;
   onJoin?: () => void;
   onToggleMobileDrawer?: () => void;
+  onOpenVideoSettings?: () => void;
 }
 
 export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
@@ -56,16 +511,74 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
   isMuted,
   isSpeaking,
   isNoiseSuppressionEnabled,
+  noiseSuppressionMode = "rnnoise",
   isScreenSharing,
+  isVideoEnabled = false,
   onToggleMute,
   onToggleScreenShare,
+  onToggleVideo,
   onToggleNoiseSuppression,
   onLeave,
   onJoin,
   onToggleMobileDrawer,
+  onOpenVideoSettings,
 }) => {
   const { isMobile } = useViewport();
-  const [isVideoEnabled, setIsVideoEnabled] = useState(false);
+  const [cameraTracks, setCameraTracks] = useState<Map<string, any>>(
+    new Map(livekitService.cameraTracksMap),
+  );
+
+  // 摄像头快速选择菜单状态
+  const [isCameraMenuOpen, setIsCameraMenuOpen] = useState(false);
+  const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
+  const [activeCameraId, setActiveCameraId] = useState<string>(
+    livekitService.getCameraDeviceId() || "default",
+  );
+  const cameraMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // 获取并监听系统摄像头设备变动与当前激活设备
+  useEffect(() => {
+    const fetchCameras = async () => {
+      try {
+        if (navigator.mediaDevices?.enumerateDevices) {
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          setCameraDevices(devices.filter((d) => d.kind === "videoinput"));
+        }
+      } catch {}
+    };
+    fetchCameras();
+    navigator.mediaDevices?.addEventListener?.("devicechange", fetchCameras);
+    const cleanupActiveCam = livekitService.onActiveCameraChange((id) => {
+      setActiveCameraId(id);
+    });
+
+    return () => {
+      navigator.mediaDevices?.removeEventListener?.("devicechange", fetchCameras);
+      cleanupActiveCam();
+    };
+  }, []);
+
+  // 快捷菜单点击外部关闭
+  useEffect(() => {
+    if (!isCameraMenuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        cameraMenuRef.current &&
+        !cameraMenuRef.current.contains(e.target as Node)
+      ) {
+        setIsCameraMenuOpen(false);
+      }
+    };
+    window.addEventListener("click", handleClickOutside);
+    return () => window.removeEventListener("click", handleClickOutside);
+  }, [isCameraMenuOpen]);
+
+  const handleSelectCamera = async (deviceId: string) => {
+    setActiveCameraId(deviceId);
+    await livekitService.switchCameraDevice(deviceId);
+    setIsCameraMenuOpen(false);
+  };
+  const [pinnedUserId, setPinnedUserId] = useState<string | null>(null);
   const [isMixerOpen, setIsMixerOpen] = useState(false);
   const [isTheaterMode, setIsTheaterMode] = useState(false);
   const [activeVolumeUserId, setActiveVolumeUserId] = useState<string | null>(
@@ -86,8 +599,11 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
     sframeManager.getStats(),
   );
 
-  // 阶段四：屏幕分享推流与订阅状态
+  // 阶段四：多路屏幕分享推流与订阅状态
   const [activeShare, setActiveShare] = useState<ActiveScreenShare | null>(null);
+  const [screenShares, setScreenShares] = useState<
+    Map<string, ActiveScreenShare>
+  >(new Map(livekitService.screenSharesMap));
   const [selectedQuality, setSelectedQuality] = useState<
     "high" | "medium" | "low" | "auto"
   >("auto");
@@ -96,32 +612,103 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
     audioMixer.config.systemAudioVolume,
   );
 
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const videoContainerRef = useRef<HTMLDivElement | null>(null);
-
-  // 监听 LiveKit 屏幕分享轨变动
+  // 监听 LiveKit 屏幕分享轨与摄像头轨道状态变动
   useEffect(() => {
+    const unbindShares = livekitService.onScreenSharesChange((shares) => {
+      setScreenShares(new Map(shares));
+    });
     const unbindShare = livekitService.onScreenShareChange((share) => {
       setActiveShare(share);
     });
+    const unbindCamera = livekitService.onCameraTracksChange((tracks) => {
+      setCameraTracks(new Map(tracks));
+    });
     return () => {
+      unbindShares();
       unbindShare();
+      unbindCamera();
     };
   }, []);
 
-  // 绑定视频轨到 HTML5 Video 元素
-  useEffect(() => {
-    if (!videoRef.current || !activeShare?.track) return;
-    try {
-      if (typeof activeShare.track.attach === "function") {
-        activeShare.track.attach(videoRef.current);
-      } else if (activeShare.track instanceof MediaStreamTrack) {
-        videoRef.current.srcObject = new MediaStream([activeShare.track]);
-      }
-    } catch (err) {
-      console.warn("Failed to attach video to element:", err);
+  // 筛选出当前频道的成员
+  const currentParticipants = voiceStates.filter(
+    (v) => v.channelId === channel.id,
+  );
+
+  // 仅在已连接语音且自己尚未同步到 voiceStates 时，才保底展示自己
+  const hasCurrentUser = currentParticipants.some(
+    (p) => p.userId === currentUser.id,
+  );
+  const rawParticipants =
+    hasCurrentUser || !isConnected
+      ? currentParticipants
+      : [
+          {
+            userId: currentUser.id,
+            guildId: channel.guildId,
+            channelId: channel.id,
+            selfMute: isMuted,
+            selfDeaf: false,
+            selfVideo: isVideoEnabled,
+            streaming: isScreenSharing,
+            user: currentUser,
+          },
+          ...currentParticipants,
+        ];
+
+  // 保证当前用户的 selfVideo 与本地 isVideoEnabled 强同步
+  const displayParticipants = rawParticipants.map((p) => {
+    if (p.userId === currentUser.id) {
+      return { ...p, selfVideo: isVideoEnabled };
     }
-  }, [activeShare?.track]);
+    return p;
+  });
+
+  const pinnedParticipant = pinnedUserId
+    ? displayParticipants.find((p) => p.userId === pinnedUserId) || null
+    : null;
+
+  // 若被聚焦的成员离开频道，自动退出聚焦
+  useEffect(() => {
+    if (
+      pinnedUserId &&
+      !displayParticipants.some((p) => p.userId === pinnedUserId)
+    ) {
+      setPinnedUserId(null);
+    }
+  }, [pinnedUserId, displayParticipants]);
+
+  // 根据参与者信息索取对应的摄像头与屏幕分享轨道
+  const getParticipantMedia = (p: VoiceState) => {
+    const isMe = p.userId === currentUser.id;
+    // 摄像头轨道解析
+    const myVideoTrack = isVideoEnabled
+      ? cameraTracks.get(currentUser.id) ||
+        cameraTracks.get("local") ||
+        livekitService.localCameraTrack
+      : null;
+    const cameraTrack = isMe
+      ? myVideoTrack
+      : (p.selfVideo ? cameraTracks.get(p.userId) : null);
+
+
+
+    // 屏幕分享轨道解析
+    const myScreenShare = isScreenSharing
+      ? screenShares.get(currentUser.id) ||
+        screenShares.get("local") ||
+        livekitService.activeScreenShare
+      : null;
+    const participantScreenShare = isMe
+      ? myScreenShare
+      : screenShares.get(p.userId);
+
+    return {
+      cameraTrack,
+      screenShareTrack: participantScreenShare?.track || null,
+      screenShareInfo: participantScreenShare || null,
+    };
+  };
 
   // 监听远端音量、网络健康、活跃讲话者及声卡异常变动
   useEffect(() => {
@@ -151,6 +738,10 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
       setSframeStats(stats);
     });
 
+    const unbindCamera = livekitService.onCameraTracksChange((tracks) => {
+      setCameraTracks(new Map(tracks));
+    });
+
     return () => {
       unbindStats();
       unbindVol();
@@ -158,34 +749,9 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
       unbindSpeakers();
       unbindError();
       unbindSFrame();
+      unbindCamera();
     };
   }, []);
-
-  // 筛选出当前频道的成员
-  const currentParticipants = voiceStates.filter(
-    (v) => v.channelId === channel.id,
-  );
-
-  // 仅在已连接语音且自己尚未同步到 voiceStates 时，才保底展示自己
-  const hasCurrentUser = currentParticipants.some(
-    (p) => p.userId === currentUser.id,
-  );
-  const displayParticipants =
-    hasCurrentUser || !isConnected
-      ? currentParticipants
-      : [
-          {
-            userId: currentUser.id,
-            guildId: channel.guildId,
-            channelId: channel.id,
-            selfMute: isMuted,
-            selfDeaf: false,
-            selfVideo: isVideoEnabled,
-            streaming: isScreenSharing,
-            user: currentUser,
-          },
-          ...currentParticipants,
-        ];
 
   const handleVolumeChange = (userId: string, vol: number) => {
     const val = Math.max(0, Math.min(200, vol));
@@ -213,29 +779,6 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
   const isPTTMode =
     audioEngine.config.inputMode === "PTT" || audioEngine.config.pushToTalk;
 
-  // 画中画 (PiP) 切换
-  const handleTogglePiP = async () => {
-    try {
-      if (document.pictureInPictureElement) {
-        await document.exitPictureInPicture();
-      } else if (videoRef.current) {
-        await videoRef.current.requestPictureInPicture();
-      }
-    } catch (err) {
-      console.warn("PiP toggle error:", err);
-    }
-  };
-
-  // 全屏切换
-  const handleToggleFullscreen = () => {
-    if (!videoContainerRef.current) return;
-    if (document.fullscreenElement) {
-      document.exitFullscreen().catch(() => {});
-    } else {
-      videoContainerRef.current.requestFullscreen().catch(() => {});
-    }
-  };
-
   // Simulcast 清晰度拉流档位切换
   const handleQualitySelect = (quality: "high" | "medium" | "low" | "auto") => {
     setSelectedQuality(quality);
@@ -250,12 +793,6 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
     setSystemMixGain(sys);
     audioMixer.setGains(mic, sys, isMuted);
   };
-
-  const streamerName = activeShare?.isLocal
-    ? `${currentUser.username} (你)`
-    : displayParticipants.find(
-        (p) => p.userId === activeShare?.participantIdentity,
-      )?.user?.username || activeShare?.participantIdentity;
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#111214] relative overflow-hidden select-none">
@@ -340,126 +877,57 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
         </div>
       )}
 
-      {/* 主展示区 (屏幕直播流 + 剧场模式 + 参与者网格) */}
+      {/* 主展示区 (沉浸式卡片展示，支持双轨画中画自由对调与 Spotlight 聚焦放大) */}
       <div
         className={`flex-1 p-3 sm:p-4 flex flex-col items-center overflow-y-auto custom-scrollbar ${
           isTheaterMode ? "justify-start" : "justify-center"
         }`}
       >
-        {/* 4.1 屏幕直播真实渲染视口 (LiveKit Simulcast 超低延迟播放器) */}
-        {(activeShare || isScreenSharing) && (
-          <div
-            ref={videoContainerRef}
-            className={`w-full bg-black rounded-2xl border border-[#35373c] relative overflow-hidden flex flex-col items-center justify-center shadow-2xl mb-4 group transition-all ${
-              isTheaterMode
-                ? "h-[75vh] max-w-7xl"
-                : "max-h-[35vh] sm:max-h-[50vh] md:h-[58vh] max-w-5xl"
-            }`}
-          >
-            {/* 真实 HTML5 Video 元素 */}
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted={activeShare?.isLocal}
-              className="w-full h-full object-contain bg-[#0e0e10]"
-            />
+        {/* 当处于 Spotlight 聚焦模式时：在中央渲染放大的主舞台卡片 */}
+        {pinnedParticipant && (
+          <div className="w-full flex flex-col items-center mb-4 transition-all animate-fadeIn">
+            {(() => {
+              const p = pinnedParticipant;
+              const isMe = p.userId === currentUser.id;
+              const speaking = isMe
+                ? isSpeaking
+                : activeSpeakers.includes(p.userId);
+              const stats = getParticipantStats(p.userId);
+              const userVol = getVolume(p.userId);
+              const media = getParticipantMedia(p);
 
-            {/* 顶栏直播悬浮信息条 */}
-            <div className="absolute top-3 left-3 flex items-center space-x-2 z-20">
-              <div className="bg-black/75 backdrop-blur-md px-3 py-1 rounded-lg text-xs text-white flex items-center space-x-2 border border-white/10 shadow-lg">
-                <span className="w-2 h-2 rounded-full bg-discord-danger animate-ping" />
-                <span className="font-bold">LIVE</span>
-                <span className="text-discord-textMuted">|</span>
-                <span>{streamerName}</span>
-              </div>
-
-              {/* 超低延迟指标徽章 (< 200ms) */}
-              <div className="bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-lg text-[11px] text-discord-green flex items-center space-x-1.5 border border-discord-green/20 font-mono shadow-lg">
-                <span className="w-1.5 h-1.5 rounded-full bg-discord-green" />
-                <span>延时: {localStats?.rtt || 28}ms</span>
-                <span className="text-discord-textMuted">•</span>
-                <span>60 FPS</span>
-                <span className="text-discord-textMuted">•</span>
-                <span className="text-discord-brand">Simulcast</span>
-              </div>
-            </div>
-
-            {/* 顶栏右侧：Simulcast 清晰度拉流选择与播放控制 */}
-            <div className="absolute top-3 right-3 flex items-center space-x-2 z-20 opacity-90 group-hover:opacity-100 transition">
-              {/* Simulcast 清晰度选择浮层 */}
-              {!activeShare?.isLocal && (
-                <div className="bg-black/75 backdrop-blur-md p-1 rounded-lg flex items-center space-x-1 border border-white/10 text-xs text-discord-textMuted">
-                  <Layers className="w-3.5 h-3.5 ml-1.5 text-discord-brand" />
-                  {(["auto", "high", "medium", "low"] as const).map((q) => (
-                    <button
-                      key={q}
-                      onClick={() => handleQualitySelect(q)}
-                      className={`px-2 py-0.5 rounded text-[11px] font-semibold transition ${
-                        selectedQuality === q
-                          ? "bg-discord-brand text-white"
-                          : "hover:text-white"
-                      }`}
-                      title={
-                        q === "auto"
-                          ? "根据网络自适应拉流"
-                          : q === "high"
-                            ? "强制 1080p 60fps"
-                            : q === "medium"
-                              ? "强制 720p 30fps"
-                              : "强制 360p 省流"
-                      }
-                    >
-                      {q === "auto"
-                        ? "自适应"
-                        : q === "high"
-                          ? "1080p"
-                          : q === "medium"
-                            ? "720p"
-                            : "360p"}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* 画中画 (Picture-in-Picture) 按钮 */}
-              <button
-                onClick={handleTogglePiP}
-                className="p-2 rounded-lg bg-black/75 hover:bg-discord-brand text-white border border-white/10 backdrop-blur-md transition shadow-lg"
-                title="开启系统原生画中画 (PiP) 浮窗"
-              >
-                <PictureInPicture2 className="w-4 h-4" />
-              </button>
-
-              {/* 剧场模式切换 */}
-              <button
-                onClick={() => setIsTheaterMode(!isTheaterMode)}
-                className={`p-2 rounded-lg border backdrop-blur-md transition shadow-lg ${
-                  isTheaterMode
-                    ? "bg-discord-brand text-white border-discord-brand"
-                    : "bg-black/75 hover:bg-discord-brand text-white border-white/10"
-                }`}
-                title={isTheaterMode ? "退出剧场模式" : "开启剧场模式 (大屏聚焦)"}
-              >
-                <Tv className="w-4 h-4" />
-              </button>
-
-              {/* 全屏按钮 */}
-              <button
-                onClick={handleToggleFullscreen}
-                className="p-2 rounded-lg bg-black/75 hover:bg-discord-brand text-white border border-white/10 backdrop-blur-md transition shadow-lg"
-                title="全屏播放"
-              >
-                <Maximize2 className="w-4 h-4" />
-              </button>
-            </div>
+              return (
+                <ParticipantCard
+                  key={`pinned-${p.userId}`}
+                  participant={p}
+                  isMe={isMe}
+                  speaking={speaking}
+                  stats={stats}
+                  volume={userVol}
+                  onVolumeChange={(vol) => handleVolumeChange(p.userId, vol)}
+                  isPinned={true}
+                  onTogglePin={() => setPinnedUserId(null)}
+                  cameraTrack={media.cameraTrack}
+                  screenShareTrack={media.screenShareTrack}
+                  screenShareInfo={media.screenShareInfo}
+                  guild={guild}
+                  currentUser={currentUser}
+                  isTheaterMode={isTheaterMode}
+                  isNoiseSuppressionEnabled={isNoiseSuppressionEnabled}
+                  noiseSuppressionMode={noiseSuppressionMode}
+                  isSpotlight={true}
+                  selectedQuality={selectedQuality}
+                  onQualitySelect={handleQualitySelect}
+                />
+              );
+            })()}
           </div>
         )}
 
-        {/* 参与者网格 (在剧场模式下下沉为紧凑横向滑动排，普通模式下为标准自适应网格) */}
+        {/* 参与者网格 (普通模式为自适应 CSS Grid；在聚焦或剧场模式下下沉为横向滑动条) */}
         <div
           className={`w-full max-w-5xl transition-all ${
-            isTheaterMode
+            pinnedParticipant || isTheaterMode
               ? "flex flex-row space-x-3 overflow-x-auto py-2 px-1 custom-scrollbar justify-start"
               : `grid gap-3 sm:gap-4 ${
                   displayParticipants.length === 1
@@ -470,188 +938,47 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                 }`
           }`}
         >
-          {displayParticipants.map((p) => {
-            const isMe = p.userId === currentUser.id;
-            const speaking = isMe
-              ? isSpeaking
-              : activeSpeakers.includes(p.userId);
-            const stats = getParticipantStats(p.userId);
-            const userVol = getVolume(p.userId);
+          {displayParticipants
+            .filter((p) =>
+              pinnedParticipant ? p.userId !== pinnedUserId : true,
+            )
+            .map((p) => {
+              const isMe = p.userId === currentUser.id;
+              const speaking = isMe
+                ? isSpeaking
+                : activeSpeakers.includes(p.userId);
+              const stats = getParticipantStats(p.userId);
+              const userVol = getVolume(p.userId);
+              const isPinned = pinnedUserId === p.userId;
+              const media = getParticipantMedia(p);
 
-            return (
-              <UserContextMenu
-                key={p.userId}
-                targetUser={
-                  p.user || {
-                    id: p.userId,
-                    username:
-                      p.userId === currentUser.id
-                        ? currentUser.username
-                        : "用户",
-                    avatarUrl: undefined,
+              return (
+                <ParticipantCard
+                  key={p.userId}
+                  participant={p}
+                  isMe={isMe}
+                  speaking={speaking}
+                  stats={stats}
+                  volume={userVol}
+                  onVolumeChange={(vol) => handleVolumeChange(p.userId, vol)}
+                  isPinned={isPinned}
+                  onTogglePin={() =>
+                    setPinnedUserId(isPinned ? null : p.userId)
                   }
-                }
-                guild={guild}
-                isInVoice={true}
-              >
-                <div
-                  className={`bg-[#2b2d31] rounded-xl p-3 sm:p-4 flex flex-col items-center justify-center relative border-2 transition-all ${
-                    isTheaterMode
-                      ? "min-w-[140px] max-w-[160px] h-[130px] flex-shrink-0"
-                      : "min-h-[140px] sm:min-h-[190px]"
-                  } ${
-                    speaking
-                      ? "border-discord-green shadow-[0_0_20px_rgba(35,165,90,0.35)]"
-                      : "border-transparent hover:border-[#383a40]"
-                  }`}
-                >
-                {/* 右上角网络质量小标 */}
-                {!isTheaterMode && (
-                  <div
-                    className="absolute top-2 right-2 sm:top-3 sm:right-3 flex items-center space-x-1 bg-[#1e1f22]/80 px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] text-discord-textMuted"
-                    title={`RTT: ${stats?.rtt || 18}ms | 丢包: ${stats?.packetLoss || 0}% | 抖动: ${stats?.jitter || 1.1}ms`}
-                  >
-                    <Wifi className="w-3 h-3 text-discord-green" />
-                    <span className="font-mono">
-                      {stats ? `${stats.rtt}ms` : "18ms"}
-                    </span>
-                  </div>
-                )}
-
-                {/* 头像 */}
-                <div className={`relative ${isTheaterMode ? "mb-1.5" : "mb-3"}`}>
-                  <img
-                    src={
-                      p.user?.avatarUrl ||
-                      "https://api.dicebear.com/7.x/bottts/svg?seed=avatar"
-                    }
-                    alt={p.user?.username || "用户"}
-                    className={`rounded-full border-4 border-[#1e1f22] object-cover ${
-                      isTheaterMode ? "w-12 h-12" : "w-20 h-20"
-                    } ${speaking ? "speaking-ring" : ""}`}
-                  />
-                  {p.selfMute && (
-                    <div className="absolute -bottom-1 -right-1 bg-discord-danger p-1 rounded-full text-white shadow-md">
-                      <MicOff className="w-2.5 h-2.5" />
-                    </div>
-                  )}
-                </div>
-
-                {/* 用户名 */}
-                <div className="font-bold text-discord-textHeader text-xs flex items-center space-x-1 truncate max-w-full">
-                  <span className="truncate">
-                    {p.user?.username || "匿名成员"}
-                  </span>
-                  {isMe && (
-                    <span className="text-[10px] text-discord-textMuted">
-                      (你)
-                    </span>
-                  )}
-                </div>
-
-                {/* 状态徽章与多路独立音量调节器 */}
-                {!isTheaterMode && (
-                  <div className="mt-2.5 flex items-center space-x-2">
-                    {p.streaming && (
-                      <span className="text-[10px] bg-discord-brand text-white px-1.5 py-0.5 rounded font-semibold">
-                        直播中
-                      </span>
-                    )}
-                    {isMe && isNoiseSuppressionEnabled && (
-                      <span className="text-[10px] bg-discord-green/20 text-discord-green px-1.5 py-0.5 rounded flex items-center space-x-1 font-medium">
-                        <Sparkles className="w-2.5 h-2.5" />
-                        <span>RNNoise 降噪</span>
-                      </span>
-                    )}
-
-                    {/* 对非本人的远端成员提供独立 0%~200% 音量调节 */}
-                    {!isMe && (
-                      <div className="relative">
-                        <button
-                          onClick={() =>
-                            setActiveVolumeUserId(
-                              activeVolumeUserId === p.userId ? null : p.userId,
-                            )
-                          }
-                          className={`text-[10px] px-2 py-0.5 rounded flex items-center space-x-1 border transition ${
-                            userVol !== 100
-                              ? "bg-discord-brand/20 text-discord-brand border-discord-brand/40 font-bold"
-                              : "bg-[#1e1f22] text-discord-textMuted border-[#383a40] hover:text-white"
-                          }`}
-                          title="调节该用户的远端混音音量 (0% - 200%)"
-                        >
-                          {userVol === 0 ? (
-                            <VolumeX className="w-2.5 h-2.5 text-discord-danger" />
-                          ) : userVol > 100 ? (
-                            <Volume2 className="w-2.5 h-2.5 text-discord-brand" />
-                          ) : (
-                            <Volume1 className="w-2.5 h-2.5" />
-                          )}
-                          <span>{userVol}%</span>
-                        </button>
-
-                        {activeVolumeUserId === p.userId && (
-                          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-[#1e1f22] p-3 rounded-xl border border-[#3f4147] shadow-2xl z-30 animate-fadeIn">
-                            <div className="flex justify-between items-center text-xs mb-1.5 font-bold">
-                              <span className="text-discord-textHeader">
-                                独立用户音量
-                              </span>
-                              <span className="text-discord-brand">
-                                {userVol}%
-                              </span>
-                            </div>
-                            <input
-                              type="range"
-                              min="0"
-                              max="200"
-                              value={userVol}
-                              onChange={(e) =>
-                                handleVolumeChange(
-                                  p.userId,
-                                  Number(e.target.value),
-                                )
-                              }
-                              className="w-full h-1.5 bg-[#2b2d31] rounded-lg appearance-none cursor-pointer accent-discord-brand"
-                            />
-                            <div className="flex justify-between items-center text-[10px] text-discord-textMuted mt-2 pt-1 border-t border-[#2b2d31]">
-                              <button
-                                onClick={() =>
-                                  handleVolumeChange(
-                                    p.userId,
-                                    userVol === 0 ? 100 : 0,
-                                  )
-                                }
-                                className="hover:underline flex items-center space-x-0.5"
-                              >
-                                {userVol === 0 ? (
-                                  <span className="text-discord-green font-semibold">
-                                    取消静音
-                                  </span>
-                                ) : (
-                                  <span className="text-discord-danger">
-                                    一键静音
-                                  </span>
-                                )}
-                              </button>
-                              <button
-                                onClick={() =>
-                                  handleVolumeChange(p.userId, 100)
-                                }
-                                className="text-discord-textHeader hover:underline"
-                              >
-                                重置 100%
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </UserContextMenu>
-          );
-        })}
+                  cameraTrack={media.cameraTrack}
+                  screenShareTrack={media.screenShareTrack}
+                  screenShareInfo={media.screenShareInfo}
+                  guild={guild}
+                  currentUser={currentUser}
+                  isTheaterMode={isTheaterMode || Boolean(pinnedParticipant)}
+                  isNoiseSuppressionEnabled={isNoiseSuppressionEnabled}
+                  noiseSuppressionMode={noiseSuppressionMode}
+                  isSpotlight={false}
+                  selectedQuality={selectedQuality}
+                  onQualitySelect={handleQualitySelect}
+                />
+              );
+            })}
         </div>
       </div>
 
@@ -731,25 +1058,120 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
               )}
             </button>
 
-            {/* 摄像头 */}
-            <button
-              onClick={() => setIsVideoEnabled(!isVideoEnabled)}
-              className={`p-2.5 sm:p-3.5 rounded-full transition shadow-lg ${
+            {/* 摄像头与快捷切换控制组 (类 Discord 紧凑胶囊) */}
+            <div
+              className={`relative inline-flex items-stretch rounded-full transition shadow-lg ${
                 isVideoEnabled
-                  ? "bg-discord-green text-white hover:bg-discord-green/90"
-                  : "bg-[#2b2d31] text-discord-textNormal hover:bg-discord-hover"
+                  ? "bg-discord-green text-white"
+                  : "bg-[#2b2d31] text-discord-textNormal"
               }`}
-              title={isVideoEnabled ? "关闭摄像头" : "打开摄像头"}
+              ref={cameraMenuRef}
             >
-              {isVideoEnabled ? (
-                <Video className="w-5 h-5" />
-              ) : (
-                <VideoOff className="w-5 h-5" />
+              <button
+                type="button"
+                onClick={onToggleVideo}
+                data-testid="voice-toggle-camera-btn"
+                className={`p-2.5 sm:p-3 pr-1.5 sm:pr-2 rounded-l-full transition cursor-pointer flex items-center justify-center ${
+                  isVideoEnabled
+                    ? "hover:bg-discord-green/90"
+                    : "hover:bg-discord-hover text-discord-textNormal"
+                }`}
+                title={isVideoEnabled ? "关闭摄像头" : "打开摄像头"}
+              >
+                {isVideoEnabled ? (
+                  <Video className="w-5 h-5" />
+                ) : (
+                  <VideoOff className="w-5 h-5" />
+                )}
+              </button>
+
+              <button
+                type="button"
+                data-testid="voice-camera-menu-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsCameraMenuOpen((prev) => !prev);
+                }}
+                className={`px-1.5 sm:px-2 rounded-r-full border-l border-black/25 transition flex items-center justify-center cursor-pointer ${
+                  isVideoEnabled
+                    ? "hover:bg-black/10"
+                    : "hover:bg-discord-hover hover:text-white"
+                }`}
+                title="摄像头选项"
+              >
+                <ChevronUp
+                  className={`w-3 h-3 transition-transform duration-150 ${
+                    isCameraMenuOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+
+              {/* 快捷弹出菜单 */}
+              {isCameraMenuOpen && (
+                <div
+                  data-testid="camera-quick-menu"
+                  className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 w-64 bg-[#111214] border border-[#2b2d31] rounded-xl shadow-2xl p-2 z-50 text-left animate-in fade-in zoom-in-95 duration-100"
+                >
+                  <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                    <Camera className="w-3.5 h-3.5 text-discord-brand" />
+                    <span>选择摄像头设备</span>
+                  </div>
+
+                  <div className="space-y-0.5 mt-1 max-h-48 overflow-y-auto">
+                    {cameraDevices.length === 0 ? (
+                      <div className="px-2 py-1.5 text-xs text-gray-500">
+                        未检测到可用摄像头
+                      </div>
+                    ) : (
+                      cameraDevices.map((d, index) => {
+                        const isSelected =
+                          activeCameraId === d.deviceId ||
+                          (!activeCameraId && index === 0);
+                        return (
+                          <button
+                            key={d.deviceId || index}
+                            type="button"
+                            data-testid={`camera-option-${d.deviceId}`}
+                            onClick={() => handleSelectCamera(d.deviceId)}
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+                              isSelected
+                                ? "bg-discord-brand/20 text-white font-semibold"
+                                : "text-gray-300 hover:bg-white/5 hover:text-white"
+                            }`}
+                          >
+                            <span className="truncate pr-2">
+                              {d.label || `摄像头设备 ${index + 1}`}
+                            </span>
+                            {isSelected && (
+                              <Check className="w-3.5 h-3.5 text-discord-brand shrink-0" />
+                            )}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  <div className="h-px bg-white/5 my-1.5" />
+
+                  <button
+                    type="button"
+                    data-testid="camera-menu-settings-btn"
+                    onClick={() => {
+                      setIsCameraMenuOpen(false);
+                      onOpenVideoSettings?.();
+                    }}
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-discord-brand hover:bg-discord-brand/10 transition cursor-pointer font-medium"
+                  >
+                    <Settings className="w-3.5 h-3.5" />
+                    <span>视频设置...</span>
+                  </button>
+                </div>
               )}
-            </button>
+            </div>
 
             {/* 屏幕共享直播 */}
             <button
+              data-testid="voice-toggle-screen-btn"
               onClick={onToggleScreenShare}
               className={`p-2.5 sm:p-3.5 rounded-full transition shadow-lg ${
                 isScreenSharing || activeShare?.isLocal
@@ -759,24 +1181,29 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
               title={
                 isScreenSharing || activeShare?.isLocal
                   ? "停止共享"
-                  : "屏幕共享直播"
+                  : "屏幕共享"
               }
             >
               <ScreenShare className="w-5 h-5" />
             </button>
 
-            {/* AI 降噪切换 */}
+            {/* AI 降噪切换 (支持 RNNoise / DTLN 深度消键盘音 / 关闭) */}
             <button
+              data-testid="voice-sparkles-btn"
               onClick={onToggleNoiseSuppression}
               className={`p-2.5 sm:p-3.5 rounded-full transition shadow-lg flex items-center space-x-1.5 ${
                 isNoiseSuppressionEnabled
-                  ? "bg-discord-green/20 text-discord-green border border-discord-green/40 hover:bg-discord-green/30"
+                  ? noiseSuppressionMode === "dtln"
+                    ? "bg-discord-green/30 text-discord-green border border-discord-green ring-1 ring-discord-green/40 hover:bg-discord-green/40"
+                    : "bg-discord-green/20 text-discord-green border border-discord-green/40 hover:bg-discord-green/30"
                   : "bg-[#2b2d31] text-discord-textMuted hover:bg-discord-hover"
               }`}
               title={
-                isNoiseSuppressionEnabled
-                  ? "RNNoise AI 智能降噪已开启"
-                  : "RNNoise 降噪已关闭"
+                noiseSuppressionMode === "dtln"
+                  ? "DTLN 深度净化降噪已开启 (专攻消除机械键盘敲击音)"
+                  : isNoiseSuppressionEnabled
+                    ? "RNNoise AI 智能降噪已开启"
+                    : "AI 降噪已关闭"
               }
             >
               <Sparkles className="w-5 h-5" />

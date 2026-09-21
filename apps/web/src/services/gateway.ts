@@ -1,6 +1,7 @@
 import {
   GatewayOpCode,
   GatewayPayload,
+  GatewayEvents,
   HelloPayload,
   User,
 } from "@tescord/types";
@@ -14,8 +15,16 @@ export class GatewayClient {
   private handlers: Map<string, Set<EventHandler>> = new Map();
   private token: string = "";
   private isConnecting: boolean = false;
+  private sessionId: string =
+    typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).substring(2);
 
   constructor(private gatewayUrl: string = GATEWAY_URL) {}
+
+  getSessionId(): string {
+    return this.sessionId;
+  }
 
   connect(token: string) {
     this.token = token;
@@ -68,15 +77,30 @@ export class GatewayClient {
       case GatewayOpCode.HELLO: {
         const data = payload.d as HelloPayload;
         this.startHeartbeat(data.heartbeatInterval || 30000);
+
+        const isDesktop =
+          typeof window !== "undefined" && !!(window as any).electron;
+        const os = isDesktop
+          ? "Desktop"
+          : typeof navigator !== "undefined" &&
+              /Mac|iPhone|iPad/i.test(navigator.userAgent)
+            ? "macOS"
+            : "Web";
+        const device = isDesktop ? "桌面客户端" : "Web 浏览器";
+
         // 发送 IDENTIFY
         this.send({
           op: GatewayOpCode.IDENTIFY,
           d: {
             token: this.token,
+            sessionId: this.sessionId,
             properties: {
-              os: "Web",
-              browser: navigator.userAgent,
-              device: "Desktop",
+              os,
+              browser:
+                typeof navigator !== "undefined"
+                  ? navigator.userAgent
+                  : "Desktop",
+              device,
             },
           },
         });
@@ -88,6 +112,9 @@ export class GatewayClient {
         break;
 
       case GatewayOpCode.DISPATCH: {
+        if (payload.t === "READY" && payload.d?.sessionId) {
+          this.sessionId = payload.d.sessionId;
+        }
         if (payload.t) {
           this.emit(payload.t, payload.d);
         }
@@ -158,8 +185,17 @@ export class GatewayClient {
       d: {
         guildId,
         channelId,
+        sessionId: this.sessionId,
         ...extra,
       },
+    });
+  }
+
+  sendTyping(channelId: string) {
+    this.send({
+      op: GatewayOpCode.DISPATCH,
+      t: GatewayEvents.TYPING_START,
+      d: { channelId },
     });
   }
 
@@ -173,3 +209,7 @@ export class GatewayClient {
 }
 
 export const gatewayClient = new GatewayClient();
+
+if (typeof window !== "undefined") {
+  (window as any).__gatewayClient = gatewayClient;
+}

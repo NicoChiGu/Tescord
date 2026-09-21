@@ -99,8 +99,23 @@ body,
   }
 }
 
+@keyframes slide-down {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .animate-fade-in {
   animation: fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-slide-down {
+  animation: slide-down 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 .animate-slide-up {
@@ -162,4 +177,35 @@ body,
   user-select: none !important;
 }
 
+/* Discord 经典三点跳跃输入状态动效 */
+@keyframes typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.35;
+  }
+  30% {
+    transform: translateY(-3.5px);
+    opacity: 1;
+  }
+}
 
+.animate-typing-bounce {
+  animation: typing-bounce 1.3s infinite ease-in-out both;
+}
+
+/* Discord 经典消息定位脉冲高亮与平滑淡出动画 */
+@keyframes message-highlight {
+  0% {
+    background-color: rgba(250, 166, 26, 0.38);
+  }
+  40% {
+    background-color: rgba(250, 166, 26, 0.28);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+
+.animate-message-highlight {
+  animation: message-highlight 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}

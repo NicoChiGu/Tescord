@@ -15,12 +15,22 @@ import {
   Plus,
   UserPlus,
   Check,
+  X,
+  Video,
+  VideoOff,
 } from "lucide-react";
 import { API_BASE } from "../config.js";
+import { audioEngine } from "../services/audioEngine.js";
 import { useNetworkStats } from "../hooks/useNetworkStats.js";
+import { usePermissions } from "../hooks/usePermissions.js";
 import { ServerContextMenu } from "./context-menu/ServerContextMenu.js";
 import { ChannelContextMenu } from "./context-menu/ChannelContextMenu.js";
 import { UserContextMenu } from "./context-menu/UserContextMenu.js";
+
+export interface VoiceTransferNotice {
+  targetPlatform: string;
+  previousChannel: Channel | null;
+}
 
 interface ChannelSidebarProps {
   guild: Guild | null;
@@ -34,6 +44,9 @@ interface ChannelSidebarProps {
   isDeafened: boolean;
   isSpeaking: boolean;
   isNoiseSuppressionEnabled: boolean;
+  voiceTransferNotice?: VoiceTransferNotice | null;
+  onDismissVoiceTransferNotice?: () => void;
+  onReclaimVoice?: (channel: Channel) => void;
   onSelectChannel: (channel: Channel) => void;
   onJoinVoiceChannel: (channel: Channel) => void;
   onLeaveVoiceChannel: () => void;
@@ -43,6 +56,8 @@ interface ChannelSidebarProps {
   onOpenUserSettings?: () => void;
   onOpenNetworkStats?: () => void;
   onToggleScreenShare: () => void;
+  isVideoEnabled?: boolean;
+  onToggleVideo?: () => void;
   onOpenCreateChannel?: () => void;
   onDeleteChannel?: (channel: Channel) => void;
   onEditChannel?: (channel: Channel) => void;
@@ -64,6 +79,11 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   isDeafened,
   isSpeaking,
   isNoiseSuppressionEnabled,
+  isVideoEnabled = false,
+  onToggleVideo,
+  voiceTransferNotice,
+  onDismissVoiceTransferNotice,
+  onReclaimVoice,
   onSelectChannel,
   onJoinVoiceChannel,
   onLeaveVoiceChannel,
@@ -83,6 +103,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
 }) => {
   const [copiedInvite, setCopiedInvite] = useState<string | null>(null);
   const networkStats = useNetworkStats();
+  const { canManageChannels } = usePermissions(guild);
 
   const handleCreateInvite = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -201,26 +222,43 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                   onDeleteChannel={onDeleteChannel}
                   onMarkAsRead={onMarkChannelAsRead}
                 >
-                  <button
-                    onClick={() => onSelectChannel(channel)}
-                    className={`w-full flex items-center px-2 py-1.5 rounded-md text-sm font-medium transition group ${
-                      isSelected
-                        ? "bg-discord-active text-white"
-                        : "text-discord-textMuted hover:bg-discord-hover hover:text-discord-textNormal"
-                    }`}
-                  >
-                    {channel.isE2EE ? (
-                      <Lock className="w-4 h-4 mr-1.5 text-discord-green flex-shrink-0" />
-                    ) : (
-                      <Hash className="w-4 h-4 mr-1.5 text-discord-textMuted flex-shrink-0" />
+                  <div className="relative group w-full flex items-center">
+                    <button
+                      type="button"
+                      onClick={() => onSelectChannel(channel)}
+                      className={`w-full flex items-center pl-2 pr-8 py-1.5 rounded-md text-sm font-medium transition ${
+                        isSelected
+                          ? "bg-discord-active text-white"
+                          : "text-discord-textMuted hover:bg-discord-hover hover:text-discord-textNormal"
+                      }`}
+                    >
+                      {channel.isE2EE ? (
+                        <Lock className="w-4 h-4 mr-1.5 text-discord-green flex-shrink-0" />
+                      ) : (
+                        <Hash className="w-4 h-4 mr-1.5 text-discord-textMuted flex-shrink-0" />
+                      )}
+                      <span className="truncate">{channel.name}</span>
+                      {channel.isE2EE && (
+                        <span className="ml-auto mr-1 text-[10px] bg-[#23a55a22] text-discord-green px-1 rounded border border-discord-green/30">
+                          E2EE
+                        </span>
+                      )}
+                    </button>
+                    {canManageChannels && onEditChannel && (
+                      <button
+                        type="button"
+                        data-testid={`edit-channel-gear-${channel.id}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEditChannel(channel);
+                        }}
+                        className="absolute right-2 opacity-0 group-hover:opacity-100 hover:text-white text-discord-textMuted p-0.5 rounded transition"
+                        title="编辑频道"
+                      >
+                        <Settings className="w-3.5 h-3.5" />
+                      </button>
                     )}
-                    <span className="truncate">{channel.name}</span>
-                    {channel.isE2EE && (
-                      <span className="ml-auto text-[10px] bg-[#23a55a22] text-discord-green px-1 rounded border border-discord-green/30">
-                        E2EE
-                      </span>
-                    )}
-                  </button>
+                  </div>
                 </ChannelContextMenu>
               );
             })}
@@ -262,29 +300,46 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                     onDeleteChannel={onDeleteChannel}
                     onMarkAsRead={onMarkChannelAsRead}
                   >
-                    <button
-                      onClick={() => {
-                        onSelectChannel(channel);
-                        if (!isConnected) {
-                          onJoinVoiceChannel(channel);
-                        }
-                      }}
-                      className={`w-full flex items-center px-2 py-1.5 rounded-md text-sm font-medium transition group ${
-                        isConnected
-                          ? "bg-[#23a55a1a] text-discord-green font-semibold"
-                          : isSelected
-                            ? "bg-discord-active text-white"
-                            : "text-discord-textMuted hover:bg-discord-hover hover:text-discord-textNormal"
-                      }`}
-                    >
-                      <Volume2
-                        className={`w-4 h-4 mr-1.5 flex-shrink-0 ${isConnected ? "text-discord-green" : ""}`}
-                      />
-                      <span className="truncate">{channel.name}</span>
-                      <span className="ml-auto text-xs px-1.5 py-0.5 rounded bg-[#1f2023] text-discord-textMuted">
-                        {participants.length}
-                      </span>
-                    </button>
+                    <div className="relative group w-full flex items-center">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onSelectChannel(channel);
+                          if (!isConnected) {
+                            onJoinVoiceChannel(channel);
+                          }
+                        }}
+                        className={`w-full flex items-center pl-2 pr-12 py-1.5 rounded-md text-sm font-medium transition ${
+                          isConnected
+                            ? "bg-[#23a55a1a] text-discord-green font-semibold"
+                            : isSelected
+                              ? "bg-discord-active text-white"
+                              : "text-discord-textMuted hover:bg-discord-hover hover:text-discord-textNormal"
+                        }`}
+                      >
+                        <Volume2
+                          className={`w-4 h-4 mr-1.5 flex-shrink-0 ${isConnected ? "text-discord-green" : ""}`}
+                        />
+                        <span className="truncate">{channel.name}</span>
+                        <span className="ml-auto mr-1 text-xs px-1.5 py-0.5 rounded bg-[#1f2023] text-discord-textMuted">
+                          {participants.length}
+                        </span>
+                      </button>
+                      {canManageChannels && onEditChannel && (
+                        <button
+                          type="button"
+                          data-testid={`edit-channel-gear-${channel.id}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onEditChannel(channel);
+                          }}
+                          className="absolute right-2 opacity-0 group-hover:opacity-100 hover:text-white text-discord-textMuted p-0.5 rounded transition"
+                          title="编辑频道"
+                        >
+                          <Settings className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </ChannelContextMenu>
 
                   {/* 频道内成员展开 */}
@@ -372,26 +427,98 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
             </button>
           </div>
 
-          <div className="flex items-center justify-between pt-1 border-t border-[#2b2d31]">
+          <div className="flex items-center justify-between pt-1 border-t border-[#2b2d31] gap-1">
+            <button
+              onClick={onToggleVideo}
+              data-testid="sidebar-toggle-video-btn"
+              className={`py-1 px-1.5 text-xs rounded flex items-center justify-center space-x-1 transition flex-1 ${
+                isVideoEnabled
+                  ? "bg-discord-green text-white hover:bg-discord-green/90 shadow-sm"
+                  : "bg-discord-sidebar hover:bg-discord-hover text-discord-textNormal"
+              }`}
+              title={isVideoEnabled ? "关闭摄像头" : "开启摄像头"}
+            >
+              {isVideoEnabled ? (
+                <VideoOff className="w-3.5 h-3.5" />
+              ) : (
+                <Video className="w-3.5 h-3.5" />
+              )}
+              <span>{isVideoEnabled ? "关视频" : "开视频"}</span>
+            </button>
             <button
               onClick={onToggleScreenShare}
-              className="flex-1 py-1 px-2 mr-1 text-xs bg-discord-sidebar hover:bg-discord-hover text-discord-textNormal rounded flex items-center justify-center space-x-1 transition"
+              data-testid="sidebar-toggle-screen-btn"
+              className="flex-1 py-1 px-1.5 text-xs bg-discord-sidebar hover:bg-discord-hover text-discord-textNormal rounded flex items-center justify-center space-x-1 transition"
             >
               <ScreenShare className="w-3.5 h-3.5" />
               <span>直播分享</span>
             </button>
             <div
-              className={`flex items-center space-x-1 px-2 py-1 rounded text-[11px] ${
+              className={`flex items-center space-x-1 px-1.5 py-1 rounded text-[11px] ${
                 isNoiseSuppressionEnabled
                   ? "text-discord-green bg-[#23a55a22]"
                   : "text-discord-textMuted"
               }`}
-              title="RNNoise AI 智能降噪激活中"
+              title={
+                audioEngine.config.noiseSuppressionMode === "dtln"
+                  ? "DTLN 深度消键盘音降噪激活中"
+                  : isNoiseSuppressionEnabled
+                    ? "RNNoise AI 智能降噪激活中"
+                    : "AI 降噪已关闭"
+              }
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>AI降噪</span>
+              <span className="hidden sm:inline">
+                {audioEngine.config.noiseSuppressionMode === "dtln"
+                  ? "DTLN"
+                  : "AI"}
+              </span>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 语音转移提示卡片 (Discord 风格) */}
+      {voiceTransferNotice && !activeVoiceChannel && (
+        <div
+          data-testid="voice-transfer-notice"
+          className="bg-[#2b2d31] border-l-4 border-amber-500 border-b border-[#1f2023] p-2.5 flex flex-col space-y-2 animate-fade-in"
+        >
+          <div className="flex items-start justify-between">
+            <div className="flex items-center space-x-1.5 text-amber-400 text-xs font-semibold">
+              <PhoneOff className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>语音已转移至【{voiceTransferNotice.targetPlatform || "其他设备"}】</span>
+            </div>
+            {onDismissVoiceTransferNotice && (
+              <button
+                type="button"
+                data-testid="dismiss-transfer-notice-btn"
+                onClick={onDismissVoiceTransferNotice}
+                className="text-discord-textMuted hover:text-white p-0.5 rounded transition cursor-pointer"
+                title="忽略提示"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <div className="text-[11px] text-discord-textMuted leading-tight">
+            当前账号已在另一端连接频道
+            {voiceTransferNotice.previousChannel
+              ? ` #${voiceTransferNotice.previousChannel.name}`
+              : ""}。
+          </div>
+          {voiceTransferNotice.previousChannel && onReclaimVoice && (
+            <button
+              type="button"
+              data-testid="reclaim-voice-btn"
+              onClick={() =>
+                onReclaimVoice(voiceTransferNotice.previousChannel!)
+              }
+              className="w-full py-1 px-2 text-xs bg-discord-brand hover:bg-discord-brandHover text-white rounded font-medium flex items-center justify-center space-x-1 transition shadow-sm cursor-pointer"
+            >
+              <span>在此设备重新连接</span>
+            </button>
+          )}
         </div>
       )}
 
@@ -479,8 +606,10 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
             <Headphones className="w-4 h-4" />
           </button>
           <button
+            type="button"
+            data-testid="user-settings-gear-btn"
             onClick={onOpenSettings}
-            className="p-1.5 rounded hover:bg-discord-hover hover:text-discord-textNormal transition"
+            className="p-1.5 rounded hover:bg-discord-hover hover:text-discord-textNormal transition cursor-pointer"
             title="音频与降噪设置"
           >
             <Settings className="w-4 h-4" />

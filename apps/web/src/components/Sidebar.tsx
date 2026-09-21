@@ -68,6 +68,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   isSelected ? "!rounded-[16px]" : ""
                 }`}
                 title={guild.name}
+                aria-label={guild.name}
               >
                 <span
                   className={`absolute left-0 w-1 bg-white rounded-r-full transition-all duration-200 ${

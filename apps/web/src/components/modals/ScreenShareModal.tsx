@@ -284,6 +284,7 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
               取消
             </button>
             <button
+              data-testid="start-screen-share-confirm-btn"
               onClick={handleGoLive}
               className="px-6 py-2 rounded-xl text-sm font-semibold bg-discord-brand hover:bg-discord-brand-hover text-white transition shadow-lg flex items-center space-x-1.5"
             >

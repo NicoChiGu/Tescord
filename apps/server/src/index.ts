@@ -2109,6 +2109,27 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
   return messagePayload;
 });
 
+// 触发频道打字状态 (Typing Indicator - 对齐 Discord REST 规范)
+server.post("/api/channels/:channelId/typing", async (request, reply) => {
+  const { channelId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  const user = userId
+    ? await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, username: true, avatarUrl: true },
+      })
+    : await prisma.user.findFirst({
+        select: { id: true, username: true, avatarUrl: true },
+      });
+
+  if (!user) {
+    return reply.status(401).send({ error: "需要登录后操作" });
+  }
+
+  gatewayManager.broadcastTyping(channelId, user);
+  return reply.status(204).send();
+});
+
 // 添加 Reaction 点赞
 server.put(
   "/api/channels/:channelId/messages/:messageId/reactions/:emoji",
@@ -2471,6 +2492,13 @@ server.post("/api/livekit/token", async (request, reply) => {
       .status(400)
       .send({ error: "roomName and identity are required" });
   }
+
+  // 鉴权校验：如果提供了身份凭据，校验请求用户是否与 identity 相符
+  const reqUserId = await getUserIdFromRequest(request);
+  if (reqUserId && reqUserId !== String(body.identity)) {
+    return reply.status(403).send({ error: "无权为其他用户签发语音令牌" });
+  }
+
   return await generateLiveKitToken({
     roomName: String(body.roomName),
     identity: String(body.identity),
