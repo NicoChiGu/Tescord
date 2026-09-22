@@ -16,6 +16,8 @@ import {
   User,
   UserStatus,
   PresenceUpdateEvent,
+  DevicePublicKey,
+  MediaKeyEnvelopePayload,
 } from "@tescord/types";
 import { TitleBar } from "./components/TitleBar.js";
 import { GatewayConnectionBanner } from "./components/GatewayConnectionBanner.js";
@@ -28,6 +30,7 @@ import { ChatArea } from "./components/ChatArea.js";
 import { VoiceRoomArea } from "./components/VoiceRoomArea.js";
 import { MemberList } from "./components/MemberList.js";
 import { AuthModal } from "./components/auth/AuthModal.js";
+import { ForcedPasswordChangeModal } from "./components/auth/ForcedPasswordChangeModal.js";
 import { UserSettingsModal } from "./components/settings/UserSettingsModal.js";
 import { ServerSettingsModal } from "./components/server-settings/ServerSettingsModal.js";
 import { CreateGuildModal } from "./components/modals/CreateGuildModal.js";
@@ -39,6 +42,8 @@ import { EditCategoryModal } from "./components/modals/EditCategoryModal.js";
 import { ScreenShareModal } from "./components/modals/ScreenShareModal.js";
 import { NetworkQualityModal } from "./components/modals/NetworkQualityModal.js";
 import { P2PFallbackModal } from "./components/modals/P2PFallbackModal.js";
+import { AdminDashboardModal } from "./components/admin/AdminDashboardModal.js";
+import { IncomingCallModal } from "./components/dm/IncomingCallModal.js";
 import { FloatingPiP } from "./components/FloatingPiP.js";
 import { useAuthStore } from "./stores/useAuthStore.js";
 import { gatewayClient } from "./services/gateway.js";
@@ -61,6 +66,7 @@ import { API_BASE } from "./config.js";
 import { useViewport } from "./hooks/useViewport.js";
 import { useSwipeGesture } from "./hooks/useSwipeGesture.js";
 import { X, AlertTriangle, Info } from "lucide-react";
+import { deviceKeyService } from "./services/deviceKeys.js";
 
 export const App: React.FC = () => {
   const {
@@ -147,6 +153,8 @@ export const App: React.FC = () => {
     (window as any).__activeVoiceChannelId = activeVoiceChannelId;
     (window as any).__selectedChannelId = selectedChannel?.id;
   }
+  const guildsRef = useRef<Guild[]>([]);
+  guildsRef.current = guilds;
   const selectedGuildIdRef = useRef<string | null>(null);
   selectedGuildIdRef.current = selectedGuildId;
   const selectedChannelRef = useRef<Channel | null>(null);
@@ -188,6 +196,33 @@ export const App: React.FC = () => {
     useState(false);
   const [isP2PFallbackModalOpen, setIsP2PFallbackModalOpen] = useState(false);
   const [p2pFallbackReason, setP2PFallbackReason] = useState<string>("");
+
+  // 私信、呼叫与超级管理员状态
+  const [dmChannels, setDmChannels] = useState<Channel[]>([]);
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [incomingCall, setIncomingCall] = useState<{
+    callId: string;
+    caller: User;
+    channelId: string;
+    hasVideo: boolean;
+  } | null>(null);
+  const [activeDMCall, setActiveDMCall] = useState<{
+    callId: string;
+    channelId: string;
+    hasVideo: boolean;
+  } | null>(null);
+  const activeDMCallRef = useRef<typeof activeDMCall>(null);
+  const [callEncryption, setCallEncryption] = useState<{
+    status: "idle" | "negotiating" | "tofu" | "trusted" | "failed";
+    fingerprint?: string;
+  }>({ status: "idle" });
+  const [systemBroadcast, setSystemBroadcast] = useState<{
+    id: string;
+    title?: string;
+    content: string;
+    severity: "INFO" | "WARNING" | "CRITICAL";
+    expiresAt?: string;
+  } | null>(null);
 
   // 全局 Toast 浮窗提示状态（伴音降级、异常警告等）
   const [globalToast, setGlobalToast] = useState<{
@@ -270,7 +305,10 @@ export const App: React.FC = () => {
 
   // 拉取公会列表
   const refreshGuilds = () => {
-    fetch(`${API_BASE}/api/guilds`)
+    const token = useAuthStore.getState().token;
+    fetch(`${API_BASE}/api/guilds`, {
+      headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    })
       .then((res) => res.json())
       .then((data: Guild[]) => {
         setGuilds(data);
@@ -285,11 +323,52 @@ export const App: React.FC = () => {
       .catch((err) => console.error("Failed to load guilds:", err));
   };
 
+  useEffect(() => {
+    const token = useAuthStore.getState().token;
+    if (!isAuthenticated || !currentUser?.id || !token || !window.indexedDB) return;
+    deviceKeyService.ensureAndRegister(currentUser.id, token).catch((error) => {
+      console.error("Failed to initialize account-scoped device keys:", error);
+      showGlobalToast("设备身份密钥初始化失败，E2EE 媒体将保持禁用", "error");
+    });
+  }, [isAuthenticated, currentUser?.id]);
+
+  // 本机资料更新先同步至已加载的成员缓存；网关事件随后仍按用户 ID 幂等合并。
+  // 这样短暂重连期间切换 Presence 也不会让自己的状态指示滞后。
+  useEffect(() => {
+    if (!currentUser) return;
+    setGuilds((previous) => previous.map((guild) => ({
+      ...guild,
+      members: guild.members?.map((member) =>
+        member.userId === currentUser.id && member.user
+          ? { ...member, user: { ...member.user, status: currentUser.status, customStatus: currentUser.customStatus } }
+          : member,
+      ),
+    })));
+  }, [currentUser?.id, currentUser?.status, currentUser?.customStatus]);
+
+  // 拉取私信列表
+  const refreshDMChannels = useCallback(async () => {
+    try {
+      const token = localStorage.getItem("tescord_access_token");
+      if (!token) return;
+      const res = await fetch(`${API_BASE}/api/users/@me/channels`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data: Channel[] | { items: Channel[] } = await res.json();
+        setDmChannels(Array.isArray(data) ? data : data.items);
+      }
+    } catch (err) {
+      console.error("Failed to load DM channels:", err);
+    }
+  }, []);
+
   // 当用户鉴权登入后建立连接
   useEffect(() => {
     if (!isAuthenticated || !currentUser) return;
 
     refreshGuilds();
+    refreshDMChannels();
     window.electronAPI?.syncUserStatus(currentUser.status);
     p2pStreamManager.setContext(currentUser.id);
 
@@ -424,6 +503,40 @@ export const App: React.FC = () => {
           if (prev.some((m) => m.id === msg.id)) return prev;
           return [...prev, msg];
         });
+
+        // 若属于私信会话，同步最新消息与未读计数
+        setDmChannels((prev) =>
+          prev.map((dm) => {
+            if (dm.id === msg.channelId) {
+              const isCurrentActive =
+                selectedChannelRef.current?.id === msg.channelId;
+              return {
+                ...dm,
+                lastMessage: msg,
+                unreadCount: isCurrentActive
+                  ? 0
+                  : (dm.unreadCount || 0) + 1,
+              };
+            }
+            return dm;
+          }),
+        );
+
+        if (
+          selectedChannelRef.current?.type === "DM" &&
+          selectedChannelRef.current.id === msg.channelId &&
+          msg.sequence
+        ) {
+          const token = useAuthStore.getState().token;
+          fetch(`${API_BASE}/api/channels/${msg.channelId}/read`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ lastReadSequence: msg.sequence }),
+          }).catch(() => undefined);
+        }
 
         // 4.3 原生桌面通知推送 (当窗口未聚焦或有 @ 提及)
         if (msg.authorId !== currentUser.id) {
@@ -938,6 +1051,178 @@ export const App: React.FC = () => {
       },
     );
 
+    // 监听 1v1 私信通话与系统信令
+    const unbindCallOffer = gatewayClient.on(
+      GatewayEvents.CALL_OFFER,
+      (data: {
+        callId: string;
+        channelId: string;
+        caller: Pick<User, "id" | "username" | "avatarUrl">;
+        hasVideo?: boolean;
+      }) => {
+        const activeCall = { callId: data.callId, channelId: data.channelId, hasVideo: !!data.hasVideo };
+        activeDMCallRef.current = activeCall;
+        setActiveDMCall(activeCall);
+        setCallEncryption({ status: "negotiating" });
+        setIncomingCall({
+          callId: data.callId,
+          caller: data.caller as User,
+          channelId: data.channelId,
+          hasVideo: !!data.hasVideo,
+        });
+      },
+    );
+
+    const unbindCallAnswer = gatewayClient.on(
+      GatewayEvents.CALL_ANSWER,
+      (data: { callId: string; channelId: string }) => {
+        showGlobalToast("对方已接听通话", "info");
+        if (activeDMCallRef.current?.callId === data.callId) {
+          handleJoinDMCall(data.channelId, activeDMCallRef.current.hasVideo, data.callId);
+        }
+      },
+    );
+
+    const unbindCallReject = gatewayClient.on(
+      GatewayEvents.CALL_REJECT,
+      () => {
+        showGlobalToast("对方已挂断或拒绝了通话", "warning");
+        soundManager.play("VOICE_LEAVE");
+        activeDMCallRef.current = null;
+        setActiveDMCall(null);
+        setCallEncryption({ status: "idle" });
+        handleLeaveVoiceChannel();
+      },
+    );
+
+    const unbindCallState = gatewayClient.on(
+      GatewayEvents.CALL_STATE_UPDATE,
+      async (data: { callId: string; channelId: string; callerId: string; hasVideo: boolean; state: string }) => {
+        if (data.state === "ringing" || data.state === "active") {
+          const call = { callId: data.callId, channelId: data.channelId, hasVideo: data.hasVideo };
+          activeDMCallRef.current = call;
+          setActiveDMCall(call);
+          if (data.callerId === currentUser?.id && data.state === "ringing") {
+            try {
+              const token = useAuthStore.getState().token;
+              if (!token) throw new Error("登录已失效");
+              const response = await fetch(`${API_BASE}/api/channels/${data.channelId}/e2ee/devices`, {
+                headers: { Authorization: `Bearer ${token}` },
+              });
+              if (!response.ok) throw new Error("无法读取对端设备密钥");
+              const devices = await response.json() as DevicePublicKey[];
+              const negotiated = await deviceKeyService.distributeMediaKey(data.channelId, data.callId, devices, token);
+              sframeManager.setNegotiatedKey(negotiated.key);
+              livekitService.setNegotiatedE2EEKey(negotiated.key);
+              setCallEncryption({ status: negotiated.trust, fingerprint: negotiated.fingerprint });
+            } catch (error) {
+              setCallEncryption({ status: "failed" });
+              showGlobalToast(error instanceof Error ? error.message : "E2EE 密钥协商失败", "error");
+              gatewayClient.send({ op: GatewayOpCode.DISPATCH, t: GatewayEvents.CALL_END, d: { callId: data.callId, reason: "e2ee_key_exchange_failed" } });
+            }
+          }
+        }
+      },
+    );
+
+    const unbindMediaKey = gatewayClient.on(
+      GatewayEvents.E2EE_KEY_EXCHANGE,
+      async (data: MediaKeyEnvelopePayload) => {
+        if (!data?.callId || data.callId !== activeDMCallRef.current?.callId) return;
+        try {
+          const negotiated = await deviceKeyService.openMediaKey(data);
+          if (!negotiated) return;
+          sframeManager.setNegotiatedKey(negotiated.key);
+          livekitService.setNegotiatedE2EEKey(negotiated.key);
+          setCallEncryption({ status: negotiated.trust, fingerprint: negotiated.fingerprint });
+        } catch (error) {
+          setCallEncryption({ status: "failed" });
+          showGlobalToast(error instanceof Error ? error.message : "E2EE 媒体密钥验证失败", "error");
+        }
+      },
+    );
+
+    const unbindCallEnd = gatewayClient.on(
+      GatewayEvents.CALL_END,
+      (data: { channelId: string }) => {
+        setIncomingCall(null);
+        activeDMCallRef.current = null;
+        setActiveDMCall(null);
+        setCallEncryption({ status: "idle" });
+        if (activeVoiceChannelIdRef.current === data.channelId) {
+          soundManager.play("VOICE_LEAVE");
+          handleLeaveVoiceChannel();
+        }
+      },
+    );
+
+    const unbindSystemBroadcast = gatewayClient.on(
+      GatewayEvents.SYSTEM_BROADCAST,
+      (data: {
+        id: string;
+        title?: string;
+        content: string;
+        severity: "INFO" | "WARNING" | "CRITICAL";
+        expiresAt?: string;
+      }) => {
+        setSystemBroadcast(data);
+      },
+    );
+
+    const unbindDMCreate = gatewayClient.on(
+      GatewayEvents.DM_CHANNEL_CREATE,
+      (newChannel: Channel) => {
+        setDmChannels((prev) => {
+          if (prev.some((c) => c.id === newChannel.id)) return prev;
+          return [newChannel, ...prev];
+        });
+      },
+    );
+
+    const unbindDMUpdate = gatewayClient.on(
+      GatewayEvents.DM_CHANNEL_UPDATE,
+      (update: Channel & {
+        channelId?: string;
+        unreadIncrement?: number;
+        lastReadSequence?: number;
+      }) => {
+        const channelId = update.channelId || update.id;
+        setDmChannels((prev) =>
+          prev.map((channel) =>
+            channel.id === channelId
+              ? {
+                  ...channel,
+                  ...update,
+                  id: channel.id,
+                  unreadCount:
+                    update.unreadCount ??
+                    Math.max(
+                      0,
+                      (channel.unreadCount || 0) + (update.unreadIncrement || 0),
+                    ),
+                }
+              : channel,
+          ),
+        );
+
+        if (selectedChannelRef.current?.id === channelId && update.id) {
+          setSelectedChannel((current) =>
+            current ? { ...current, ...update, id: current.id } : current,
+          );
+        }
+      },
+    );
+
+    const unbindDMDelete = gatewayClient.on(
+      GatewayEvents.DM_CHANNEL_DELETE,
+      (data: { channelId: string }) => {
+        setDmChannels((prev) => prev.filter((c) => c.id !== data.channelId));
+        if (selectedChannelRef.current?.id === data.channelId) {
+          setSelectedChannel(null);
+        }
+      },
+    );
+
     return () => {
       unbindReady();
       unbindPresenceUpdate();
@@ -970,6 +1255,16 @@ export const App: React.FC = () => {
       unbindP2PSignal();
       unbindP2PTopology();
       unbindP2PFallback();
+      unbindCallOffer();
+      unbindCallAnswer();
+      unbindCallReject();
+      unbindCallEnd();
+      unbindCallState();
+      unbindMediaKey();
+      unbindSystemBroadcast();
+      unbindDMCreate();
+      unbindDMUpdate();
+      unbindDMDelete();
       gatewayClient.disconnect();
     };
   }, [isAuthenticated, currentUser?.id]);
@@ -1020,19 +1315,58 @@ export const App: React.FC = () => {
     };
   }, [currentUser?.id, isAuthenticated]);
 
-  // 监听 LiveKit SFU 底层断开回调（仅在 DUPLICATE_IDENTITY 媒体层冲突被踢时触发兜底）
+  // 监听 LiveKit SFU 底层断开回调（服务器断线、异常掉线、多端冲突被踢时权威收敛状态并向网关上报）
   useEffect(() => {
     const unbindLiveKitDisconnect = livekitService.onDisconnected((reason) => {
-      if (
-        activeVoiceChannelIdRef.current &&
-        (reason === 2 || String(reason).toLowerCase().includes("duplicate"))
-      ) {
-        sframeManager.disable();
-        audioEngine.stop();
-        setActiveVoiceChannelId(null);
-        setIsSpeaking(false);
-        setIsScreenSharing(false);
+      const channelId = activeVoiceChannelIdRef.current;
+      if (!channelId) return;
+
+      // 1 代表 DisconnectReason.CLIENT_INITIATED（用户主动挂断），由 handleLeaveVoiceChannel 正常清理
+      const isClientInitiated =
+        reason === 1 || String(reason).toLowerCase().includes("client_initiated");
+      if (isClientInitiated) return;
+
+      console.warn(
+        `[LiveKit] Abnormal disconnection detected (reason: ${reason}), reconciling voice state with gateway...`,
+      );
+
+      // 1. 查找当前语音频道所属的真实 guildId
+      const currentChannel = guildsRef.current
+        .flatMap((g) => g.channels)
+        .find((c) => c.id === channelId);
+      const targetGuildId = currentChannel?.guildId || selectedGuildIdRef.current;
+
+      // 2. 立即向后端 WebSocket 网关同步发送离开信令，防止界面幽灵残留
+      if (targetGuildId) {
+        gatewayClient.updateVoiceState(targetGuildId, null, {
+          selfMute: false,
+          selfDeaf: false,
+          selfVideo: false,
+          streaming: false,
+        });
+      } else if (activeDMCallRef.current) {
+        gatewayClient.send({
+          op: GatewayOpCode.DISPATCH,
+          t: GatewayEvents.CALL_END,
+          d: { callId: activeDMCallRef.current.callId, reason: "disconnected" },
+        });
       }
+
+      // 3. 清理本地媒体与加密管线
+      sframeManager.disable();
+      livekitService.setNegotiatedE2EEKey(null);
+      voiceMeshManager.stopAll();
+      audioEngine.stop();
+
+      // 4. 播放退出语音频道提示音
+      soundManager.play("VOICE_LEAVE");
+
+      // 5. 重置本地所有 UI 与发言状态
+      setActiveVoiceChannelId(null);
+      setIsSpeaking(false);
+      setActiveSpeakers([]);
+      setIsScreenSharing(false);
+      setIsVideoEnabled(false);
     });
     return () => {
       unbindLiveKitDisconnect();
@@ -1137,17 +1471,41 @@ export const App: React.FC = () => {
     };
   }, [guilds, isScreenSharing]);
 
-  // 切换文字频道拉取历史消息
+  // 切换文字或私信频道拉取历史消息
   useEffect(() => {
-    if (selectedChannel && selectedChannel.type === "TEXT") {
+    if (selectedChannel && selectedChannel.type !== "VOICE") {
       const token = localStorage.getItem("tescord_access_token");
       fetch(`${API_BASE}/api/channels/${selectedChannel.id}/messages`, {
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
       })
-        .then((res) => res.json())
-        .then((data: Message[]) => setMessages(data))
+        .then(async (res) => {
+          if (!res.ok) throw new Error(`读取消息失败 (${res.status})`);
+          const data = (await res.json()) as Message[];
+          setMessages(data);
+          if (selectedChannel.type === "DM") {
+            const lastReadSequence = data.reduce(
+              (max, message) => Math.max(max, message.sequence || 0),
+              0,
+            );
+            await fetch(`${API_BASE}/api/channels/${selectedChannel.id}/read`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify({ lastReadSequence }),
+            });
+            setDmChannels((current) =>
+              current.map((channel) =>
+                channel.id === selectedChannel.id
+                  ? { ...channel, unreadCount: 0 }
+                  : channel,
+              ),
+            );
+          }
+        })
         .catch((err) => console.error("Failed to fetch messages:", err));
     }
   }, [selectedChannel?.id]);
@@ -1430,7 +1788,12 @@ export const App: React.FC = () => {
 
     // 阶段五：语音端到端加密 (SFrame WebRTC E2EE)
     if (channel.isE2EE) {
-      await sframeManager.deriveRoomKey(channel.id);
+      if (!sframeManager.getStats().enabled) {
+        showGlobalToast("设备密钥尚未协商完成，已阻止未加密加入 E2EE 频道", "error");
+        setActiveVoiceChannelId(null);
+        livekitService.setConnectionStatus("disconnected");
+        return;
+      }
     } else {
       sframeManager.disable();
     }
@@ -1441,29 +1804,52 @@ export const App: React.FC = () => {
     const processedStream = audioEngine.getStream();
 
     let joinSuccess = false;
-    try {
-      const token = useAuthStore.getState().token;
-      const res = await fetch(`${API_BASE}/api/livekit/token`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({
-          roomName: channel.id,
-          identity: currentUser.id,
-          name: currentUser.username,
-          bitrate,
-        }),
+    const voiceMode = useSettingsStore.getState().voiceTransmissionMode;
+    if (voiceMode === "p2p_mesh" && processedStream && channel.guildId) {
+      gatewayClient.updateVoiceState(channel.guildId, channel.id, {
+        selfMute: isMuted,
+        selfDeaf: isDeafened,
+        selfVideo: isVideoEnabled,
+        streaming: isScreenSharing,
       });
-      const data = await res.json();
-      joinSuccess = await livekitService.joinRoom(
-        data.url,
-        data.token,
-        channel.id,
-        processedStream,
-        bitrate,
-      );
+      const otherMembers = voiceStates
+        .filter((state) => state.channelId === channel.id && state.userId !== currentUser.id)
+        .map((state) => state.userId);
+      try {
+        await voiceMeshManager.startVoiceMesh(channel.id, channel.guildId, processedStream, otherMembers);
+        joinSuccess = otherMembers.length === 0 || await voiceMeshManager.waitForConnectedPeer(8_000);
+        if (joinSuccess) livekitService.setConnectionStatus("connected");
+      } catch (error) {
+        console.warn("公会 Mesh P2P 协商失败，准备回退 SFU:", error);
+      }
+      if (!joinSuccess) voiceMeshManager.stopAll();
+    }
+    try {
+      if (!joinSuccess) {
+        const token = useAuthStore.getState().token;
+        const res = await fetch(`${API_BASE}/api/livekit/token`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            roomName: channel.id,
+            identity: currentUser.id,
+            name: currentUser.username,
+            bitrate,
+          }),
+        });
+        if (!res.ok) throw new Error("Failed to get guild media token");
+        const data = await res.json();
+        joinSuccess = await livekitService.joinRoom(
+          data.url,
+          data.token,
+          channel.id,
+          processedStream,
+          bitrate,
+        );
+      }
     } catch (e) {
       console.error("Failed to join livekit room:", e);
       joinSuccess = false;
@@ -1479,44 +1865,30 @@ export const App: React.FC = () => {
     // 播放加入语音频道提示音
     soundManager.play("VOICE_JOIN");
 
-    gatewayClient.updateVoiceState(channel.guildId, channel.id, {
-      selfMute: isMuted,
-      selfDeaf: isDeafened,
-      selfVideo: isVideoEnabled,
-      streaming: isScreenSharing,
-    });
-
-    // 若配置偏好为纯语音 P2P 网状模式，且具备本地音频流，启动 VoiceMesh 协商
-    const voiceMode = useSettingsStore.getState().voiceTransmissionMode;
-    if (voiceMode === "p2p_mesh" && processedStream) {
-      const otherMembers = voiceStates
-        .filter(
-          (vs) =>
-            vs.channelId === channel.id &&
-            vs.userId !== currentUser.id &&
-            Boolean(vs.userId),
-        )
-        .map((vs) => vs.userId);
-      voiceMeshManager
-        .startVoiceMesh(
-          channel.id,
-          channel.guildId,
-          processedStream,
-          otherMembers,
-        )
-        .catch((err) => {
-          console.warn("[App] 启动纯语音 Mesh 失败，平滑继续使用 SFU 服务端:", err);
-        });
+    if (channel.guildId) {
+      gatewayClient.updateVoiceState(channel.guildId, channel.id, {
+        selfMute: isMuted,
+        selfDeaf: isDeafened,
+        selfVideo: isVideoEnabled,
+        streaming: isScreenSharing,
+      });
     }
+
   };
 
   // 取消正在进行的语音连接
   const handleCancelVoiceJoin = async () => {
+    const cancellingChannelId = activeVoiceChannelId;
     setActiveVoiceChannelId(null);
     audioEngine.stop();
     await livekitService.leaveRoom();
-    if (selectedGuildId) {
-      gatewayClient.updateVoiceState(selectedGuildId, null, {
+    const currentChannel = guildsRef.current
+      .flatMap((g) => g.channels)
+      .find((c) => c.id === cancellingChannelId);
+    const targetGuildId = currentChannel?.guildId || selectedGuildId;
+
+    if (targetGuildId) {
+      gatewayClient.updateVoiceState(targetGuildId, null, {
         selfMute: isMuted,
         selfDeaf: isDeafened,
         selfVideo: false,
@@ -1525,9 +1897,9 @@ export const App: React.FC = () => {
     }
   };
 
-  // 离开语音频道
+  // 离开语音频道或结束 1v1 私信通话
   const handleLeaveVoiceChannel = async () => {
-    if (!activeVoiceChannelId || !selectedGuildId) return;
+    if (!activeVoiceChannelId) return;
 
     const leavingChannelId = activeVoiceChannelId;
 
@@ -1538,6 +1910,7 @@ export const App: React.FC = () => {
 
     // 清理 SFrame 语音加密管线状态与纯语音 Mesh P2P
     sframeManager.disable();
+    livekitService.setNegotiatedE2EEKey(null);
     voiceMeshManager.stopAll();
     audioEngine.stop();
     await livekitService.leaveRoom();
@@ -1545,28 +1918,252 @@ export const App: React.FC = () => {
     // 播放退出语音频道提示音
     soundManager.play("VOICE_LEAVE");
 
-    gatewayClient.updateVoiceState(selectedGuildId, null, {
-      selfMute: isMuted,
-      selfDeaf: isDeafened,
-      selfVideo: false,
-      streaming: false,
-    });
+    const currentChannel = guildsRef.current
+      .flatMap((g) => g.channels)
+      .find((c) => c.id === leavingChannelId);
+    const targetGuildId = currentChannel?.guildId || selectedGuildId;
+
+    if (targetGuildId) {
+      gatewayClient.updateVoiceState(targetGuildId, null, {
+        selfMute: isMuted,
+        selfDeaf: isDeafened,
+        selfVideo: false,
+        streaming: false,
+      });
+    } else {
+      // 1v1 私信通话信令通知对方挂断
+      if (activeDMCallRef.current) {
+        gatewayClient.send({
+          op: GatewayOpCode.DISPATCH,
+          t: GatewayEvents.CALL_END,
+          d: { callId: activeDMCallRef.current.callId, reason: "hangup" },
+        });
+      }
+    }
 
     setActiveVoiceChannelId(null);
     setIsSpeaking(false);
     setActiveSpeakers([]);
     setIsScreenSharing(false);
     setVoiceTransferNotice(null);
+    activeDMCallRef.current = null;
+    setActiveDMCall(null);
+    setCallEncryption({ status: "idle" });
 
     // 退出语音频道视角：自动平滑切换回当前公会的第一个/默认文字频道
     if (
-      selectedChannel?.id === leavingChannelId ||
-      selectedChannel?.type === "VOICE"
+      selectedGuildId &&
+      (selectedChannel?.id === leavingChannelId ||
+        selectedChannel?.type === "VOICE")
     ) {
       const defaultTextChannel =
         currentChannels.find((c) => c.type === "TEXT") || null;
       setSelectedChannel(defaultTextChannel);
     }
+  };
+
+  // 发起/跳转私信会话
+  const handleStartDM = async (targetUserId: string) => {
+    try {
+      const token = localStorage.getItem("tescord_access_token");
+      const res = await fetch(`${API_BASE}/api/users/@me/channels`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ recipientId: targetUserId }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        showGlobalToast(
+          errData.error || errData.message || "无法发起私信会话",
+          "warning",
+        );
+        return;
+      }
+      const dmChannel: Channel = await res.json();
+      setDmChannels((prev) => {
+        if (prev.some((c) => c.id === dmChannel.id)) {
+          return prev.map((c) => (c.id === dmChannel.id ? dmChannel : c));
+        }
+        return [dmChannel, ...prev];
+      });
+      setSelectedGuildId(null);
+      setSelectedChannel(dmChannel);
+    } catch (err) {
+      console.error("Failed to start DM:", err);
+      showGlobalToast("发起私信会话失败", "error");
+    }
+  };
+
+  // 关闭私信会话 (从左侧列表中移除)
+  const handleCloseDMChannel = async (channelId: string) => {
+    try {
+      const token = localStorage.getItem("tescord_access_token");
+      await fetch(`${API_BASE}/api/users/@me/channels/${channelId}`, {
+        method: "DELETE",
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+      });
+      setDmChannels((prev) => prev.filter((c) => c.id !== channelId));
+      if (selectedChannel?.id === channelId) {
+        setSelectedChannel(null);
+      }
+    } catch (err) {
+      console.error("Failed to close DM channel:", err);
+    }
+  };
+
+  // 加入 1v1 私信音视频通话
+  const handleJoinDMCall = async (
+    channelId: string,
+    hasVideo: boolean = false,
+    callId: string,
+  ) => {
+    if (!currentUser) return;
+    if (!sframeManager.getStats().enabled) {
+      showGlobalToast("E2EE 设备密钥尚未就绪，已阻止未加密媒体连接", "error");
+      return;
+    }
+    setActiveVoiceChannelId(channelId);
+    livekitService.setConnectionStatus("connecting");
+    await audioEngine.initMicrophone();
+    const bitrate = 64000;
+    const processedStream = audioEngine.getStream();
+
+    let joinSuccess = false;
+    const dmChannel = dmChannels.find((candidate) => candidate.id === channelId) ||
+      (selectedChannel?.id === channelId ? selectedChannel : null);
+    const peerId = dmChannel?.recipients?.find((recipient) => recipient.id !== currentUser.id)?.id;
+
+    // 1v1 默认先建立端到端加密的 WebRTC 直连；ICE 配置中包含自建 TURN，
+    // 因此 host/srflx/relay 都属于 P2P 阶段。只有该阶段确认失败才进入 SFU。
+    if (processedStream && peerId) {
+      try {
+        await voiceMeshManager.startVoiceMesh(channelId, "", processedStream, [peerId], callId);
+        joinSuccess = await voiceMeshManager.waitForConnectedPeer(8_000);
+        if (joinSuccess) livekitService.setConnectionStatus("connected");
+      } catch (error) {
+        console.warn("DM P2P/TURN 协商失败，准备回退 SFU:", error);
+      }
+    }
+
+    if (!joinSuccess) voiceMeshManager.stopAll();
+    try {
+      if (!joinSuccess) {
+        const token = useAuthStore.getState().token;
+        const res = await fetch(
+          `${API_BASE}/api/channels/dm/${channelId}/call-token`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              callId,
+              sessionId: gatewayClient.getSessionId(),
+            }),
+          },
+        );
+        if (!res.ok) throw new Error("Failed to get DM call token");
+        const data = await res.json();
+        joinSuccess = await livekitService.joinRoom(
+          data.serverUrl || data.url,
+          data.token,
+          data.roomName || `dm_${channelId}`,
+          processedStream,
+          bitrate,
+        );
+      }
+    } catch (e) {
+      console.error("Failed to join DM call:", e);
+      joinSuccess = false;
+    }
+
+    if (!joinSuccess) {
+      console.warn("LiveKit 连接未成功，自动复位呼叫状态");
+      audioEngine.stop();
+      setActiveVoiceChannelId(null);
+      return;
+    }
+
+    soundManager.play("VOICE_JOIN");
+    if (hasVideo) {
+      handleToggleCamera();
+    }
+  };
+
+  // 主动发起 1v1 私信呼叫
+  const handleStartCall = (channelId: string, hasVideo: boolean) => {
+    if (!currentUser) return;
+    sframeManager.disable();
+    livekitService.setNegotiatedE2EEKey(null);
+    setCallEncryption({ status: "negotiating" });
+    const ch = dmChannels.find((c) => c.id === channelId) || selectedChannel;
+    if (!ch) return;
+    gatewayClient.send({
+      op: GatewayOpCode.DISPATCH,
+      t: GatewayEvents.CALL_OFFER,
+      d: {
+        channelId,
+        hasVideo,
+      },
+    });
+  };
+
+  // 接听呼叫
+  const handleAcceptCall = async () => {
+    if (!incomingCall) return;
+    if (!sframeManager.getStats().enabled) {
+      try {
+        const token = useAuthStore.getState().token;
+        if (!token) throw new Error("登录已失效");
+        const envelope = await deviceKeyService.fetchMediaKey(incomingCall.channelId, incomingCall.callId, token);
+        const negotiated = await deviceKeyService.openMediaKey(envelope);
+        if (!negotiated) throw new Error("媒体密钥未发给当前设备");
+        sframeManager.setNegotiatedKey(negotiated.key);
+        livekitService.setNegotiatedE2EEKey(negotiated.key);
+        setCallEncryption({ status: negotiated.trust, fingerprint: negotiated.fingerprint });
+      } catch (error) {
+        setCallEncryption({ status: "failed" });
+        showGlobalToast(error instanceof Error ? error.message : "E2EE 密钥尚未就绪", "warning");
+        return;
+      }
+    }
+    const call = incomingCall;
+    setIncomingCall(null);
+    gatewayClient.send({
+      op: GatewayOpCode.DISPATCH,
+      t: GatewayEvents.CALL_ANSWER,
+      d: {
+        callId: call.callId,
+      },
+    });
+    const ch = dmChannels.find((c) => c.id === call.channelId);
+    if (ch) {
+      setSelectedGuildId(null);
+      setSelectedChannel(ch);
+    }
+    const activeCall = { callId: call.callId, channelId: call.channelId, hasVideo: call.hasVideo };
+    activeDMCallRef.current = activeCall;
+    setActiveDMCall(activeCall);
+  };
+
+  // 拒绝呼叫
+  const handleRejectCall = () => {
+    if (!incomingCall) return;
+    const call = incomingCall;
+    setIncomingCall(null);
+    gatewayClient.send({
+      op: GatewayOpCode.DISPATCH,
+      t: GatewayEvents.CALL_REJECT,
+      d: {
+        callId: call.callId,
+      },
+    });
   };
 
   // 切换静音
@@ -1609,15 +2206,17 @@ export const App: React.FC = () => {
 
   // 切换摄像头直播推流
   const handleToggleCamera = async () => {
-    if (!activeVoiceChannelId || !selectedGuildId) return;
+    if (!activeVoiceChannelId) return;
     const nextVideo = !isVideoEnabled;
     setIsVideoEnabled(nextVideo);
-    gatewayClient.updateVoiceState(selectedGuildId, activeVoiceChannelId, {
-      selfMute: isMuted,
-      selfDeaf: isDeafened,
-      selfVideo: nextVideo,
-      streaming: isScreenSharing,
-    });
+    if (selectedGuildId) {
+      gatewayClient.updateVoiceState(selectedGuildId, activeVoiceChannelId, {
+        selfMute: isMuted,
+        selfDeaf: isDeafened,
+        selfVideo: nextVideo,
+        streaming: isScreenSharing,
+      });
+    }
     try {
       await livekitService.setCameraEnabled(nextVideo);
     } catch (e) {
@@ -1965,11 +2564,21 @@ export const App: React.FC = () => {
       <Sidebar
         guilds={guilds}
         selectedGuildId={selectedGuildId}
+        isSuperAdmin={currentUser?.role === "SUPER_ADMIN"}
+        onOpenAdminDashboard={() => setIsAdminModalOpen(true)}
         onSelectGuild={(id) => {
           setSelectedGuildId(id);
-          const g = guilds.find((item) => item.id === id);
-          if (g && g.channels.length > 0) {
-            setSelectedChannel(g.channels[0]);
+          if (id === null) {
+            if (dmChannels.length > 0) {
+              setSelectedChannel(dmChannels[0]);
+            } else {
+              setSelectedChannel(null);
+            }
+          } else {
+            const g = guilds.find((item) => item.id === id);
+            if (g && g.channels.length > 0) {
+              setSelectedChannel(g.channels[0]);
+            }
           }
           if (isDrawer) {
             setIsMobileDrawerOpen(false);
@@ -1987,6 +2596,13 @@ export const App: React.FC = () => {
       <ChannelSidebar
         guild={currentGuild}
         channels={currentChannels}
+        dmChannels={dmChannels}
+        onCloseDMChannel={handleCloseDMChannel}
+        onDMChannelCreated={(ch) => {
+          setDmChannels((prev) => [ch, ...prev.filter((c) => c.id !== ch.id)]);
+          setSelectedGuildId(null);
+          setSelectedChannel(ch);
+        }}
         selectedChannelId={selectedChannel?.id || ""}
         activeVoiceChannelId={activeVoiceChannelId}
         activeVoiceChannelObj={activeVoiceChannelObj}
@@ -2003,6 +2619,13 @@ export const App: React.FC = () => {
         onReclaimVoice={(ch) => handleJoinVoiceChannel(ch)}
         onSelectChannel={(ch) => {
           setSelectedChannel(ch);
+          if (ch.type === "DM" || !ch.guildId) {
+            setDmChannels((prev) =>
+              prev.map((dm) =>
+                dm.id === ch.id ? { ...dm, unreadCount: 0 } : dm,
+              ),
+            );
+          }
           if (isDrawer) {
             setIsMobileDrawerOpen(false);
           }
@@ -2066,6 +2689,32 @@ export const App: React.FC = () => {
 
       {/* Discord 风格网关长连接状态指示条 */}
       <GatewayConnectionBanner />
+
+      {/* 全网系统置顶公告条 */}
+      {systemBroadcast && (
+        <div
+          className={`w-full px-4 py-2 flex items-center justify-between text-xs font-semibold select-none z-50 animate-in fade-in slide-in-from-top-2 duration-200 ${
+            systemBroadcast.severity === "CRITICAL"
+              ? "bg-red-600 text-white shadow-lg"
+              : systemBroadcast.severity === "WARNING"
+                ? "bg-amber-500 text-black shadow"
+                : "bg-discord-brand text-white shadow"
+          }`}
+          data-testid="system-broadcast-banner"
+        >
+          <div className="flex items-center space-x-2">
+            <AlertTriangle className="w-4 h-4 shrink-0" />
+            <span>[{systemBroadcast.title || "系统公告"}] {systemBroadcast.content}</span>
+          </div>
+          <button
+            onClick={() => setSystemBroadcast(null)}
+            className="p-1 hover:bg-black/20 rounded transition cursor-pointer"
+            title="关闭公告"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* 主工作区视图 (侧边栏、聊天/语音面板与成员列表) */}
       <div className="flex flex-1 w-full overflow-hidden relative">
@@ -2136,6 +2785,9 @@ export const App: React.FC = () => {
             onToggleMobileMemberList={() =>
               setIsMobileMemberOpen((prev) => !prev)
             }
+            onStartCall={handleStartCall}
+            onStartDM={handleStartDM}
+            callEncryption={activeDMCall?.channelId === selectedChannel.id ? callEncryption : undefined}
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-discord-textMuted p-4 text-center">
@@ -2165,6 +2817,7 @@ export const App: React.FC = () => {
                 guild={currentGuild}
                 currentUser={currentUser}
                 onSendMessage={handleSendMessage}
+                onStartDM={handleStartDM}
                 onOpenUserSettings={() => handleOpenUserSettings("profile")}
                 onMention={(username) => {
                   window.dispatchEvent(
@@ -2184,7 +2837,7 @@ export const App: React.FC = () => {
         {!isDesktop && selectedChannel?.type === "TEXT" && (
           <div
             data-testid="member-list-drawer"
-            className={`fixed inset-0 z-40 flex justify-end transition-all duration-300 ${
+            className={`fixed inset-0 z-[60] flex justify-end transition-all duration-300 ${
               isMobileMemberOpen
                 ? "pointer-events-auto visible"
                 : "pointer-events-none invisible delay-300"
@@ -2226,6 +2879,7 @@ export const App: React.FC = () => {
                   guild={currentGuild}
                   currentUser={currentUser}
                   onSendMessage={handleSendMessage}
+                  onStartDM={handleStartDM}
                   onOpenUserSettings={() => handleOpenUserSettings("profile")}
                   onMention={(username) => {
                     window.dispatchEvent(
@@ -2299,7 +2953,18 @@ export const App: React.FC = () => {
             setSelectedCategoryForChannel(null);
           }}
           onChannelCreated={(newChannel) => {
-            // 方案 B：频道列表统一由 WebSocket CHANNEL_CREATE 驱动，此处仅由创建者本人主动聚焦新频道
+            // REST 响应立即落入本地权威缓存；随后到达的网关事件按 ID 合并，
+            // 即使创建瞬间网关重连也不会出现频道只在聊天区、未出现在侧栏的状态。
+            setGuilds((prev) => prev.map((guild) => {
+              if (guild.id !== newChannel.guildId) return guild;
+              const exists = guild.channels.some((channel) => channel.id === newChannel.id);
+              return {
+                ...guild,
+                channels: exists
+                  ? guild.channels.map((channel) => channel.id === newChannel.id ? newChannel : channel)
+                  : [...guild.channels, newChannel],
+              };
+            }));
             setSelectedChannel(newChannel);
           }}
         />
@@ -2453,6 +3118,24 @@ export const App: React.FC = () => {
         isNoiseSuppressionEnabled={isNoiseSuppressionEnabled}
       />
 
+      {/* 15. 超级管理员系统控制台 */}
+      <AdminDashboardModal
+        isOpen={isAdminModalOpen}
+        onClose={() => setIsAdminModalOpen(false)}
+      />
+
+      {/* 16. 1v1 私信来电全局浮窗振铃 */}
+      {incomingCall && (
+        <IncomingCallModal
+          caller={incomingCall.caller}
+          channelId={incomingCall.channelId}
+          hasVideo={incomingCall.hasVideo}
+          encryption={callEncryption}
+          onAccept={handleAcceptCall}
+          onReject={handleRejectCall}
+        />
+      )}
+
       {/* 14. 全局浮动 Toast 提示（伴音降级提示、异常反馈等） */}
       {globalToast && (
         <div
@@ -2486,6 +3169,7 @@ export const App: React.FC = () => {
           </button>
         </div>
       )}
+      <ForcedPasswordChangeModal />
     </div>
   );
 };

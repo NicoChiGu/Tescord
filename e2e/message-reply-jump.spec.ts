@@ -85,7 +85,7 @@ test.describe("消息引用跳转原文与高亮交互端到端验收 (Discord-P
   test.beforeEach(async ({ page }) => {
     // 注入 Mock Token 模拟已登录态
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "mock_e2e_token");
+      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 

@@ -13,7 +13,7 @@ test.describe("语音频道进入交互自动化验收 (Voice Channel Click & Do
 
     // 1. 初始化登录状态与 API Mock
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "mock_e2e_token");
+      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 
@@ -56,7 +56,7 @@ test.describe("语音频道进入交互自动化验收 (Voice Channel Click & Do
     await expect(page).toHaveTitle(/Tescord/i);
 
     const serverButton = page
-      .getByRole("button", { name: /Tescord 极客总部|极客/i })
+      .getByRole("button", { name: /Tescord 极客总部|极客|小窝/i })
       .first();
     await expect(serverButton).toBeVisible({ timeout: 10000 });
     await serverButton.click();

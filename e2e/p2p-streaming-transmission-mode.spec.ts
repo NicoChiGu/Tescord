@@ -4,7 +4,7 @@ test.describe("P2P 直连与智能接力直播传输模式端到端自动化验�
   test.beforeEach(async ({ page }) => {
     // 注入 Mock Token 模拟已登录态
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "mock_p2p_e2e_token");
+      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_p2p_e2e_token");
       localStorage.setItem("tescord_refresh_token", "mock_p2p_refresh_token");
 
       (window as any).electronAPI = {

@@ -16,6 +16,7 @@ import { NATDetector, NATDetectionResult } from "./NATDetector.js";
 import { gatewayClient } from "../gateway.js";
 import { API_BASE } from "../../config.js";
 import { bitrateCalculator } from "../stats/BitrateCalculator.js";
+import { sframeManager } from "../sframe.js";
 
 export type StreamChangeCallback = (
   stream: MediaStream | null,
@@ -24,12 +25,7 @@ export type StreamChangeCallback = (
 export type FallbackCallback = (reason: string) => void;
 
 // 高可用全球 IPv4 / IPv6 双栈 STUN 池
-const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
-  { urls: "stun:stun.cloudflare.com:3478" }, // Cloudflare 全球双栈 A / AAAA
-  { urls: "stun:stun.qq.com:3478" },
-  { urls: "stun:stun.miwifi.com:8443" },
-  { urls: "stun:stun.chat.bilibili.com:3478" },
-];
+const DEFAULT_ICE_SERVERS: RTCIceServer[] = [];
 
 export class P2PStreamManager {
   private localStream: MediaStream | null = null;
@@ -81,7 +77,10 @@ export class P2PStreamManager {
   public async fetchIceServers(): Promise<RTCIceServer[]> {
     if (this.isIceServersLoaded) return this.currentIceServers;
     try {
-      const res = await fetch(`${API_BASE}/api/network/ice-servers`);
+      const token = localStorage.getItem("tescord_access_token");
+      const res = await fetch(`${API_BASE}/api/network/ice-servers`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
       if (res.ok) {
         const data = (await res.json()) as ICEServerConfigResponse;
         if (data.iceServers && Array.isArray(data.iceServers)) {
@@ -177,19 +176,6 @@ export class P2PStreamManager {
     // 立即通知监听器：主播本地画面就绪
     for (const cb of this.streamChangeListeners) {
       cb(this.localStream, this.currentUserId || "");
-    }
-
-    // Electron 桌面端 UPnP 自动开辟临时端口
-    if (typeof window !== "undefined" && window.electronAPI?.network?.mapPort) {
-      try {
-        const upnpRes = await window.electronAPI.network.mapPort(52000, "UDP");
-        if (upnpRes.success) {
-          this.upnpMappedPort = 52000;
-          console.info("⚡ Electron UPnP 路由器端口映射成功:", upnpRes);
-        }
-      } catch (e) {
-        console.warn("UPnP mapping attempt failed:", e);
-      }
     }
 
     console.info(`🚀 P2PStreamManager 主播推流已就绪 [模式: ${mode}]`);
@@ -340,7 +326,8 @@ export class P2PStreamManager {
     for (const track of streamToOffer.getTracks()) {
       const alreadyAdded = senders.some((s) => s.track?.id === track.id);
       if (!alreadyAdded) {
-        pc.addTrack(track, streamToOffer);
+        const sender = pc.addTrack(track, streamToOffer);
+        if (sframeManager.getStats().enabled) sframeManager.attachSender(sender);
       }
     }
 
@@ -556,8 +543,8 @@ export class P2PStreamManager {
       this.natInfo = await NATDetector.detect();
     }
 
-    let rtt = 0;
-    let packetLoss = 0;
+    let rtt: number | undefined;
+    let packetLoss: number | undefined;
     let activePair: any = undefined;
 
     // 统计与父节点或首个子节点的 PeerConnection 诊断
@@ -567,19 +554,36 @@ export class P2PStreamManager {
       if (pc) {
         try {
           const stats = await pc.getStats();
+          let selectedPairId = "";
+          stats.forEach((report) => {
+            if (report.type === "transport" && report.selectedCandidatePairId) {
+              selectedPairId = report.selectedCandidatePairId;
+            }
+          });
           stats.forEach((report) => {
             if (
               report.type === "candidate-pair" &&
-              report.state === "succeeded"
+              (selectedPairId
+                ? report.id === selectedPairId
+                : report.nominated && report.state === "succeeded")
             ) {
-              rtt = Math.round((report.currentRoundTripTime || 0) * 1000);
+              if (typeof report.currentRoundTripTime === "number") {
+                rtt = Math.round(report.currentRoundTripTime * 1000);
+              }
             }
             if (report.type === "inbound-rtp" && report.kind === "video") {
               const lost = report.packetsLost || 0;
               const total = (report.packetsReceived || 0) + lost;
-              packetLoss = total > 0 ? Number((lost / total).toFixed(3)) : 0;
+              if (total > 0) {
+                packetLoss = Number((lost / total).toFixed(3));
+              }
             }
-            if (report.type === "candidate-pair" && report.nominated) {
+            if (
+              report.type === "candidate-pair" &&
+              (selectedPairId
+                ? report.id === selectedPairId
+                : report.nominated && report.state === "succeeded")
+            ) {
               const localCand = stats.get(report.localCandidateId);
               const remoteCand = stats.get(report.remoteCandidateId);
               if (localCand && remoteCand) {
@@ -601,7 +605,7 @@ export class P2PStreamManager {
       transmissionMode: this.transmissionMode,
       natType: this.natInfo.natType,
       hasIPv6: this.natInfo.hasIPv6,
-      rtt: rtt || 28,
+      rtt,
       packetLoss,
       activeCandidatePair: activePair,
       downstreamPeersCount: this.currentChildrenIds.length,
@@ -615,7 +619,8 @@ export class P2PStreamManager {
     pc = new RTCPeerConnection({
       iceServers: this.currentIceServers,
       iceCandidatePoolSize: 2,
-    });
+      ...(sframeManager.getStats().enabled ? { encodedInsertableStreams: true } : {}),
+    } as RTCConfiguration);
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
@@ -645,6 +650,7 @@ export class P2PStreamManager {
     };
 
     pc.ontrack = (event) => {
+      if (sframeManager.getStats().enabled) sframeManager.attachReceiver(event.receiver);
       console.info("🎉 收到远程媒体轨:", event.track.kind);
       const incomingStream = event.streams[0] || new MediaStream([event.track]);
       this.remoteStream = incomingStream;
@@ -766,7 +772,8 @@ export class P2PStreamManager {
         const senders = pc.getSenders();
         const exists = senders.some((s) => s.track?.id === track.id);
         if (!exists) {
-          pc.addTrack(track, fullStream);
+          const sender = pc.addTrack(track, fullStream);
+          if (sframeManager.getStats().enabled) sframeManager.attachSender(sender);
         }
       }
     }
@@ -816,21 +823,24 @@ export class P2PStreamManager {
     const isPublisher = Boolean(this.localStream);
 
     let rtt = "N/A";
-    let jitter = "0.8ms";
-    let packetLoss = "0.0%";
-    let streamHost = "P2P Direct Host";
-    let protocol = "UDP";
-    let ipVersion: "IPv4" | "IPv6" = "IPv4";
-    let candidateType: "host" | "srflx" | "prflx" | "relay" = "host";
+    let jitter = "N/A";
+    let packetLoss = "N/A";
+    let streamHost = "未知";
+    let protocol = "未知";
+    let ipVersion: "IPv4" | "IPv6" | undefined;
+    let candidateType: "host" | "srflx" | "prflx" | "relay" | undefined;
     let totalBytesSent = 0;
     let totalBytesReceived = 0;
     let decodedFrames = "N/A";
-    let videoInfo = "1280x720, 30FPS";
+    let videoInfo = "未知";
+    let actualSendCodec: string | undefined;
+    let actualReceiveCodec: string | undefined;
+    let selectedPairFound = false;
 
     const retryInfo = this.peerRetries.get(targetPeerId);
     const holePunchStatus =
       pc?.iceConnectionState === "connected"
-        ? `P2P 直连打洞已连通 (${ipVersion})`
+        ? "P2P 直连打洞已连通"
         : retryInfo && retryInfo.attempts > 0
           ? `打洞重试中 (${retryInfo.attempts}/3)`
           : `正在建立打洞连接 (${pc?.iceConnectionState || "checking"})`;
@@ -848,11 +858,12 @@ export class P2PStreamManager {
         report.forEach((stat: any) => {
           if (
             stat.type === "candidate-pair" &&
-            (stat.nominated ||
-              stat.state === "succeeded" ||
-              stat.id === selectedPairId)
+            (selectedPairId
+              ? stat.id === selectedPairId
+              : stat.nominated && stat.state === "succeeded")
           ) {
-            if (stat.currentRoundTripTime) {
+            selectedPairFound = true;
+            if (typeof stat.currentRoundTripTime === "number") {
               rtt = `${Math.round(stat.currentRoundTripTime * 1000)}ms`;
             }
             const localCand = report.get(stat.localCandidateId);
@@ -876,26 +887,35 @@ export class P2PStreamManager {
             }
           }
 
-          if (stat.type === "inbound-rtp") {
+          if (stat.type === "inbound-rtp" && stat.kind === "video" && !stat.isRemote) {
+            const codec = stat.codecId ? report.get(stat.codecId) : null;
+            if (codec?.mimeType && !/rtx|red|ulpfec|flexfec/i.test(codec.mimeType)) actualReceiveCodec = codec.mimeType;
             if (stat.bytesReceived) totalBytesReceived += stat.bytesReceived;
-            if (stat.jitter) jitter = `${(stat.jitter * 1000).toFixed(1)}ms`;
-            if (stat.fractionLost)
+            if (typeof stat.jitter === "number")
+              jitter = `${(stat.jitter * 1000).toFixed(1)}ms`;
+            if (typeof stat.fractionLost === "number")
               packetLoss = `${(stat.fractionLost * 100).toFixed(1)}%`;
             if (stat.framesDecoded !== undefined) {
               decodedFrames = `${stat.framesDecoded} frames (${stat.framesDropped || 0} dropped)`;
             }
             if (stat.frameWidth && stat.frameHeight) {
-              videoInfo = `${stat.frameWidth}x${stat.frameHeight}, ${Math.round(stat.framesPerSecond || 30)}FPS`;
+              videoInfo = stat.framesPerSecond
+                ? `${stat.frameWidth}x${stat.frameHeight}, ${Math.round(stat.framesPerSecond)}FPS`
+                : `${stat.frameWidth}x${stat.frameHeight}`;
             }
           }
 
-          if (stat.type === "outbound-rtp") {
+          if (stat.type === "outbound-rtp" && stat.kind === "video" && !stat.isRemote) {
+            const codec = stat.codecId ? report.get(stat.codecId) : null;
+            if (codec?.mimeType && !/rtx|red|ulpfec|flexfec/i.test(codec.mimeType)) actualSendCodec = codec.mimeType;
             if (stat.bytesSent) totalBytesSent += stat.bytesSent;
             if (stat.framesEncoded !== undefined) {
               decodedFrames = `Encoded: ${stat.framesEncoded} frames`;
             }
             if (stat.frameWidth && stat.frameHeight) {
-              videoInfo = `${stat.frameWidth}x${stat.frameHeight}, ${Math.round(stat.framesPerSecond || 30)}FPS`;
+              videoInfo = stat.framesPerSecond
+                ? `${stat.frameWidth}x${stat.frameHeight}, ${Math.round(stat.framesPerSecond)}FPS`
+                : `${stat.frameWidth}x${stat.frameHeight}`;
             }
           }
         });
@@ -914,7 +934,9 @@ export class P2PStreamManager {
     const topology: ConnectionTopology = isRelay
       ? "P2P_TREE_RELAY"
       : "P2P_DIRECT";
-    const connectionMode = isRelay
+    const connectionMode = !selectedPairFound || !candidateType || !ipVersion
+      ? "协商中"
+      : isRelay
       ? `P2P Tree Relay (${protocol} / 树状分发)`
       : candidateType === "host"
         ? `P2P Direct (${protocol} / Host ${ipVersion})`
@@ -925,21 +947,25 @@ export class P2PStreamManager {
     return {
       participantIdentity: targetPeerId,
       isLocal: isPublisher,
-      mimeType: `video/${this.targetVideoCodec.toUpperCase()}, audio/opus`,
+      mimeType: [actualSendCodec, actualReceiveCodec].filter(Boolean).join(" / ") || "未知",
       playerCore: "WebRTC P2P Stream Engine",
       videoInfo,
-      audioInfo: "48KHz, Stereo, 64Kbps",
-      encoder: isPublisher ? "WebRTC ScreenCapture" : "libwebrtc Decoder",
+      audioInfo: "由 WebRTC 协商（未单独采集）",
+      encoder: "浏览器 WebRTC 媒体管线",
       streamHost,
       connectionMode,
       topology,
       protocol,
-      bufferLength: "10ms",
+      bufferLength: "未知",
       decodedFrames,
-      downloadBitrate: isPublisher
-        ? rateRes.uploadFormatted
-        : rateRes.downloadFormatted,
-      uploadBitrate: isPublisher ? rateRes.uploadFormatted : undefined,
+      downloadBitrate:
+        totalBytesSent + totalBytesReceived > 0
+          ? isPublisher
+            ? rateRes.uploadFormatted
+            : rateRes.downloadFormatted
+          : "未知",
+      uploadBitrate:
+        isPublisher && totalBytesSent > 0 ? rateRes.uploadFormatted : undefined,
       rawDownloadBitrateBps: isPublisher
         ? rateRes.uploadBps
         : rateRes.downloadBps,
@@ -952,6 +978,18 @@ export class P2PStreamManager {
       holePunchStatus,
       ipVersion,
       candidateType,
+      preferredVideoCodec: this.targetVideoCodec,
+      actualSendCodec,
+      actualReceiveCodec,
+      codecFallbackReason:
+        (actualSendCodec || actualReceiveCodec) &&
+        !(actualSendCodec || actualReceiveCodec)?.toLowerCase().includes(this.targetVideoCodec.toLowerCase())
+          ? "对端能力或浏览器协商导致编码降级"
+          : undefined,
+      transportVerified:
+        selectedPairFound &&
+        (totalBytesSent > 0 || totalBytesReceived > 0) &&
+        rateRes.uploadBps + rateRes.downloadBps > 0,
     };
   }
 }

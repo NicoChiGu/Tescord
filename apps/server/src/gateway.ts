@@ -1,3 +1,4 @@
+import { dmCallService } from "./services/dm-call.service.js";
 import { WebSocket } from "ws";
 import { randomUUID } from "crypto";
 import {
@@ -37,6 +38,10 @@ interface ClientConnection {
 }
 
 export class GatewayManager {
+  private tokenVerifier?: (token: string) => Promise<Record<string, unknown>>;
+  public setTokenVerifier(verifier: (token: string) => Promise<Record<string, unknown>>) {
+    this.tokenVerifier = verifier;
+  }
   private connections: Set<ClientConnection> = new Set();
   // 多端/多会话映射：userId -> Map<sessionId, ClientConnection>
   private userSessions: Map<string, Map<string, ClientConnection>> = new Map();
@@ -636,6 +641,26 @@ export class GatewayManager {
         }
       }
 
+      const endedCall = dmCallService.onDisconnect(conn.userId, conn.sessionId);
+      if (endedCall) {
+        const event = {
+          callId: endedCall.callId,
+          channelId: endedCall.channelId,
+          endedBy: conn.userId,
+          reason: endedCall.endedReason,
+        };
+        this.sendToUser(endedCall.callerId, {
+          op: GatewayOpCode.DISPATCH,
+          t: GatewayEvents.CALL_END,
+          d: event,
+        });
+        this.sendToUser(endedCall.calleeId, {
+          op: GatewayOpCode.DISPATCH,
+          t: GatewayEvents.CALL_END,
+          d: event,
+        });
+      }
+
       // 仅当断开的连接其 sessionId 恰好是当前活跃语音的持有者时，才清理语音状态并全网广播
       const currentVoice = this.voiceStates.get(conn.userId);
       if (currentVoice && currentVoice.sessionId === conn.sessionId) {
@@ -715,6 +740,131 @@ export class GatewayManager {
       }
     } catch (err) {
       console.error("[Gateway] broadcastPresenceUpdate error:", err);
+    }
+  }
+
+  /**
+   * 处理来自 LiveKit Webhook 的参与者离开事件（权威兜底清理）
+   * 当客户端崩溃、掉线、网络异常中断或被 LiveKit SFU 超时移除时，由 LiveKit 服务端主动通知网关收敛状态
+   */
+  public handleLiveKitParticipantLeft(userId: string, roomName?: string): boolean {
+    const currentVoice = this.voiceStates.get(userId);
+    if (!currentVoice) {
+      return false;
+    }
+
+    // 若提供了 roomName，校验是否是当前频道的离开事件（避免旧房间事件误杀新房间状态）
+    if (roomName && currentVoice.channelId !== roomName) {
+      console.log(
+        `[Gateway] Ignored LiveKit participant_left for ${userId} in ${roomName} (current channel: ${currentVoice.channelId})`
+      );
+      return false;
+    }
+
+    console.log(
+      `[Gateway] LiveKit webhook reconciled: removing user ${userId} from voice channel ${currentVoice.channelId}`
+    );
+
+    this.voiceStates.delete(userId);
+    this.broadcast({
+      op: GatewayOpCode.DISPATCH,
+      t: "VOICE_STATE_UPDATE",
+      d: {
+        userId,
+        channelId: null,
+        guildId: currentVoice.guildId,
+        sessionId: currentVoice.sessionId,
+        selfMute: false,
+        selfDeaf: false,
+        selfVideo: false,
+        streaming: false,
+      },
+    });
+
+    if (currentVoice.channelId) {
+      p2pTopologyManager.removeViewer(currentVoice.channelId, userId);
+      if (currentVoice.streaming) {
+        p2pTopologyManager.unregisterStream(currentVoice.channelId);
+      }
+    }
+
+    return true;
+  }
+
+  getOnlineUserCount(): number {
+    return this.userSessions.size;
+  }
+
+  disconnectUser(userId: string) {
+    dmCallService.terminateForUser(userId, "account_session_revoked");
+    const sessions = this.userSessions.get(userId);
+    if (sessions) {
+      for (const conn of sessions.values()) {
+        try {
+          conn.ws.close(4003, "Account terminated or banned");
+        } catch {
+          // ignore
+        }
+      }
+    }
+  }
+
+  terminateActiveCall(userId: string, reason: string) {
+    return dmCallService.terminateForUser(userId, reason);
+  }
+
+  private async terminateCallMedia(channelId: string, callId: string, userIds: string[]) {
+    const roomName = `dm_${channelId}_${callId}`;
+    await Promise.allSettled(userIds.map((userId) => removeParticipantFromRoom(roomName, userId)));
+  }
+
+  async broadcastTypingAuthorized(
+    channelId: string,
+    user: { id: string; username: string; avatarUrl?: string | null },
+  ) {
+    const channel = await prisma.channel.findUnique({
+      where: { id: channelId },
+      include: {
+        recipients: { select: { userId: true } },
+        guild: { include: { members: { select: { userId: true } } } },
+      },
+    });
+    if (!channel) return;
+    const recipients = channel.type === "DM" || channel.type === "GROUP_DM"
+      ? channel.recipients.map((item) => item.userId)
+      : channel.guild?.members.map((item) => item.userId) || [];
+    if (!recipients.includes(user.id)) return;
+    for (const userId of recipients) {
+      if (userId === user.id) continue;
+      this.sendToUser(userId, {
+        op: GatewayOpCode.DISPATCH,
+        t: GatewayEvents.TYPING_START,
+        d: { channelId, userId: user.id, user, timestamp: Date.now() },
+      });
+    }
+  }
+
+  async disconnectNonSuperAdmins(reason = "Maintenance mode") {
+    const userIds = Array.from(this.userSessions.keys());
+    const admins = await prisma.user.findMany({
+      where: { id: { in: userIds }, role: "SUPER_ADMIN", isBanned: false },
+      select: { id: true },
+    });
+    const allowed = new Set(admins.map((user) => user.id));
+    for (const userId of userIds) {
+      if (allowed.has(userId)) continue;
+      dmCallService.terminateForUser(userId, "maintenance_mode");
+      const sessions = this.userSessions.get(userId);
+      for (const conn of sessions?.values() || []) {
+        try {
+          this.send(conn.ws, {
+            op: GatewayOpCode.DISPATCH,
+            t: GatewayEvents.MAINTENANCE_UPDATE,
+            d: { enabled: true, reason },
+          });
+          conn.ws.close(4013, reason);
+        } catch {}
+      }
     }
   }
 }

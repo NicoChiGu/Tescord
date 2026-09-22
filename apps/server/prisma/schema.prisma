@@ -18,6 +18,10 @@ model User {
   customStatus String?
   bio          String?
   settings     String?        // 用户个人设置项 JSON (UserSettingsDTO)
+  role         String         @default("USER") // USER | ADMIN | SUPER_ADMIN
+  isBanned     Boolean        @default(false)
+  sessionVersion Int          @default(0)
+  mustChangePassword Boolean  @default(false)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
@@ -29,6 +33,9 @@ model User {
   invites       Invite[]
   bans          Ban[]
   auditLogs     AuditLog[]
+  dmRecipients  ChannelRecipient[]
+  deviceKeys    DeviceKey[]
+  platformAuditLogs PlatformAuditLog[] @relation("PlatformAuditActor")
 }
 
 model RefreshToken {
@@ -111,20 +118,23 @@ model ChannelCategory {
 
 model Channel {
   id        String           @id @default(cuid())
-  guildId   String
-  guild     Guild            @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  guildId   String?
+  guild     Guild?           @relation(fields: [guildId], references: [id], onDelete: Cascade)
   name      String
-  type      String           @default("TEXT") // TEXT | VOICE
+  type      String           @default("TEXT") // TEXT | VOICE | DM | GROUP_DM
   topic     String?
   parentId  String?          // 分类 Category ID
   parent    ChannelCategory? @relation(fields: [parentId], references: [id], onDelete: SetNull)
   position  Int              @default(0)
   isE2EE    Boolean          @default(false)
   bitrate   Int              @default(64000)
+  dmKey     String?          @unique
+  nextMessageSequence Int    @default(0)
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
-  messages  Message[]
+  messages   Message[]
+  recipients ChannelRecipient[]
 
   @@index([guildId])
   @@index([parentId])
@@ -141,6 +151,7 @@ model Message {
   isEncrypted Boolean       @default(false)
   replyToId   String?
   isPinned    Boolean       @default(false)
+  sequence    Int           @default(0)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -149,6 +160,7 @@ model Message {
 
   @@index([channelId])
   @@index([authorId])
+  @@unique([channelId, sequence])
 }
 
 model Reaction {
@@ -223,6 +235,83 @@ model AuditLog {
 
   @@index([guildId])
   @@index([userId])
+  @@index([createdAt])
+}
+// 8. 私信会话与接收者关系 (Channel Recipient)
+model ChannelRecipient {
+  id         String   @id @default(cuid())
+  channelId  String
+  channel    Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isClosed   Boolean  @default(false)
+  lastReadAt DateTime @default(now())
+  lastReadSequence Int @default(0)
+  createdAt  DateTime @default(now())
+
+  @@unique([channelId, userId])
+  @@index([userId])
+}
+
+// 9. 全局系统设置与运行维护 (System Setting)
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// 10. 设备身份公钥。私钥只保存在客户端。
+model DeviceKey {
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId           String
+  signingPublicKey   String
+  agreementPublicKey String
+  fingerprint        String
+  revokedAt          DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([userId, deviceId])
+  @@index([userId, revokedAt])
+}
+
+// 11. 在线媒体密钥信封。仅保存端到端密文，短期补偿网关漏包。
+model MediaKeyEnvelope {
+  id                    String   @id @default(cuid())
+  callId                String
+  channelId             String
+  senderId              String
+  senderDeviceId        String
+  recipientId           String
+  recipientDeviceId     String
+  ephemeralPublicKey    String
+  senderSigningPublicKey String
+  senderFingerprint     String
+  iv                    String
+  ciphertext            String
+  signature             String
+  createdAt             DateTime @default(now())
+  consumedAt            DateTime?
+
+  @@unique([callId, senderDeviceId, recipientDeviceId])
+  @@index([recipientId, recipientDeviceId, callId, createdAt])
+  @@index([createdAt])
+}
+// 12. 平台治理审计。公会删除后记录仍保留。
+model PlatformAuditLog {
+  id          String   @id @default(cuid())
+  actorId     String?
+  actor       User?    @relation("PlatformAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  action      String
+  targetType  String
+  targetId    String?
+  targetName  String?
+  detailsJson String?
+  createdAt   DateTime @default(now())
+
+  @@index([actorId])
   @@index([createdAt])
 }
 

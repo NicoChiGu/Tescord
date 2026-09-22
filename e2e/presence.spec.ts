@@ -4,7 +4,7 @@ test.describe("真实用户在线状态 (Online Presence / Status) 端到端全�
   test.beforeEach(async ({ page }) => {
     // 注入已登录 Token 会话
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "mock_e2e_token");
+      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 

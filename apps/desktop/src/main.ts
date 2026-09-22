@@ -11,6 +11,8 @@ import {
   clipboard,
   shell,
   screen,
+  IpcMainEvent,
+  IpcMainInvokeEvent,
 } from "electron";
 import path from "path";
 import http from "http";
@@ -68,6 +70,29 @@ let isQuitting = false;
 let currentPTTKey: string | null = null;
 let currentUserStatus: UserStatus = "ONLINE";
 let currentLocale: SupportedLocale = "zh-CN";
+
+const isSafeExternalUrl = (raw: string) => {
+  try {
+    const url = new URL(raw);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+};
+
+const isTrustedIpcSender = (event: IpcMainInvokeEvent | IpcMainEvent) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) return false;
+  try {
+    const senderUrl = event.senderFrame?.url;
+    if (!senderUrl) return false;
+    const url = new URL(senderUrl);
+    return url.protocol === "file:" ||
+      ((url.protocol === "https:" || url.protocol === "http:") &&
+        (url.hostname === "localhost" || url.hostname === "127.0.0.1"));
+  } catch {
+    return false;
+  }
+};
 
 // 生成高保真矢量自适应托盘图标 (16x16 RGBA 蓝紫圆角徽标，零外部静态资源依赖)
 function createDefaultTrayIcon(): Electron.NativeImage {
@@ -225,6 +250,8 @@ function createWindow() {
       preload: path.join(__dirname, "preload.js"),
       nodeIntegration: false,
       contextIsolation: true,
+      sandbox: true,
+      webSecurity: true,
     },
   });
 
@@ -280,7 +307,9 @@ function createWindow() {
         },
         {
           label: t.openInBrowser,
-          click: () => shell.openExternal(params.linkURL),
+          click: () => {
+            if (isSafeExternalUrl(params.linkURL)) void shell.openExternal(params.linkURL);
+          },
         },
       );
     }
@@ -315,6 +344,21 @@ function createWindow() {
     if (menuTemplate.length > 0 && mainWindow) {
       Menu.buildFromTemplate(menuTemplate).popup({ window: mainWindow });
     }
+  });
+
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    if (isSafeExternalUrl(url)) void shell.openExternal(url);
+    return { action: "deny" };
+  });
+  mainWindow.webContents.on("will-navigate", (event, targetUrl) => {
+    const currentUrl = mainWindow?.webContents.getURL();
+    try {
+      const target = new URL(targetUrl);
+      const current = currentUrl ? new URL(currentUrl) : null;
+      if (current && target.origin === current.origin && target.protocol === current.protocol) return;
+    } catch {}
+    event.preventDefault();
+    if (isSafeExternalUrl(targetUrl)) void shell.openExternal(targetUrl);
   });
 
   // 窗口关闭事件拦截：常驻系统托盘，防止误关
@@ -363,7 +407,8 @@ function createWindow() {
 }
 
 // 2. 注册屏幕与窗口采集 IPC 处理 (支持应用图标与类型区分)
-ipcMain.handle("get-desktop-sources", async (): Promise<DesktopSource[]> => {
+ipcMain.handle("get-desktop-sources", async (event): Promise<DesktopSource[]> => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
   const sources = await desktopCapturer.getSources({
     types: ["window", "screen"],
     thumbnailSize: { width: 480, height: 270 },
@@ -418,7 +463,9 @@ ipcMain.handle("get-desktop-sources", async (): Promise<DesktopSource[]> => {
 });
 
 // 3. 注册按键说话 (PTT) 系统级热键
-ipcMain.handle("set-ptt-keybind", async (_event, key: string) => {
+ipcMain.handle("set-ptt-keybind", async (event, key: string) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+  if (typeof key !== "string" || key.length > 64) return false;
   try {
     if (currentPTTKey) {
       globalShortcut.unregister(currentPTTKey);
@@ -455,7 +502,8 @@ ipcMain.handle("set-ptt-keybind", async (_event, key: string) => {
 // 4. 原生桌面通知推送 (Native Notifications)
 ipcMain.handle(
   "show-desktop-notification",
-  async (_event, payload: DesktopNotificationPayload) => {
+  async (event, payload: DesktopNotificationPayload) => {
+    if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
     try {
       if (!Notification.isSupported()) {
         return false;
@@ -543,14 +591,20 @@ ipcMain.handle("desktop-detect-local-network", async () => {
 
 ipcMain.handle(
   "desktop-upnp-map-port",
-  async (_event, port: number, protocol?: "UDP" | "TCP") => {
+  async (event, port: number, protocol?: "UDP" | "TCP") => {
+    if (!isTrustedIpcSender(event) || !Number.isInteger(port) || port < 1024 || port > 65535) {
+      throw new Error("Invalid UPnP request");
+    }
     return await UPnPClient.mapPort(port, protocol || "UDP");
   },
 );
 
 ipcMain.handle(
   "desktop-upnp-unmap-port",
-  async (_event, port: number, protocol?: "UDP" | "TCP") => {
+  async (event, port: number, protocol?: "UDP" | "TCP") => {
+    if (!isTrustedIpcSender(event) || !Number.isInteger(port) || port < 1024 || port > 65535) {
+      throw new Error("Invalid UPnP request");
+    }
     return await UPnPClient.unmapPort(port, protocol || "UDP");
   },
 );

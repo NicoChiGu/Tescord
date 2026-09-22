@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { StreamDetailedStats } from "@tescord/types";
 import { mediaStatsService } from "../../services/stats/MediaStatsService.js";
 import {
@@ -10,22 +10,34 @@ import {
   RefreshCw,
   Network,
   Globe,
+  GripHorizontal,
 } from "lucide-react";
 
 interface StreamStatsHUDProps {
   participantIdentity?: string;
   participantName?: string;
   onClose: () => void;
+  containerRef?: React.RefObject<HTMLElement | null>;
 }
 
 export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
   participantIdentity,
   participantName = "媒体流",
   onClose,
+  containerRef,
 }) => {
   const [stats, setStats] = useState<StreamDetailedStats | null>(null);
   const [copied, setCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const hudRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const isDraggingRef = useRef(false);
+  const dragStartRef = useRef<{
+    pointerX: number;
+    pointerY: number;
+    hudX: number;
+    hudY: number;
+  }>({ pointerX: 0, pointerY: 0, hudX: 0, hudY: 0 });
 
   useEffect(() => {
     let isMounted = true;
@@ -50,6 +62,126 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
       clearInterval(timer);
     };
   }, [participantIdentity]);
+
+  // 点击外部 (Click Outside) 与 ESC 键监听，失焦自动收起
+  useEffect(() => {
+    const handleDocumentPointerDown = (e: PointerEvent) => {
+      if (isDraggingRef.current) return;
+      if (hudRef.current && hudRef.current.contains(e.target as Node)) {
+        return;
+      }
+      const targetEl = e.target as HTMLElement | null;
+      if (targetEl?.closest?.('[data-testid="participant-stats-btn"]')) {
+        return;
+      }
+      onClose();
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.addEventListener("pointerdown", handleDocumentPointerDown, true);
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handleDocumentPointerDown, true);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  // 窗口大小变动时，确保已拖拽浮窗不会溢出容器
+  useEffect(() => {
+    if (!position || !hudRef.current) return;
+
+    const handleResize = () => {
+      if (!hudRef.current) return;
+      const parentEl =
+        containerRef?.current || (hudRef.current.offsetParent as HTMLElement);
+      if (!parentEl) return;
+
+      const parentRect = parentEl.getBoundingClientRect();
+      const hudRect = hudRef.current.getBoundingClientRect();
+      const padding = 8;
+      const maxX = Math.max(padding, parentRect.width - hudRect.width - padding);
+      const maxY = Math.max(padding, parentRect.height - hudRect.height - padding);
+
+      setPosition((prev) => {
+        if (!prev) return null;
+        return {
+          x: Math.min(Math.max(padding, prev.x), maxX),
+          y: Math.min(Math.max(padding, prev.y), maxY),
+        };
+      });
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [position, containerRef]);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    if (!hudRef.current) return;
+
+    const hudEl = hudRef.current;
+    const parentEl =
+      containerRef?.current || (hudEl.offsetParent as HTMLElement);
+    if (!parentEl) return;
+
+    const parentRect = parentEl.getBoundingClientRect();
+    const hudRect = hudEl.getBoundingClientRect();
+
+    const currentX =
+      position !== null ? position.x : hudRect.left - parentRect.left;
+    const currentY =
+      position !== null ? position.y : hudRect.top - parentRect.top;
+
+    if (!position) {
+      setPosition({ x: currentX, y: currentY });
+    }
+
+    isDraggingRef.current = true;
+    const startData = {
+      pointerX: e.clientX,
+      pointerY: e.clientY,
+      hudX: currentX,
+      hudY: currentY,
+    };
+
+    const handlePointerMove = (ev: PointerEvent) => {
+      if (!isDraggingRef.current || !hudRef.current) return;
+
+      const deltaX = ev.clientX - startData.pointerX;
+      const deltaY = ev.clientY - startData.pointerY;
+
+      const rawX = startData.hudX + deltaX;
+      const rawY = startData.hudY + deltaY;
+
+      const padding = 8;
+      const minX = padding;
+      const maxX = Math.max(minX, parentRect.width - hudRect.width - padding);
+      const minY = padding;
+      const maxY = Math.max(minY, parentRect.height - hudRect.height - padding);
+
+      const clampedX = Math.min(Math.max(minX, rawX), maxX);
+      const clampedY = Math.min(Math.max(minY, rawY), maxY);
+
+      setPosition({ x: clampedX, y: clampedY });
+    };
+
+    const handlePointerUp = () => {
+      isDraggingRef.current = false;
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("pointercancel", handlePointerUp);
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("pointercancel", handlePointerUp);
+  };
 
   const handleCopy = async () => {
     if (!stats) return;
@@ -99,13 +231,33 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
 
   return (
     <div
+      ref={hudRef}
+      tabIndex={-1}
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
-      className="absolute top-4 right-4 z-40 w-80 sm:w-96 bg-[#111214]/92 backdrop-blur-md border border-[#3f4147] rounded-xl shadow-2xl p-3.5 text-xs font-mono text-gray-200 select-text animate-fade-in"
+      onPointerDown={(e) => e.stopPropagation()}
+      style={
+        position
+          ? {
+              transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
+              left: 0,
+              top: 0,
+            }
+          : undefined
+      }
+      className={`absolute z-40 w-80 sm:w-96 bg-[#111214]/92 backdrop-blur-md border border-[#3f4147] rounded-xl shadow-2xl p-3.5 text-xs font-mono text-gray-200 select-text animate-fade-in ${
+        !position ? "top-12 right-4" : ""
+      }`}
     >
-      {/* 顶部标题与操作栏 */}
-      <div className="flex items-center justify-between pb-2 border-b border-[#2b2d31] mb-2.5">
+      {/* 顶部标题与操作栏 (支持拖拽) */}
+      <div
+        data-testid="stream-stats-drag-handle"
+        onPointerDown={handlePointerDown}
+        className="flex items-center justify-between pb-2 border-b border-[#2b2d31] mb-2.5 cursor-grab active:cursor-grabbing select-none"
+        title="按住标题栏可在卡片内自由拖拽"
+      >
         <div className="flex items-center space-x-2">
+          <GripHorizontal className="w-3.5 h-3.5 text-gray-400 opacity-70 hover:opacity-100 transition" />
           <Activity className="w-4 h-4 text-discord-green animate-pulse" />
           <span className="font-bold text-white text-[13px] tracking-wide">
             媒体属性与实时统计
@@ -114,11 +266,14 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
             HUD
           </span>
         </div>
-        <div className="flex items-center space-x-1">
+        <div
+          className="flex items-center space-x-1 cursor-default"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
           <button
             type="button"
             onClick={handleManualRefresh}
-            className="p-1 rounded hover:bg-[#35373c] text-gray-400 hover:text-white transition"
+            className="p-1 rounded hover:bg-[#35373c] text-gray-400 hover:text-white transition cursor-pointer"
             title="立即刷新数据"
           >
             <RefreshCw
@@ -128,7 +283,7 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
           <button
             type="button"
             onClick={handleCopy}
-            className="p-1 rounded hover:bg-[#35373c] text-gray-400 hover:text-white transition"
+            className="p-1 rounded hover:bg-[#35373c] text-gray-400 hover:text-white transition cursor-pointer"
             title="复制全部属性与统计"
           >
             {copied ? (
@@ -140,7 +295,7 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1 rounded hover:bg-discord-danger/20 hover:text-discord-danger text-gray-400 transition"
+            className="p-1 rounded hover:bg-discord-danger/20 hover:text-discord-danger text-gray-400 transition cursor-pointer"
             title="关闭面板"
           >
             <X className="w-4 h-4" />
@@ -160,42 +315,42 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
         <div className="flex justify-between items-start gap-2">
           <span className="text-gray-400 flex-shrink-0">Mime Type:</span>
           <span className="text-discord-brand text-right break-all">
-            {stats?.mimeType || "video/VP8, audio/opus"}
+            {stats?.mimeType || "未知"}
           </span>
         </div>
 
         <div className="flex justify-between items-start gap-2">
           <span className="text-gray-400 flex-shrink-0">Player Core:</span>
           <span className="text-gray-300 text-right">
-            {stats?.playerCore || "LiveKit WebRTC Core"}
+            {stats?.playerCore || "未知"}
           </span>
         </div>
 
         <div className="flex justify-between items-start gap-2">
           <span className="text-gray-400 flex-shrink-0">Video Info:</span>
           <span className="text-emerald-400 font-semibold text-right">
-            {stats?.videoInfo || "1280x720, 30FPS"}
+            {stats?.videoInfo || "未知"}
           </span>
         </div>
 
         <div className="flex justify-between items-start gap-2">
           <span className="text-gray-400 flex-shrink-0">Audio Info:</span>
           <span className="text-gray-300 text-right">
-            {stats?.audioInfo || "48KHz, Stereo, 64Kbps"}
+            {stats?.audioInfo || "未知"}
           </span>
         </div>
 
         <div className="flex justify-between items-start gap-2">
           <span className="text-gray-400 flex-shrink-0">Encoder:</span>
           <span className="text-gray-300 text-right truncate">
-            {stats?.encoder || "libwebrtc ScreenCapture"}
+            {stats?.encoder || "未知"}
           </span>
         </div>
 
         <div className="flex justify-between items-start gap-2">
           <span className="text-gray-400 flex-shrink-0">Stream Host:</span>
           <span className="text-amber-400 text-right truncate">
-            {stats?.streamHost || "livekit.tescord.local"}
+            {stats?.streamHost || "未知"}
           </span>
         </div>
 
@@ -212,7 +367,7 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
                     ? "P2P Direct (点对点打洞)"
                     : stats?.topology === "P2P_TREE_RELAY"
                       ? "P2P Tree Relay (树状中继)"
-                      : stats?.topology || "SFU 服务端"}
+                      : stats?.topology || "未知"}
             </span>
           </span>
         </div>
@@ -227,7 +382,7 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
             }`}
           >
             <ShieldCheck className="w-3 h-3" />
-            <span>{stats?.connectionMode || "SFU Direct"}</span>
+            <span>{stats?.connectionMode || "未知"}</span>
           </span>
         </div>
 
@@ -257,7 +412,11 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
           >
             <Globe className="w-3 h-3" />
             <span>
-              {stats?.ipVersion === "IPv6" ? "IPv6 (双栈优先)" : "IPv4 (单栈)"}
+              {stats?.ipVersion === "IPv6"
+                ? "IPv6 (双栈优先)"
+                : stats?.ipVersion === "IPv4"
+                  ? "IPv4 (单栈)"
+                  : "未知"}
             </span>
           </span>
         </div>
@@ -265,14 +424,14 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
         <div className="flex justify-between items-start gap-2">
           <span className="text-gray-400 flex-shrink-0">传输协议:</span>
           <span className="text-gray-300 text-right">
-            {stats?.protocol || "UDP"}
+            {stats?.protocol || "未知"}
           </span>
         </div>
 
         <div className="flex justify-between items-start gap-2">
           <span className="text-gray-400 flex-shrink-0">Buffer / Jitter:</span>
           <span className="text-gray-300 text-right">
-            {stats?.bufferLength || "12ms"} / {stats?.jitter || "0.8ms"}
+            {stats?.bufferLength || "未知"} / {stats?.jitter || "未知"}
           </span>
         </div>
 
@@ -286,7 +445,7 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
         <div className="flex justify-between items-start gap-2">
           <span className="text-gray-400 flex-shrink-0">下行/下载码率:</span>
           <span className="text-discord-brand font-semibold text-right">
-            {stats?.downloadBitrate || "0 Kbps"}
+            {stats?.downloadBitrate || "未知"}
           </span>
         </div>
 
@@ -315,7 +474,7 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
                 : "text-discord-green"
             }`}
           >
-            {stats?.packetLoss || "0.0%"}
+            {stats?.packetLoss || "未知"}
           </span>
         </div>
       </div>

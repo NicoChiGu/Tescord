@@ -34,6 +34,9 @@ export class AuthService {
       status: (u.status as UserStatus) || "ONLINE",
       customStatus: u.customStatus || null,
       bio: u.bio || null,
+      role: (u.role as any) || "USER",
+      isBanned: u.isBanned || false,
+      mustChangePassword: u.mustChangePassword || false,
       createdAt:
         u.createdAt instanceof Date
           ? u.createdAt.toISOString()
@@ -55,6 +58,8 @@ export class AuthService {
         sub: user.id,
         username: user.username,
         email: user.email,
+        role: user.role || "USER",
+        sessionVersion: user.sessionVersion || 0,
       },
       { expiresIn: "15m" },
     );
@@ -91,6 +96,13 @@ export class AuthService {
    * 用户注册 (检查唯一性、密码哈希、自动分配默认公会成员)
    */
   public async register(dto: RegisterDTO): Promise<AuthTokens> {
+    const allowSetting = await prisma.systemSetting.findUnique({
+      where: { key: "allow_registration" },
+    });
+    if (allowSetting && allowSetting.value === "false") {
+      throw new Error("当前系统已暂停新用户注册");
+    }
+
     const existing = await prisma.user.findFirst({
       where: {
         OR: [{ email: dto.email.toLowerCase() }, { username: dto.username }],
@@ -169,12 +181,53 @@ export class AuthService {
       throw new Error("账号或密码不正确");
     }
 
+    if (user.isBanned) {
+      throw new Error("该账号已被系统封禁，无法登录");
+    }
+
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) {
       throw new Error("账号或密码不正确");
     }
 
     return this.generateAuthTokens(user);
+  }
+
+  public async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    if (newPassword.length < 10) {
+      throw new Error("新密码长度不能少于 10 位");
+    }
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.isBanned) throw new Error("账号不可用");
+    if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
+      throw new Error("当前密码不正确");
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userId },
+        data: {
+          passwordHash,
+          mustChangePassword: false,
+          sessionVersion: { increment: 1 },
+        },
+      }),
+      prisma.refreshToken.deleteMany({ where: { userId } }),
+      prisma.platformAuditLog.create({
+        data: {
+          actorId: userId,
+          action: "PASSWORD_CHANGED",
+          targetType: "USER",
+          targetId: userId,
+          detailsJson: JSON.stringify({ forced: user.mustChangePassword }),
+        },
+      }),
+    ]);
+    gatewayManager.disconnectUser(userId);
   }
 
   /**
@@ -201,6 +254,13 @@ export class AuthService {
     if (tokenRecord.expiresAt < new Date()) {
       await prisma.refreshToken.delete({ where: { id: tokenRecord.id } });
       throw new Error("Refresh Token 已过期，请重新登录");
+    }
+
+    if (tokenRecord.user.isBanned) {
+      await prisma.refreshToken.deleteMany({
+        where: { userId: tokenRecord.userId },
+      });
+      throw new Error("该账号已被系统封禁");
     }
 
     // 轮换机制：消费旧 Refresh Token 并销毁

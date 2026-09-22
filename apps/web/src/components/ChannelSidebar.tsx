@@ -69,6 +69,7 @@ import { CategoryContextMenu } from "./context-menu/CategoryContextMenu.js";
 import { UserContextMenu } from "./context-menu/UserContextMenu.js";
 import { voiceMeshManager } from "../services/p2p/VoiceMeshManager.js";
 import { p2pStreamManager } from "../services/p2p/P2PStreamManager.js";
+import { DirectMessageList } from "./dm/DirectMessageList.js";
 
 export interface VoiceTransferNotice {
   targetPlatform: string;
@@ -78,6 +79,9 @@ export interface VoiceTransferNotice {
 interface ChannelSidebarProps {
   guild: Guild | null;
   channels: Channel[];
+  dmChannels?: Channel[];
+  onCloseDMChannel?: (channelId: string) => void;
+  onDMChannelCreated?: (channel: Channel) => void;
   selectedChannelId: string;
   activeVoiceChannelId: string | null;
   activeVoiceChannelObj?: Channel | null;
@@ -367,6 +371,9 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
 export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   guild,
   channels,
+  dmChannels,
+  onCloseDMChannel,
+  onDMChannelCreated,
   selectedChannelId,
   activeVoiceChannelId,
   activeVoiceChannelObj,
@@ -515,12 +522,14 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
       case "poor":
         return "text-discord-danger";
       default:
-        return "text-discord-green";
+        return "text-discord-textMuted";
     }
   };
 
   const qualityColor = getQualityColor(networkStats?.quality);
-  const currentRtt = networkStats?.rtt || 18;
+  const currentRtt = typeof networkStats?.rtt === "number" && networkStats.rtt > 0
+    ? networkStats.rtt
+    : null;
 
   // 拖拽悬浮项与克隆状态（用于实时平滑占位与无延迟跟随）
   const [activeItem, setActiveItem] = useState<
@@ -810,8 +819,20 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
 
   return (
     <div className="w-60 bg-discord-channelList flex flex-col h-full border-r border-[#232428] select-none">
+      {/* 未选择服务器时，展示完整的私信会话列表 */}
+      {!guild && (
+        <DirectMessageList
+          channels={dmChannels || []}
+          selectedChannelId={selectedChannelId}
+          currentUser={currentUser}
+          onSelectChannel={onSelectChannel}
+          onCloseChannel={(id) => onCloseDMChannel?.(id)}
+          onChannelCreated={onDMChannelCreated}
+        />
+      )}
+
       {/* 服务器标题 */}
-      {guild ? (
+      {guild && (
         <ServerContextMenu
           guild={guild}
           onOpenCreateChannel={() => onOpenCreateChannel?.()}
@@ -868,14 +889,11 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
             </div>
           </div>
         </ServerContextMenu>
-      ) : (
-        <div className="h-12 border-b border-[#1f2023] px-4 flex items-center justify-between font-bold text-discord-textHeader shadow-sm hover:bg-[#35373c] transition">
-          <span className="truncate">私信列表</span>
-        </div>
       )}
 
       {/* 频道列表与分类容器 */}
-      <div className="flex-1 overflow-y-auto px-2 py-3 space-y-3">
+      {guild && (
+        <div className="flex-1 overflow-y-auto px-2 py-3 space-y-3">
         <DndContext
           sensors={sensors}
           collisionDetection={customCollisionDetection}
@@ -1015,6 +1033,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
           </DragOverlay>
         </DndContext>
       </div>
+      )}
 
       {/* 底部连接控制面板 (接入语音连接中或已连接时显示) */}
       {activeVoiceChannel && voiceConnectionStatus !== "disconnected" && (
@@ -1096,7 +1115,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                         );
                       const finalRtt =
                         meshMetrics.rtt > 0 ? meshMetrics.rtt : currentRtt;
-                      return `${finalRtt}ms`;
+                      return finalRtt === null ? "--ms" : `${finalRtt}ms`;
                     })()}
                   </span>
                 </div>

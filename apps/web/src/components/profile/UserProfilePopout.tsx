@@ -14,6 +14,7 @@ import {
   Settings,
   X,
   Radio,
+  MessageSquare,
 } from "lucide-react";
 import { resolveServerUrl } from "../../config.js";
 
@@ -30,6 +31,7 @@ interface UserProfilePopoutProps {
   onOpenSettings?: () => void;
   onMention?: (username: string) => void;
   onSendMessage?: (content: string) => void;
+  onStartDM?: (userId: string) => void;
   onKickMember?: (userId: string, username: string) => void;
   onBanMember?: (userId: string, username: string) => void;
 }
@@ -47,6 +49,7 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
   onOpenSettings,
   onMention,
   onSendMessage,
+  onStartDM,
   onKickMember,
   onBanMember,
 }) => {
@@ -464,6 +467,22 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
 
               {/* 快捷按钮组 */}
               <div className="flex items-center gap-2">
+                {onStartDM && user.id !== currentUser.id && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onStartDM(user.id);
+                      onClose();
+                    }}
+                    className="flex-1 py-1.5 px-2 rounded bg-discord-brand hover:bg-[#4752c4] text-xs font-medium text-white flex items-center justify-center gap-1.5 transition"
+                    title="发起私信"
+                    data-testid="popout-start-dm-btn"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    <span>发私信</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={handleMention}

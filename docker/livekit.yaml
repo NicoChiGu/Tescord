@@ -13,3 +13,9 @@ keys:
 logging:
   json: false
   level: info
+
+webhook:
+  api_key: devkey
+  urls:
+    - "http://localhost:3001/api/livekit/webhook"
+

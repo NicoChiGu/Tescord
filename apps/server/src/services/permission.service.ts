@@ -215,8 +215,12 @@ export class PermissionService {
   ): Promise<boolean> {
     const channel = await prisma.channel.findUnique({
       where: { id: channelId },
+      include: { recipients: true },
     });
     if (!channel) return false;
+    if (!channel.guildId) {
+      return channel.recipients.some((r) => r.userId === userId);
+    }
     return this.hasGuildPermission(userId, channel.guildId, flag);
   }
 }

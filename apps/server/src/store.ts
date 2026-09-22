@@ -142,9 +142,11 @@ export class DataStore {
 
   createChannel(channel: Channel) {
     this.channels.set(channel.id, channel);
-    const guild = this.guilds.get(channel.guildId);
-    if (guild) {
-      guild.channels.push(channel);
+    if (channel.guildId) {
+      const guild = this.guilds.get(channel.guildId);
+      if (guild) {
+        guild.channels.push(channel);
+      }
     }
     return channel;
   }

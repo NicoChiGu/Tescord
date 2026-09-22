@@ -13,6 +13,10 @@ export async function seedInitialData(): Promise<void> {
   try {
     const userCount = await prisma.user.count();
     if (userCount === 0) {
+      if (process.env.NODE_ENV === "production") {
+        console.warn("生产环境数据库为空：已跳过默认账号和测试数据注入。请先注册目标账号，再离线运行 pnpm admin:grant <username>。 ");
+        return;
+      }
       console.log("🌱 首次启动，开始初始化系统默认种子数据...");
 
       // 1. 创建默认管理员用户 (admin / adminpassword123)
@@ -138,7 +142,9 @@ export async function seedInitialData(): Promise<void> {
       );
     }
 
-    // 8. 确保测试用户存在 (Alice & Bob 幂等初始化，纯净无公会)
+    if (process.env.NODE_ENV === "production") return;
+
+    // 8. 仅开发环境确保测试用户存在 (Alice & Bob 幂等初始化，纯净无公会)
     const testSalt = await bcrypt.genSalt(10);
 
     const existingAlice = await prisma.user.findUnique({

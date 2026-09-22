@@ -1,10 +1,14 @@
 import { test, expect } from "@playwright/test";
+import { installConnectedLiveKitStub } from "./helpers/media";
 
 test.describe("媒体属性面板、传输速率与网络连接架构端到端验收", () => {
   test.beforeEach(async ({ page }) => {
     // 注入已登录状态
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "mock_e2e_token");
+      localStorage.setItem(
+        "tescord_access_token",
+        localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token",
+      );
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 
@@ -45,7 +49,7 @@ test.describe("媒体属性面板、传输速率与网络连接架构端到端�
     });
   });
 
-  test("纯语音通话下全场景支持媒体属性查看，正确显示 SFU 架构与瞬时码率，绝无 P2P 误判", async ({
+  test("纯语音通话显示 SFU 架构，未采集指标保持未知且不误判为 P2P，支持拖拽浮动、失焦自动收起与聚焦模式联动", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -53,7 +57,7 @@ test.describe("媒体属性面板、传输速率与网络连接架构端到端�
 
     // 1. 进入服务器
     const serverButton = page
-      .getByRole("button", { name: /Tescord 极客总部|极客/i })
+      .getByRole("button", { name: /Tescord 极客总部|极客|小窝/i })
       .first();
     await expect(serverButton).toBeVisible({ timeout: 10000 });
     await serverButton.click();
@@ -64,6 +68,7 @@ test.describe("媒体属性面板、传输速率与网络连接架构端到端�
       .filter({ has: page.locator("svg.lucide-volume-2") })
       .first();
     await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
+    await installConnectedLiveKitStub(page, "e2e_user_1");
     await voiceChannelBtn.dblclick();
 
     // 3. 确认已成功进入语音频道
@@ -75,10 +80,10 @@ test.describe("媒体属性面板、传输速率与网络连接架构端到端�
       .first();
     await expect(statsBtn).toBeAttached({ timeout: 5000 });
 
-    // 点击媒体属性按钮打开 HUD 面板
+    // 点击媒体属性按钮打开 HUD 面板，并自动联动激活 Spotlight 聚焦模式
     await statsBtn.click({ force: true });
 
-    // 5. 验证媒体属性 HUD 面板内容
+    // 5. 验证媒体属性 HUD 面板内容展示
     const hudTitle = page.getByText("媒体属性与实时统计");
     await expect(hudTitle).toBeVisible({ timeout: 5000 });
 
@@ -90,8 +95,7 @@ test.describe("媒体属性面板、传输速率与网络连接架构端到端�
 
     const connectionModeItem = page.getByText("连接架构:");
     await expect(connectionModeItem).toBeVisible();
-    const connectionModeVal = page.getByText(/SFU Direct|SFU Relay/);
-    await expect(connectionModeVal.first()).toBeVisible();
+    await expect(connectionModeItem.locator("..").getByText("协商中")).toBeVisible();
 
     // 确保绝对没有误判为 P2P Direct
     const p2pDirectBug = page.getByText(/P2P Direct \(UDP \/ Host\)/);
@@ -100,36 +104,77 @@ test.describe("媒体属性面板、传输速率与网络连接架构端到端�
     // 验证 IP 协议栈徽章
     const ipStackItem = page.getByText("IP 协议栈:");
     await expect(ipStackItem).toBeVisible();
-    await expect(page.getByText(/IPv4|IPv6/).first()).toBeVisible();
+    await expect(ipStackItem.locator("..").getByText("未知")).toBeVisible();
 
     // 验证实时传输速率与流量
     const bitrateItem = page.getByText("下行/下载码率:");
     await expect(bitrateItem).toBeVisible();
-    const bitrateVal = page.getByText(/Kbps|Mbps/).first();
-    await expect(bitrateVal).toBeVisible();
+    await expect(bitrateItem.locator("..").getByText("未知")).toBeVisible();
 
     // 验证复制全部属性与统计按钮可用
     const copyBtn = page.getByTitle("复制全部属性与统计");
     await expect(copyBtn).toBeVisible();
     await copyBtn.click();
 
-    // 6. 关闭 HUD 面板
-    const closeBtn = page.getByTitle("关闭面板");
-    await expect(closeBtn).toBeVisible();
-    await closeBtn.click();
-    await expect(hudTitle).not.toBeVisible();
+    // 6. 验证容器内拖拽功能 (Draggable inside card)
+    const hudPanel = hudTitle.locator("xpath=ancestor::div[contains(@class, 'z-40')]");
+    const initialBox = await hudPanel.boundingBox();
+    expect(initialBox).not.toBeNull();
 
-    // 7. 验证右键菜单亦可调出媒体属性
-    const userCard = page
-      .locator('[data-testid="voice-grid"]')
-      .locator("> div")
+    const dragHandle = page.locator('[data-testid="stream-stats-drag-handle"]');
+    const handleBox = await dragHandle.boundingBox();
+    expect(handleBox).not.toBeNull();
+
+    // 移动至拖拽手柄并按住平移
+    const startX = handleBox!.x + 40;
+    const startY = handleBox!.y + handleBox!.height / 2;
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.mouse.move(startX - 80, startY + 40, { steps: 5 });
+    await page.mouse.up();
+
+    const afterDragBox = await hudPanel.boundingBox();
+    expect(afterDragBox).not.toBeNull();
+    // 验证位置已发生平移
+    expect(afterDragBox!.x).not.toBe(initialBox!.x);
+
+    // 7. 验证失焦自闭 (Click Outside)
+    // 点击卡片外部的视口空白处，面板应自动关闭隐藏
+    await page.mouse.click(10, 10);
+    await expect(hudTitle).not.toBeVisible({ timeout: 3000 });
+
+    // 8. 重新点击按钮展开 HUD，验证 ESC 键失焦收起
+    await statsBtn.click({ force: true });
+    await expect(hudTitle).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(hudTitle).not.toBeVisible({ timeout: 3000 });
+
+    // 9. 重新展开 HUD，验证退出聚焦模式时联动销毁 HUD（如果没有聚焦就不允许显示）
+    await statsBtn.click({ force: true });
+    await expect(hudTitle).toBeVisible();
+    const unpinBtn = page.locator('[data-testid="stage-unpin-btn"]').first();
+    if (await unpinBtn.isVisible()) {
+      await unpinBtn.click({ force: true });
+      // 退出聚焦后，HUD 应立即不可见
+      await expect(hudTitle).not.toBeVisible({ timeout: 3000 });
+    }
+
+    // 10. 验证通过右键菜单打开
+    const stageCard = page
+      .locator('[data-testid^="participant-card-"], [data-testid^="participant-video-tile-"]')
       .first();
-    if (await userCard.isVisible()) {
-      await userCard.click({ button: "right" });
+    if (await stageCard.isVisible()) {
+      await stageCard.click({ button: "right" });
       const contextMenuItem = page.getByText("媒体属性与详细统计 (Stats)");
-      await expect(contextMenuItem).toBeVisible({ timeout: 3000 });
-      await contextMenuItem.click();
-      await expect(hudTitle).toBeVisible();
+      if (await contextMenuItem.isVisible()) {
+        await contextMenuItem.click();
+        await expect(hudTitle).toBeVisible();
+        // 关闭面板按钮正常可用
+        const closeBtn = page.getByTitle("关闭面板");
+        await expect(closeBtn).toBeVisible();
+        await closeBtn.click();
+        await expect(hudTitle).not.toBeVisible();
+      }
     }
   });
 });

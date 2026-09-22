@@ -13,7 +13,7 @@ test.describe("直播屏幕分享与摄像头画面融合（画中画自由切�
 
     // 1. 注入用户鉴权状态与浏览器虚拟摄像头 + 屏幕分享 Canvas 双轨 Mock
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "mock_e2e_token");
+      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
 
       if (navigator.mediaDevices) {

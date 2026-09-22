@@ -1,0 +1,24 @@
+diff --git a/src/helpers.ts b/src/helpers.ts
+--- a/src/helpers.ts
++++ b/src/helpers.ts
+@@ -4 +4 @@
+-import * as querystring from 'query-string'
++import querystring from 'query-string'
+diff --git a/src/internal/client.ts b/src/internal/client.ts
+--- a/src/internal/client.ts
++++ b/src/internal/client.ts
+@@ -13 +13 @@
+-import * as qs from 'query-string'
++import qs from 'query-string'
+diff --git a/dist/esm/helpers.mjs b/dist/esm/helpers.mjs
+--- a/dist/esm/helpers.mjs
++++ b/dist/esm/helpers.mjs
+@@ -3 +3 @@
+-import * as querystring from 'query-string';
++import querystring from 'query-string';
+diff --git a/dist/esm/internal/client.mjs b/dist/esm/internal/client.mjs
+--- a/dist/esm/internal/client.mjs
++++ b/dist/esm/internal/client.mjs
+@@ -10 +10 @@
+-import * as qs from 'query-string';
++import qs from 'query-string';

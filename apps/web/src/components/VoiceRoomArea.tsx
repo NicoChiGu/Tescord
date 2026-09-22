@@ -129,6 +129,9 @@ interface ParticipantCardProps {
   onQualitySelect?: (q: "high" | "medium" | "low" | "auto") => void;
   onStopScreenShare?: () => void;
   peerLatency?: PeerLatencyReport | null;
+  showStatsHUD?: boolean;
+  onToggleStats?: () => void;
+  onCloseStats?: () => void;
 }
 
 const ParticipantCard: React.FC<ParticipantCardProps> = ({
@@ -153,11 +156,39 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
   onQualitySelect,
   onStopScreenShare,
   peerLatency,
+  showStatsHUD,
+  onToggleStats,
+  onCloseStats,
 }) => {
   // 当同时存在屏幕分享与摄像头时，是否对调主次画面 (默认: 屏幕分享为主，摄像头小窗在右下角)
   const [isSwapped, setIsSwapped] = useState(false);
   const [isVolumeOpen, setIsVolumeOpen] = useState(false);
-  const [showStatsHUD, setShowStatsHUD] = useState(false);
+  const [internalShowStatsHUD, setInternalShowStatsHUD] = useState(false);
+
+  // 严格遵循：若未处于聚焦放大状态，绝不允许显示 HUD
+  const isHUDVisible = Boolean(
+    isSpotlight &&
+      (showStatsHUD !== undefined ? showStatsHUD : internalShowStatsHUD),
+  );
+
+  const handleToggleHUD = () => {
+    if (onToggleStats) {
+      onToggleStats();
+    } else {
+      if (!isSpotlight) {
+        onTogglePin();
+      }
+      setInternalShowStatsHUD((prev) => !prev);
+    }
+  };
+
+  const handleCloseHUD = () => {
+    if (onCloseStats) {
+      onCloseStats();
+    } else {
+      setInternalShowStatsHUD(false);
+    }
+  };
   const cardRef = useRef<HTMLDivElement | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showControls, setShowControls] = useState(true);
@@ -322,7 +353,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
       isInVoice={true}
       isStreaming={hasScreen}
       onStopScreenShare={isMe && hasScreen ? onStopScreenShare : undefined}
-      onShowStats={() => setShowStatsHUD(true)}
+      onShowStats={handleToggleHUD}
     >
       <div
         ref={cardRef}
@@ -550,10 +581,10 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             data-testid="participant-stats-btn"
             onClick={(e) => {
               e.stopPropagation();
-              setShowStatsHUD((prev) => !prev);
+              handleToggleHUD();
             }}
             className={`p-1 rounded-md backdrop-blur-md transition ${
-              showStatsHUD
+              isHUDVisible
                 ? "bg-discord-brand text-white shadow-md opacity-100"
                 : "bg-black/60 hover:bg-discord-brand text-white opacity-0 group-hover:opacity-100"
             }`}
@@ -728,13 +759,14 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
         </div>
 
         {/* 详细媒体属性与实时统计 (Stats for nerds) HUD */}
-        {showStatsHUD && (
+        {isHUDVisible && (
           <StreamStatsHUD
+            containerRef={cardRef}
             participantIdentity={participant.userId}
             participantName={
               participant.user?.username || (isMe ? "我的推流" : "视频流")
             }
-            onClose={() => setShowStatsHUD(false)}
+            onClose={handleCloseHUD}
           />
         )}
       </div>
@@ -882,6 +914,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
     setIsMicMenuOpen(false);
   };
   const [pinnedUserId, setPinnedUserId] = useState<string | null>(null);
+  const [statsUserId, setStatsUserId] = useState<string | null>(null);
   const [isMixerOpen, setIsMixerOpen] = useState(false);
   const [isTheaterMode, setIsTheaterMode] = useState(false);
   const [activeVolumeUserId, setActiveVolumeUserId] = useState<string | null>(
@@ -998,7 +1031,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
     if (p2pStreamerId && p2pStreamMode) {
       p2pStreamManager.joinStream(
         channel.id,
-        channel.guildId,
+        channel.guildId || "",
         p2pStreamerId,
         p2pStreamMode,
       );
@@ -1035,7 +1068,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
       : [
           {
             userId: currentUser.id,
-            guildId: channel.guildId,
+            guildId: channel.guildId || "",
             channelId: channel.id,
             selfMute: isMuted,
             selfDeaf: false,
@@ -1067,6 +1100,22 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
       setPinnedUserId(null);
     }
   }, [pinnedUserId, displayParticipants]);
+
+  // 当未处于聚焦状态或切换聚焦成员时，自动清理统计面板显示（严格保证“如果没有聚焦就不允许显示”）
+  useEffect(() => {
+    if (statsUserId && pinnedUserId !== statsUserId) {
+      setStatsUserId(null);
+    }
+  }, [pinnedUserId, statsUserId]);
+
+  const handleToggleStats = (userId: string) => {
+    if (statsUserId === userId) {
+      setStatsUserId(null);
+    } else {
+      setPinnedUserId(userId);
+      setStatsUserId(userId);
+    }
+  };
 
   // 根据参与者信息索取对应的摄像头与屏幕分享轨道
   const getParticipantMedia = (p: VoiceState) => {
@@ -1397,7 +1446,10 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                     volume={userVol}
                     onVolumeChange={(vol) => handleVolumeChange(p.userId, vol)}
                     isPinned={true}
-                    onTogglePin={() => setPinnedUserId(null)}
+                    onTogglePin={() => {
+                      setPinnedUserId(null);
+                      setStatsUserId(null);
+                    }}
                     cameraTrack={media.cameraTrack}
                     screenShareTrack={media.screenShareTrack}
                     screenShareInfo={media.screenShareInfo}
@@ -1411,6 +1463,9 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                     onQualitySelect={handleQualitySelect}
                     onStopScreenShare={onStopScreenShare || onToggleScreenShare}
                     peerLatency={peerLatencies.get(p.userId)}
+                    showStatsHUD={statsUserId === p.userId}
+                    onToggleStats={() => handleToggleStats(p.userId)}
+                    onCloseStats={() => setStatsUserId(null)}
                   />
                 );
               })()}
@@ -1471,6 +1526,9 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                     onQualitySelect={handleQualitySelect}
                     onStopScreenShare={onStopScreenShare || onToggleScreenShare}
                     peerLatency={peerLatencies.get(p.userId)}
+                    showStatsHUD={false}
+                    onToggleStats={() => handleToggleStats(p.userId)}
+                    onCloseStats={() => setStatsUserId(null)}
                   />
                 );
               })}

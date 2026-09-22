@@ -13,7 +13,7 @@ test.describe("屏幕分享 16:9 自适应分辨率与屏幕尺寸硬性禁用 E
 
     // 1. 注入用户鉴权状态、虚拟媒体流 Mock 以及包含不同物理分辨率屏幕源的 ElectronAPI
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "mock_e2e_token");
+      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
 
       // Mock 虚拟桌面源 (模拟一台 1080P 主显示器与一台 4K 扩展显示器)

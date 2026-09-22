@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 test.describe("Discord 级体验增强核心交互验证 (问题2/3/4/5/6)", () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "mock_e2e_token");
+      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
 
       if (navigator.mediaDevices) {

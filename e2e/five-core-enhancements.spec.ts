@@ -4,7 +4,7 @@ test.describe("Tescord 五大音视频与状态同步核心能力 E2E 自动化�
   test.beforeEach(async ({ page }) => {
     // 注入用户鉴权与 Mock 媒体流
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "mock_e2e_token");
+      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
 
       // Mock Web Audio

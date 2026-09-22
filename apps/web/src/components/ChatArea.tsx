@@ -31,6 +31,9 @@ import {
   Menu,
   ChevronDown,
   History,
+  Phone,
+  Video,
+  PhoneOff,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { MarkdownRenderer } from "./chat/MarkdownRenderer.js";
@@ -50,6 +53,7 @@ import { doubleRatchetManager } from "../services/doubleRatchet.js";
 import { clientFtsStorage } from "../services/e2eeStorage.js";
 import { useViewport } from "../hooks/useViewport.js";
 import { useLongPress } from "../hooks/useLongPress.js";
+import { useAuthStore } from "../stores/useAuthStore.js";
 
 interface ChatAreaProps {
   channel: Channel;
@@ -70,6 +74,12 @@ interface ChatAreaProps {
   onToggleMemberList: () => void;
   onToggleMobileDrawer?: () => void;
   onToggleMobileMemberList?: () => void;
+  onStartCall?: (channelId: string, hasVideo: boolean) => void;
+  onStartDM?: (userId: string) => void;
+  callEncryption?: {
+    status: "idle" | "negotiating" | "tofu" | "trusted" | "failed";
+    fingerprint?: string;
+  };
 }
 
 interface ChatMessageItemProps {
@@ -454,6 +464,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onToggleMemberList,
   onToggleMobileDrawer,
   onToggleMobileMemberList,
+  onStartCall,
+  onStartDM,
+  callEncryption,
 }) => {
   const { t } = useTranslation(["chat", "common"]);
   const { isMobile, isDesktop } = useViewport();
@@ -847,7 +860,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         `${API_BASE}/api/attachments/presigned-url`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            ...useAuthStore.getState().getAuthHeaders(),
+          },
           body: JSON.stringify({
             fileName: file.name,
             fileSize: file.size,
@@ -865,6 +881,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         method: "PUT",
         headers: {
           "Content-Type": file.type || "application/octet-stream",
+          ...(presignData.requiresAuth
+            ? useAuthStore.getState().getAuthHeaders()
+            : {}),
         },
         body: file,
       });
@@ -1001,7 +1020,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               <Menu className="w-5 h-5" />
             </button>
           )}
-          {channel.isE2EE ? (
+          {channel.type === "DM" ? (
+            <span className="text-discord-textMuted font-bold text-lg flex-shrink-0">
+              @
+            </span>
+          ) : channel.isE2EE ? (
             <Lock className="w-5 h-5 text-discord-green flex-shrink-0" />
           ) : (
             <Hash className="w-5 h-5 text-discord-textMuted flex-shrink-0" />
@@ -1032,6 +1055,48 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
         {/* 顶部右侧功能按钮 */}
         <div className="flex items-center space-x-2 sm:space-x-3 text-discord-textMuted flex-shrink-0">
+          {/* 私信 1v1 呼叫按钮 */}
+          {channel.type === "DM" && (
+            <div className="flex items-center space-x-1 sm:space-x-2">
+              {callEncryption && callEncryption.status !== "idle" && (
+                <span
+                  className={`hidden md:flex items-center gap-1 rounded border px-2 py-1 text-[10px] ${
+                    callEncryption.status === "failed"
+                      ? "border-red-500/40 bg-red-500/10 text-red-300"
+                      : callEncryption.status === "negotiating"
+                        ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
+                        : "border-discord-green/40 bg-discord-green/10 text-discord-green"
+                  }`}
+                  title={callEncryption.fingerprint ? `对端设备指纹：${callEncryption.fingerprint}` : "正在协商设备密钥"}
+                  data-testid="dm-call-encryption-status"
+                >
+                  <ShieldCheck className="h-3 w-3" />
+                  {callEncryption.status === "trusted" ? "设备已验证" :
+                    callEncryption.status === "tofu" ? "首次信任 · E2EE" :
+                      callEncryption.status === "failed" ? "加密失败" : "协商 E2EE"}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => onStartCall?.(channel.id, false)}
+                className="hover:text-discord-textHeader transition p-1.5 rounded hover:bg-[#35373c] text-discord-textMuted"
+                title="发起语音呼叫"
+                data-testid="dm-start-voice-call-btn"
+              >
+                <Phone className="w-5 h-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => onStartCall?.(channel.id, true)}
+                className="hover:text-discord-textHeader transition p-1.5 rounded hover:bg-[#35373c] text-discord-textMuted"
+                title="发起视频呼叫"
+                data-testid="dm-start-video-call-btn"
+              >
+                <Video className="w-5 h-5" />
+              </button>
+            </div>
+          )}
+
           <button className="hidden sm:block hover:text-discord-textHeader transition">
             <Bell className="w-5 h-5" />
           </button>
@@ -1080,19 +1145,21 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             )}
           </button>
 
-          <button
-            onClick={() => {
-              if (isCompact && onToggleMobileMemberList) {
-                onToggleMobileMemberList();
-              } else {
-                onToggleMemberList();
-              }
-            }}
-            className={`hover:text-discord-textHeader transition p-1 rounded hover:bg-[#35373c] ${showMemberList ? "text-discord-textHeader" : ""}`}
-            title="成员列表"
-          >
-            <Users className="w-5 h-5" />
-          </button>
+          {channel.type !== "DM" && (
+            <button
+              onClick={() => {
+                if (isCompact && onToggleMobileMemberList) {
+                  onToggleMobileMemberList();
+                } else {
+                  onToggleMemberList();
+                }
+              }}
+              className={`hover:text-discord-textHeader transition p-1 rounded hover:bg-[#35373c] ${showMemberList ? "text-discord-textHeader" : ""}`}
+              title="成员列表"
+            >
+              <Users className="w-5 h-5" />
+            </button>
+          )}
         </div>
 
         {/* 已固定的消息浮层面板 (Pinned Messages Popover) */}
@@ -1493,6 +1560,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           }}
           onSendMessage={() => {
             setSelectedUserPopout(null);
+          }}
+          onStartDM={(userId) => {
+            setSelectedUserPopout(null);
+            onStartDM?.(userId);
           }}
         />
       )}

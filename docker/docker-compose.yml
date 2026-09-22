@@ -64,11 +64,13 @@ services:
     image: coturn/coturn:latest
     container_name: tescord-coturn
     restart: unless-stopped
+    command: ["-c", "/etc/turnserver.conf", "--static-auth-secret=${TURN_SECRET:-tescord-dev-turn-secret}"]
     volumes:
       - ./turnserver.conf:/etc/turnserver.conf:ro
     ports:
       - "3478:3478"
       - "3478:3478/udp"
+      - "49152-49252:49152-49252/udp"
 
 volumes:
   pgdata:

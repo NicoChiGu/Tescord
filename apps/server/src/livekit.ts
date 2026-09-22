@@ -1,5 +1,12 @@
-import { AccessToken, RoomServiceClient } from "livekit-server-sdk";
+import { AccessToken, RoomServiceClient, WebhookReceiver } from "livekit-server-sdk";
 import { LiveKitTokenRequest, LiveKitTokenResponse } from "@tescord/types";
+
+export function getWebhookReceiver(
+  apiKey: string = process.env.LIVEKIT_API_KEY || "devkey",
+  apiSecret: string = process.env.LIVEKIT_API_SECRET || "secretsecretsecret",
+): WebhookReceiver {
+  return new WebhookReceiver(apiKey, apiSecret);
+}
 
 export function getRoomServiceClient(
   apiKey: string = process.env.LIVEKIT_API_KEY || "devkey",

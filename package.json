@@ -4,14 +4,17 @@
   "scripts": {
     "dev": "turbo run dev",
     "dev:server": "pnpm --filter @tescord/server dev",
+    "db:init": "pnpm --filter @tescord/server db:push",
     "dev:web": "pnpm --filter @tescord/web dev",
     "dev:desktop": "pnpm --filter @tescord/desktop dev",
+    "admin:grant": "pnpm --filter @tescord/server admin:grant",
     "livekit": "powershell -ExecutionPolicy Bypass -File ./scripts/start-livekit.ps1",
     "build": "turbo run build",
     "build:web": "turbo run build --filter=@tescord/web...",
     "test:context-menu": "node ./scripts/test-context-menu.mjs",
     "test:member-add": "node ./scripts/test-member-add.mjs",
     "test:e2e": "playwright test",
+    "test:security-media": "pnpm --filter @tescord/server exec tsx ../../scripts/verify-media-crypto.ts",
     "test:e2e:ui": "playwright test --ui",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""

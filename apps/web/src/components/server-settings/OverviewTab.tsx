@@ -58,13 +58,14 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       });
 
       if (!res.ok) throw new Error("获取上传凭证失败");
-      const { uploadUrl, fileUrl } = await res.json();
+      const { uploadUrl, fileUrl, requiresAuth } = await res.json();
 
       // 2. 直传文件
       const uploadRes = await fetch(uploadUrl, {
         method: "PUT",
         headers: {
           "Content-Type": file.type || "application/octet-stream",
+          ...(requiresAuth ? getAuthHeaders() : {}),
         },
         body: file,
       });

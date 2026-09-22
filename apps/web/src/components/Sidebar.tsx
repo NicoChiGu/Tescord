@@ -1,11 +1,13 @@
 import React from "react";
 import { Guild } from "@tescord/types";
-import { MessageSquare, Plus, Compass } from "lucide-react";
+import { MessageSquare, Plus, Compass, ShieldAlert } from "lucide-react";
 import { ServerContextMenu } from "./context-menu/ServerContextMenu.js";
 
 interface SidebarProps {
   guilds: Guild[];
   selectedGuildId: string | null;
+  isSuperAdmin?: boolean;
+  onOpenAdminDashboard?: () => void;
   onSelectGuild: (guildId: string | null) => void;
   onOpenCreateGuild: () => void;
   onOpenJoinGuild: () => void;
@@ -18,6 +20,8 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({
   guilds,
   selectedGuildId,
+  isSuperAdmin,
+  onOpenAdminDashboard,
   onSelectGuild,
   onOpenCreateGuild,
   onOpenJoinGuild,
@@ -45,6 +49,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
         />
         <MessageSquare className="w-6 h-6" />
       </button>
+
+      {/* 超级管理员系统控制台 */}
+      {isSuperAdmin && (
+        <button
+          onClick={onOpenAdminDashboard}
+          className="group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-discord-channelList text-amber-400 hover:bg-amber-500 hover:text-white transition-all duration-200 shadow-md"
+          title="系统管理控制台 (超级管理员)"
+          data-testid="admin-dashboard-btn"
+        >
+          <ShieldAlert className="w-6 h-6" />
+        </button>
+      )}
 
       {/* 分隔线 */}
       <div className="w-8 h-[2px] bg-discord-channelList rounded-full my-1" />

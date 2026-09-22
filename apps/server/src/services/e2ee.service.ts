@@ -59,11 +59,16 @@ export class E2EEService {
       throw new Error("频道不存在");
     }
 
-    // 统计该频道所属公会中已注册 E2EE 公钥束的成员数
-    const members = await prisma.guildMember.findMany({
-      where: { guildId: channel.guildId },
-      select: { userId: true },
-    });
+    // 统计该频道所属公会或私信中已注册 E2EE 公钥束的成员数
+    const members = channel.guildId
+      ? await prisma.guildMember.findMany({
+          where: { guildId: channel.guildId },
+          select: { userId: true },
+        })
+      : await prisma.channelRecipient.findMany({
+          where: { channelId: channel.id },
+          select: { userId: true },
+        });
 
     let registeredKeyCount = 0;
     for (const m of members) {

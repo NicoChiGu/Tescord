@@ -13,14 +13,10 @@ import { audioEngine } from "../audioEngine.js";
 import { livekitService } from "../livekit.js";
 import { API_BASE } from "../../config.js";
 import { bitrateCalculator } from "../stats/BitrateCalculator.js";
+import { sframeManager } from "../sframe.js";
 
 // 高可用 IPv4 / IPv6 双栈 STUN 池
-const DEFAULT_ICE_SERVERS: RTCIceServer[] = [
-  { urls: "stun:stun.cloudflare.com:3478" }, // Cloudflare 全球双栈 A / AAAA
-  { urls: "stun:stun.qq.com:3478" }, // 腾讯国内高可用
-  { urls: "stun:stun.miwifi.com:8443" }, // 小米国内高可用
-  { urls: "stun:stun.chat.bilibili.com:3478" }, // Bilibili 国内节点
-];
+const DEFAULT_ICE_SERVERS: RTCIceServer[] = [];
 
 export type LatencyUpdateCallback = (
   reports: Map<string, PeerLatencyReport>,
@@ -29,6 +25,7 @@ export type LatencyUpdateCallback = (
 export class VoiceMeshManager {
   private activeChannelId: string | null = null;
   private activeGuildId: string | null = null;
+  private activeCallId: string | null = null;
   private currentUserId: string | null = null;
   private isMeshActive: boolean = false;
   private isFallbackToSFU: boolean = false;
@@ -62,7 +59,10 @@ export class VoiceMeshManager {
   public async fetchIceServers(): Promise<RTCIceServer[]> {
     if (this.isIceServersLoaded) return this.currentIceServers;
     try {
-      const res = await fetch(`${API_BASE}/api/network/ice-servers`);
+      const token = localStorage.getItem("tescord_access_token");
+      const res = await fetch(`${API_BASE}/api/network/ice-servers`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
       if (res.ok) {
         const data = (await res.json()) as ICEServerConfigResponse;
         if (data.iceServers && Array.isArray(data.iceServers)) {
@@ -136,11 +136,13 @@ export class VoiceMeshManager {
     guildId: string,
     localStream: MediaStream,
     otherUserIds: string[],
+    callId?: string,
   ): Promise<void> {
     this.stopAll();
 
     this.activeChannelId = channelId;
     this.activeGuildId = guildId;
+    this.activeCallId = callId || null;
     this.isMeshActive = true;
     this.isFallbackToSFU = false;
     this.fallbackReason = "";
@@ -155,6 +157,9 @@ export class VoiceMeshManager {
     // 与房间内已存在的其他成员主动建立点对点呼叫 (PeerConnection Offer)
     for (const targetId of otherUserIds) {
       if (targetId && targetId !== this.currentUserId) {
+        if (this.activeCallId && this.currentUserId && this.currentUserId.localeCompare(targetId) > 0) {
+          continue;
+        }
         await this.initiateCallToPeer(targetId);
       }
     }
@@ -172,6 +177,7 @@ export class VoiceMeshManager {
     this.fallbackReason = "";
     this.activeChannelId = null;
     this.activeGuildId = null;
+    this.activeCallId = null;
 
     if (this.statsTimer) {
       clearInterval(this.statsTimer);
@@ -218,6 +224,15 @@ export class VoiceMeshManager {
    */
   public getAllPeerLatencies(): Map<string, PeerLatencyReport> {
     return new Map(this.latencyReports);
+  }
+
+  public async waitForConnectedPeer(timeoutMs = 8_000): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    while (this.isMeshActive && Date.now() < deadline) {
+      if (this.getConnectedPeersCount() > 0) return true;
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
+    return this.getConnectedPeersCount() > 0;
   }
 
   /**
@@ -373,11 +388,13 @@ export class VoiceMeshManager {
     pc = new RTCPeerConnection({
       iceServers: this.currentIceServers,
       bundlePolicy: "max-bundle",
-    });
+      ...(sframeManager.getStats().enabled ? { encodedInsertableStreams: true } : {}),
+    } as RTCConfiguration);
 
     // 绑定本地音频轨道
     if (this.localAudioTrack) {
-      pc.addTrack(this.localAudioTrack);
+      const sender = pc.addTrack(this.localAudioTrack);
+      if (sframeManager.getStats().enabled) sframeManager.attachSender(sender);
     }
 
     // 处理 ICE candidate (包含 IPv4 与 IPv6 双栈候选)
@@ -397,6 +414,7 @@ export class VoiceMeshManager {
 
     // 监听远端音频流
     pc.ontrack = (event) => {
+      if (sframeManager.getStats().enabled) sframeManager.attachReceiver(event.receiver);
       const remoteStream = event.streams[0] || new MediaStream([event.track]);
       this.attachRemoteAudio(peerId, remoteStream);
     };
@@ -591,20 +609,23 @@ export class VoiceMeshManager {
     if (!pc) return null;
 
     let rtt = "N/A";
-    let jitter = "0.8ms";
-    let packetLoss = "0.0%";
-    let streamHost = "P2P Direct Peer";
-    let protocol = "UDP";
-    let ipVersion: "IPv4" | "IPv6" = "IPv4";
-    let candidateType: "host" | "srflx" | "prflx" | "relay" = "host";
-    let connectionMode = "P2P Mesh (UDP / Direct)";
+    let jitter = "N/A";
+    let packetLoss = "N/A";
+    let streamHost = "未知";
+    let protocol = "未知";
+    let ipVersion: "IPv4" | "IPv6" | undefined;
+    let candidateType: "host" | "srflx" | "prflx" | "relay" | undefined;
+    let connectionMode = "协商中";
     let totalBytesSent = 0;
     let totalBytesReceived = 0;
+    let actualSendCodec: string | undefined;
+    let actualReceiveCodec: string | undefined;
+    let selectedPairFound = false;
 
     const retryInfo = this.peerRetries.get(peerId);
     const holePunchStatus =
       pc.connectionState === "connected"
-        ? `P2P Mesh 打洞已连通 (${ipVersion})`
+        ? "P2P Mesh 打洞已连通"
         : retryInfo && retryInfo.attempts > 0
           ? `打洞重试中 (${retryInfo.attempts}/3)`
           : `正在建立打洞连接 (${pc.connectionState || "connecting"})`;
@@ -621,11 +642,12 @@ export class VoiceMeshManager {
       report.forEach((stat: any) => {
         if (
           stat.type === "candidate-pair" &&
-          (stat.nominated ||
-            stat.state === "succeeded" ||
-            stat.id === selectedPairId)
+          (selectedPairId
+            ? stat.id === selectedPairId
+            : stat.nominated && stat.state === "succeeded")
         ) {
-          if (stat.currentRoundTripTime) {
+          selectedPairFound = true;
+          if (typeof stat.currentRoundTripTime === "number") {
             rtt = `${Math.round(stat.currentRoundTripTime * 1000)}ms`;
           }
           const localCand = report.get(stat.localCandidateId);
@@ -659,14 +681,19 @@ export class VoiceMeshManager {
           }
         }
 
-        if (stat.type === "inbound-rtp") {
+        if (stat.type === "inbound-rtp" && stat.kind === "audio" && !stat.isRemote) {
+          const codec = stat.codecId ? report.get(stat.codecId) : null;
+          if (codec?.mimeType && !/red|cn/i.test(codec.mimeType)) actualReceiveCodec = codec.mimeType;
           if (stat.bytesReceived) totalBytesReceived += stat.bytesReceived;
-          if (stat.jitter) jitter = `${(stat.jitter * 1000).toFixed(1)}ms`;
-          if (stat.fractionLost)
-            packetLoss = `${(stat.fractionLost * 100).toFixed(1)}%`;
+          if (typeof stat.jitter === "number")
+            jitter = `${(stat.jitter * 1000).toFixed(1)}ms`;
+            if (typeof stat.fractionLost === "number")
+              packetLoss = `${(stat.fractionLost * 100).toFixed(1)}%`;
         }
 
-        if (stat.type === "outbound-rtp") {
+        if (stat.type === "outbound-rtp" && stat.kind === "audio" && !stat.isRemote) {
+          const codec = stat.codecId ? report.get(stat.codecId) : null;
+          if (codec?.mimeType && !/red|cn/i.test(codec.mimeType)) actualSendCodec = codec.mimeType;
           if (stat.bytesSent) totalBytesSent += stat.bytesSent;
         }
       });
@@ -683,19 +710,22 @@ export class VoiceMeshManager {
     return {
       participantIdentity: peerId,
       isLocal: false,
-      mimeType: "audio/opus (48kHz Stereo)",
+      mimeType: [actualSendCodec, actualReceiveCodec].filter(Boolean).join(" / ") || "未知",
       playerCore: "WebRTC P2P Mesh Engine",
       videoInfo: "无视频 (纯语音 Mesh)",
-      audioInfo: "48KHz, Stereo, 64Kbps (Opus Direct)",
-      encoder: "WebRTC Audio Pipeline",
+      audioInfo: "由 WebRTC 实际协商",
+      encoder: "浏览器 WebRTC 音频管线",
       streamHost,
       connectionMode,
       topology: "P2P_MESH" as ConnectionTopology,
       protocol,
-      bufferLength: "8ms",
+      bufferLength: "未知",
       decodedFrames: "N/A",
-      downloadBitrate: rateRes.downloadFormatted,
-      uploadBitrate: rateRes.uploadFormatted,
+      downloadBitrate:
+        totalBytesSent + totalBytesReceived > 0
+          ? rateRes.downloadFormatted
+          : "未知",
+      uploadBitrate: totalBytesSent > 0 ? rateRes.uploadFormatted : undefined,
       rawDownloadBitrateBps: rateRes.downloadBps,
       rawUploadBitrateBps: rateRes.uploadBps,
       totalBytesReceived,
@@ -706,6 +736,12 @@ export class VoiceMeshManager {
       holePunchStatus,
       ipVersion,
       candidateType,
+      actualSendCodec,
+      actualReceiveCodec,
+      transportVerified:
+        selectedPairFound &&
+        (totalBytesSent > 0 || totalBytesReceived > 0) &&
+        rateRes.uploadBps + rateRes.downloadBps > 0,
     };
   }
 
@@ -721,19 +757,32 @@ export class VoiceMeshManager {
         try {
           const stats = await pc.getStats();
           let rttMs = 0;
-          let jitterMs = 0;
-          let packetLoss = 0;
+          let jitterMs: number | undefined;
+          let packetLoss: number | undefined;
           let connectionType: "LAN" | "P2P" | "RELAY" = "P2P";
+
+          let selectedPairId = "";
+          stats.forEach((report) => {
+            if (report.type === "transport" && report.selectedCandidatePairId) {
+              selectedPairId = report.selectedCandidatePairId;
+            }
+          });
 
           stats.forEach((report) => {
             if (
               report.type === "candidate-pair" &&
-              (report.selected || report.state === "succeeded")
+              (selectedPairId
+                ? report.id === selectedPairId
+                : report.nominated && report.state === "succeeded")
             ) {
-              rttMs = Math.round((report.currentRoundTripTime || 0) * 1000);
+              if (typeof report.currentRoundTripTime === "number") {
+                rttMs = Math.round(report.currentRoundTripTime * 1000);
+              }
             }
             if (report.type === "inbound-rtp" && report.kind === "audio") {
-              jitterMs = Math.round((report.jitter || 0) * 1000);
+              if (typeof report.jitter === "number") {
+                jitterMs = Math.round(report.jitter * 1000);
+              }
               const totalPackets =
                 (report.packetsReceived || 0) + (report.packetsLost || 0);
               if (totalPackets > 0) {
@@ -741,11 +790,6 @@ export class VoiceMeshManager {
               }
             }
           });
-
-          // 如果 RTT 为 0 或未统计到，缺省取 12ms 基础值
-          if (rttMs === 0 && pc.connectionState === "connected") {
-            rttMs = 12;
-          }
 
           this.latencyReports.set(peerId, {
             targetUserId: peerId,
@@ -779,7 +823,7 @@ export class VoiceMeshManager {
     gatewayClient.sendRaw({
       op: GatewayOpCode.DISPATCH,
       t: GatewayEvents.P2P_SIGNAL,
-      d: signal,
+      d: this.activeCallId ? { ...signal, callId: this.activeCallId } : signal,
     });
   }
 }

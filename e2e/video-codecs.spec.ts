@@ -13,7 +13,7 @@ test.describe("视频编码格式（H.264 / AV1 / VP9 / VP8 / HEVC）与硬件�
 
     // 1. 注入用户鉴权状态与虚拟媒体流 Mock
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "mock_e2e_token");
+      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
       localStorage.setItem("tescord_preferred_video_codec", "h264");
 

@@ -13,7 +13,7 @@ test.describe("双引擎 AI 降噪（RNNoise + DTLN）与三轨 A/B 录音试听
 
     // 1. 注入用户鉴权状态与 Mock 路由
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "mock_e2e_token");
+      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 

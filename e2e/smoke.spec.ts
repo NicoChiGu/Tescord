@@ -42,7 +42,7 @@ test.describe("Tescord Web 端到端冒烟与核心交互验收", () => {
     page,
   }) => {
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "mock_e2e_token");
+      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 
@@ -65,7 +65,7 @@ test.describe("Tescord Web 端到端冒烟与核心交互验收", () => {
 
     // 1. 确认服务器列表渲染并点击进入首个可用服务器
     const serverButton = page
-      .getByRole("button", { name: /Tescord 极客总部|极客/i })
+      .getByRole("button", { name: /Tescord|极客|Jackey|私密/i })
       .first();
     await expect(serverButton).toBeVisible({ timeout: 10000 });
     await serverButton.click();

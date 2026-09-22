@@ -1,21 +1,25 @@
+import "./env.js";
+
 import fastify, { FastifyReply, FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
 import websocket from "@fastify/websocket";
 import fastifyJwt from "@fastify/jwt";
-import fastifyStatic from "@fastify/static";
 import path from "path";
 import fs from "fs";
-import { randomBytes } from "crypto";
+import { createHmac, randomBytes } from "crypto";
 import { config } from "dotenv";
 import { prisma, seedInitialData } from "./db.js";
 import { AuthService } from "./services/auth.service.js";
 import { gatewayManager } from "./gateway.js";
 import { cacheStore } from "./cache.js";
-import { generateLiveKitToken } from "./livekit.js";
+import { generateLiveKitToken, getWebhookReceiver } from "./livekit.js";
 import { storageService } from "./services/storage.service.js";
 import { permissionService } from "./services/permission.service.js";
 import { auditLogService } from "./services/audit-log.service.js";
 import { e2eeService } from "./services/e2ee.service.js";
+import { adminService } from "./services/admin.service.js";
+import { dmService } from "./services/dm.service.js";
+import { dmCallService } from "./services/dm-call.service.js";
 import {
   GatewayOpCode,
   GatewayEvents,
@@ -44,6 +48,12 @@ import {
   BanMemberDTO,
   TransferOwnershipDTO,
   AuditLogAction,
+  AdminUpdateUserDTO,
+  SystemBroadcastDTO,
+  SystemSettingsDTO,
+  CreateDMDTO,
+  MarkDMReadDTO,
+  RegisterDeviceKeyDTO,
 } from "@tescord/types";
 
 config();
@@ -51,6 +61,34 @@ config();
 const server = fastify({
   logger: process.env.NODE_ENV === "development",
 });
+
+const requestWindows = new Map<string, { startedAt: number; count: number }>();
+server.addHook("onRequest", async (request, reply) => {
+  const path = request.url.split("?", 1)[0];
+  const rule = path === "/api/auth/login" || path === "/api/auth/register"
+    ? { name: "auth", limit: 10, windowMs: 60_000 }
+    : path.includes("/call-token")
+      ? { name: "call", limit: 20, windowMs: 60_000 }
+      : path.startsWith("/api/attachments/")
+        ? { name: "upload", limit: 40, windowMs: 60_000 }
+        : null;
+  if (!rule) return;
+  const key = `${rule.name}:${request.ip}`;
+  const now = Date.now();
+  const current = requestWindows.get(key);
+  const window = !current || now - current.startedAt >= rule.windowMs
+    ? { startedAt: now, count: 1 }
+    : { ...current, count: current.count + 1 };
+  requestWindows.set(key, window);
+  if (window.count > rule.limit) {
+    reply.header("Retry-After", Math.ceil((rule.windowMs - (now - window.startedAt)) / 1000));
+    return reply.status(429).send({ error: "请求过于频繁，请稍后重试" });
+  }
+});
+setInterval(() => {
+  const cutoff = Date.now() - 10 * 60_000;
+  for (const [key, value] of requestWindows) if (value.startedAt < cutoff) requestWindows.delete(key);
+}, 5 * 60_000).unref();
 
 // 0. 注册基础链路安全与加固响应头 (HSTS, CSP, X-Content-Type-Options, etc.)
 const securityHeaders = buildSecurityHeaders();
@@ -62,18 +100,26 @@ server.addHook("onSend", async (request, reply) => {
 
 // 1. 注册跨域插件
 await server.register(cors, {
-  origin: true,
+  origin(origin, callback) {
+    const allowed = new Set(
+      (process.env.CORS_ORIGINS || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    );
+    const isLocalDevelopment =
+      process.env.NODE_ENV !== "production" &&
+      Boolean(origin && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin));
+    if (!origin || allowed.has(origin) || isLocalDevelopment) {
+      callback(null, true);
+      return;
+    }
+    callback(new Error("Origin is not allowed"), false);
+  },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 });
 
-// 2. 注册静态资源插件 (支持本地直传文件的 HTTP 访问)
-await server.register(fastifyStatic, {
-  root: storageService.getUploadsDir(),
-  prefix: "/uploads/",
-  decorateReply: false,
-});
-
-// 3. 注册二进制上传 Content-Type 解析器 (用于本地直传附件)
+// 2. 注册二进制上传 Content-Type 解析器 (用于本地直传附件)
 const binaryTypes = [
   "application/octet-stream",
   "image/png",
@@ -94,12 +140,24 @@ for (const type of binaryTypes) {
   );
 }
 
+// 3. 注册 LiveKit Webhook 专用的 Content-Type 解析器 (保留原始文本以供 WebhookReceiver 校验签名)
+server.addContentTypeParser(
+  "application/webhook+json",
+  { parseAs: "string" },
+  (req, body, done) => {
+    done(null, body);
+  },
+);
+
 // 4. 注册 JWT 鉴权插件
 const jwtSecret =
   process.env.JWT_SECRET || "tescord_fallback_jwt_secret_dev_2026";
 await server.register(fastifyJwt, {
   secret: jwtSecret,
 });
+gatewayManager.setTokenVerifier(async (token) =>
+  server.jwt.verify<Record<string, unknown>>(token),
+);
 
 // 5. 注册 WebSocket 插件
 await server.register(websocket);
@@ -112,21 +170,9 @@ async function getUserIdFromRequest(
   request: FastifyRequest,
 ): Promise<string | null> {
   try {
-    const decoded: any = await request.jwtVerify();
+    const decoded: any = request.user || (await request.jwtVerify());
     return decoded?.sub || null;
   } catch {
-    const authHeader = request.headers.authorization;
-    if (authHeader && authHeader.startsWith("Bearer ")) {
-      try {
-        const decoded: any = server.jwt.decode(
-          authHeader.replace("Bearer ", ""),
-        );
-        if (decoded?.sub) return decoded.sub;
-      } catch {}
-    }
-    const body: any = request.body;
-    if (body?.userId) return body.userId;
-    if (body?.authorId) return body.authorId;
     return null;
   }
 }
@@ -137,6 +183,84 @@ server.decorate(
   async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       await request.jwtVerify();
+      const claims = request.user as { sub?: string; sessionVersion?: number };
+      if (!claims?.sub) throw new Error("missing subject");
+      const user = await prisma.user.findUnique({ where: { id: claims.sub } });
+      if (
+        !user ||
+        user.isBanned ||
+        user.sessionVersion !== claims.sessionVersion
+      ) {
+        return reply.status(401).send({ error: "会话已失效，请重新登录" });
+      }
+    } catch (err) {
+      return reply.status(401).send({ error: "认证失效或未提供有效令牌" });
+    }
+  },
+);
+
+const publicApiPaths = new Set([
+  "/api/auth/register",
+  "/api/auth/login",
+  "/api/auth/refresh",
+]);
+
+server.addHook("preHandler", async (request, reply) => {
+  if (request.method === "OPTIONS" || !request.url.startsWith("/api/")) return;
+  const pathOnly = request.url.split("?", 1)[0];
+  if (publicApiPaths.has(pathOnly)) return;
+
+  await (server as any).authenticate(request, reply);
+  if (reply.sent) return;
+
+  const claims = request.user as { sub?: string };
+  const user = claims?.sub
+    ? await prisma.user.findUnique({ where: { id: claims.sub } })
+    : null;
+  if (!user) return reply.status(401).send({ error: "会话已失效" });
+  if (
+    user.mustChangePassword &&
+    pathOnly !== "/api/auth/me" &&
+    pathOnly !== "/api/auth/change-password"
+  ) {
+    return reply.status(428).send({
+      error: "必须先修改临时密码",
+      code: "PASSWORD_CHANGE_REQUIRED",
+    });
+  }
+
+  const maintenance = await prisma.systemSetting.findUnique({
+    where: { key: "maintenance_mode" },
+  });
+  const maintenanceAllowed =
+    user.role === "SUPER_ADMIN" ||
+    pathOnly === "/api/users/@me" ||
+    pathOnly === "/api/auth/change-password";
+  if (maintenance?.value === "true" && !maintenanceAllowed) {
+    return reply.status(503).send({
+      error: "系统正在维护，普通业务已暂停",
+      code: "MAINTENANCE_MODE",
+    });
+  }
+});
+
+server.decorate(
+  "requireSuperAdmin",
+  async (request: FastifyRequest, reply: FastifyReply) => {
+    try {
+      await request.jwtVerify();
+      const userPayload = request.user as any;
+      if (!userPayload || !userPayload.sub) {
+        return reply.status(401).send({ error: "认证失效或未提供有效令牌" });
+      }
+
+      const dbUser = await prisma.user.findUnique({
+        where: { id: userPayload.sub },
+      });
+
+      if (!dbUser || dbUser.isBanned || dbUser.role !== "SUPER_ADMIN") {
+        return reply.status(403).send({ error: "需要超级管理员权限" });
+      }
     } catch (err) {
       return reply.status(401).send({ error: "认证失效或未提供有效令牌" });
     }
@@ -212,6 +336,32 @@ server.post("/api/auth/refresh", async (request, reply) => {
       .send({ error: err.message || "刷新令牌无效或已过期" });
   }
 });
+
+server.post(
+  "/api/auth/change-password",
+  { preValidation: [(server as any).authenticate] },
+  async (request, reply) => {
+    const body = (request.body || {}) as {
+      currentPassword?: string;
+      newPassword?: string;
+    };
+    if (!body.currentPassword || !body.newPassword) {
+      return reply.status(400).send({ error: "请提供当前密码和新密码" });
+    }
+    try {
+      await authService.changePassword(
+        (request.user as any).sub,
+        body.currentPassword,
+        body.newPassword,
+      );
+      return { success: true, reauthenticate: true };
+    } catch (error) {
+      return reply.status(400).send({
+        error: error instanceof Error ? error.message : "修改密码失败",
+      });
+    }
+  },
+);
 
 // 获取当前登录用户自身信息
 server.get(
@@ -507,9 +657,6 @@ server.post("/api/guilds", async (request, reply) => {
   let owner = userId
     ? await prisma.user.findUnique({ where: { id: userId } })
     : null;
-  if (!owner) {
-    owner = await prisma.user.findFirst();
-  }
   if (!owner) {
     return reply.status(401).send({ error: "创建服务器需要有效用户身份" });
   }
@@ -1674,7 +1821,7 @@ server.post("/api/guilds/:guildId/invites", async (request, reply) => {
   const userId = await getUserIdFromRequest(request);
   const user = userId
     ? await prisma.user.findUnique({ where: { id: userId } })
-    : await prisma.user.findFirst();
+    : null;
   if (!user) {
     return reply.status(401).send({ error: "需要登录后操作" });
   }
@@ -1726,7 +1873,7 @@ server.post("/api/invites/:code/join", async (request, reply) => {
   const userId = await getUserIdFromRequest(request);
   const user = userId
     ? await prisma.user.findUnique({ where: { id: userId } })
-    : await prisma.user.findFirst();
+    : null;
   if (!user) {
     return reply.status(401).send({ error: "需要登录后加入公会" });
   }
@@ -1855,7 +2002,7 @@ server.post("/api/guilds/:guildId/channels", async (request, reply) => {
   const userId = await getUserIdFromRequest(request);
   const user = userId
     ? await prisma.user.findUnique({ where: { id: userId } })
-    : await prisma.user.findFirst();
+    : null;
   if (!user) {
     return reply.status(401).send({ error: "需要登录" });
   }
@@ -1923,7 +2070,7 @@ server.delete("/api/channels/:channelId", async (request, reply) => {
   const userId = await getUserIdFromRequest(request);
   const user = userId
     ? await prisma.user.findUnique({ where: { id: userId } })
-    : await prisma.user.findFirst();
+    : null;
   if (!user) {
     return reply.status(401).send({ error: "需要登录" });
   }
@@ -1931,6 +2078,10 @@ server.delete("/api/channels/:channelId", async (request, reply) => {
   const channel = await prisma.channel.findUnique({ where: { id: channelId } });
   if (!channel) {
     return reply.status(404).send({ error: "频道不存在" });
+  }
+
+  if (!channel.guildId) {
+    return reply.status(400).send({ error: "无法在此删除私信频道" });
   }
 
   const canManage = await permissionService.hasGuildPermission(
@@ -1961,7 +2112,7 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
   const userId = await getUserIdFromRequest(request);
   const user = userId
     ? await prisma.user.findUnique({ where: { id: userId } })
-    : await prisma.user.findFirst();
+    : null;
   if (!user) {
     return reply.status(401).send({ error: "需要登录" });
   }
@@ -1969,6 +2120,10 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
   const channel = await prisma.channel.findUnique({ where: { id: channelId } });
   if (!channel) {
     return reply.status(404).send({ error: "频道不存在" });
+  }
+
+  if (!channel.guildId) {
+    return reply.status(400).send({ error: "无法在此编辑私信频道" });
   }
 
   const canManage = await permissionService.hasGuildPermission(
@@ -2030,7 +2185,7 @@ server.post("/api/guilds/:guildId/categories", async (request, reply) => {
   const userId = await getUserIdFromRequest(request);
   const user = userId
     ? await prisma.user.findUnique({ where: { id: userId } })
-    : await prisma.user.findFirst();
+    : null;
   if (!user) {
     return reply.status(401).send({ error: "需要登录" });
   }
@@ -2093,7 +2248,7 @@ server.patch("/api/categories/:categoryId", async (request, reply) => {
   const userId = await getUserIdFromRequest(request);
   const user = userId
     ? await prisma.user.findUnique({ where: { id: userId } })
-    : await prisma.user.findFirst();
+    : null;
   if (!user) {
     return reply.status(401).send({ error: "需要登录" });
   }
@@ -2149,7 +2304,7 @@ server.delete("/api/categories/:categoryId", async (request, reply) => {
   const userId = await getUserIdFromRequest(request);
   const user = userId
     ? await prisma.user.findUnique({ where: { id: userId } })
-    : await prisma.user.findFirst();
+    : null;
   if (!user) {
     return reply.status(401).send({ error: "需要登录" });
   }
@@ -2198,7 +2353,7 @@ server.patch("/api/guilds/:guildId/categories/positions", async (request, reply)
   const userId = await getUserIdFromRequest(request);
   const user = userId
     ? await prisma.user.findUnique({ where: { id: userId } })
-    : await prisma.user.findFirst();
+    : null;
   if (!user) {
     return reply.status(401).send({ error: "需要登录" });
   }
@@ -2243,7 +2398,7 @@ server.patch("/api/guilds/:guildId/channels/positions", async (request, reply) =
   const userId = await getUserIdFromRequest(request);
   const user = userId
     ? await prisma.user.findUnique({ where: { id: userId } })
-    : await prisma.user.findFirst();
+    : null;
   if (!user) {
     return reply.status(401).send({ error: "需要登录" });
   }
@@ -2291,7 +2446,7 @@ server.post("/api/guilds/:guildId/leave", async (request, reply) => {
   const userId = await getUserIdFromRequest(request);
   const user = userId
     ? await prisma.user.findUnique({ where: { id: userId } })
-    : await prisma.user.findFirst();
+    : null;
   if (!user) {
     return reply.status(401).send({ error: "需要登录" });
   }
@@ -2325,9 +2480,7 @@ server.delete(
   async (request, reply) => {
     const { guildId, targetUserId } = request.params as any;
     const userId = await getUserIdFromRequest(request);
-    const user = userId
-      ? await prisma.user.findUnique({ where: { id: userId } })
-      : await prisma.user.findFirst();
+    const user = userId ? await prisma.user.findUnique({ where: { id: userId } }) : null;
     if (!user) {
       return reply.status(401).send({ error: "需要登录" });
     }
@@ -2385,9 +2538,24 @@ server.delete(
 // 3. 消息操作与互动 API (Messages & Reactions)
 // ==========================================
 
-server.get("/api/channels/:channelId/messages", async (request) => {
+server.get("/api/channels/:channelId/messages", async (request, reply) => {
   const { channelId } = request.params as any;
   const currentUserId = await getUserIdFromRequest(request);
+  if (!currentUserId) return reply.status(401).send({ error: "需要登录" });
+  const channel = await prisma.channel.findUnique({
+    where: { id: channelId },
+    include: { recipients: true },
+  });
+  if (!channel) return reply.status(404).send({ error: "频道不存在" });
+  const canRead = channel.guildId
+    ? await permissionService.hasChannelPermission(
+        currentUserId,
+        channelId,
+        PermissionFlags.READ_MESSAGE_HISTORY,
+      )
+    : channel.type === "DM" &&
+      channel.recipients.some((recipient) => recipient.userId === currentUserId);
+  if (!canRead) return reply.status(403).send({ error: "无权读取该频道" });
 
   const messages = await prisma.message.findMany({
     where: { channelId },
@@ -2402,7 +2570,7 @@ server.get("/api/channels/:channelId/messages", async (request) => {
       attachments: true,
       reactions: true,
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: [{ sequence: "asc" }, { createdAt: "asc" }, { id: "asc" }],
   });
 
   const replyToIds = messages
@@ -2426,7 +2594,7 @@ server.get("/api/channels/:channelId/messages", async (request) => {
     }
   }
 
-  return messages.map((m) => {
+  return Promise.all(messages.map(async (m) => {
     const reactionMap = new Map<
       string,
       { emoji: string; count: number; userIds: string[]; me: boolean }
@@ -2463,45 +2631,72 @@ server.get("/api/channels/:channelId/messages", async (request) => {
       replyTo: m.replyToId ? replyMap.get(m.replyToId) || null : null,
       isPinned: m.isPinned,
       reactions: Array.from(reactionMap.values()),
-      attachments: m.attachments.map((a) => ({
+      attachments: await Promise.all(m.attachments.map(async (a) => ({
         id: a.id,
-        url: a.url,
+        url: await storageService.createDownloadUrl(a.url, channelId),
         fileName: a.fileName,
         fileSize: a.fileSize,
         mimeType: a.mimeType,
-      })),
+      }))),
       createdAt: m.createdAt.toISOString(),
       updatedAt: m.updatedAt.toISOString(),
+      sequence: m.sequence,
     };
-  });
+  }));
 });
 
 server.post("/api/channels/:channelId/messages", async (request, reply) => {
   const { channelId } = request.params as any;
-  const { content, authorId, isEncrypted, attachments, replyToId } =
+  const { content, isEncrypted, attachments, replyToId } =
     request.body as any;
 
   const reqUserId = await getUserIdFromRequest(request);
-  const targetUserId = reqUserId || authorId;
-  let author = targetUserId
-    ? await prisma.user.findUnique({ where: { id: targetUserId } })
+  const author = reqUserId
+    ? await prisma.user.findUnique({ where: { id: reqUserId } })
     : null;
-  if (!author) {
-    author = await prisma.user.findFirst();
-  }
   if (!author) {
     return reply.status(400).send({ error: "发信作者不存在" });
   }
 
-  const canSend = await permissionService.hasChannelPermission(
-    author.id,
-    channelId,
-    PermissionFlags.SEND_MESSAGES,
-  );
-  if (!canSend) {
-    return reply
-      .status(403)
-      .send({ error: "缺少频道发信权限 (SEND_MESSAGES)" });
+  if (author.isBanned) {
+    return reply.status(403).send({ error: "您的账号已被系统封禁，无法发信" });
+  }
+  if (isEncrypted) {
+    return reply.status(400).send({
+      error: "旧版文本加密协议已停用；当前消息不会被标记为端到端加密",
+      code: "UNSAFE_TEXT_E2EE_DISABLED",
+    });
+  }
+
+  const targetChannel = await prisma.channel.findUnique({
+    where: { id: channelId },
+    include: {
+      recipients: true,
+    },
+  });
+  if (!targetChannel) {
+    return reply.status(404).send({ error: "目标频道不存在" });
+  }
+
+  const isDM = targetChannel.type === "DM" || targetChannel.type === "GROUP_DM";
+  if (isDM) {
+    const isParticipant = targetChannel.recipients.some(
+      (r) => r.userId === author.id,
+    );
+    if (!isParticipant) {
+      return reply.status(403).send({ error: "您不是该私信会话的参与者" });
+    }
+  } else {
+    const canSend = await permissionService.hasChannelPermission(
+      author.id,
+      channelId,
+      PermissionFlags.SEND_MESSAGES,
+    );
+    if (!canSend) {
+      return reply
+        .status(403)
+        .send({ error: "缺少频道发信权限 (SEND_MESSAGES)" });
+    }
   }
 
   let replyToPreview = null;
@@ -2510,7 +2705,7 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
       where: { id: replyToId },
       include: { author: { select: { username: true } } },
     });
-    if (refMsg) {
+    if (refMsg && refMsg.channelId === channelId) {
       replyToPreview = {
         id: refMsg.id,
         authorName: refMsg.author.username,
@@ -2519,36 +2714,59 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
     }
   }
 
-  const createdMessage = await prisma.message.create({
-    data: {
-      channelId,
-      authorId: author.id,
-      content,
-      isEncrypted: !!isEncrypted,
-      replyToId: replyToId || null,
-      attachments: attachments?.length
-        ? {
-            create: attachments.map((a: any) => ({
-              url: a.url,
-              fileName: a.fileName,
-              fileSize: a.fileSize || 0,
-              mimeType: a.mimeType || "application/octet-stream",
-            })),
-          }
-        : undefined,
-    },
-    include: {
-      author: {
-        select: {
-          id: true,
-          username: true,
-          avatarUrl: true,
-        },
+  const requestedAttachments = Array.isArray(attachments) ? attachments.slice(0, 10) : [];
+  const claimedAttachments = requestedAttachments.map((attachment: any) =>
+    storageService.claimAttachment(author.id, attachment),
+  );
+  if (claimedAttachments.some((attachment) => !attachment)) {
+    return reply.status(403).send({ error: "附件上传授权无效、已过期或不属于当前用户" });
+  }
+
+  const createdMessage = await prisma.$transaction(async (tx) => {
+    const sequencedChannel = await tx.channel.update({
+      where: { id: channelId },
+      data: { nextMessageSequence: { increment: 1 } },
+      select: { nextMessageSequence: true },
+    });
+    if (isDM) {
+      await tx.channelRecipient.updateMany({
+        where: { channelId, userId: { not: author.id }, isClosed: true },
+        data: { isClosed: false },
+      });
+    }
+    return tx.message.create({
+      data: {
+        channelId,
+        authorId: author.id,
+        content: String(content || "").slice(0, 4000),
+        isEncrypted: false,
+        sequence: sequencedChannel.nextMessageSequence,
+        replyToId: replyToPreview ? replyToId : null,
+        attachments: claimedAttachments.length
+          ? {
+              create: claimedAttachments.map((a) => ({
+                url: a!.url,
+                fileName: a!.fileName,
+                fileSize: a!.fileSize,
+                mimeType: a!.mimeType,
+              })),
+            }
+          : undefined,
       },
-      attachments: true,
-    },
+      include: {
+        author: { select: { id: true, username: true, avatarUrl: true } },
+        attachments: true,
+      },
+    });
   });
 
+  const publicAttachments = await Promise.all(createdMessage.attachments.map(async (a) => ({
+    id: a.id,
+    url: await storageService.createDownloadUrl(a.url, channelId),
+    fileName: a.fileName,
+    fileSize: a.fileSize,
+    mimeType: a.mimeType,
+  })));
   const messagePayload: Message = {
     id: createdMessage.id,
     channelId: createdMessage.channelId,
@@ -2564,22 +2782,46 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
     replyTo: replyToPreview,
     isPinned: createdMessage.isPinned,
     reactions: [],
-    attachments: createdMessage.attachments.map((a) => ({
-      id: a.id,
-      url: a.url,
-      fileName: a.fileName,
-      fileSize: a.fileSize,
-      mimeType: a.mimeType,
-    })),
+    attachments: publicAttachments,
     createdAt: createdMessage.createdAt.toISOString(),
     updatedAt: createdMessage.updatedAt.toISOString(),
+    sequence: createdMessage.sequence,
   };
 
-  gatewayManager.broadcast({
-    op: GatewayOpCode.DISPATCH,
-    t: GatewayEvents.MESSAGE_CREATE,
-    d: messagePayload,
-  });
+  if (isDM) {
+    for (const r of targetChannel.recipients) {
+      gatewayManager.sendToUser(r.userId, {
+        op: GatewayOpCode.DISPATCH,
+        t: GatewayEvents.MESSAGE_CREATE,
+        d: messagePayload,
+      });
+      if (r.userId !== author.id) {
+        if (r.isClosed) {
+          const restored = await dmService.getDMChannels(r.userId, 1, 100);
+          const restoredChannel = restored.items.find((item) => item.id === channelId);
+          if (restoredChannel) {
+            gatewayManager.sendToUser(r.userId, {
+              op: GatewayOpCode.DISPATCH,
+              t: GatewayEvents.DM_CHANNEL_CREATE,
+              d: restoredChannel,
+            });
+          }
+        } else {
+          gatewayManager.sendToUser(r.userId, {
+            op: GatewayOpCode.DISPATCH,
+            t: GatewayEvents.DM_CHANNEL_UPDATE,
+            d: { channelId, isClosed: false, lastMessage: messagePayload },
+          });
+        }
+      }
+    }
+  } else {
+    gatewayManager.broadcast({
+      op: GatewayOpCode.DISPATCH,
+      t: GatewayEvents.MESSAGE_CREATE,
+      d: messagePayload,
+    });
+  }
 
   return messagePayload;
 });
@@ -2588,22 +2830,74 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
 server.post("/api/channels/:channelId/typing", async (request, reply) => {
   const { channelId } = request.params as any;
   const userId = await getUserIdFromRequest(request);
-  const user = userId
-    ? await prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true, username: true, avatarUrl: true },
-      })
-    : await prisma.user.findFirst({
-        select: { id: true, username: true, avatarUrl: true },
-      });
+  const user = userId ? await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true, username: true, avatarUrl: true },
+  }) : null;
 
   if (!user) {
     return reply.status(401).send({ error: "需要登录后操作" });
   }
 
-  gatewayManager.broadcastTyping(channelId, user);
+  const channel = await prisma.channel.findUnique({
+    where: { id: channelId },
+    include: { recipients: { select: { userId: true } } },
+  });
+  if (!channel) return reply.status(404).send({ error: "频道不存在" });
+  if (channel.type === "DM" || channel.type === "GROUP_DM") {
+    if (!channel.recipients.some((item) => item.userId === user.id)) {
+      return reply.status(403).send({ error: "无权访问该私信会话" });
+    }
+    for (const recipient of channel.recipients) {
+      if (recipient.userId !== user.id) {
+        gatewayManager.sendToUser(recipient.userId, {
+          op: GatewayOpCode.DISPATCH,
+          t: GatewayEvents.TYPING_START,
+          d: { channelId, userId: user.id, user, timestamp: Date.now() },
+        });
+      }
+    }
+  } else {
+    const canRead = await permissionService.hasChannelPermission(user.id, channelId, PermissionFlags.READ_MESSAGE_HISTORY);
+    if (!canRead) return reply.status(403).send({ error: "无权访问该频道" });
+    await gatewayManager.broadcastTypingAuthorized(channelId, user);
+  }
   return reply.status(204).send();
 });
+
+async function dispatchChannelEvent(
+  channelId: string,
+  event: (typeof GatewayEvents)[keyof typeof GatewayEvents],
+  data: unknown,
+) {
+  const channel = await prisma.channel.findUnique({
+    where: { id: channelId },
+    include: {
+      recipients: { select: { userId: true } },
+      guild: { include: { members: { select: { userId: true } } } },
+    },
+  });
+  if (!channel) return;
+  const candidates = channel.type === "DM" || channel.type === "GROUP_DM"
+    ? channel.recipients.map((item) => item.userId)
+    : channel.guild?.members.map((item) => item.userId) || [];
+  for (const recipientId of candidates) {
+    if (
+      channel.type !== "DM" &&
+      channel.type !== "GROUP_DM" &&
+      !(await permissionService.hasChannelPermission(
+        recipientId,
+        channelId,
+        PermissionFlags.READ_MESSAGE_HISTORY,
+      ))
+    ) continue;
+    gatewayManager.sendToUser(recipientId, {
+      op: GatewayOpCode.DISPATCH,
+      t: event,
+      d: data,
+    });
+  }
+}
 
 // 添加 Reaction 点赞
 server.put(
@@ -2614,16 +2908,19 @@ server.put(
     const userId = await getUserIdFromRequest(request);
     const user = userId
       ? await prisma.user.findUnique({ where: { id: userId } })
-      : await prisma.user.findFirst();
+      : null;
     if (!user) {
       return reply.status(401).send({ error: "需要登录后操作" });
     }
 
-    const canReact = await permissionService.hasChannelPermission(
-      user.id,
-      channelId,
-      PermissionFlags.ADD_REACTIONS,
-    );
+    const message = await prisma.message.findUnique({ where: { id: messageId } });
+    if (!message || message.channelId !== channelId) {
+      return reply.status(404).send({ error: "消息不属于该频道" });
+    }
+    const channel = await prisma.channel.findUnique({ where: { id: channelId } });
+    const canReact = channel?.type === "DM" || channel?.type === "GROUP_DM"
+      ? await dmService.isParticipant(user.id, channelId)
+      : await permissionService.hasChannelPermission(user.id, channelId, PermissionFlags.ADD_REACTIONS);
     if (!canReact) {
       return reply
         .status(403)
@@ -2671,17 +2968,13 @@ server.put(
 
     const reactionsList = Array.from(reactionMap.values());
 
-    gatewayManager.broadcast({
-      op: GatewayOpCode.DISPATCH,
-      t: GatewayEvents.MESSAGE_REACTION_ADD,
-      d: {
+    await dispatchChannelEvent(channelId, GatewayEvents.MESSAGE_REACTION_ADD, {
         channelId,
         messageId,
         userId: user.id,
         emoji: decodedEmoji,
         reactions: reactionsList,
-      },
-    });
+      });
 
     return reactionsList;
   },
@@ -2694,12 +2987,20 @@ server.delete(
     const { channelId, messageId, emoji } = request.params as any;
     const decodedEmoji = decodeURIComponent(emoji);
     const userId = await getUserIdFromRequest(request);
-    const user = userId
-      ? await prisma.user.findUnique({ where: { id: userId } })
-      : await prisma.user.findFirst();
+    const user = userId ? await prisma.user.findUnique({ where: { id: userId } }) : null;
     if (!user) {
       return reply.status(401).send({ error: "需要登录" });
     }
+
+    const message = await prisma.message.findUnique({ where: { id: messageId } });
+    if (!message || message.channelId !== channelId) {
+      return reply.status(404).send({ error: "消息不属于该频道" });
+    }
+    const channel = await prisma.channel.findUnique({ where: { id: channelId } });
+    const canRead = channel?.type === "DM" || channel?.type === "GROUP_DM"
+      ? await dmService.isParticipant(user.id, channelId)
+      : await permissionService.hasChannelPermission(user.id, channelId, PermissionFlags.READ_MESSAGE_HISTORY);
+    if (!canRead) return reply.status(403).send({ error: "无权访问该频道" });
 
     await prisma.reaction.deleteMany({
       where: {
@@ -2734,17 +3035,13 @@ server.delete(
 
     const reactionsList = Array.from(reactionMap.values());
 
-    gatewayManager.broadcast({
-      op: GatewayOpCode.DISPATCH,
-      t: GatewayEvents.MESSAGE_REACTION_REMOVE,
-      d: {
+    await dispatchChannelEvent(channelId, GatewayEvents.MESSAGE_REACTION_REMOVE, {
         channelId,
         messageId,
         userId: user.id,
         emoji: decodedEmoji,
         reactions: reactionsList,
-      },
-    });
+      });
 
     return reactionsList;
   },
@@ -2755,27 +3052,30 @@ server.patch(
   "/api/channels/:channelId/messages/:messageId/pin",
   async (request, reply) => {
     const { channelId, messageId } = request.params as any;
+    const userId = await getUserIdFromRequest(request);
+    if (!userId) return reply.status(401).send({ error: "需要登录" });
     const message = await prisma.message.findUnique({
       where: { id: messageId },
     });
-    if (!message) {
+    if (!message || message.channelId !== channelId) {
       return reply.status(404).send({ error: "消息不存在" });
     }
+    const channel = await prisma.channel.findUnique({ where: { id: channelId } });
+    const canPin = channel?.type === "DM" || channel?.type === "GROUP_DM"
+      ? message.authorId === userId && await dmService.isParticipant(userId, channelId)
+      : await permissionService.hasChannelPermission(userId, channelId, PermissionFlags.MANAGE_MESSAGES);
+    if (!canPin) return reply.status(403).send({ error: "无权修改该消息" });
 
     const updated = await prisma.message.update({
       where: { id: messageId },
       data: { isPinned: !message.isPinned },
     });
 
-    gatewayManager.broadcast({
-      op: GatewayOpCode.DISPATCH,
-      t: GatewayEvents.MESSAGE_PIN_UPDATE,
-      d: {
+    await dispatchChannelEvent(channelId, GatewayEvents.MESSAGE_PIN_UPDATE, {
         channelId,
         messageId,
         isPinned: updated.isPinned,
-      },
-    });
+      });
 
     return { messageId, isPinned: updated.isPinned };
   },
@@ -2787,9 +3087,7 @@ server.delete(
   async (request, reply) => {
     const { channelId, messageId } = request.params as any;
     const userId = await getUserIdFromRequest(request);
-    const user = userId
-      ? await prisma.user.findUnique({ where: { id: userId } })
-      : await prisma.user.findFirst();
+    const user = userId ? await prisma.user.findUnique({ where: { id: userId } }) : null;
     if (!user) {
       return reply.status(401).send({ error: "需要登录" });
     }
@@ -2797,27 +3095,22 @@ server.delete(
     const message = await prisma.message.findUnique({
       where: { id: messageId },
     });
-    if (!message) {
+    if (!message || message.channelId !== channelId) {
       return reply.status(404).send({ error: "消息不存在" });
     }
 
     const isAuthor = message.authorId === user.id;
-    const canManage = await permissionService.hasChannelPermission(
-      user.id,
-      channelId,
-      PermissionFlags.MANAGE_MESSAGES,
-    );
+    const channel = await prisma.channel.findUnique({ where: { id: channelId } });
+    const canManage = channel?.type === "DM" || channel?.type === "GROUP_DM"
+      ? false
+      : await permissionService.hasChannelPermission(user.id, channelId, PermissionFlags.MANAGE_MESSAGES);
     if (!isAuthor && !canManage) {
       return reply.status(403).send({ error: "您没有撤回或删除该消息的权限" });
     }
 
     await prisma.message.delete({ where: { id: messageId } });
 
-    gatewayManager.broadcast({
-      op: GatewayOpCode.DISPATCH,
-      t: GatewayEvents.MESSAGE_DELETE,
-      d: { channelId, messageId },
-    });
+    await dispatchChannelEvent(channelId, GatewayEvents.MESSAGE_DELETE, { channelId, messageId });
 
     return { success: true, messageId };
   },
@@ -2829,11 +3122,13 @@ server.delete(
 
 server.post("/api/attachments/presigned-url", async (request, reply) => {
   try {
+    const userId = await getUserIdFromRequest(request);
+    if (!userId) return reply.status(401).send({ error: "需要登录" });
     const body = request.body as PresignedUploadRequest;
     if (!body?.fileName) {
       return reply.status(400).send({ error: "未提供 fileName" });
     }
-    const result = await storageService.getPresignedUploadUrl(body);
+    const result = await storageService.getPresignedUploadUrl(body, userId);
     return result;
   } catch (err: any) {
     return reply
@@ -2845,7 +3140,20 @@ server.post("/api/attachments/presigned-url", async (request, reply) => {
 server.put("/api/attachments/upload/:fileName", async (request, reply) => {
   const { fileName } = request.params as any;
   const decodedFileName = decodeURIComponent(fileName);
-  const filePath = path.join(storageService.getUploadsDir(), decodedFileName);
+  const userId = await getUserIdFromRequest(request);
+  const query = request.query as { expires?: string; signature?: string };
+  const expiresAt = Number(query.expires);
+  if (
+    !userId ||
+    !query.signature ||
+    !storageService.verifyLocalUpload(decodedFileName, userId, expiresAt, query.signature)
+  ) {
+    return reply.status(403).send({ error: "上传凭证无效或已过期" });
+  }
+  const filePath = storageService.resolveLocalUploadPath(decodedFileName);
+  if (!filePath) {
+    return reply.status(400).send({ error: "非法文件路径" });
+  }
 
   const buffer = Buffer.isBuffer(request.body)
     ? request.body
@@ -2855,6 +3163,11 @@ server.put("/api/attachments/upload/:fileName", async (request, reply) => {
           : JSON.stringify(request.body),
       );
 
+  const maxUploadBytes = Number(process.env.MAX_UPLOAD_BYTES || 25 * 1024 * 1024);
+  if (buffer.byteLength > maxUploadBytes) {
+    return reply.status(413).send({ error: "附件超过大小限制" });
+  }
+
   await fs.promises.writeFile(filePath, buffer);
 
   const baseUrl = process.env.SERVER_BASE_URL || "http://localhost:3001";
@@ -2862,6 +3175,33 @@ server.put("/api/attachments/upload/:fileName", async (request, reply) => {
     success: true,
     fileUrl: `${baseUrl}/uploads/${encodeURIComponent(decodedFileName)}`,
   };
+});
+
+server.get("/attachments/:fileName", async (request, reply) => {
+  const { fileName } = request.params as { fileName: string };
+  const decodedFileName = decodeURIComponent(fileName);
+  const query = request.query as { channelId?: string; expires?: string; signature?: string };
+  if (!query.channelId || !query.signature || !storageService.verifyDownload(
+    decodedFileName,
+    query.channelId,
+    Number(query.expires),
+    query.signature,
+  )) {
+    return reply.status(403).send({ error: "附件访问授权无效或已过期" });
+  }
+  const attachment = await prisma.attachment.findFirst({
+    where: {
+      url: { endsWith: `/${decodedFileName}` },
+      message: { channelId: query.channelId },
+    },
+  });
+  if (!attachment) return reply.status(404).send({ error: "附件不存在" });
+  const filePath = storageService.resolveLocalUploadPath(decodedFileName);
+  if (!filePath || !fs.existsSync(filePath)) return reply.status(404).send({ error: "附件文件不存在" });
+  reply.header("Content-Type", attachment.mimeType || "application/octet-stream");
+  reply.header("Cache-Control", "private, max-age=60");
+  reply.header("Content-Disposition", `inline; filename*=UTF-8''${encodeURIComponent(attachment.fileName)}`);
+  return reply.send(fs.createReadStream(filePath));
 });
 
 // ==========================================
@@ -2878,7 +3218,7 @@ server.post("/api/e2ee/keys/prekey", async (request, reply) => {
   const userId = await getUserIdFromRequest(request);
   const user = userId
     ? await prisma.user.findUnique({ where: { id: userId } })
-    : await prisma.user.findFirst();
+    : null;
   if (!user) {
     return reply.status(401).send({ error: "需要有效登录身份注册公钥束" });
   }
@@ -2892,9 +3232,238 @@ server.post("/api/e2ee/keys/prekey", async (request, reply) => {
   return bundle;
 });
 
+server.post("/api/e2ee/devices", async (request, reply) => {
+  const userId = await getUserIdFromRequest(request);
+  const body = (request.body || {}) as RegisterDeviceKeyDTO;
+  if (!userId || !body.deviceId || !body.signingPublicKey || !body.agreementPublicKey || !body.fingerprint) {
+    return reply.status(400).send({ error: "设备公钥资料不完整" });
+  }
+  if ([body.deviceId, body.signingPublicKey, body.agreementPublicKey, body.fingerprint].some((value) => value.length > 8192)) {
+    return reply.status(400).send({ error: "设备公钥资料超过长度限制" });
+  }
+  const existing = await prisma.deviceKey.findUnique({
+    where: { userId_deviceId: { userId, deviceId: body.deviceId } },
+  });
+  if (existing && !existing.revokedAt &&
+      (existing.signingPublicKey !== body.signingPublicKey || existing.agreementPublicKey !== body.agreementPublicKey)) {
+    return reply.status(409).send({ error: "已知设备身份密钥发生变化，需要撤销旧设备后重新确认" });
+  }
+  const device = existing
+    ? await prisma.deviceKey.update({
+        where: { id: existing.id },
+        data: { ...body, revokedAt: null },
+      })
+    : await prisma.deviceKey.create({ data: { userId, ...body } });
+  return {
+    userId: device.userId,
+    deviceId: device.deviceId,
+    signingPublicKey: device.signingPublicKey,
+    agreementPublicKey: device.agreementPublicKey,
+    fingerprint: device.fingerprint,
+    createdAt: device.createdAt.toISOString(),
+    updatedAt: device.updatedAt.toISOString(),
+  };
+});
+
+server.delete("/api/e2ee/devices/:deviceId", async (request, reply) => {
+  const userId = await getUserIdFromRequest(request);
+  const { deviceId } = request.params as { deviceId: string };
+  if (!userId) return reply.status(401).send({ error: "需要登录" });
+  const result = await prisma.deviceKey.updateMany({
+    where: { userId, deviceId, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+  if (!result.count) return reply.status(404).send({ error: "设备不存在或已撤销" });
+  await prisma.platformAuditLog.create({
+    data: { actorId: userId, action: "DEVICE_KEY_REVOKED", targetType: "DEVICE", targetId: deviceId },
+  });
+  gatewayManager.sendToUser(userId, {
+    op: GatewayOpCode.DISPATCH,
+    t: GatewayEvents.ACCOUNT_SESSION_REVOKED,
+    d: { deviceId, reason: "device_key_revoked" },
+  });
+  gatewayManager.terminateActiveCall(userId, "device_key_revoked");
+  return { success: true };
+});
+
+server.get("/api/channels/:channelId/e2ee/devices", async (request, reply) => {
+  const userId = await getUserIdFromRequest(request);
+  const { channelId } = request.params as { channelId: string };
+  const channel = await prisma.channel.findUnique({ where: { id: channelId } });
+  if (!userId || !channel) return reply.status(404).send({ error: "频道不存在" });
+  const participantIds = channel.type === "DM" || channel.type === "GROUP_DM"
+    ? (await prisma.channelRecipient.findMany({ where: { channelId }, select: { userId: true } })).map((item) => item.userId)
+    : (await prisma.guildMember.findMany({ where: { guildId: channel.guildId! }, select: { userId: true } })).map((item) => item.userId);
+  const callerAllowed = channel.type === "DM" || channel.type === "GROUP_DM"
+    ? participantIds.includes(userId)
+    : await permissionService.hasChannelPermission(userId, channelId, PermissionFlags.CONNECT);
+  if (!callerAllowed) return reply.status(403).send({ error: "无权读取该频道设备密钥" });
+  const visibleParticipantIds = channel.type === "DM" || channel.type === "GROUP_DM"
+    ? participantIds
+    : (await Promise.all(participantIds.map(async (candidateId) =>
+        (await permissionService.hasChannelPermission(candidateId, channelId, PermissionFlags.CONNECT))
+          ? candidateId
+          : null,
+      ))).filter((value): value is string => Boolean(value));
+  const devices = await prisma.deviceKey.findMany({
+    where: { userId: { in: visibleParticipantIds }, revokedAt: null },
+    orderBy: [{ userId: "asc" }, { createdAt: "asc" }],
+  });
+  return devices.map((device) => ({
+    userId: device.userId,
+    deviceId: device.deviceId,
+    signingPublicKey: device.signingPublicKey,
+    agreementPublicKey: device.agreementPublicKey,
+    fingerprint: device.fingerprint,
+    createdAt: device.createdAt.toISOString(),
+    updatedAt: device.updatedAt.toISOString(),
+  }));
+});
+
+server.post("/api/channels/:channelId/e2ee/media-key", async (request, reply) => {
+  const senderId = await getUserIdFromRequest(request);
+  const { channelId } = request.params as { channelId: string };
+  const body = (request.body || {}) as {
+    callId?: string; senderDeviceId?: string; recipientDeviceId?: string;
+    ephemeralPublicKey?: string; iv?: string; ciphertext?: string; signature?: string;
+  };
+  if (!senderId || !body.callId || !body.senderDeviceId || !body.recipientDeviceId ||
+      !body.ephemeralPublicKey || !body.iv || !body.ciphertext || !body.signature) {
+    return reply.status(400).send({ error: "媒体密钥信封不完整" });
+  }
+  if ([body.callId, body.senderDeviceId, body.recipientDeviceId].some((value) => value.length > 160) ||
+      body.ephemeralPublicKey.length > 8192 || body.iv.length > 128 ||
+      body.ciphertext.length > 8192 || body.signature.length > 1024) {
+    return reply.status(400).send({ error: "媒体密钥信封超过长度限制" });
+  }
+  let call;
+  try {
+    call = dmCallService.authorizeKeyExchange(senderId, body.callId, channelId);
+  } catch (error) {
+    return reply.status(403).send({ error: error instanceof Error ? error.message : "呼叫上下文无效" });
+  }
+  if (call.callerId !== senderId) {
+    return reply.status(403).send({ error: "仅呼叫发起设备可以建立本次媒体密钥" });
+  }
+  const [senderDevice, recipientDevice] = await Promise.all([
+    prisma.deviceKey.findFirst({ where: { userId: senderId, deviceId: body.senderDeviceId, revokedAt: null } }),
+    prisma.deviceKey.findFirst({ where: { deviceId: body.recipientDeviceId, revokedAt: null } }),
+  ]);
+  if (!senderDevice || !recipientDevice || recipientDevice.userId === senderId ||
+      !(await dmService.isParticipant(recipientDevice.userId, channelId))) {
+    return reply.status(403).send({ error: "发送或接收设备无权参与该呼叫" });
+  }
+  const createdAt = new Date();
+  const stored = await prisma.$transaction(async (tx) => {
+    await tx.mediaKeyEnvelope.deleteMany({
+      where: { createdAt: { lt: new Date(createdAt.getTime() - 5 * 60_000) } },
+    });
+    return tx.mediaKeyEnvelope.upsert({
+      where: {
+        callId_senderDeviceId_recipientDeviceId: {
+          callId: body.callId!,
+          senderDeviceId: senderDevice.deviceId,
+          recipientDeviceId: recipientDevice.deviceId,
+        },
+      },
+      create: {
+        callId: body.callId!, channelId, senderId,
+        senderDeviceId: senderDevice.deviceId,
+        recipientId: recipientDevice.userId,
+        recipientDeviceId: recipientDevice.deviceId,
+        ephemeralPublicKey: body.ephemeralPublicKey!,
+        senderSigningPublicKey: senderDevice.signingPublicKey,
+        senderFingerprint: senderDevice.fingerprint,
+        iv: body.iv!, ciphertext: body.ciphertext!, signature: body.signature!,
+        createdAt,
+      },
+      update: {
+        ephemeralPublicKey: body.ephemeralPublicKey!,
+        senderSigningPublicKey: senderDevice.signingPublicKey,
+        senderFingerprint: senderDevice.fingerprint,
+        iv: body.iv!, ciphertext: body.ciphertext!, signature: body.signature!,
+        createdAt, consumedAt: null,
+      },
+    });
+  });
+  const envelope = {
+    channelId,
+    callId: body.callId,
+    senderId,
+    senderDeviceId: senderDevice.deviceId,
+    recipientId: recipientDevice.userId,
+    recipientDeviceId: recipientDevice.deviceId,
+    ephemeralPublicKey: body.ephemeralPublicKey,
+    senderSigningPublicKey: senderDevice.signingPublicKey,
+    senderFingerprint: senderDevice.fingerprint,
+    iv: body.iv,
+    ciphertext: body.ciphertext,
+    signature: body.signature,
+    createdAt: stored.createdAt.toISOString(),
+  };
+  gatewayManager.sendToUser(recipientDevice.userId, {
+    op: GatewayOpCode.DISPATCH,
+    t: GatewayEvents.E2EE_KEY_EXCHANGE,
+    d: envelope,
+  });
+  return { success: true, recipientDeviceId: recipientDevice.deviceId };
+});
+
+server.get("/api/channels/:channelId/e2ee/media-key/:callId", async (request, reply) => {
+  const recipientId = await getUserIdFromRequest(request);
+  const { channelId, callId } = request.params as { channelId: string; callId: string };
+  const { deviceId } = (request.query || {}) as { deviceId?: string };
+  if (!recipientId || !deviceId || deviceId.length > 160 || callId.length > 160) {
+    return reply.status(400).send({ error: "缺少有效的设备或呼叫上下文" });
+  }
+  try {
+    dmCallService.authorizeKeyExchange(recipientId, callId, channelId);
+  } catch (error) {
+    return reply.status(403).send({ error: error instanceof Error ? error.message : "呼叫上下文无效" });
+  }
+  const device = await prisma.deviceKey.findFirst({
+    where: { userId: recipientId, deviceId, revokedAt: null },
+    select: { id: true },
+  });
+  if (!device) return reply.status(403).send({ error: "设备身份无效或已撤销" });
+  const cutoff = new Date(Date.now() - 2 * 60_000);
+  const stored = await prisma.mediaKeyEnvelope.findFirst({
+    where: { channelId, callId, recipientId, recipientDeviceId: deviceId, createdAt: { gte: cutoff } },
+    orderBy: { createdAt: "desc" },
+  });
+  if (!stored) return reply.status(404).send({ error: "媒体密钥尚未到达或已过期" });
+  await prisma.mediaKeyEnvelope.update({ where: { id: stored.id }, data: { consumedAt: new Date() } });
+  return {
+    channelId: stored.channelId, callId: stored.callId,
+    senderId: stored.senderId, senderDeviceId: stored.senderDeviceId,
+    recipientId: stored.recipientId, recipientDeviceId: stored.recipientDeviceId,
+    ephemeralPublicKey: stored.ephemeralPublicKey,
+    senderSigningPublicKey: stored.senderSigningPublicKey,
+    senderFingerprint: stored.senderFingerprint,
+    iv: stored.iv, ciphertext: stored.ciphertext, signature: stored.signature,
+    createdAt: stored.createdAt.toISOString(),
+  };
+});
+
 // 查询特定成员的 PreKeyBundle（用于端侧发起双棘轮握手）
 server.get("/api/e2ee/keys/prekey/:targetUserId", async (request, reply) => {
+  const userId = await getUserIdFromRequest(request);
   const { targetUserId } = request.params as any;
+  const { channelId } = (request.query || {}) as { channelId?: string };
+  if (!userId || !channelId) return reply.status(400).send({ error: "需要频道上下文" });
+  const channel = await prisma.channel.findUnique({ where: { id: channelId } });
+  if (!channel) return reply.status(404).send({ error: "频道不存在" });
+  if (channel.type === "DM" || channel.type === "GROUP_DM") {
+    if (!(await dmService.isParticipant(userId, channelId)) || !(await dmService.isParticipant(targetUserId, channelId))) {
+      return reply.status(403).send({ error: "仅会话参与设备可以读取公钥" });
+    }
+  } else {
+    const [callerCanRead, targetCanRead] = await Promise.all([
+      permissionService.hasChannelPermission(userId, channelId, PermissionFlags.CONNECT),
+      permissionService.hasChannelPermission(targetUserId, channelId, PermissionFlags.CONNECT),
+    ]);
+    if (!callerCanRead || !targetCanRead) return reply.status(403).send({ error: "无权读取该频道设备公钥" });
+  }
   const bundle = e2eeService.getPreKey(targetUserId);
   if (!bundle) {
     return reply
@@ -2910,9 +3479,9 @@ server.post(
   async (request, reply) => {
     const { channelId } = request.params as any;
     const userId = await getUserIdFromRequest(request);
-    const user = userId
-      ? await prisma.user.findUnique({ where: { id: userId } })
-      : await prisma.user.findFirst();
+  const user = userId
+    ? await prisma.user.findUnique({ where: { id: userId } })
+    : null;
     if (!user) {
       return reply.status(401).send({ error: "需要登录后发送密钥协商包" });
     }
@@ -2926,6 +3495,22 @@ server.post(
     if (!body.ephemeralKey || !body.encryptedKeyData) {
       return reply.status(400).send({ error: "密钥协商载荷不完整" });
     }
+    if (!body.recipientId || body.recipientId === user.id) {
+      return reply.status(400).send({ error: "必须指定其他接收设备所属用户" });
+    }
+    const channel = await prisma.channel.findUnique({ where: { id: channelId } });
+    if (!channel) return reply.status(404).send({ error: "频道不存在" });
+    if (channel.type === "DM" || channel.type === "GROUP_DM") {
+      if (!(await dmService.isParticipant(user.id, channelId)) || !(await dmService.isParticipant(body.recipientId, channelId))) {
+        return reply.status(403).send({ error: "密钥只能发送给同一会话的参与者" });
+      }
+    } else {
+      const [senderAllowed, recipientAllowed] = await Promise.all([
+        permissionService.hasChannelPermission(user.id, channelId, PermissionFlags.CONNECT),
+        permissionService.hasChannelPermission(body.recipientId, channelId, PermissionFlags.CONNECT),
+      ]);
+      if (!senderAllowed || !recipientAllowed) return reply.status(403).send({ error: "密钥接收方无频道访问权" });
+    }
 
     const payload: E2eeKeyExchangePayload = {
       channelId,
@@ -2937,7 +3522,7 @@ server.post(
     };
 
     // 服务端仅盲中继密文包，绝不解密也不可能解密
-    gatewayManager.broadcast({
+    gatewayManager.sendToUser(body.recipientId, {
       op: GatewayOpCode.DISPATCH,
       t: GatewayEvents.E2EE_KEY_EXCHANGE,
       d: payload,
@@ -2950,6 +3535,13 @@ server.post(
 // 获取频道端到端加密安全状态与已就绪密钥成员数
 server.get("/api/channels/:channelId/e2ee/status", async (request, reply) => {
   const { channelId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  const channel = await prisma.channel.findUnique({ where: { id: channelId } });
+  if (!userId || !channel) return reply.status(404).send({ error: "频道不存在" });
+  const allowed = channel.type === "DM" || channel.type === "GROUP_DM"
+    ? await dmService.isParticipant(userId, channelId)
+    : await permissionService.hasChannelPermission(userId, channelId, PermissionFlags.CONNECT);
+  if (!allowed) return reply.status(403).send({ error: "无权查看该频道加密状态" });
   try {
     const status = await e2eeService.getChannelE2EEStatus(channelId);
     return status;
@@ -2962,25 +3554,25 @@ server.get("/api/channels/:channelId/e2ee/status", async (request, reply) => {
 // 4.9 WebRTC STUN/TURN 动态穿透中继凭据分发
 // ==========================================
 
-server.get("/api/network/ice-servers", async () => {
+server.get("/api/network/ice-servers", async (request) => {
   const turnHost =
     process.env.COTURN_HOST || process.env.TURN_HOST || "127.0.0.1";
   const turnPort =
     process.env.COTURN_PORT || process.env.TURN_PORT || "3478";
-  const turnUser =
-    process.env.COTURN_USER || process.env.TURN_USER || "tescorduser";
-  const turnPass =
-    process.env.COTURN_PASSWORD || process.env.TURN_PASSWORD || "tescordpass";
+  const userId = await getUserIdFromRequest(request);
+  const expiresAt = Math.floor(Date.now() / 1000) + 10 * 60;
+  const turnUser = `${expiresAt}:${userId}`;
+  const turnSecret = process.env.TURN_SECRET || "tescord-dev-turn-secret";
+  const turnPass = createHmac("sha1", turnSecret)
+    .update(turnUser)
+    .digest("base64");
 
   return {
     iceServers: [
-      // 1. Cloudflare 高可用全球双栈 IPv4 / IPv6 STUN
-      { urls: "stun:stun.cloudflare.com:3478" },
-      // 2. 国内主流高可用 STUN
-      { urls: "stun:stun.qq.com:3478" },
-      { urls: "stun:stun.miwifi.com:8443" },
-      { urls: "stun:stun.chat.bilibili.com:3478" },
-      // 3. 本地私有化 / 云端 Coturn STUN & TURN (UDP/TCP 双协议，解决对称 NAT 无法打洞问题)
+      ...(process.env.ALLOW_PUBLIC_STUN === "true"
+        ? [{ urls: "stun:stun.cloudflare.com:3478" }]
+        : []),
+      // 自托管 Coturn STUN & TURN（凭据十分钟后失效）
       { urls: `stun:${turnHost}:${turnPort}` },
       {
         urls: [
@@ -3007,11 +3599,20 @@ server.post("/api/livekit/token", async (request, reply) => {
       .send({ error: "roomName and identity are required" });
   }
 
-  // 鉴权校验：如果提供了身份凭据，校验请求用户是否与 identity 相符
   const reqUserId = await getUserIdFromRequest(request);
-  if (reqUserId && reqUserId !== String(body.identity)) {
+  if (!reqUserId || reqUserId !== String(body.identity)) {
     return reply.status(403).send({ error: "无权为其他用户签发语音令牌" });
   }
+  const channel = await prisma.channel.findUnique({ where: { id: String(body.roomName) } });
+  if (!channel || channel.type === "DM" || channel.type === "GROUP_DM") {
+    return reply.status(403).send({ error: "无权为该房间签发媒体令牌" });
+  }
+  const canConnect = await permissionService.hasChannelPermission(
+    reqUserId,
+    channel.id,
+    PermissionFlags.CONNECT,
+  );
+  if (!canConnect) return reply.status(403).send({ error: "缺少语音连接权限" });
 
   return await generateLiveKitToken({
     roomName: String(body.roomName),
@@ -3021,6 +3622,273 @@ server.post("/api/livekit/token", async (request, reply) => {
     bitrate: body.bitrate ? Number(body.bitrate) : undefined,
   });
 });
+
+// LiveKit Webhook 权威状态收敛回调
+server.post("/api/livekit/webhook", async (request, reply) => {
+  try {
+    const receiver = getWebhookReceiver();
+    const authHeader = request.headers.authorization;
+    const rawBody =
+      typeof request.body === "string"
+        ? request.body
+        : JSON.stringify(request.body);
+
+    const event = await receiver.receive(rawBody, authHeader);
+    console.log(
+      `[LiveKit Webhook] Event: ${event.event}, participant: ${event.participant?.identity}, room: ${event.room?.name}`,
+    );
+
+    if (event.event === "participant_left" || event.event === "room_finished") {
+      const identity = event.participant?.identity;
+      const roomName = event.room?.name;
+      if (identity) {
+        gatewayManager.handleLiveKitParticipantLeft(identity, roomName);
+      }
+    }
+
+    return reply.status(200).send({ ok: true });
+  } catch (err: any) {
+    console.warn(
+      "[LiveKit Webhook] Verification or handling failed:",
+      err?.message || err,
+    );
+    return reply
+      .status(400)
+      .send({ error: "Invalid webhook payload or signature" });
+  }
+});
+
+// ==========================================
+// 7. 超级管理员系统运维与治理 API (Super Admin)
+// ==========================================
+
+// 获取系统综合运行指标看板
+server.get(
+  "/api/admin/overview",
+  { preValidation: [(server as any).requireSuperAdmin] },
+  async () => {
+    return await adminService.getOverviewStats();
+  },
+);
+
+// 全局检索与分页列出用户
+server.get(
+  "/api/admin/users",
+  { preValidation: [(server as any).requireSuperAdmin] },
+  async (request) => {
+    const query = (request.query || {}) as Record<string, string | undefined>;
+    return await adminService.listUsers({
+      search: query.search,
+      role: query.role as any,
+      banned: query.banned === undefined ? undefined : query.banned === "true",
+      page: Number(query.page || 1),
+      pageSize: Number(query.pageSize || 50),
+    });
+  },
+);
+
+// 更新指定用户 (修改角色、封禁/解封、重置密码)
+server.patch(
+  "/api/admin/users/:userId",
+  { preValidation: [(server as any).requireSuperAdmin] },
+  async (request, reply) => {
+    const { userId } = request.params as any;
+    const body = request.body as AdminUpdateUserDTO;
+    try {
+      return await adminService.updateUser((request.user as any).sub, userId, body);
+    } catch (error) {
+      return reply.status(400).send({
+        error: error instanceof Error ? error.message : "更新用户失败",
+      });
+    }
+  },
+);
+
+// 列出全平台所有公会/服务器
+server.get(
+  "/api/admin/guilds",
+  { preValidation: [(server as any).requireSuperAdmin] },
+  async (request) => {
+    const query = (request.query || {}) as Record<string, string | undefined>;
+    return await adminService.listGuilds({
+      search: query.search,
+      page: Number(query.page || 1),
+      pageSize: Number(query.pageSize || 50),
+    });
+  },
+);
+
+// 强制解散违规公会/服务器
+server.delete(
+  "/api/admin/guilds/:guildId",
+  { preValidation: [(server as any).requireSuperAdmin] },
+  async (request, reply) => {
+    const { guildId } = request.params as any;
+    const body = (request.body || {}) as { nameConfirmation?: string };
+    try {
+      await adminService.forceDeleteGuild(
+        (request.user as any).sub,
+        guildId,
+        body.nameConfirmation || "",
+      );
+    } catch (error) {
+      return reply.status(400).send({
+        error: error instanceof Error ? error.message : "强制解散服务器失败",
+      });
+    }
+    return reply.status(204).send();
+  },
+);
+
+// 发送全平台置顶广播
+server.post(
+  "/api/admin/broadcast",
+  { preValidation: [(server as any).requireSuperAdmin] },
+  async (request, reply) => {
+    const userPayload = request.user as any;
+    const body = request.body as any;
+    if (!body?.title || !body?.content) {
+      return reply.status(400).send({ error: "广播标题和内容为必填项" });
+    }
+    return await adminService.broadcastMessage((request.user as any).sub, {
+      title: body.title,
+      content: body.content,
+      severity: body.severity || "INFO",
+      senderName: userPayload?.username || "系统管理员",
+    });
+  },
+);
+
+// 获取系统运维设置 (新用户注册开关等)
+server.get(
+  "/api/admin/settings",
+  { preValidation: [(server as any).requireSuperAdmin] },
+  async () => {
+    return await adminService.getSettings();
+  },
+);
+
+// 更新系统运维设置
+server.patch(
+  "/api/admin/settings",
+  { preValidation: [(server as any).requireSuperAdmin] },
+  async (request) => {
+    const body = request.body as any;
+    return await adminService.updateSettings((request.user as any).sub, body);
+  },
+);
+
+// ==========================================
+// 8. 私信会话 (Direct Messages) 与 1v1 呼叫 API
+// ==========================================
+
+// 获取当前登录用户的所有活跃私信列表
+server.get(
+  "/api/users/@me/channels",
+  { preValidation: [(server as any).authenticate] },
+  async (request) => {
+    const userPayload = request.user as any;
+    const query = request.query as { page?: string; pageSize?: string };
+    return await dmService.getDMChannels(
+      userPayload.sub,
+      Number(query.page || 1),
+      Number(query.pageSize || 50),
+    );
+  },
+);
+
+// 发起或幂等获取与某用户的 1v1 私信会话
+server.post(
+  "/api/users/@me/channels",
+  { preValidation: [(server as any).authenticate] },
+  async (request, reply) => {
+    const userPayload = request.user as any;
+    const body = request.body as CreateDMDTO;
+    if (!body?.recipientId) {
+      return reply.status(400).send({ error: "缺少接收方 ID (recipientId)" });
+    }
+
+    try {
+      return await dmService.getOrCreateDMChannel(userPayload.sub, body.recipientId);
+    } catch (err: any) {
+      return reply.status(403).send({ error: err.message || "建立私信失败" });
+    }
+  },
+);
+
+// 关闭/隐藏私信会话 (从左侧私信列表移除)
+server.delete(
+  "/api/users/@me/channels/:channelId",
+  { preValidation: [(server as any).authenticate] },
+  async (request, reply) => {
+    const userPayload = request.user as any;
+    const { channelId } = request.params as any;
+    await dmService.closeDMChannel(userPayload.sub, channelId);
+    return reply.status(204).send();
+  },
+);
+
+// 标记私信已读
+server.post(
+  "/api/channels/:channelId/read",
+  { preValidation: [(server as any).authenticate] },
+  async (request, reply) => {
+    const userPayload = request.user as any;
+    const { channelId } = request.params as any;
+    const body = (request.body || {}) as MarkDMReadDTO;
+    try {
+      const lastReadSequence = await dmService.markAsRead(
+        userPayload.sub,
+        channelId,
+        body.lastReadSequence,
+      );
+      return { channelId, lastReadSequence };
+    } catch (error: any) {
+      return reply.status(403).send({ error: error.message || "无法标记已读" });
+    }
+  },
+);
+
+// 申请 1v1 私信专属 LiveKit 房间 Token
+server.post(
+  "/api/channels/dm/:channelId/call-token",
+  { preValidation: [(server as any).authenticate] },
+  async (request, reply) => {
+    const userPayload = request.user as any;
+    const { channelId } = request.params as any;
+    const body = (request.body || {}) as { callId?: string; sessionId?: string };
+    if (!body.callId || !body.sessionId) {
+      return reply.status(400).send({ error: "缺少 callId 或设备会话标识" });
+    }
+    try {
+      dmCallService.authorizeMedia(
+        userPayload.sub,
+        body.sessionId,
+        body.callId,
+        channelId,
+      );
+    } catch (error) {
+      return reply.status(403).send({
+        error: error instanceof Error ? error.message : "无权加入此私信通话",
+      });
+    }
+
+    const roomName = `dm_${channelId}_${body.callId}`;
+    const token = await generateLiveKitToken({
+      roomName,
+      identity: userPayload.sub,
+      name: userPayload.username,
+      isPublisher: true,
+    });
+
+    return {
+      ...token,
+      callId: body.callId,
+      roomName,
+      serverUrl: process.env.LIVEKIT_URL || "ws://localhost:7880",
+    };
+  },
+);
 
 // ==========================================
 // 6. WebSocket 网关长连接

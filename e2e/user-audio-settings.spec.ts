@@ -6,7 +6,7 @@ test.describe("个人设置中心与全新“音频”菜单交互验收", () =>
   }) => {
     // 注入 Mock Token
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "mock_e2e_token");
+      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 

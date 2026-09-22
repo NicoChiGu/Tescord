@@ -1,10 +1,11 @@
 import { test, expect } from "@playwright/test";
+import { installConnectedLiveKitStub } from "./helpers/media";
 
 test.describe("真实延迟状态与网关连接指示端到端验收", () => {
   test.beforeEach(async ({ page }) => {
     // 注入 Mock Token 模拟已登录态
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "mock_e2e_token");
+      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 
@@ -79,6 +80,7 @@ test.describe("真实延迟状态与网关连接指示端到端验收", () => {
       .filter({ has: page.locator("svg.lucide-volume-2") })
       .first();
     await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
+    await installConnectedLiveKitStub(page, "e2e_user_latency");
     await voiceChannelBtn.dblclick();
 
     // 3. 验证左下角语音连接状态与实时 WebRTC RTT 呈现

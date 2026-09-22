@@ -24,7 +24,6 @@ import { audioEngine } from "../../services/audioEngine.js";
 import { p2pStreamManager } from "../../services/p2p/P2PStreamManager.js";
 import { voiceMeshManager } from "../../services/p2p/VoiceMeshManager.js";
 import { livekitService } from "../../services/livekit.js";
-import { useSettingsStore } from "../../stores/useSettingsStore.js";
 
 interface NetworkQualityModalProps {
   isOpen: boolean;
@@ -64,8 +63,6 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
   const [fallbackReason, setFallbackReason] = useState<string>(() =>
     voiceMeshManager.getFallbackReason(),
   );
-
-  const videoSettings = useSettingsStore((state) => state.video);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -140,9 +137,9 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
         };
       default:
         return {
-          label: "极佳 (Excellent)",
+          label: "未知 (Unknown)",
           className:
-            "text-discord-green bg-discord-green/10 border-discord-green/30",
+            "text-discord-textMuted bg-white/5 border-white/10",
         };
     }
   };
@@ -275,8 +272,10 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                       往返延迟 RTT
                     </div>
                     <div className="text-lg font-bold text-discord-green font-mono">
-                      {localStats?.rtt || 18}{" "}
-                      <span className="text-xs font-normal">ms</span>
+                      {typeof localStats?.rtt === "number" ? localStats.rtt : "未知"}{" "}
+                      {typeof localStats?.rtt === "number" && (
+                        <span className="text-xs font-normal">ms</span>
+                      )}
                     </div>
                   </div>
                   <div className="bg-[#1e1f22] p-2.5 rounded-lg border border-[#2b2d31]">
@@ -284,8 +283,12 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                       丢包率 Loss
                     </div>
                     <div className="text-lg font-bold text-discord-textHeader font-mono">
-                      {localStats?.packetLoss || 0}{" "}
-                      <span className="text-xs font-normal">%</span>
+                      {typeof localStats?.packetLoss === "number"
+                        ? localStats.packetLoss
+                        : "未知"}{" "}
+                      {typeof localStats?.packetLoss === "number" && (
+                        <span className="text-xs font-normal">%</span>
+                      )}
                     </div>
                   </div>
                   <div className="bg-[#1e1f22] p-2.5 rounded-lg border border-[#2b2d31]">
@@ -293,8 +296,12 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                       抖动 Jitter
                     </div>
                     <div className="text-lg font-bold text-discord-textHeader font-mono">
-                      {localStats?.jitter || 1.1}{" "}
-                      <span className="text-xs font-normal">ms</span>
+                      {typeof localStats?.jitter === "number"
+                        ? localStats.jitter
+                        : "未知"}{" "}
+                      {typeof localStats?.jitter === "number" && (
+                        <span className="text-xs font-normal">ms</span>
+                      )}
                     </div>
                   </div>
                   <div className="bg-[#1e1f22] p-2.5 rounded-lg border border-[#2b2d31]">
@@ -302,9 +309,12 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                       推流码率
                     </div>
                     <div className="text-lg font-bold text-discord-brand font-mono">
-                      {localStats?.bitrate ||
-                        audioEngine.config.audioBitrate / 1000}{" "}
-                      <span className="text-xs font-normal">kbps</span>
+                      {typeof localStats?.bitrate === "number"
+                        ? localStats.bitrate
+                        : "未知"}{" "}
+                      {typeof localStats?.bitrate === "number" && (
+                        <span className="text-xs font-normal">kbps</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -370,7 +380,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                     <div className="flex justify-between text-[11px]">
                       <span className="text-discord-textMuted">{t("voice:videoCodec")}</span>
                       <span className="text-white font-mono">
-                        {localStats?.videoCodec || videoSettings?.preferredVideoCodec?.toUpperCase() || "H.264"}
+                        {localStats?.videoCodec || "未知"}
                       </span>
                     </div>
                     <div className="flex justify-between text-[11px]">
@@ -412,7 +422,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                               })`
                             : ""
                         }`
-                      : "H.264 / VP8 (自适应降级)"}
+                      : "未知"}
                   </span>
                 </div>
                 {localStats?.videoBitrate ? (
@@ -584,7 +594,9 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                 <div className="flex justify-between py-1 border-b border-[#35373c]">
                   <span className="text-discord-textMuted">{t("voice:audioBitrate")}</span>
                   <span className="text-discord-brand font-mono">
-                    {localStats?.bitrate || audioEngine.config.audioBitrate / 1000} kbps
+                    {typeof localStats?.bitrate === "number"
+                      ? `${localStats.bitrate} kbps`
+                      : "未知"}
                   </span>
                 </div>
 
@@ -653,7 +665,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                         </span>
                         <div className="flex items-center gap-3 font-mono text-[11px]">
                           <span className="text-discord-green font-bold">
-                            {rep.rtt} ms
+                            {rep.rtt > 0 ? `${rep.rtt} ms` : "未知"}
                           </span>
                           <span className="text-discord-textMuted text-[10px]">
                             {rep.connectionType}
@@ -709,9 +721,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                   <span className="text-white font-mono flex items-center gap-1.5">
                     <Cpu className="w-3.5 h-3.5 text-discord-brand" />
                     <span>
-                      {localStats?.videoCodec ||
-                        videoSettings?.preferredVideoCodec?.toUpperCase() ||
-                        "H.264"}
+                      {localStats?.videoCodec || "未知"}
                     </span>
                   </span>
                 </div>
@@ -727,15 +737,19 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                 <div className="flex justify-between py-1 border-b border-[#35373c]">
                   <span className="text-discord-textMuted">{t("voice:videoResolutionFps")}</span>
                   <span className="text-white font-mono">
-                    {localStats?.videoResolution || "1920x1080"}
-                    {localStats?.videoFramerate ? ` @ ${localStats.videoFramerate} fps` : " @ 60 fps"}
+                    {localStats?.videoResolution || "未知"}
+                    {localStats?.videoFramerate
+                      ? ` @ ${localStats.videoFramerate} fps`
+                      : ""}
                   </span>
                 </div>
 
                 <div className="flex justify-between py-1">
                   <span className="text-discord-textMuted">{t("voice:videoBitrate")}</span>
                   <span className="text-emerald-400 font-mono">
-                    {localStats?.videoBitrate || 2500} kbps
+                    {typeof localStats?.videoBitrate === "number"
+                      ? `${localStats.videoBitrate} kbps`
+                      : "未知"}
                   </span>
                 </div>
               </div>

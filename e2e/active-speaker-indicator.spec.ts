@@ -13,7 +13,7 @@ test.describe("远端与本地活跃说话者绿色指示器自动化验收 (Act
 
     // 1. 初始化 Mock 用户鉴权环境
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "mock_e2e_token");
+      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 

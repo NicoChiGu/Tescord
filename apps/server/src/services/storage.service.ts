@@ -1,7 +1,7 @@
 import { Client as MinioClient } from "minio";
 import path from "path";
 import fs from "fs";
-import { randomUUID } from "crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "crypto";
 import {
   PresignedUploadRequest,
   PresignedUploadResponse,
@@ -13,6 +13,14 @@ export class StorageService {
   private isMinioAvailable = false;
   private uploadsDir: string;
   private baseUrl: string;
+  private uploadGrants = new Map<string, {
+    userId: string;
+    fileUrl: string;
+    fileSize: number;
+    mimeType: string;
+    expiresAt: number;
+    claimed: boolean;
+  }>();
 
   constructor() {
     this.bucketName = process.env.MINIO_BUCKET || "tescord-assets";
@@ -96,8 +104,25 @@ export class StorageService {
    */
   public async getPresignedUploadUrl(
     req: PresignedUploadRequest,
+    userId: string,
   ): Promise<PresignedUploadResponse> {
+    const maxUploadBytes = Number(process.env.MAX_UPLOAD_BYTES || 25 * 1024 * 1024);
+    if (!Number.isSafeInteger(req.fileSize) || req.fileSize <= 0 || req.fileSize > maxUploadBytes) {
+      throw new Error(`文件大小必须在 1 到 ${maxUploadBytes} 字节之间`);
+    }
+    const blockedTypes = new Set([
+      "text/html",
+      "image/svg+xml",
+      "application/xhtml+xml",
+      "application/javascript",
+    ]);
+    if (blockedTypes.has((req.mimeType || "").toLowerCase())) {
+      throw new Error("该文件类型不能作为附件上传");
+    }
     const ext = path.extname(req.fileName) || "";
+    if (new Set([".html", ".htm", ".svg", ".js", ".mjs", ".xhtml", ".xml"]).has(ext.toLowerCase())) {
+      throw new Error("该文件扩展名不能作为附件上传");
+    }
     const safeName = path
       .basename(req.fileName, ext)
       .replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -117,11 +142,13 @@ export class StorageService {
           process.env.MINIO_USE_SSL === "true" ? "https" : "http";
         const fileUrl = `${protocol}://${endPoint}:${port}/${this.bucketName}/${fileKey}`;
 
-        return {
+        const response = {
           uploadUrl,
           fileUrl,
           fileKey,
         };
+        this.rememberGrant(fileKey, userId, fileUrl, req);
+        return response;
       } catch (err) {
         console.warn(
           "[StorageService] 生成 MinIO 预签名失败，降级为本地存储:",
@@ -131,14 +158,112 @@ export class StorageService {
     }
 
     // 本地存储模式降级
-    const uploadUrl = `${this.baseUrl}/api/attachments/upload/${encodeURIComponent(fileKey)}`;
+    const expiresAt = Math.floor(Date.now() / 1000) + 15 * 60;
+    const signature = this.signLocalUpload(fileKey, userId, expiresAt);
+    const uploadUrl = `${this.baseUrl}/api/attachments/upload/${encodeURIComponent(fileKey)}?expires=${expiresAt}&signature=${encodeURIComponent(signature)}`;
     const fileUrl = `${this.baseUrl}/uploads/${encodeURIComponent(fileKey)}`;
 
-    return {
+    const response = {
       uploadUrl,
       fileUrl,
       fileKey,
+      requiresAuth: true,
     };
+    this.rememberGrant(fileKey, userId, fileUrl, req);
+    return response;
+  }
+
+  public claimAttachment(
+    userId: string,
+    input: { url?: string; fileName?: string; fileSize?: number; mimeType?: string },
+  ): { url: string; fileName: string; fileSize: number; mimeType: string } | null {
+    const candidate = String(input.url || "");
+    let fileKey = "";
+    try {
+      const parsed = new URL(candidate);
+      fileKey = decodeURIComponent(parsed.pathname.split("/").pop() || "");
+    } catch {
+      return null;
+    }
+    const grant = this.uploadGrants.get(fileKey);
+    if (!grant || grant.claimed || grant.userId !== userId || grant.expiresAt < Date.now()) return null;
+    if (candidate !== grant.fileUrl || Number(input.fileSize) !== grant.fileSize || String(input.mimeType) !== grant.mimeType) return null;
+    grant.claimed = true;
+    return {
+      url: grant.fileUrl,
+      fileName: path.basename(String(input.fileName || fileKey)).slice(0, 255),
+      fileSize: grant.fileSize,
+      mimeType: grant.mimeType,
+    };
+  }
+
+  public verifyLocalUpload(
+    fileKey: string,
+    userId: string,
+    expiresAt: number,
+    signature: string,
+  ): boolean {
+    if (!Number.isSafeInteger(expiresAt) || expiresAt < Math.floor(Date.now() / 1000)) {
+      return false;
+    }
+    const expected = this.signLocalUpload(fileKey, userId, expiresAt);
+    const providedBuffer = Buffer.from(signature);
+    const expectedBuffer = Buffer.from(expected);
+    return (
+      providedBuffer.length === expectedBuffer.length &&
+      timingSafeEqual(providedBuffer, expectedBuffer)
+    );
+  }
+
+  public resolveLocalUploadPath(fileKey: string): string | null {
+    if (!fileKey || path.basename(fileKey) !== fileKey) return null;
+    const resolved = path.resolve(this.uploadsDir, fileKey);
+    const root = `${path.resolve(this.uploadsDir)}${path.sep}`;
+    return resolved.startsWith(root) ? resolved : null;
+  }
+
+  public async createDownloadUrl(fileUrl: string, channelId: string): Promise<string> {
+    const fileKey = decodeURIComponent(new URL(fileUrl).pathname.split("/").pop() || "");
+    if (!fileKey || path.basename(fileKey) !== fileKey) throw new Error("非法附件对象键");
+    if (this.isMinioAvailable && this.minioClient && fileUrl.includes(`/${this.bucketName}/`)) {
+      return this.minioClient.presignedGetObject(this.bucketName, fileKey, 5 * 60);
+    }
+    const expiresAt = Math.floor(Date.now() / 1000) + 5 * 60;
+    const signature = this.signDownload(fileKey, channelId, expiresAt);
+    return `${this.baseUrl}/attachments/${encodeURIComponent(fileKey)}?channelId=${encodeURIComponent(channelId)}&expires=${expiresAt}&signature=${encodeURIComponent(signature)}`;
+  }
+
+  public verifyDownload(fileKey: string, channelId: string, expiresAt: number, signature: string): boolean {
+    if (!Number.isSafeInteger(expiresAt) || expiresAt < Math.floor(Date.now() / 1000)) return false;
+    const expected = this.signDownload(fileKey, channelId, expiresAt);
+    const providedBuffer = Buffer.from(signature);
+    const expectedBuffer = Buffer.from(expected);
+    return providedBuffer.length === expectedBuffer.length && timingSafeEqual(providedBuffer, expectedBuffer);
+  }
+
+  private signLocalUpload(fileKey: string, userId: string, expiresAt: number): string {
+    const secret = process.env.UPLOAD_SIGNING_SECRET || process.env.JWT_SECRET || "development-upload-secret";
+    return createHmac("sha256", secret)
+      .update(`${fileKey}:${userId}:${expiresAt}`)
+      .digest("base64url");
+  }
+
+  private signDownload(fileKey: string, channelId: string, expiresAt: number): string {
+    const secret = process.env.UPLOAD_SIGNING_SECRET || process.env.JWT_SECRET || "development-upload-secret";
+    return createHmac("sha256", secret)
+      .update(`download:${fileKey}:${channelId}:${expiresAt}`)
+      .digest("base64url");
+  }
+
+  private rememberGrant(fileKey: string, userId: string, fileUrl: string, req: PresignedUploadRequest): void {
+    this.uploadGrants.set(fileKey, {
+      userId,
+      fileUrl,
+      fileSize: req.fileSize,
+      mimeType: req.mimeType,
+      expiresAt: Date.now() + 20 * 60_000,
+      claimed: false,
+    });
   }
 }
 

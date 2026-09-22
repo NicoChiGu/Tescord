@@ -11,7 +11,9 @@ import {
   supportsAV1,
   supportsVP9,
   supportsH265,
+  ExternalE2EEKeyProvider,
 } from "livekit-client";
+import LiveKitE2EEWorker from "livekit-client/e2ee-worker?worker";
 import {
   NetworkStats,
   clampVolume,
@@ -233,6 +235,11 @@ export class LiveKitService {
   // 本地推流音轨
   private localAudioPublication: LocalTrackPublication | null = null;
   private currentAudioBitrate: number = 64000;
+  private negotiatedE2EEKey: Uint8Array | null = null;
+
+  public setNegotiatedE2EEKey(key: Uint8Array | null): void {
+    this.negotiatedE2EEKey = key ? new Uint8Array(key) : null;
+  }
 
   // 远端单例 Web Audio 回放图谱与软压限混音器 (避免多路超额放大削波与多 AudioContext 耗尽崩溃)
   private playbackAudioContext: AudioContext | null = null;
@@ -567,6 +574,12 @@ export class LiveKitService {
         this.preferredVideoCodec,
       );
 
+      let e2ee: { keyProvider: ExternalE2EEKeyProvider; worker: Worker } | undefined;
+      if (this.negotiatedE2EEKey) {
+        const keyProvider = new ExternalE2EEKeyProvider();
+        await keyProvider.setKey(this.negotiatedE2EEKey.buffer.slice(0));
+        e2ee = { keyProvider, worker: new LiveKitE2EEWorker() };
+      }
       this.room = new Room({
         adaptiveStream: true,
         dynacast: true,
@@ -578,12 +591,14 @@ export class LiveKitService {
           backupCodec: this.enableBackupCodec ? { codec: "vp8" } : false,
           simulcast: true,
         },
+        ...(e2ee ? { e2ee } : {}),
       });
 
       this.setupRoomEvents();
 
       const targetUrl = resolveLiveKitUrl(url);
       await this.room.connect(targetUrl, token);
+      if (e2ee) await this.room.setE2EEEnabled(true);
       this.isConnected = true;
       this.setConnectionStatus("connected");
 
@@ -1123,27 +1138,22 @@ export class LiveKitService {
 
       // 6.1 获取真实本人网络健康与音视频统计指标
       let localRtt: number | undefined = undefined;
-      let localLoss = 0;
-      let localJitter = 0.8;
-      let localBitrate = this.currentAudioBitrate / 1000;
+      let localLoss: number | undefined;
+      let localJitter: number | undefined;
+      let localBitrate: number | undefined;
 
-      let localVideoCodec =
-        this.activeScreenShare?.codec ||
-        (this.localCameraTrack
-          ? this.preferredVideoCodec.toUpperCase()
-          : undefined);
-      let localVideoResolution =
-        this.activeScreenShare?.resolution ||
-        (this.localCameraTrack ? "1280x720" : undefined);
-      let localVideoFps =
-        this.activeScreenShare?.frameRate ||
-        (this.localCameraTrack ? 30 : undefined);
+      let localAudioCodec: string | undefined;
+      let localVideoCodec: string | undefined;
+      let localVideoResolution: string | undefined;
+      let localVideoFps: number | undefined;
       let localVideoBitrate: number | undefined = undefined;
+      let totalAudioBytesSent = 0;
+      let totalVideoBytesSent = 0;
 
       // 缓存远端轨道的统计信息：trackId -> { packetsLost, packetsReceived, jitter }
       const remoteTrackStats = new Map<
         string,
-        { packetsLost: number; packetsReceived: number; jitter: number }
+        { packetsLost: number; packetsReceived: number; jitter?: number }
       >();
 
       if (this.room) {
@@ -1158,9 +1168,16 @@ export class LiveKitService {
             // 1. 解析 Publisher (上行推流) 统计报告
             if (pubReport) {
               const codecMap = new Map<string, string>();
+              let selectedCandidatePairId = "";
               pubReport.forEach((stat: any) => {
                 if (stat.type === "codec" && stat.mimeType) {
                   codecMap.set(stat.id, stat.mimeType);
+                }
+                if (
+                  stat.type === "transport" &&
+                  stat.selectedCandidatePairId
+                ) {
+                  selectedCandidatePairId = stat.selectedCandidatePairId;
                 }
               });
 
@@ -1168,9 +1185,9 @@ export class LiveKitService {
                 // 1.1 物理链路 ICE Candidate Pair RTT
                 if (
                   stat.type === "candidate-pair" &&
-                  (stat.selected ||
-                    stat.nominated ||
-                    stat.state === "succeeded")
+                  (selectedCandidatePairId
+                    ? stat.id === selectedCandidatePairId
+                    : stat.nominated && stat.state === "succeeded")
                 ) {
                   if (typeof stat.currentRoundTripTime === "number") {
                     localRtt = Math.round(stat.currentRoundTripTime * 1000);
@@ -1207,11 +1224,40 @@ export class LiveKitService {
                   if (stat.framesPerSecond) {
                     localVideoFps = Math.round(stat.framesPerSecond);
                   }
-                  if (stat.targetBitrate) {
-                    localVideoBitrate = Math.round(stat.targetBitrate / 1000);
+                  totalVideoBytesSent += stat.bytesSent || 0;
+                } else if (
+                  stat.type === "outbound-rtp" &&
+                  stat.kind === "audio"
+                ) {
+                  const negotiatedCodec = stat.codecId
+                    ? codecMap.get(stat.codecId)
+                    : undefined;
+                  if (
+                    negotiatedCodec &&
+                    !/red|cn/i.test(negotiatedCodec)
+                  ) {
+                    localAudioCodec = negotiatedCodec.replace(/^audio\//i, "");
                   }
+                  totalAudioBytesSent += stat.bytesSent || 0;
                 }
               });
+
+              const audioRate = bitrateCalculator.compute(
+                `livekit-network-audio-${localIdentity}`,
+                totalAudioBytesSent,
+                0,
+              );
+              const videoRate = bitrateCalculator.compute(
+                `livekit-network-video-${localIdentity}`,
+                totalVideoBytesSent,
+                0,
+              );
+              if (totalAudioBytesSent > 0 && audioRate.uploadBps > 0) {
+                localBitrate = Math.round(audioRate.uploadBps / 1000);
+              }
+              if (totalVideoBytesSent > 0 && videoRate.uploadBps > 0) {
+                localVideoBitrate = Math.round(videoRate.uploadBps / 1000);
+              }
             }
 
             // 2. 解析 Subscriber (下行拉流) 统计报告
@@ -1224,7 +1270,7 @@ export class LiveKitService {
                     jitter:
                       typeof stat.jitter === "number"
                         ? +(stat.jitter * 1000).toFixed(1)
-                        : 0.8,
+                        : undefined,
                   });
                 }
               });
@@ -1243,17 +1289,21 @@ export class LiveKitService {
         }
       }
 
-      // 兜底防御与健康评估
-      const finalLocalRtt = localRtt !== undefined ? Math.max(1, localRtt) : 18;
-      const quality = evaluateNetworkQuality(finalLocalRtt, localLoss);
+      const finalLocalRtt =
+        localRtt !== undefined ? Math.max(1, localRtt) : undefined;
+      const quality =
+        finalLocalRtt !== undefined && localLoss !== undefined
+          ? evaluateNetworkQuality(finalLocalRtt, localLoss)
+          : "unknown";
 
       this.networkStatsMap.set(localIdentity, {
         identity: localIdentity,
         rtt: finalLocalRtt,
         packetLoss: localLoss,
-        jitter: Math.max(0.1, localJitter),
+        jitter:
+          localJitter !== undefined ? Math.max(0, localJitter) : undefined,
         bitrate: localBitrate,
-        codec: "Opus (48kHz)",
+        codec: localAudioCodec,
         videoCodec: localVideoCodec,
         videoResolution: localVideoResolution,
         videoFramerate: localVideoFps,
@@ -1265,8 +1315,8 @@ export class LiveKitService {
       // 6.2 遍历远端参与者指标 (结合下行 track 实际统计与质量评分)
       if (this.room) {
         this.room.remoteParticipants.forEach((p) => {
-          let remoteLoss = 0;
-          let remoteJitter = 1.0;
+          let remoteLoss: number | undefined;
+          let remoteJitter: number | undefined;
 
           // 查找该参与者的音视频 Track 实际接收指标
           let totalLost = 0;
@@ -1288,8 +1338,6 @@ export class LiveKitService {
             remoteLoss = +((totalLost / (totalLost + totalRecv)) * 100).toFixed(
               1,
             );
-          } else if (p.connectionQuality === ConnectionQuality.Poor) {
-            remoteLoss = 5.0;
           }
 
           const pQuality =
@@ -1299,25 +1347,18 @@ export class LiveKitService {
                 ? "good"
                 : p.connectionQuality === ConnectionQuality.Poor
                   ? "poor"
-                  : evaluateNetworkQuality(finalLocalRtt, remoteLoss);
-
-          // 远端用户的 RTT 基于本地到 SFU 的真实延迟与连接质量等级推导
-          const rttMultiplier =
-            pQuality === "excellent" ? 1.0 : pQuality === "good" ? 1.4 : 2.5;
-          const remoteRtt = Math.round(finalLocalRtt * rttMultiplier);
-
-          const remoteShare = this.screenSharesMap.get(p.identity);
+                  : "unknown";
 
           this.networkStatsMap.set(p.identity, {
             identity: p.identity,
-            rtt: Math.max(1, remoteRtt),
+            rtt: undefined,
             packetLoss: remoteLoss,
             jitter: remoteJitter,
-            bitrate: 64,
-            codec: "Opus (48kHz)",
-            videoCodec: remoteShare?.codec,
-            videoResolution: remoteShare?.resolution,
-            videoFramerate: remoteShare?.frameRate,
+            bitrate: undefined,
+            codec: undefined,
+            videoCodec: undefined,
+            videoResolution: undefined,
+            videoFramerate: undefined,
             quality: pQuality,
             timestamp: now,
           });
@@ -2176,44 +2217,29 @@ export class LiveKitService {
     const identity =
       targetIdentity || this.room?.localParticipant?.identity || "unknown";
 
-    const activeCodec = (
-      this.activeScreenShare?.codec ||
-      this.preferredVideoCodec ||
-      "H264"
-    ).toUpperCase();
-    let mimeType = `video/${activeCodec}, audio/opus`;
-    let videoInfo = isLocal ? "1280x720, 30FPS" : "纯音频流 (Opus 48kHz)";
-    let audioInfo = "48KHz, Stereo, 64Kbps (Opus)";
-    let encoder = "WebRTC Core (libwebrtc)";
+    let mimeType = "未知";
+    let videoInfo = "未知";
+    let audioInfo = "未知";
+    let encoder = "未知";
     let streamHost =
       (this.room as any)?.serverUrl ||
       (this.room as any)?.engine?.client?.serverUrl ||
-      "livekit.tescord.local";
-    let connectionMode = "SFU Direct (UDP / LiveKit Server)";
-    let protocol = "UDP";
-    let bufferLength = "12ms";
+      "未知";
+    let connectionMode = "协商中";
+    let protocol = "未知";
+    let bufferLength = "未知";
     let decodedFrames: string | undefined = undefined;
     let rtt = "N/A";
-    let packetLoss = "0.0%";
-    let jitter = "0.8ms";
-    let ipVersion: "IPv4" | "IPv6" = "IPv4";
-    let candidateType: "host" | "srflx" | "prflx" | "relay" = "host";
+    let packetLoss = "未知";
+    let jitter = "未知";
+    let ipVersion: "IPv4" | "IPv6" | undefined;
+    let candidateType: "host" | "srflx" | "prflx" | "relay" | undefined;
 
     let totalBytesSent = 0;
     let totalBytesReceived = 0;
-
-    // 尝试读取当前屏幕共享或摄像头推流/订阅元信息
-    const targetShare =
-      this.getScreenShare(identity) ||
-      (isLocal ? this.activeScreenShare : null);
-    if (targetShare) {
-      if (targetShare.resolution) {
-        videoInfo = `${targetShare.resolution}, ${targetShare.frameRate || 30}FPS`;
-      }
-      if (targetShare.codec) {
-        mimeType = `video/${targetShare.codec.toUpperCase()}, audio/opus`;
-      }
-    }
+    let actualSendCodec: string | undefined;
+    let actualReceiveCodec: string | undefined;
+    let selectedPairFound = false;
 
     if (this.room) {
       try {
@@ -2252,11 +2278,12 @@ export class LiveKitService {
               // 1. ICE Candidate Pair 物理拓扑
               if (
                 stat.type === "candidate-pair" &&
-                (stat.nominated ||
-                  stat.state === "succeeded" ||
-                  stat.id === selectedCandidatePairId)
+                (selectedCandidatePairId
+                  ? stat.id === selectedCandidatePairId
+                  : stat.nominated && stat.state === "succeeded")
               ) {
-                if (stat.currentRoundTripTime) {
+                selectedPairFound = true;
+                if (typeof stat.currentRoundTripTime === "number") {
                   rtt = `${Math.round(stat.currentRoundTripTime * 1000)}ms`;
                 }
                 const localCand = report.get(stat.localCandidateId);
@@ -2291,7 +2318,7 @@ export class LiveKitService {
                   connectionMode = `SFU Direct (${protocol} / Host ${ipVersion})`;
                 } else if (candidateType === "srflx") {
                   connectionMode = `SFU Direct (${protocol} / STUN ${ipVersion})`;
-                } else {
+                } else if (candidateType) {
                   connectionMode = `SFU Direct (${protocol} / ${candidateType.toUpperCase()} ${ipVersion})`;
                 }
               }
@@ -2304,20 +2331,29 @@ export class LiveKitService {
                     targetTrackIds.has(stat.trackIdentifier));
 
                 if (matchTrack) {
+                  const negotiatedCodec = stat.codecId
+                    ? codecMap.get(stat.codecId)
+                    : undefined;
+                  if (
+                    negotiatedCodec &&
+                    !/rtx|red|ulpfec|flexfec|cn/i.test(negotiatedCodec)
+                  ) {
+                    actualReceiveCodec = negotiatedCodec;
+                    mimeType = negotiatedCodec;
+                  }
                   if (stat.bytesReceived) {
                     totalBytesReceived += stat.bytesReceived;
                   }
                   if (stat.kind === "video") {
-                    if (stat.codecId && codecMap.has(stat.codecId)) {
-                      mimeType = codecMap.get(stat.codecId)!;
-                    }
                     if (stat.frameWidth && stat.frameHeight) {
-                      videoInfo = `${stat.frameWidth}x${stat.frameHeight}, ${Math.round(stat.framesPerSecond || 30)}FPS`;
+                      videoInfo = stat.framesPerSecond
+                        ? `${stat.frameWidth}x${stat.frameHeight}, ${Math.round(stat.framesPerSecond)}FPS`
+                        : `${stat.frameWidth}x${stat.frameHeight}`;
                     }
                     if (stat.framesDecoded !== undefined) {
                       decodedFrames = `${stat.framesDecoded} frames (${stat.framesDropped || 0} dropped)`;
                     }
-                    if (stat.jitter) {
+                    if (typeof stat.jitter === "number") {
                       jitter = `${(stat.jitter * 1000).toFixed(1)}ms`;
                     }
                     if (stat.jitterBufferDelay && stat.jitterBufferEmittedCount) {
@@ -2326,15 +2362,13 @@ export class LiveKitService {
                         1000;
                       bufferLength = `${avgDelay.toFixed(1)}ms`;
                     }
-                    if (stat.fractionLost) {
+                    if (typeof stat.fractionLost === "number") {
                       packetLoss = `${(stat.fractionLost * 100).toFixed(1)}%`;
                     }
                   } else if (stat.kind === "audio") {
-                    audioInfo = `${stat.audioLevel !== undefined ? "Active" : "Stable"} 48KHz, Stereo, 64Kbps`;
-                    if (!videoInfo || videoInfo === "纯音频流 (Opus 48kHz)") {
-                      videoInfo = "纯音频流 (Opus 48kHz)";
-                    }
-                    if (stat.jitter && jitter === "0.8ms") {
+                    audioInfo = "音频轨道已接收";
+                    if (videoInfo === "未知") videoInfo = "无视频轨道";
+                    if (typeof stat.jitter === "number" && jitter === "未知") {
                       jitter = `${(stat.jitter * 1000).toFixed(1)}ms`;
                     }
                   }
@@ -2343,15 +2377,27 @@ export class LiveKitService {
 
               // 3. 上行推流统计 (Outbound RTP)
               if (stat.type === "outbound-rtp") {
+                const negotiatedCodec = stat.codecId
+                  ? codecMap.get(stat.codecId)
+                  : undefined;
+                if (
+                  negotiatedCodec &&
+                  !/rtx|red|ulpfec|flexfec|cn/i.test(negotiatedCodec)
+                ) {
+                  actualSendCodec = negotiatedCodec;
+                  mimeType = negotiatedCodec;
+                }
                 if (stat.bytesSent) {
                   totalBytesSent += stat.bytesSent;
                 }
                 if (stat.kind === "video") {
-                  if (stat.codecId && codecMap.has(stat.codecId)) {
-                    mimeType = codecMap.get(stat.codecId)!;
+                  if (stat.encoderImplementation) {
+                    encoder = stat.encoderImplementation;
                   }
                   if (stat.frameWidth && stat.frameHeight) {
-                    videoInfo = `${stat.frameWidth}x${stat.frameHeight}, ${Math.round(stat.framesPerSecond || 30)}FPS`;
+                    videoInfo = stat.framesPerSecond
+                      ? `${stat.frameWidth}x${stat.frameHeight}, ${Math.round(stat.framesPerSecond)}FPS`
+                      : `${stat.frameWidth}x${stat.frameHeight}`;
                   }
                   if (stat.framesEncoded !== undefined) {
                     decodedFrames = `Encoded: ${stat.framesEncoded} frames`;
@@ -2373,10 +2419,14 @@ export class LiveKitService {
       totalBytesReceived,
     );
 
-    const downloadBitrate = isLocal
-      ? rateCalc.uploadFormatted
-      : rateCalc.downloadFormatted;
-    const uploadBitrate = isLocal ? rateCalc.uploadFormatted : undefined;
+    const downloadBitrate =
+      totalBytesSent + totalBytesReceived > 0
+        ? isLocal
+          ? rateCalc.uploadFormatted
+          : rateCalc.downloadFormatted
+        : "未知";
+    const uploadBitrate =
+      isLocal && totalBytesSent > 0 ? rateCalc.uploadFormatted : undefined;
 
     return {
       participantIdentity: identity,
@@ -2404,6 +2454,20 @@ export class LiveKitService {
       holePunchStatus: "SFU 服务端转发连通",
       ipVersion,
       candidateType,
+      preferredVideoCodec: this.preferredVideoCodec,
+      actualSendCodec,
+      actualReceiveCodec,
+      codecFallbackReason:
+        (actualSendCodec || actualReceiveCodec) &&
+        !(actualSendCodec || actualReceiveCodec)
+          ?.toLowerCase()
+          .includes(this.preferredVideoCodec.toLowerCase())
+          ? "对端能力或浏览器协商导致编码降级"
+          : undefined,
+      transportVerified:
+        selectedPairFound &&
+        totalBytesSent + totalBytesReceived > 0 &&
+        rateCalc.uploadBps + rateCalc.downloadBps > 0,
     };
   }
 }

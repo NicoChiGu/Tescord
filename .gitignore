@@ -12,6 +12,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+test-results/e2e-admin-storage.json
 
 # Environment
 .env

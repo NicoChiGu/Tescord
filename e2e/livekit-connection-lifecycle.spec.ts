@@ -13,7 +13,7 @@ test.describe("LiveKit 语音连接生命周期与中间画面渲染分段验收
 
     // 1. 初始化登录态与 Mock
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "mock_e2e_token");
+      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 
@@ -61,14 +61,14 @@ test.describe("LiveKit 语音连接生命周期与中间画面渲染分段验收
     await expect(page).toHaveTitle(/Tescord/i);
 
     const serverButton = page
-      .getByRole("button", { name: /Tescord 极客总部|极客/i })
+      .getByRole("button", { name: /Tescord 极客总部|极客|小窝/i })
       .first();
     await expect(serverButton).toBeVisible({ timeout: 10000 });
     await serverButton.click();
 
     // 3. 定位语音频道按钮
     const voiceChannelBtn = page
-      .getByRole("button", { name: /语音闲聊|开黑开麦|voice/i })
+      .getByRole("button", { name: /语音闲聊|开黑开麦|voice|日常闲聊/i })
       .first();
     await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
 

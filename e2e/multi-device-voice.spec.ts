@@ -13,7 +13,7 @@ test.describe("多设备语音互斥接管与会话状态自动化验收 (Multi-
 
     // 1. 初始化登录状态与 API Mock
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "mock_e2e_token");
+      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 

@@ -80,7 +80,7 @@ test.describe("Tescord 多国语言 (i18n: zh-CN / en-US / ja-JP) 端到端与�
       if (!localStorage.getItem("tescord_locale")) {
         localStorage.setItem("tescord_locale", "zh-CN");
       }
-      localStorage.setItem("tescord_access_token", "mock_e2e_token");
+      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 

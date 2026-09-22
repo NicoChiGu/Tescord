@@ -5,6 +5,8 @@
 // 1. 用户模型与鉴权体系
 export type UserStatus = "ONLINE" | "IDLE" | "DND" | "OFFLINE" | "INVISIBLE";
 
+export type SystemRole = "USER" | "ADMIN" | "SUPER_ADMIN";
+
 export interface User {
   id: string;
   username: string;
@@ -13,6 +15,9 @@ export interface User {
   status: UserStatus;
   customStatus?: string | null;
   bio?: string | null;
+  role?: SystemRole;
+  isBanned?: boolean;
+  mustChangePassword?: boolean;
   createdAt: string;
   updatedAt?: string;
 }
@@ -274,7 +279,7 @@ export function parseRoleIds(raw: any): string[] {
 }
 
 // 3. 频道与公会 (Guild / Server)
-export type ChannelType = "TEXT" | "VOICE";
+export type ChannelType = "TEXT" | "VOICE" | "DM" | "GROUP_DM";
 
 export interface ChannelCategory {
   id: string;
@@ -287,7 +292,7 @@ export interface ChannelCategory {
 
 export interface Channel {
   id: string;
-  guildId: string;
+  guildId?: string | null;
   name: string;
   type: ChannelType;
   topic?: string | null;
@@ -295,6 +300,9 @@ export interface Channel {
   position: number; // 排序位置
   isE2EE?: boolean;
   bitrate?: number; // 语音比特率 (默认 64000)
+  recipients?: User[];
+  lastMessage?: Message;
+  unreadCount?: number;
   createdAt: string;
 }
 
@@ -513,6 +521,7 @@ export interface Message {
   attachments?: Attachment[];
   createdAt: string;
   updatedAt?: string;
+  sequence?: number;
 }
 
 // 5. 网关信令协议 (WebSocket Gateway)
@@ -748,6 +757,11 @@ export interface StreamDetailedStats {
   holePunchStatus?: string; // 打洞状态：如 "已打洞连通"、"打洞重试中 (1/3)"、"SFU 中继回退"
   ipVersion?: "IPv4" | "IPv6"; // 实际协商候选的 IP 版本
   candidateType?: "host" | "srflx" | "prflx" | "relay";
+  preferredVideoCodec?: VideoCodecType;
+  actualSendCodec?: string;
+  actualReceiveCodec?: string;
+  codecFallbackReason?: string;
+  transportVerified?: boolean;
 }
 
 // 纯语音传输模式：SFU 服务端转发 或 P2P 全网状 Mesh 直连
@@ -807,11 +821,11 @@ export interface CameraDeviceInfo {
 
 export interface NetworkStats {
   identity: string; // 用户唯一标识 / userId
-  rtt: number; // 往返延迟 Round-Trip Time (ms)
-  packetLoss: number; // 丢包率百分比 (0% - 100%)
-  jitter: number; // 网络抖动 Jitter (ms)
-  bitrate: number; // 吞吐码率 (kbps)
-  codec: string; // 音频编码 (如 'Opus')
+  rtt?: number; // 往返延迟 Round-Trip Time (ms)，未采集时省略
+  packetLoss?: number; // 丢包率百分比 (0% - 100%)，未采集时省略
+  jitter?: number; // 网络抖动 Jitter (ms)，未采集时省略
+  bitrate?: number; // 实际吞吐码率 (kbps)，未采集时省略
+  codec?: string; // 实际音频编码 (如 'Opus')，未采集时省略
   videoCodec?: string; // 视频编码 (如 'H264', 'AV1', 'VP8')
   videoResolution?: string; // 视频实时分辨率 (如 '1920x1080')
   videoFramerate?: number; // 视频实时帧率 (fps)
@@ -890,6 +904,7 @@ export interface PresignedUploadResponse {
   uploadUrl: string;
   fileUrl: string;
   fileKey: string;
+  requiresAuth?: boolean;
 }
 
 export interface AddReactionDTO {
@@ -937,6 +952,19 @@ export const GatewayEvents = {
   P2P_TOPOLOGY_UPDATE: "P2P_TOPOLOGY_UPDATE",
   P2P_QUALITY_REPORT: "P2P_QUALITY_REPORT",
   P2P_FALLBACK_REQUEST: "P2P_FALLBACK_REQUEST",
+  // 私信与 1v1 音视频呼叫信令
+  DM_CHANNEL_CREATE: "DM_CHANNEL_CREATE",
+  DM_CHANNEL_UPDATE: "DM_CHANNEL_UPDATE",
+  DM_CHANNEL_DELETE: "DM_CHANNEL_DELETE",
+  CALL_OFFER: "CALL_OFFER",
+  CALL_ANSWER: "CALL_ANSWER",
+  CALL_REJECT: "CALL_REJECT",
+  CALL_END: "CALL_END",
+  CALL_STATE_UPDATE: "CALL_STATE_UPDATE",
+  ACCOUNT_SESSION_REVOKED: "ACCOUNT_SESSION_REVOKED",
+  MAINTENANCE_UPDATE: "MAINTENANCE_UPDATE",
+  // 全网系统广播
+  SYSTEM_BROADCAST: "SYSTEM_BROADCAST",
 } as const;
 
 export type GatewayEventType =
@@ -953,6 +981,7 @@ export type NATType =
 export interface P2PSignalPayload {
   guildId: string;
   channelId: string;
+  callId?: string;
   senderId: string;
   targetId?: string; // 目标接收用户ID（点对点直传时必填）
   streamOwnerId: string; // 主播ID
@@ -1011,8 +1040,8 @@ export interface P2PNetworkDiagnostics {
     localAddress?: string;
     remoteAddress?: string;
   };
-  rtt: number;
-  packetLoss: number;
+  rtt?: number;
+  packetLoss?: number;
   relayParentName?: string;
   downstreamPeersCount: number;
 }
@@ -2458,3 +2487,172 @@ export const SUPPORTED_LOCALES: LocaleOption[] = [
     nativeName: "日本語",
   },
 ];
+
+// ==========================================
+// 20. 超级管理员与全平台治理契约 (Super Admin)
+// ==========================================
+export interface AdminOverviewStats {
+  totalUsers: number;
+  onlineUsers: number;
+  totalGuilds: number;
+  totalMessages: number;
+  uptimeSeconds: number;
+  memoryUsageMb: number;
+}
+
+export interface AdminUserItem extends User {
+  guildCount: number;
+  messageCount: number;
+  isBanned: boolean;
+  role: SystemRole;
+}
+
+export interface AdminUpdateUserDTO {
+  role?: SystemRole;
+  isBanned?: boolean;
+  resetPassword?: boolean;
+}
+
+export interface AdminUpdateUserResult {
+  user: AdminUserItem;
+  temporaryPassword?: string;
+}
+
+export interface PageInfo {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface PaginatedResult<T> {
+  items: T[];
+  pageInfo: PageInfo;
+}
+
+export interface AdminGuildItem {
+  id: string;
+  name: string;
+  iconUrl?: string | null;
+  description?: string | null;
+  ownerId: string;
+  ownerName: string;
+  memberCount: number;
+  channelCount: number;
+  createdAt: string;
+}
+
+export interface SystemBroadcastDTO {
+  id: string;
+  title: string;
+  content: string;
+  severity: "INFO" | "WARNING" | "CRITICAL";
+  senderName: string;
+  createdAt: string;
+}
+
+export interface SystemSettingsDTO {
+  allowRegistration: boolean;
+  maintenanceMode?: boolean;
+  systemAnnouncement?: string;
+}
+
+// ==========================================
+// 21. 私信与 1v1 实时音视频呼叫契约 (Direct Messages & 1v1 Calling)
+// ==========================================
+export interface CreateDMDTO {
+  recipientId: string;
+}
+
+export interface ChannelRecipientInfo {
+  userId: string;
+  isClosed: boolean;
+  lastReadAt: string;
+  lastReadSequence: number;
+  user: User;
+}
+
+export type DMCallState = "ringing" | "connecting" | "active" | "ended";
+
+export interface DMCallSession {
+  callId: string;
+  channelId: string;
+  callerId: string;
+  calleeId: string;
+  hasVideo: boolean;
+  state: DMCallState;
+  callerSessionId?: string;
+  acceptedSessionId?: string;
+  createdAt: string;
+  expiresAt: string;
+  endedReason?: string;
+}
+
+export interface CallOfferPayload {
+  callId: string;
+  channelId: string;
+  caller: Pick<User, "id" | "username" | "avatarUrl">;
+  hasVideo: boolean;
+  expiresAt: string;
+}
+
+export interface CallAnswerPayload {
+  callId: string;
+  channelId: string;
+  responderId: string;
+  acceptedSessionId: string;
+}
+
+export interface CallRejectPayload {
+  callId: string;
+  channelId: string;
+  rejecterId: string;
+  reason?: string;
+}
+
+export interface CallEndPayload {
+  callId: string;
+  channelId: string;
+  endedBy: string;
+  reason?: string;
+}
+
+export interface DMCallTokenResponse {
+  token: string;
+  callId: string;
+  roomName: string;
+  serverUrl: string;
+}
+
+export interface RegisterDeviceKeyDTO {
+  deviceId: string;
+  signingPublicKey: string;
+  agreementPublicKey: string;
+  fingerprint: string;
+}
+
+export interface DevicePublicKey extends RegisterDeviceKeyDTO {
+  userId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MediaKeyEnvelopePayload {
+  channelId: string;
+  callId: string;
+  senderId: string;
+  senderDeviceId: string;
+  recipientId: string;
+  recipientDeviceId: string;
+  ephemeralPublicKey: string;
+  senderSigningPublicKey: string;
+  senderFingerprint: string;
+  iv: string;
+  ciphertext: string;
+  signature: string;
+  createdAt: string;
+}
+
+export interface MarkDMReadDTO {
+  lastReadSequence: number;
+}
