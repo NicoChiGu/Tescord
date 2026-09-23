@@ -76,6 +76,9 @@ jobs:
       - name: Desktop Updater Tests
         run: pnpm test:updater
 
+      - name: MinIO Stream Compatibility Tests
+        run: pnpm test:minio-compat
+
       - name: Browser End-to-End Tests
         run: pnpm test:e2e
 

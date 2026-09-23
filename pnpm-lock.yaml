@@ -9,7 +9,7 @@ overrides:
   minio>stream-json: 3.7.0
 
 patchedDependencies:
-  minio@8.0.7: 647f228f862c9eefd72713aa0b575bf3fe3723828936c7355e42d7a5da954d72
+  minio@8.0.7: b787a769d4f9dac7c25cb33a8e26b0a7ea28f1d9befc04f1941020bed5de0e37
 
 importers:
 
@@ -93,7 +93,7 @@ importers:
         version: 2.19.0
       minio:
         specifier: ^8.0.7
-        version: 8.0.7(patch_hash=647f228f862c9eefd72713aa0b575bf3fe3723828936c7355e42d7a5da954d72)
+        version: 8.0.7(patch_hash=b787a769d4f9dac7c25cb33a8e26b0a7ea28f1d9befc04f1941020bed5de0e37)
       ws:
         specifier: ^8.18.1
         version: 8.21.3
@@ -6311,7 +6311,7 @@ snapshots:
 
   minimist@1.2.8: {}
 
-  minio@8.0.7(patch_hash=647f228f862c9eefd72713aa0b575bf3fe3723828936c7355e42d7a5da954d72):
+  minio@8.0.7(patch_hash=b787a769d4f9dac7c25cb33a8e26b0a7ea28f1d9befc04f1941020bed5de0e37):
     dependencies:
       async: 3.2.6
       block-stream2: 2.1.0

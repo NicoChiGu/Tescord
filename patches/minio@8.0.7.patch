@@ -22,3 +22,30 @@ diff --git a/dist/esm/internal/client.mjs b/dist/esm/internal/client.mjs
 @@ -10 +10 @@
 -import * as qs from 'query-string';
 +import qs from 'query-string';
+diff --git a/src/notification.ts b/src/notification.ts
+--- a/src/notification.ts
++++ b/src/notification.ts
+@@ -18 +18 @@
+-import jsonLineParser from 'stream-json/jsonl/Parser.js'
++import jsonLineParser from 'stream-json/jsonl/parser.js'
+@@ -219 +219 @@
+-        const asm = jsonLineParser.make()
++        const asm = jsonLineParser.asStream()
+diff --git a/dist/esm/notification.mjs b/dist/esm/notification.mjs
+--- a/dist/esm/notification.mjs
++++ b/dist/esm/notification.mjs
+@@ -18 +18 @@
+-import jsonLineParser from 'stream-json/jsonl/Parser.js';
++import jsonLineParser from 'stream-json/jsonl/parser.js';
+@@ -179 +179 @@
+-      const asm = jsonLineParser.make();
++      const asm = jsonLineParser.asStream();
+diff --git a/dist/main/notification.js b/dist/main/notification.js
+--- a/dist/main/notification.js
++++ b/dist/main/notification.js
+@@ -7 +7 @@
+-var _Parser = require("stream-json/jsonl/Parser.js");
++var _Parser = require("stream-json/jsonl/parser.js").default;
+@@ -199 +199 @@
+-      const asm = _Parser.make();
++      const asm = _Parser.asStream();
