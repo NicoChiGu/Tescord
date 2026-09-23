@@ -17,6 +17,10 @@ model User {
   status       String         @default("ONLINE") // ONLINE | IDLE | DND | OFFLINE
   customStatus String?
   bio          String?
+  bannerUrl    String?
+  bannerColor  String?
+  themeColor   String?
+  showActivity Boolean        @default(true)
   settings     String?        // 用户个人设置项 JSON (UserSettingsDTO)
   role         String         @default("USER") // USER | ADMIN | SUPER_ADMIN
   isBanned     Boolean        @default(false)
@@ -55,6 +59,7 @@ model Guild {
   name        String
   iconUrl     String?
   description String?
+  isPublic    Boolean       @default(false)
   ownerId     String
   owner       User          @relation("GuildOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   createdAt   DateTime      @default(now())

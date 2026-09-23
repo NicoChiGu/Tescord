@@ -29,12 +29,20 @@ import {
 import { ChatArea } from "./components/ChatArea.js";
 import { VoiceRoomArea } from "./components/VoiceRoomArea.js";
 import { MemberList } from "./components/MemberList.js";
+import { UserProfilePopout } from "./components/profile/UserProfilePopout.js";
+import { useUserProfilePopoutStore } from "./stores/useUserProfilePopoutStore.js";
 import { AuthModal } from "./components/auth/AuthModal.js";
+import { ReauthModal } from "./components/auth/ReauthModal.js";
 import { ForcedPasswordChangeModal } from "./components/auth/ForcedPasswordChangeModal.js";
+import { GlobalContextMenu } from "./components/context-menu/GlobalContextMenu.js";
+import { installFetchInterceptor } from "./services/apiClient.js";
+
+installFetchInterceptor();
 import { UserSettingsModal } from "./components/settings/UserSettingsModal.js";
 import { ServerSettingsModal } from "./components/server-settings/ServerSettingsModal.js";
 import { CreateGuildModal } from "./components/modals/CreateGuildModal.js";
-import { JoinGuildModal } from "./components/modals/JoinGuildModal.js";
+import { DiscoveryModal } from "./components/modals/DiscoveryModal.js";
+import { EmptyGuildsWelcome } from "./components/EmptyGuildsWelcome.js";
 import { CreateChannelModal } from "./components/modals/CreateChannelModal.js";
 import { EditChannelModal } from "./components/modals/EditChannelModal.js";
 import { CreateCategoryModal } from "./components/modals/CreateCategoryModal.js";
@@ -45,6 +53,11 @@ import { P2PFallbackModal } from "./components/modals/P2PFallbackModal.js";
 import { AdminDashboardModal } from "./components/admin/AdminDashboardModal.js";
 import { IncomingCallModal } from "./components/dm/IncomingCallModal.js";
 import { FloatingPiP } from "./components/FloatingPiP.js";
+import { MaintenanceScreen } from "./components/maintenance/MaintenanceScreen.js";
+import { MaintenanceAdminBanner } from "./components/maintenance/MaintenanceAdminBanner.js";
+import { UpdateNotificationBanner } from "./components/updater/UpdateNotificationBanner.js";
+import { useMaintenanceStore } from "./stores/useMaintenanceStore.js";
+
 import { useAuthStore } from "./stores/useAuthStore.js";
 import { gatewayClient } from "./services/gateway.js";
 import { audioEngine } from "./services/audioEngine.js";
@@ -67,6 +80,8 @@ import { useViewport } from "./hooks/useViewport.js";
 import { useSwipeGesture } from "./hooks/useSwipeGesture.js";
 import { X, AlertTriangle, Info } from "lucide-react";
 import { deviceKeyService } from "./services/deviceKeys.js";
+import { messageDb } from "./services/messageDb.js";
+import { preheatManager } from "./services/preheatManager.js";
 
 export const App: React.FC = () => {
   const {
@@ -76,12 +91,38 @@ export const App: React.FC = () => {
     initAuth,
   } = useAuthStore();
 
+  const isMaintenance = useMaintenanceStore((s) => s.isMaintenance);
+
   const { isMobile, isTablet, isDesktop } = useViewport();
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isMobileMemberOpen, setIsMobileMemberOpen] = useState(false);
 
   // 核心数据状态
   const [guilds, setGuilds] = useState<Guild[]>([]);
+  const guildPositions = useSettingsStore((s) => s.guildPositions);
+  const setGuildPositions = useSettingsStore((s) => s.setGuildPositions);
+
+  const sortedGuilds = React.useMemo(() => {
+    if (!guildPositions || guildPositions.length === 0) return guilds;
+    const posMap = new Map<string, number>();
+    guildPositions.forEach((id, idx) => posMap.set(id, idx));
+
+    return [...guilds].sort((a, b) => {
+      const aPos = posMap.has(a.id) ? posMap.get(a.id)! : 9999;
+      const bPos = posMap.has(b.id) ? posMap.get(b.id)! : 9999;
+      return aPos - bPos;
+    });
+  }, [guilds, guildPositions]);
+
+  const handleReorderGuilds = useCallback(
+    (newGuilds: Guild[]) => {
+      const newPositions = newGuilds.map((g) => g.id);
+      setGuildPositions(newPositions);
+      setGuilds(newGuilds);
+    },
+    [setGuildPositions],
+  );
+
   const [selectedGuildId, setSelectedGuildId] = useState<string | null>(null);
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
 
@@ -122,6 +163,7 @@ export const App: React.FC = () => {
   const [voiceConnectionStatus, setVoiceConnectionStatus] =
     useState<VoiceConnectionStatus>(() => livekitService.getConnectionStatus());
   const [messages, setMessages] = useState<Message[]>([]);
+  const [isMessagesLoading, setIsMessagesLoading] = useState<boolean>(false);
   const [voiceStates, setVoiceStates] = useState<VoiceState[]>([]);
   const [voiceTransferNotice, setVoiceTransferNotice] =
     useState<VoiceTransferNotice | null>(null);
@@ -145,6 +187,11 @@ export const App: React.FC = () => {
       audioEngine.config.noiseSuppressionMode || "rnnoise",
     );
   const [showMemberList, setShowMemberList] = useState(true);
+  const {
+    isOpen: isProfilePopoutOpen,
+    payload: profilePopoutPayload,
+    closePopout: closeProfilePopout,
+  } = useUserProfilePopoutStore();
 
   // 内部引用，保证长存事件与异步回调中始终读取最新状态
   const activeVoiceChannelIdRef = useRef<string | null>(null);
@@ -303,6 +350,31 @@ export const App: React.FC = () => {
     };
   }, []);
 
+  // 监听用户身份切换或退出登录：彻底清理所有私有状态，杜绝跨账号数据残留
+  const lastActiveUserIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    const currentId = currentUser?.id || null;
+    if (lastActiveUserIdRef.current !== currentId) {
+      if (lastActiveUserIdRef.current !== null) {
+        // 用户身份发生变动（从 User A 变为 User B，或者从 User A 变为登出）
+        setGuilds([]);
+        setSelectedGuildId(null);
+        setSelectedChannel(null);
+        setMessages([]);
+        setDmChannels([]);
+        setVoiceStates([]);
+        setActiveVoiceChannelId(null);
+        setActiveDMCall(null);
+        setIncomingCall(null);
+        preheatManager.reset();
+        gatewayClient.disconnect();
+        livekitService.leaveRoom();
+      }
+      lastActiveUserIdRef.current = currentId;
+      messageDb.switchUser(currentId);
+    }
+  }, [currentUser?.id]);
+
   // 拉取公会列表
   const refreshGuilds = () => {
     const token = useAuthStore.getState().token;
@@ -312,20 +384,39 @@ export const App: React.FC = () => {
       .then((res) => res.json())
       .then((data: Guild[]) => {
         setGuilds(data);
-        if (data.length > 0 && !selectedGuildId) {
-          const firstGuild = data[0];
-          setSelectedGuildId(firstGuild.id);
-          if (firstGuild.channels.length > 0) {
-            setSelectedChannel(firstGuild.channels[0]);
+        // 验证当前选中的公会是否属于当前用户真实加入的公会，防止残留旧账号公会 ID
+        const currentSelectedGuild = data.find(
+          (g) => g.id === selectedGuildIdRef.current,
+        );
+        if (!currentSelectedGuild) {
+          if (data.length > 0) {
+            const firstGuild = data[0];
+            setSelectedGuildId(firstGuild.id);
+            if (firstGuild.channels && firstGuild.channels.length > 0) {
+              setSelectedChannel(firstGuild.channels[0]);
+            } else {
+              setSelectedChannel(null);
+            }
+          } else {
+            setSelectedGuildId(null);
+            setSelectedChannel(null);
           }
         }
+        // 调度后台预热各公会文字频道
+        const candidateChannels: { id: string; type: string }[] = [];
+        data.forEach((g) => {
+          const textChannels = g.channels.filter((c) => c.type !== "VOICE");
+          candidateChannels.push(...textChannels.slice(0, 2));
+        });
+        preheatManager.startPreheat(candidateChannels, token);
       })
       .catch((err) => console.error("Failed to load guilds:", err));
   };
 
   useEffect(() => {
     const token = useAuthStore.getState().token;
-    if (!isAuthenticated || !currentUser?.id || !token || !window.indexedDB) return;
+    if (!isAuthenticated || !currentUser?.id || !token || !window.indexedDB)
+      return;
     deviceKeyService.ensureAndRegister(currentUser.id, token).catch((error) => {
       console.error("Failed to initialize account-scoped device keys:", error);
       showGlobalToast("设备身份密钥初始化失败，E2EE 媒体将保持禁用", "error");
@@ -336,14 +427,23 @@ export const App: React.FC = () => {
   // 这样短暂重连期间切换 Presence 也不会让自己的状态指示滞后。
   useEffect(() => {
     if (!currentUser) return;
-    setGuilds((previous) => previous.map((guild) => ({
-      ...guild,
-      members: guild.members?.map((member) =>
-        member.userId === currentUser.id && member.user
-          ? { ...member, user: { ...member.user, status: currentUser.status, customStatus: currentUser.customStatus } }
-          : member,
-      ),
-    })));
+    setGuilds((previous) =>
+      previous.map((guild) => ({
+        ...guild,
+        members: guild.members?.map((member) =>
+          member.userId === currentUser.id && member.user
+            ? {
+                ...member,
+                user: {
+                  ...member.user,
+                  status: currentUser.status,
+                  customStatus: currentUser.customStatus,
+                },
+              }
+            : member,
+        ),
+      })),
+    );
   }, [currentUser?.id, currentUser?.status, currentUser?.customStatus]);
 
   // 拉取私信列表
@@ -356,7 +456,10 @@ export const App: React.FC = () => {
       });
       if (res.ok) {
         const data: Channel[] | { items: Channel[] } = await res.json();
-        setDmChannels(Array.isArray(data) ? data : data.items);
+        const dms = Array.isArray(data) ? data : data.items;
+        setDmChannels(dms);
+        // 调度后台预热活跃私信会话
+        preheatManager.startPreheat(dms.slice(0, 3), token);
       }
     } catch (err) {
       console.error("Failed to load DM channels:", err);
@@ -441,6 +544,7 @@ export const App: React.FC = () => {
                           data.customStatus !== undefined
                             ? data.customStatus
                             : m.user.customStatus,
+                        activities: data.activities,
                       },
                     }
                   : m,
@@ -458,10 +562,32 @@ export const App: React.FC = () => {
               data.customStatus !== undefined
                 ? data.customStatus
                 : currentUser.customStatus,
+            activities: data.activities,
           });
         }
       },
     );
+
+    // 监听 Electron 桌面端游戏进程侦测变动
+    let unbindGameActivity: (() => void) | undefined;
+    if (window.electronAPI?.onGameActivityChanged) {
+      unbindGameActivity = window.electronAPI.onGameActivityChanged(
+        (activity) => {
+          const u = useAuthStore.getState().user;
+          if (!u) return;
+          const activities = activity ? [activity] : [];
+          useAuthStore.getState().setUser({
+            ...u,
+            activities,
+          });
+          gatewayClient.updateStatus(
+            u.status || "ONLINE",
+            u.customStatus,
+            activities,
+          );
+        },
+      );
+    }
 
     // 监听全量用户信息变更广播
     const unbindUserUpdate = gatewayClient.on(
@@ -499,10 +625,16 @@ export const App: React.FC = () => {
     const unbindMsgCreate = gatewayClient.on(
       "MESSAGE_CREATE",
       (msg: Message) => {
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === msg.id)) return prev;
-          return [...prev, msg];
-        });
+        // 旁路静默沉淀入本地 IndexedDB，保障后台各频道时刻保持最新离线缓存
+        preheatManager.onGatewayMessage(msg);
+
+        // 仅当消息属于当前选中的频道时追加至 messages，防止全服公屏广播串台污染
+        if (msg.channelId === selectedChannelRef.current?.id) {
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === msg.id)) return prev;
+            return [...prev, msg];
+          });
+        }
 
         // 若属于私信会话，同步最新消息与未读计数
         setDmChannels((prev) =>
@@ -513,9 +645,7 @@ export const App: React.FC = () => {
               return {
                 ...dm,
                 lastMessage: msg,
-                unreadCount: isCurrentActive
-                  ? 0
-                  : (dm.unreadCount || 0) + 1,
+                unreadCount: isCurrentActive ? 0 : (dm.unreadCount || 0) + 1,
               };
             }
             return dm;
@@ -538,12 +668,15 @@ export const App: React.FC = () => {
           }).catch(() => undefined);
         }
 
-        // 4.3 原生桌面通知推送 (当窗口未聚焦或有 @ 提及)
+        // 4.3 原生桌面通知推送 (当窗口未聚焦或有 @ 提及，且频道未静音)
         if (msg.authorId !== currentUser.id) {
           const isMentioned = msg.content.includes(`@${currentUser.username}`);
+          const isChannelMuted = useSettingsStore
+            .getState()
+            .isChannelMuted(msg.channelId);
           const isHidden =
             document.hidden || selectedChannelRef.current?.id !== msg.channelId;
-          if (isMentioned || isHidden) {
+          if (isMentioned || (!isChannelMuted && isHidden)) {
             window.electronAPI?.showNotification({
               title: `${msg.author?.username || "Tescord"}`,
               body:
@@ -560,41 +693,62 @@ export const App: React.FC = () => {
 
     const unbindMsgDelete = gatewayClient.on(
       "MESSAGE_DELETE",
-      (data: { channelId: string; messageId: string }) => {
-        setMessages((prev) => prev.filter((m) => m.id !== data.messageId));
+      (data: { channelId?: string; messageId: string }) => {
+        preheatManager.onGatewayMessageDelete(data.messageId);
+        if (
+          !data.channelId ||
+          data.channelId === selectedChannelRef.current?.id
+        ) {
+          setMessages((prev) => prev.filter((m) => m.id !== data.messageId));
+        }
       },
     );
 
     const unbindReactionAdd = gatewayClient.on(
       "MESSAGE_REACTION_ADD",
       (data: any) => {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === data.messageId ? { ...m, reactions: data.reactions } : m,
-          ),
-        );
+        if (
+          !data.channelId ||
+          data.channelId === selectedChannelRef.current?.id
+        ) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === data.messageId ? { ...m, reactions: data.reactions } : m,
+            ),
+          );
+        }
       },
     );
 
     const unbindReactionRemove = gatewayClient.on(
       "MESSAGE_REACTION_REMOVE",
       (data: any) => {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === data.messageId ? { ...m, reactions: data.reactions } : m,
-          ),
-        );
+        if (
+          !data.channelId ||
+          data.channelId === selectedChannelRef.current?.id
+        ) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === data.messageId ? { ...m, reactions: data.reactions } : m,
+            ),
+          );
+        }
       },
     );
 
     const unbindPinUpdate = gatewayClient.on(
       "MESSAGE_PIN_UPDATE",
       (data: any) => {
-        setMessages((prev) =>
-          prev.map((m) =>
-            m.id === data.messageId ? { ...m, isPinned: data.isPinned } : m,
-          ),
-        );
+        if (
+          !data.channelId ||
+          data.channelId === selectedChannelRef.current?.id
+        ) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === data.messageId ? { ...m, isPinned: data.isPinned } : m,
+            ),
+          );
+        }
       },
     );
 
@@ -849,6 +1003,17 @@ export const App: React.FC = () => {
     const unbindMemberRemove = gatewayClient.on(
       "GUILD_MEMBER_REMOVE",
       (data: { guildId: string; userId: string }) => {
+        if (currentUser && data.userId === currentUser.id) {
+          // 当前用户自身离开或被移出公会：从公会列表中彻底移除
+          setGuilds((prev) => prev.filter((g) => g.id !== data.guildId));
+          if (selectedGuildIdRef.current === data.guildId) {
+            setSelectedGuildId(null);
+            setSelectedChannel(null);
+            showGlobalToast("您已离开或被移出该服务器", "info");
+          }
+          return;
+        }
+
         setGuilds((prev) =>
           prev.map((g) =>
             g.id === data.guildId
@@ -868,13 +1033,6 @@ export const App: React.FC = () => {
               prev.members?.filter((m) => m.userId !== data.userId) || [],
           };
         });
-        if (
-          data.userId === currentUser.id &&
-          selectedGuildIdRef.current === data.guildId
-        ) {
-          setSelectedGuildId(null);
-          setSelectedChannel(null);
-        }
       },
     );
 
@@ -1060,7 +1218,11 @@ export const App: React.FC = () => {
         caller: Pick<User, "id" | "username" | "avatarUrl">;
         hasVideo?: boolean;
       }) => {
-        const activeCall = { callId: data.callId, channelId: data.channelId, hasVideo: !!data.hasVideo };
+        const activeCall = {
+          callId: data.callId,
+          channelId: data.channelId,
+          hasVideo: !!data.hasVideo,
+        };
         activeDMCallRef.current = activeCall;
         setActiveDMCall(activeCall);
         setCallEncryption({ status: "negotiating" });
@@ -1078,47 +1240,76 @@ export const App: React.FC = () => {
       (data: { callId: string; channelId: string }) => {
         showGlobalToast("对方已接听通话", "info");
         if (activeDMCallRef.current?.callId === data.callId) {
-          handleJoinDMCall(data.channelId, activeDMCallRef.current.hasVideo, data.callId);
+          handleJoinDMCall(
+            data.channelId,
+            activeDMCallRef.current.hasVideo,
+            data.callId,
+          );
         }
       },
     );
 
-    const unbindCallReject = gatewayClient.on(
-      GatewayEvents.CALL_REJECT,
-      () => {
-        showGlobalToast("对方已挂断或拒绝了通话", "warning");
-        soundManager.play("VOICE_LEAVE");
-        activeDMCallRef.current = null;
-        setActiveDMCall(null);
-        setCallEncryption({ status: "idle" });
-        handleLeaveVoiceChannel();
-      },
-    );
+    const unbindCallReject = gatewayClient.on(GatewayEvents.CALL_REJECT, () => {
+      showGlobalToast("对方已挂断或拒绝了通话", "warning");
+      soundManager.play("VOICE_LEAVE");
+      activeDMCallRef.current = null;
+      setActiveDMCall(null);
+      setCallEncryption({ status: "idle" });
+      handleLeaveVoiceChannel();
+    });
 
     const unbindCallState = gatewayClient.on(
       GatewayEvents.CALL_STATE_UPDATE,
-      async (data: { callId: string; channelId: string; callerId: string; hasVideo: boolean; state: string }) => {
+      async (data: {
+        callId: string;
+        channelId: string;
+        callerId: string;
+        hasVideo: boolean;
+        state: string;
+      }) => {
         if (data.state === "ringing" || data.state === "active") {
-          const call = { callId: data.callId, channelId: data.channelId, hasVideo: data.hasVideo };
+          const call = {
+            callId: data.callId,
+            channelId: data.channelId,
+            hasVideo: data.hasVideo,
+          };
           activeDMCallRef.current = call;
           setActiveDMCall(call);
           if (data.callerId === currentUser?.id && data.state === "ringing") {
             try {
               const token = useAuthStore.getState().token;
               if (!token) throw new Error("登录已失效");
-              const response = await fetch(`${API_BASE}/api/channels/${data.channelId}/e2ee/devices`, {
-                headers: { Authorization: `Bearer ${token}` },
-              });
+              const response = await fetch(
+                `${API_BASE}/api/channels/${data.channelId}/e2ee/devices`,
+                {
+                  headers: { Authorization: `Bearer ${token}` },
+                },
+              );
               if (!response.ok) throw new Error("无法读取对端设备密钥");
-              const devices = await response.json() as DevicePublicKey[];
-              const negotiated = await deviceKeyService.distributeMediaKey(data.channelId, data.callId, devices, token);
+              const devices = (await response.json()) as DevicePublicKey[];
+              const negotiated = await deviceKeyService.distributeMediaKey(
+                data.channelId,
+                data.callId,
+                devices,
+                token,
+              );
               sframeManager.setNegotiatedKey(negotiated.key);
               livekitService.setNegotiatedE2EEKey(negotiated.key);
-              setCallEncryption({ status: negotiated.trust, fingerprint: negotiated.fingerprint });
+              setCallEncryption({
+                status: negotiated.trust,
+                fingerprint: negotiated.fingerprint,
+              });
             } catch (error) {
               setCallEncryption({ status: "failed" });
-              showGlobalToast(error instanceof Error ? error.message : "E2EE 密钥协商失败", "error");
-              gatewayClient.send({ op: GatewayOpCode.DISPATCH, t: GatewayEvents.CALL_END, d: { callId: data.callId, reason: "e2ee_key_exchange_failed" } });
+              showGlobalToast(
+                error instanceof Error ? error.message : "E2EE 密钥协商失败",
+                "error",
+              );
+              gatewayClient.send({
+                op: GatewayOpCode.DISPATCH,
+                t: GatewayEvents.CALL_END,
+                d: { callId: data.callId, reason: "e2ee_key_exchange_failed" },
+              });
             }
           }
         }
@@ -1128,16 +1319,23 @@ export const App: React.FC = () => {
     const unbindMediaKey = gatewayClient.on(
       GatewayEvents.E2EE_KEY_EXCHANGE,
       async (data: MediaKeyEnvelopePayload) => {
-        if (!data?.callId || data.callId !== activeDMCallRef.current?.callId) return;
+        if (!data?.callId || data.callId !== activeDMCallRef.current?.callId)
+          return;
         try {
           const negotiated = await deviceKeyService.openMediaKey(data);
           if (!negotiated) return;
           sframeManager.setNegotiatedKey(negotiated.key);
           livekitService.setNegotiatedE2EEKey(negotiated.key);
-          setCallEncryption({ status: negotiated.trust, fingerprint: negotiated.fingerprint });
+          setCallEncryption({
+            status: negotiated.trust,
+            fingerprint: negotiated.fingerprint,
+          });
         } catch (error) {
           setCallEncryption({ status: "failed" });
-          showGlobalToast(error instanceof Error ? error.message : "E2EE 媒体密钥验证失败", "error");
+          showGlobalToast(
+            error instanceof Error ? error.message : "E2EE 媒体密钥验证失败",
+            "error",
+          );
         }
       },
     );
@@ -1169,6 +1367,20 @@ export const App: React.FC = () => {
       },
     );
 
+    const unbindMaintenanceUpdate = gatewayClient.on(
+      GatewayEvents.MAINTENANCE_UPDATE,
+      (data: { enabled: boolean; announcement?: string }) => {
+        if (data.enabled) {
+          const userRole = useAuthStore.getState().user?.role;
+          if (userRole !== "SUPER_ADMIN" && activeVoiceChannelIdRef.current) {
+            handleLeaveVoiceChannel();
+          }
+        } else {
+          showGlobalToast("系统维护已结束，服务已恢复正常！", "info");
+        }
+      },
+    );
+
     const unbindDMCreate = gatewayClient.on(
       GatewayEvents.DM_CHANNEL_CREATE,
       (newChannel: Channel) => {
@@ -1181,11 +1393,13 @@ export const App: React.FC = () => {
 
     const unbindDMUpdate = gatewayClient.on(
       GatewayEvents.DM_CHANNEL_UPDATE,
-      (update: Channel & {
-        channelId?: string;
-        unreadIncrement?: number;
-        lastReadSequence?: number;
-      }) => {
+      (
+        update: Channel & {
+          channelId?: string;
+          unreadIncrement?: number;
+          lastReadSequence?: number;
+        },
+      ) => {
         const channelId = update.channelId || update.id;
         setDmChannels((prev) =>
           prev.map((channel) =>
@@ -1195,11 +1409,14 @@ export const App: React.FC = () => {
                   ...update,
                   id: channel.id,
                   unreadCount:
-                    update.unreadCount ??
-                    Math.max(
-                      0,
-                      (channel.unreadCount || 0) + (update.unreadIncrement || 0),
-                    ),
+                    selectedChannelRef.current?.id === channelId
+                      ? 0
+                      : (update.unreadCount ??
+                        Math.max(
+                          0,
+                          (channel.unreadCount || 0) +
+                            (update.unreadIncrement || 0),
+                        )),
                 }
               : channel,
           ),
@@ -1223,10 +1440,22 @@ export const App: React.FC = () => {
       },
     );
 
+    const unbindAuthExpired = gatewayClient.on(
+      GatewayEvents.AUTH_SESSION_EXPIRED,
+      (data: { reason?: string }) => {
+        useAuthStore
+          .getState()
+          .openReauthModal(data?.reason || "网关会话失效，请重新登录");
+      },
+    );
+
     return () => {
+      unbindMaintenanceUpdate();
+      unbindAuthExpired();
       unbindReady();
       unbindPresenceUpdate();
       unbindUserUpdate();
+      unbindGameActivity?.();
       unbindMsgCreate();
       unbindMsgDelete();
       unbindReactionAdd();
@@ -1288,14 +1517,17 @@ export const App: React.FC = () => {
 
       const latestUser = useAuthStore.getState().user;
       if (latestUser && latestUser.status === "ONLINE") {
-        afkTimer = setTimeout(() => {
-          const u = useAuthStore.getState().user;
-          if (u && u.status === "ONLINE") {
-            isAutoIdled = true;
-            previousStatus = "ONLINE";
-            gatewayClient.updateStatus("IDLE", u.customStatus);
-          }
-        }, 10 * 60 * 1000); // 10分钟
+        afkTimer = setTimeout(
+          () => {
+            const u = useAuthStore.getState().user;
+            if (u && u.status === "ONLINE") {
+              isAutoIdled = true;
+              previousStatus = "ONLINE";
+              gatewayClient.updateStatus("IDLE", u.customStatus);
+            }
+          },
+          10 * 60 * 1000,
+        ); // 10分钟
       }
     };
 
@@ -1323,7 +1555,8 @@ export const App: React.FC = () => {
 
       // 1 代表 DisconnectReason.CLIENT_INITIATED（用户主动挂断），由 handleLeaveVoiceChannel 正常清理
       const isClientInitiated =
-        reason === 1 || String(reason).toLowerCase().includes("client_initiated");
+        reason === 1 ||
+        String(reason).toLowerCase().includes("client_initiated");
       if (isClientInitiated) return;
 
       console.warn(
@@ -1334,7 +1567,8 @@ export const App: React.FC = () => {
       const currentChannel = guildsRef.current
         .flatMap((g) => g.channels)
         .find((c) => c.id === channelId);
-      const targetGuildId = currentChannel?.guildId || selectedGuildIdRef.current;
+      const targetGuildId =
+        currentChannel?.guildId || selectedGuildIdRef.current;
 
       // 2. 立即向后端 WebSocket 网关同步发送离开信令，防止界面幽灵残留
       if (targetGuildId) {
@@ -1471,43 +1705,115 @@ export const App: React.FC = () => {
     };
   }, [guilds, isScreenSharing]);
 
-  // 切换文字或私信频道拉取历史消息
+  // 切换文字或私信频道拉取历史消息（升级为 IndexedDB SWR 零感知秒开 + 竞态保护）
   useEffect(() => {
-    if (selectedChannel && selectedChannel.type !== "VOICE") {
-      const token = localStorage.getItem("tescord_access_token");
-      fetch(`${API_BASE}/api/channels/${selectedChannel.id}/messages`, {
+    if (!selectedChannel || selectedChannel.type === "VOICE") {
+      setMessages([]);
+      setIsMessagesLoading(false);
+      return;
+    }
+
+    // 立即清空当前消息状态并开启加载指示，杜绝旧频道或旧用户残留
+    setMessages([]);
+    setIsMessagesLoading(true);
+
+    const currentReqChannelId = selectedChannel.id;
+    const currentReqChannelType = selectedChannel.type;
+    const controller = new AbortController();
+    const token = localStorage.getItem("tescord_access_token");
+
+    // 1. SWR 阶段一：尝试从当前用户本地 IndexedDB 原子化取出最新 100 条历史消息快照
+    messageDb
+      .getChannelSnapshot(currentReqChannelId, 100)
+      .then(({ messages: cached }) => {
+        // 确认当前仍处于发起查询的频道
+        if (selectedChannelRef.current?.id === currentReqChannelId) {
+          if (cached && cached.length > 0) {
+            // 本地命中缓存：直接上屏秒开，跳过骨架屏！
+            setMessages(cached);
+            setIsMessagesLoading(false);
+          }
+        }
+      });
+
+    // 2. SWR 阶段二：后台异步拉取最新 100 条网络数据并持久化到本地
+    fetch(
+      `${API_BASE}/api/channels/${currentReqChannelId}/messages?limit=100`,
+      {
+        signal: controller.signal,
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
+      },
+    )
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`读取消息失败 (${res.status})`);
+        const data = (await res.json()) as Message[];
+
+        // 异步存入本地 IndexedDB 数据库（单频道 300 条 LRU 淘汰）
+        if (data && data.length > 0) {
+          await messageDb.saveMessages(currentReqChannelId, data);
+        }
+
+        // 严格核对当前激活频道是否依然为发起请求的频道，杜绝网络竞态覆盖
+        if (selectedChannelRef.current?.id === currentReqChannelId) {
+          // 比较新数据与已有数据是否一致，避免无实质变化时触发全量重新渲染
+          setMessages((prev) => {
+            if (
+              prev.length === data.length &&
+              prev.length > 0 &&
+              prev[prev.length - 1]?.id === data[data.length - 1]?.id &&
+              prev[0]?.id === data[0]?.id
+            ) {
+              return prev;
+            }
+            return data;
+          });
+        }
+
+        if (
+          currentReqChannelType === "DM" &&
+          selectedChannelRef.current?.id === currentReqChannelId
+        ) {
+          const lastReadSequence = data.reduce(
+            (max, message) => Math.max(max, message.sequence || 0),
+            0,
+          );
+          await fetch(`${API_BASE}/api/channels/${currentReqChannelId}/read`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({ lastReadSequence }),
+          });
+          setDmChannels((current) =>
+            current.map((channel) =>
+              channel.id === currentReqChannelId
+                ? { ...channel, unreadCount: 0 }
+                : channel,
+            ),
+          );
+        }
       })
-        .then(async (res) => {
-          if (!res.ok) throw new Error(`读取消息失败 (${res.status})`);
-          const data = (await res.json()) as Message[];
-          setMessages(data);
-          if (selectedChannel.type === "DM") {
-            const lastReadSequence = data.reduce(
-              (max, message) => Math.max(max, message.sequence || 0),
-              0,
-            );
-            await fetch(`${API_BASE}/api/channels/${selectedChannel.id}/read`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              },
-              body: JSON.stringify({ lastReadSequence }),
-            });
-            setDmChannels((current) =>
-              current.map((channel) =>
-                channel.id === selectedChannel.id
-                  ? { ...channel, unreadCount: 0 }
-                  : channel,
-              ),
-            );
+      .catch((err) => {
+        if (err.name !== "AbortError") {
+          console.error("Failed to fetch messages:", err);
+          if (selectedChannelRef.current?.id === currentReqChannelId) {
+            setMessages([]);
           }
-        })
-        .catch((err) => console.error("Failed to fetch messages:", err));
-    }
+        }
+      })
+      .finally(() => {
+        if (selectedChannelRef.current?.id === currentReqChannelId) {
+          setIsMessagesLoading(false);
+        }
+      });
+
+    return () => {
+      // 3. 切换离开当前频道时，立即中止正在传输中的旧请求
+      controller.abort();
+    };
   }, [selectedChannel?.id]);
 
   const currentGuild = guilds.find((g) => g.id === selectedGuildId) || null;
@@ -1523,22 +1829,33 @@ export const App: React.FC = () => {
     if (!selectedChannel || !currentUser) return;
     try {
       const token = localStorage.getItem("tescord_access_token");
-      await fetch(`${API_BASE}/api/channels/${selectedChannel.id}/messages`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      const res = await fetch(
+        `${API_BASE}/api/channels/${selectedChannel.id}/messages`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            content,
+            authorId: currentUser.id,
+            isEncrypted: !!isEncrypted,
+            replyToId: replyToId || undefined,
+            attachments:
+              attachments && attachments.length > 0 ? attachments : undefined,
+          }),
         },
-        body: JSON.stringify({
-          content,
-          authorId: currentUser.id,
-          isEncrypted: !!isEncrypted,
-          replyToId: replyToId || undefined,
-          attachments:
-            attachments && attachments.length > 0 ? attachments : undefined,
-        }),
-      });
-    } catch (err) {
+      );
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        const errorMsg = errorData.error || `发送消息失败 (${res.status})`;
+        showGlobalToast(errorMsg, "error");
+        console.error("Failed to send message:", errorMsg);
+      }
+    } catch (err: any) {
+      const errorMsg = err?.message || "网络请求异常，消息发送失败";
+      showGlobalToast(errorMsg, "error");
       console.error("Failed to send message:", err);
     }
   };
@@ -1656,6 +1973,27 @@ export const App: React.FC = () => {
       console.error("Failed to delete channel:", err);
     }
   };
+
+  // 业务：上报与同步频道已读进度
+  const handleSyncChannelReadProgress = useCallback(
+    (channelId: string, sequence: number) => {
+      setDmChannels((prev) =>
+        prev.map((dm) =>
+          dm.id === channelId ? { ...dm, unreadCount: 0 } : dm,
+        ),
+      );
+      const token = useAuthStore.getState().token;
+      fetch(`${API_BASE}/api/channels/${channelId}/read`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ lastReadSequence: sequence }),
+      }).catch(() => undefined);
+    },
+    [],
+  );
 
   // 业务：编辑频道名称与信息 (打开编辑频道 Modal)
   const handleEditChannel = (channel: Channel) => {
@@ -1782,6 +2120,14 @@ export const App: React.FC = () => {
   const handleJoinVoiceChannel = async (channel: Channel) => {
     if (!currentUser) return;
     setVoiceTransferNotice(null);
+
+    // 若当前已在另一个语音频道，立即同步清理旧房间音频连接与 WebRTC 状态，杜绝 1 秒声音残留
+    if (activeVoiceChannelId && activeVoiceChannelId !== channel.id) {
+      livekitService.leaveRoom();
+      voiceMeshManager.stopAll();
+      audioEngine.stop();
+    }
+
     setActiveVoiceChannelId(channel.id);
     setSelectedChannel(channel);
     livekitService.setConnectionStatus("connecting");
@@ -1789,7 +2135,10 @@ export const App: React.FC = () => {
     // 阶段五：语音端到端加密 (SFrame WebRTC E2EE)
     if (channel.isE2EE) {
       if (!sframeManager.getStats().enabled) {
-        showGlobalToast("设备密钥尚未协商完成，已阻止未加密加入 E2EE 频道", "error");
+        showGlobalToast(
+          "设备密钥尚未协商完成，已阻止未加密加入 E2EE 频道",
+          "error",
+        );
         setActiveVoiceChannelId(null);
         livekitService.setConnectionStatus("disconnected");
         return;
@@ -1813,11 +2162,21 @@ export const App: React.FC = () => {
         streaming: isScreenSharing,
       });
       const otherMembers = voiceStates
-        .filter((state) => state.channelId === channel.id && state.userId !== currentUser.id)
+        .filter(
+          (state) =>
+            state.channelId === channel.id && state.userId !== currentUser.id,
+        )
         .map((state) => state.userId);
       try {
-        await voiceMeshManager.startVoiceMesh(channel.id, channel.guildId, processedStream, otherMembers);
-        joinSuccess = otherMembers.length === 0 || await voiceMeshManager.waitForConnectedPeer(8_000);
+        await voiceMeshManager.startVoiceMesh(
+          channel.id,
+          channel.guildId,
+          processedStream,
+          otherMembers,
+        );
+        joinSuccess =
+          otherMembers.length === 0 ||
+          (await voiceMeshManager.waitForConnectedPeer(8_000));
         if (joinSuccess) livekitService.setConnectionStatus("connected");
       } catch (error) {
         console.warn("公会 Mesh P2P 协商失败，准备回退 SFU:", error);
@@ -1873,7 +2232,6 @@ export const App: React.FC = () => {
         streaming: isScreenSharing,
       });
     }
-
   };
 
   // 取消正在进行的语音连接
@@ -1997,6 +2355,55 @@ export const App: React.FC = () => {
     }
   };
 
+  // 发送快捷私信并自动跳转至私信聊天 (图2资料卡使用)
+  const handleSendQuickDM = async (targetUserId: string, content: string) => {
+    try {
+      const token = localStorage.getItem("tescord_access_token");
+      const res = await fetch(`${API_BASE}/api/users/@me/channels`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ recipientId: targetUserId }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        showGlobalToast(
+          errData.error || errData.message || "无法发起私信会话",
+          "warning",
+        );
+        return;
+      }
+      const dmChannel: Channel = await res.json();
+      setDmChannels((prev) => {
+        if (prev.some((c) => c.id === dmChannel.id)) {
+          return prev.map((c) => (c.id === dmChannel.id ? dmChannel : c));
+        }
+        return [dmChannel, ...prev];
+      });
+      setSelectedGuildId(null);
+      setSelectedChannel(dmChannel);
+
+      if (content.trim() && currentUser) {
+        await fetch(`${API_BASE}/api/channels/${dmChannel.id}/messages`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            content: content.trim(),
+            authorId: currentUser.id,
+          }),
+        });
+      }
+    } catch (err) {
+      console.error("Failed to send quick DM:", err);
+      showGlobalToast("发送私信失败", "error");
+    }
+  };
+
   // 关闭私信会话 (从左侧列表中移除)
   const handleCloseDMChannel = async (channelId: string) => {
     try {
@@ -2034,15 +2441,24 @@ export const App: React.FC = () => {
     const processedStream = audioEngine.getStream();
 
     let joinSuccess = false;
-    const dmChannel = dmChannels.find((candidate) => candidate.id === channelId) ||
+    const dmChannel =
+      dmChannels.find((candidate) => candidate.id === channelId) ||
       (selectedChannel?.id === channelId ? selectedChannel : null);
-    const peerId = dmChannel?.recipients?.find((recipient) => recipient.id !== currentUser.id)?.id;
+    const peerId = dmChannel?.recipients?.find(
+      (recipient) => recipient.id !== currentUser.id,
+    )?.id;
 
     // 1v1 默认先建立端到端加密的 WebRTC 直连；ICE 配置中包含自建 TURN，
     // 因此 host/srflx/relay 都属于 P2P 阶段。只有该阶段确认失败才进入 SFU。
     if (processedStream && peerId) {
       try {
-        await voiceMeshManager.startVoiceMesh(channelId, "", processedStream, [peerId], callId);
+        await voiceMeshManager.startVoiceMesh(
+          channelId,
+          "",
+          processedStream,
+          [peerId],
+          callId,
+        );
         joinSuccess = await voiceMeshManager.waitForConnectedPeer(8_000);
         if (joinSuccess) livekitService.setConnectionStatus("connected");
       } catch (error) {
@@ -2121,15 +2537,25 @@ export const App: React.FC = () => {
       try {
         const token = useAuthStore.getState().token;
         if (!token) throw new Error("登录已失效");
-        const envelope = await deviceKeyService.fetchMediaKey(incomingCall.channelId, incomingCall.callId, token);
+        const envelope = await deviceKeyService.fetchMediaKey(
+          incomingCall.channelId,
+          incomingCall.callId,
+          token,
+        );
         const negotiated = await deviceKeyService.openMediaKey(envelope);
         if (!negotiated) throw new Error("媒体密钥未发给当前设备");
         sframeManager.setNegotiatedKey(negotiated.key);
         livekitService.setNegotiatedE2EEKey(negotiated.key);
-        setCallEncryption({ status: negotiated.trust, fingerprint: negotiated.fingerprint });
+        setCallEncryption({
+          status: negotiated.trust,
+          fingerprint: negotiated.fingerprint,
+        });
       } catch (error) {
         setCallEncryption({ status: "failed" });
-        showGlobalToast(error instanceof Error ? error.message : "E2EE 密钥尚未就绪", "warning");
+        showGlobalToast(
+          error instanceof Error ? error.message : "E2EE 密钥尚未就绪",
+          "warning",
+        );
         return;
       }
     }
@@ -2147,7 +2573,11 @@ export const App: React.FC = () => {
       setSelectedGuildId(null);
       setSelectedChannel(ch);
     }
-    const activeCall = { callId: call.callId, channelId: call.channelId, hasVideo: call.hasVideo };
+    const activeCall = {
+      callId: call.callId,
+      channelId: call.channelId,
+      hasVideo: call.hasVideo,
+    };
     activeDMCallRef.current = activeCall;
     setActiveDMCall(activeCall);
   };
@@ -2265,11 +2695,11 @@ export const App: React.FC = () => {
 
     return Boolean(
       isScreenSharing ||
-        activeScreenShare?.isLocal ||
-        isLocalP2P ||
-        isP2PBroadcasting ||
-        isLiveKitLocal ||
-        isVoiceStateStreaming,
+      activeScreenShare?.isLocal ||
+      isLocalP2P ||
+      isP2PBroadcasting ||
+      isLiveKitLocal ||
+      isVoiceStateStreaming,
     );
   }, [
     currentUser?.id,
@@ -2522,15 +2952,16 @@ export const App: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col h-screen w-screen bg-[#1e1f22]">
+      <div className="flex flex-col h-screen w-screen bg-discord-chat">
         <TitleBar />
-        <div className="flex-1 flex items-center justify-center flex-col">
-          <div className="relative flex items-center justify-center">
-            <div className="w-16 h-16 border-4 border-discord-brand/30 border-t-discord-brand rounded-full animate-spin" />
+        <div className="flex-1 flex items-center justify-center">
+          <div
+            className="w-[200px] h-[3px] bg-[#2b2d31] rounded-full overflow-hidden relative"
+            role="progressbar"
+            aria-label="Loading"
+          >
+            <div className="absolute top-0 bottom-0 w-[40%] bg-gradient-to-r from-discord-brand to-[#7983f5] rounded-full animate-indeterminate-bar" />
           </div>
-          <p className="mt-4 text-sm font-medium text-gray-400 animate-pulse">
-            正在载入 Tescord 个人资料与离线数据...
-          </p>
         </div>
       </div>
     );
@@ -2562,7 +2993,7 @@ export const App: React.FC = () => {
     <>
       {/* 1. 最左侧公会导航侧栏 */}
       <Sidebar
-        guilds={guilds}
+        guilds={sortedGuilds}
         selectedGuildId={selectedGuildId}
         isSuperAdmin={currentUser?.role === "SUPER_ADMIN"}
         onOpenAdminDashboard={() => setIsAdminModalOpen(true)}
@@ -2584,6 +3015,7 @@ export const App: React.FC = () => {
             setIsMobileDrawerOpen(false);
           }
         }}
+        onReorderGuilds={handleReorderGuilds}
         onOpenCreateGuild={() => setIsCreateGuildOpen(true)}
         onOpenJoinGuild={() => setIsJoinGuildOpen(true)}
         onOpenCreateChannel={() => setIsCreateChannelOpen(true)}
@@ -2687,6 +3119,11 @@ export const App: React.FC = () => {
       {/* 顶部自定义标题栏 (仅在 Electron 桌面环境下展示，Web 端自动隐藏) */}
       <TitleBar />
 
+      {/* 超级管理员维护模式横幅 */}
+      {isMaintenance && currentUser?.role === "SUPER_ADMIN" && (
+        <MaintenanceAdminBanner onOpenAdminModal={() => setIsAdminModalOpen(true)} />
+      )}
+
       {/* Discord 风格网关长连接状态指示条 */}
       <GatewayConnectionBanner />
 
@@ -2704,7 +3141,9 @@ export const App: React.FC = () => {
         >
           <div className="flex items-center space-x-2">
             <AlertTriangle className="w-4 h-4 shrink-0" />
-            <span>[{systemBroadcast.title || "系统公告"}] {systemBroadcast.content}</span>
+            <span>
+              [{systemBroadcast.title || "系统公告"}] {systemBroadcast.content}
+            </span>
           </div>
           <button
             onClick={() => setSystemBroadcast(null)}
@@ -2770,9 +3209,11 @@ export const App: React.FC = () => {
           />
         ) : selectedChannel ? (
           <ChatArea
+            key={selectedChannel.id}
             channel={selectedChannel}
             guild={currentGuild}
             messages={messages}
+            isLoadingMessages={isMessagesLoading}
             currentUser={currentUser}
             onSendMessage={handleSendMessage}
             onReactionAdd={handleReactionAdd}
@@ -2787,7 +3228,17 @@ export const App: React.FC = () => {
             }
             onStartCall={handleStartCall}
             onStartDM={handleStartDM}
-            callEncryption={activeDMCall?.channelId === selectedChannel.id ? callEncryption : undefined}
+            callEncryption={
+              activeDMCall?.channelId === selectedChannel.id
+                ? callEncryption
+                : undefined
+            }
+            onMarkChannelAsRead={handleSyncChannelReadProgress}
+          />
+        ) : guilds.length === 0 ? (
+          <EmptyGuildsWelcome
+            onOpenDiscovery={() => setIsJoinGuildOpen(true)}
+            onOpenCreateGuild={() => setIsCreateGuildOpen(true)}
           />
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-discord-textMuted p-4 text-center">
@@ -2930,13 +3381,28 @@ export const App: React.FC = () => {
         onOpenJoinModal={() => setIsJoinGuildOpen(true)}
       />
 
-      {/* 8. 加入服务器弹窗 */}
-      <JoinGuildModal
+      {/* 8. 探索与加入服务器弹窗 */}
+      <DiscoveryModal
         isOpen={isJoinGuildOpen}
         onClose={() => setIsJoinGuildOpen(false)}
         onGuildJoined={(guildId) => {
-          refreshGuilds();
-          setSelectedGuildId(guildId);
+          const token = useAuthStore.getState().token;
+          fetch(`${API_BASE}/api/guilds`, {
+            headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          })
+            .then((res) => res.json())
+            .then((data: Guild[]) => {
+              setGuilds(data);
+              setSelectedGuildId(guildId);
+              const target = data.find((g) => g.id === guildId);
+              if (target && target.channels.length > 0) {
+                setSelectedChannel(target.channels[0]);
+              }
+            })
+            .catch(() => {
+              refreshGuilds();
+              setSelectedGuildId(guildId);
+            });
         }}
         onOpenCreateModal={() => setIsCreateGuildOpen(true)}
       />
@@ -2955,16 +3421,22 @@ export const App: React.FC = () => {
           onChannelCreated={(newChannel) => {
             // REST 响应立即落入本地权威缓存；随后到达的网关事件按 ID 合并，
             // 即使创建瞬间网关重连也不会出现频道只在聊天区、未出现在侧栏的状态。
-            setGuilds((prev) => prev.map((guild) => {
-              if (guild.id !== newChannel.guildId) return guild;
-              const exists = guild.channels.some((channel) => channel.id === newChannel.id);
-              return {
-                ...guild,
-                channels: exists
-                  ? guild.channels.map((channel) => channel.id === newChannel.id ? newChannel : channel)
-                  : [...guild.channels, newChannel],
-              };
-            }));
+            setGuilds((prev) =>
+              prev.map((guild) => {
+                if (guild.id !== newChannel.guildId) return guild;
+                const exists = guild.channels.some(
+                  (channel) => channel.id === newChannel.id,
+                );
+                return {
+                  ...guild,
+                  channels: exists
+                    ? guild.channels.map((channel) =>
+                        channel.id === newChannel.id ? newChannel : channel,
+                      )
+                    : [...guild.channels, newChannel],
+                };
+              }),
+            );
             setSelectedChannel(newChannel);
           }}
         />
@@ -3170,6 +3642,48 @@ export const App: React.FC = () => {
         </div>
       )}
       <ForcedPasswordChangeModal />
+      <ReauthModal />
+
+      {/* 15. 全局单例用户信息卡片浮层 (User Profile Popout) */}
+      {isProfilePopoutOpen && profilePopoutPayload && currentUser && (
+        <UserProfilePopout
+          isOpen={true}
+          onClose={closeProfilePopout}
+          targetRect={profilePopoutPayload.targetRect}
+          user={profilePopoutPayload.user}
+          member={profilePopoutPayload.member}
+          guild={profilePopoutPayload.guild ?? currentGuild}
+          allGuilds={guilds}
+          currentUser={currentUser}
+          roles={profilePopoutPayload.roles ?? currentGuild?.roles ?? []}
+          isOwner={
+            profilePopoutPayload.isOwner ??
+            currentGuild?.ownerId === profilePopoutPayload.user.id
+          }
+          onOpenSettings={() => handleOpenUserSettings("profile")}
+          onMention={(username) => {
+            window.dispatchEvent(
+              new CustomEvent("tescord:mention", { detail: { username } }),
+            );
+          }}
+          onSendMessage={handleSendMessage}
+          onStartDM={handleStartDM}
+          onSendQuickDM={handleSendQuickDM}
+          onKickMember={handleKickMember}
+          onBanMember={handleBanMember}
+        />
+      )}
+
+      {/* 16. 全局单例右键菜单浮层 (Global Singleton ContextMenu) */}
+      <GlobalContextMenu />
+
+      {/* 17. 普通用户维护模式全屏遮罩 */}
+      {isMaintenance && currentUser?.role !== "SUPER_ADMIN" && (
+        <MaintenanceScreen />
+      )}
+
+      {/* 18. 桌面端后台更新就绪悬浮通知 */}
+      <UpdateNotificationBanner />
     </div>
   );
 };

@@ -32,7 +32,14 @@ export function resolveServerUrl(url: string | undefined | null): string {
     return match[2] || "/";
   }
 
-  // 如果是 MinIO (localhost:9000 或 127.0.0.1:9000)，在局域网下替换为当前宿主机 hostname
+  // 如果是 MinIO (localhost:9000 或 127.0.0.1:9000)，转为 /minio 相对路径走 Vite 代理，杜绝 HTTPS 混合内容与跨域错误
+  const minioRegex = /^https?:\/\/(localhost|127\.0\.0\.1):9000(\/.*)?$/i;
+  const minioMatch = url.match(minioRegex);
+  if (minioMatch) {
+    return `/minio${minioMatch[2] || "/"}`;
+  }
+
+  // 如果是外部设备在局域网下访问其他宿主机 MinIO
   if (typeof window !== "undefined" && window.location.hostname) {
     const currentHost = window.location.hostname;
     if (currentHost !== "localhost" && currentHost !== "127.0.0.1") {

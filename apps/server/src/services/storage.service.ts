@@ -106,7 +106,7 @@ export class StorageService {
     req: PresignedUploadRequest,
     userId: string,
   ): Promise<PresignedUploadResponse> {
-    const maxUploadBytes = Number(process.env.MAX_UPLOAD_BYTES || 25 * 1024 * 1024);
+    const maxUploadBytes = Number(process.env.MAX_UPLOAD_BYTES || 50 * 1024 * 1024);
     if (!Number.isSafeInteger(req.fileSize) || req.fileSize <= 0 || req.fileSize > maxUploadBytes) {
       throw new Error(`文件大小必须在 1 到 ${maxUploadBytes} 字节之间`);
     }
@@ -115,13 +115,37 @@ export class StorageService {
       "image/svg+xml",
       "application/xhtml+xml",
       "application/javascript",
+      "application/x-msdownload",
+      "application/x-sh",
+      "application/x-bat",
+      "application/x-msdos-program",
+      "application/x-executable",
     ]);
     if (blockedTypes.has((req.mimeType || "").toLowerCase())) {
       throw new Error("该文件类型不能作为附件上传");
     }
     const ext = path.extname(req.fileName) || "";
-    if (new Set([".html", ".htm", ".svg", ".js", ".mjs", ".xhtml", ".xml"]).has(ext.toLowerCase())) {
-      throw new Error("该文件扩展名不能作为附件上传");
+    if (
+      new Set([
+        ".html",
+        ".htm",
+        ".svg",
+        ".js",
+        ".mjs",
+        ".xhtml",
+        ".xml",
+        ".exe",
+        ".bat",
+        ".cmd",
+        ".sh",
+        ".vbs",
+        ".msi",
+        ".ps1",
+        ".com",
+        ".scr",
+      ]).has(ext.toLowerCase())
+    ) {
+      throw new Error("该文件扩展名属于高危脚本或程序，禁止作为附件上传");
     }
     const safeName = path
       .basename(req.fileName, ext)
@@ -177,17 +201,49 @@ export class StorageService {
     userId: string,
     input: { url?: string; fileName?: string; fileSize?: number; mimeType?: string },
   ): { url: string; fileName: string; fileSize: number; mimeType: string } | null {
-    const candidate = String(input.url || "");
+    const candidate = String(input.url || "").trim();
+    if (!candidate) return null;
+
     let fileKey = "";
+    let candidatePathname = "";
     try {
-      const parsed = new URL(candidate);
-      fileKey = decodeURIComponent(parsed.pathname.split("/").pop() || "");
+      const parsed = new URL(candidate, this.baseUrl);
+      candidatePathname = parsed.pathname;
+      fileKey = decodeURIComponent(candidatePathname.split("/").pop() || "");
     } catch {
       return null;
     }
+
+    if (!fileKey || path.basename(fileKey) !== fileKey) {
+      return null;
+    }
+
     const grant = this.uploadGrants.get(fileKey);
-    if (!grant || grant.claimed || grant.userId !== userId || grant.expiresAt < Date.now()) return null;
-    if (candidate !== grant.fileUrl || Number(input.fileSize) !== grant.fileSize || String(input.mimeType) !== grant.mimeType) return null;
+    if (!grant || grant.userId !== userId || grant.expiresAt < Date.now()) {
+      return null;
+    }
+
+    if (Number(input.fileSize) !== grant.fileSize || String(input.mimeType) !== grant.mimeType) {
+      return null;
+    }
+
+    // 验证路径合法性：支持完整绝对 URL 或相对路径 (/uploads/... 或 /bucket/...)
+    let grantPathname = "";
+    try {
+      grantPathname = new URL(grant.fileUrl, this.baseUrl).pathname;
+    } catch {
+      grantPathname = "";
+    }
+
+    const isUrlMatch =
+      candidate === grant.fileUrl ||
+      candidatePathname === grantPathname ||
+      decodeURIComponent(candidatePathname).endsWith(`/${fileKey}`);
+
+    if (!isUrlMatch) {
+      return null;
+    }
+
     grant.claimed = true;
     return {
       url: grant.fileUrl,

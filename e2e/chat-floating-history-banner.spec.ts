@@ -77,7 +77,7 @@ test.describe("消息视口顶部悬浮历史横幅与上下边缘渐变模糊�
       });
     });
 
-    await page.route("**/api/channels/**/messages", (route) => {
+    await page.route("**/api/channels/**/messages*", (route) => {
       const url = route.request().url();
       const match = url.match(/\/api\/channels\/([^/]+)\/messages/);
       const activeChannelId = match ? match[1] : "c_general";
@@ -115,6 +115,12 @@ test.describe("消息视口顶部悬浮历史横幅与上下边缘渐变模糊�
     const generalChannel = page.getByRole("button", { name: "general" });
     await expect(generalChannel).toBeVisible({ timeout: 5000 });
     await generalChannel.click();
+
+    // 验证输入框提示词（占位符）为精简文本，不包含括号内的冗余提示
+    const chatPlaceholder = page.getByTestId("chat-input-placeholder");
+    await expect(chatPlaceholder).toBeVisible({ timeout: 5000 });
+    await expect(chatPlaceholder).toHaveText("发送消息到 #general");
+    await expect(chatPlaceholder).not.toHaveText(/\(/);
 
     // 确认首条与最新消息均在 DOM 中
     const firstMsg = page.locator("#message-msg_banner_test_1");

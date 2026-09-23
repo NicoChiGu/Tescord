@@ -145,7 +145,7 @@ test.describe("消息引用跳转原文与高亮交互端到端验收 (Discord-P
     });
 
     // Mock 频道历史消息列表 (动态绑定请求的 channelId 以确保与端侧倒排索引一致)
-    await page.route("**/api/channels/**/messages", (route) => {
+    await page.route("**/api/channels/**/messages*", (route) => {
       const url = route.request().url();
       const match = url.match(/\/api\/channels\/([^/]+)\/messages/);
       const activeChannelId = match ? match[1] : "c_general";

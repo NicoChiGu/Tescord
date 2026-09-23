@@ -1,4 +1,14 @@
+param(
+    [string]$NodeIp = $env:NODE_IP
+)
+
 $ErrorActionPreference = "Stop"
+
+if (-not $NodeIp) {
+    # Default to 127.0.0.1 for safe local development, preventing virtual TUN/VPN adapters (like 198.18.0.1 from Clash/Mihomo)
+    # from being selected by LiveKit as the announced node IP for WebRTC candidates.
+    $NodeIp = "127.0.0.1"
+}
 
 $binDir = Join-Path $PSScriptRoot "..\bin"
 $exePath = Join-Path $binDir "livekit-server.exe"
@@ -35,14 +45,15 @@ $hasConfig = Test-Path $configPath
 Write-Host "==========================================================" -ForegroundColor Green
 Write-Host " Starting LiveKit SFU media server in dev mode (:7880)..." -ForegroundColor Green
 Write-Host " Key: devkey | Secret: secretsecretsecret" -ForegroundColor Gray
+Write-Host " Node IP: $NodeIp" -ForegroundColor Gray
 Write-Host " Signaling: ws://localhost:7880 | WebRTC UDP: 50000-50100" -ForegroundColor Gray
 if ($hasConfig) {
     $resolvedConfig = (Resolve-Path $configPath).Path
     Write-Host " Config: $resolvedConfig" -ForegroundColor Gray
     Write-Host "==========================================================" -ForegroundColor Green
-    & $exePath --dev --config $resolvedConfig
+    & $exePath --dev --config $resolvedConfig --node-ip $NodeIp
 } else {
     Write-Host " Config: Explicit Keys Fallback" -ForegroundColor Gray
     Write-Host "==========================================================" -ForegroundColor Green
-    & $exePath --dev --keys "devkey: secretsecretsecret"
+    & $exePath --dev --keys "devkey: secretsecretsecret" --node-ip $NodeIp
 }

@@ -1,5 +1,6 @@
 import {
   GatewayOpCode,
+  GatewayCloseCode,
   GatewayPayload,
   GatewayEvents,
   HelloPayload,
@@ -8,8 +9,11 @@ import {
   GatewayPingStats,
   User,
   UserStatus,
+  MaintenanceUpdatePayload,
 } from "@tescord/types";
 import { GATEWAY_URL } from "../config.js";
+import { useAuthStore } from "../stores/useAuthStore.js";
+import { useMaintenanceStore } from "../stores/useMaintenanceStore.js";
 
 type EventHandler = (data: any) => void;
 
@@ -96,9 +100,56 @@ export class GatewayClient {
       }
     };
 
-    this.ws.onclose = () => {
+    this.ws.onclose = (event: CloseEvent) => {
       this.cleanup();
       this.setConnectionState("disconnected");
+
+      const authExpiredCodes = [
+        GatewayCloseCode.TOKEN_EXPIRED,
+        GatewayCloseCode.UNAUTHORIZED,
+        GatewayCloseCode.ACCOUNT_BANNED,
+        GatewayCloseCode.SESSION_INVALID,
+        4001,
+        4002,
+        4003,
+        4004,
+      ];
+
+      if (authExpiredCodes.includes(event.code)) {
+        console.warn(
+          `[GatewayClient] Closed with auth expired code: ${event.code} (${event.reason})`,
+        );
+        this.emit(GatewayEvents.AUTH_SESSION_EXPIRED, {
+          code: event.code,
+          reason: event.reason,
+        });
+        useAuthStore
+          .getState()
+          .openReauthModal(
+            event.reason || "连接凭据已失效，请重新验证以恢复长连接",
+          );
+        // 鉴权彻底失效时，阻止自动盲目重连
+        return;
+      }
+
+      if (
+        event.code === GatewayCloseCode.MAINTENANCE_MODE ||
+        event.code === 4013
+      ) {
+        console.warn(
+          `[GatewayClient] Closed due to maintenance mode: ${event.reason}`,
+        );
+        useMaintenanceStore.getState().setMaintenance({
+          enabled: true,
+          announcement: event.reason || "系统正在维护中",
+        });
+        // 维护模式下慢速重连探测（8秒）
+        setTimeout(() => {
+          this.scheduleReconnect();
+        }, 8000);
+        return;
+      }
+
       this.scheduleReconnect();
     };
 
@@ -142,6 +193,17 @@ export class GatewayClient {
         break;
       }
 
+      case GatewayOpCode.INVALID_SESSION: {
+        console.warn("[GatewayClient] Received INVALID_SESSION from server");
+        this.cleanup();
+        this.setConnectionState("disconnected");
+        this.emit(GatewayEvents.AUTH_SESSION_EXPIRED, {
+          reason: "INVALID_SESSION",
+        });
+        useAuthStore.getState().openReauthModal("网关会话失效，请重新登录验证");
+        break;
+      }
+
       case GatewayOpCode.HEARTBEAT_ACK: {
         const hbData = payload.d as HeartbeatData | undefined;
         const now = Date.now();
@@ -159,6 +221,19 @@ export class GatewayClient {
       case GatewayOpCode.DISPATCH: {
         if (payload.t === "READY" && payload.d?.sessionId) {
           this.sessionId = payload.d.sessionId;
+        }
+        if (payload.t === GatewayEvents.AUTH_SESSION_EXPIRED) {
+          useAuthStore
+            .getState()
+            .openReauthModal(payload.d?.reason || "登录凭据已过期");
+        }
+        if (payload.t === GatewayEvents.MAINTENANCE_UPDATE && payload.d) {
+          const update = payload.d as MaintenanceUpdatePayload;
+          if (update.enabled) {
+            useMaintenanceStore.getState().setMaintenance(update);
+          } else {
+            useMaintenanceStore.getState().clearMaintenance();
+          }
         }
         if (payload.t) {
           this.emit(payload.t, payload.d);
@@ -260,12 +335,17 @@ export class GatewayClient {
     });
   }
 
-  updateStatus(status: UserStatus, customStatus?: string | null) {
+  updateStatus(
+    status: UserStatus,
+    customStatus?: string | null,
+    activities?: import("@tescord/types").Activity[],
+  ) {
     this.send({
       op: GatewayOpCode.STATUS_UPDATE,
       d: {
         status,
         customStatus,
+        activities,
       },
     });
   }

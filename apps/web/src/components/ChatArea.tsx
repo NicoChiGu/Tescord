@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import {
   Channel,
   Message,
@@ -6,6 +6,8 @@ import {
   Attachment,
   Guild,
   GuildMember,
+  Role,
+  parseRoleIds,
   GatewayEvents,
   TypingIndicatorPayload,
 } from "@tescord/types";
@@ -34,8 +36,11 @@ import {
   Phone,
   Video,
   PhoneOff,
+  UploadCloud,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { messageDb } from "../services/messageDb.js";
 import { MarkdownRenderer } from "./chat/MarkdownRenderer.js";
 import { EmojiPickerPopover } from "./chat/EmojiPickerPopover.js";
 import { LightboxModal } from "./chat/LightboxModal.js";
@@ -43,9 +48,9 @@ import { MobileActionSheet } from "./chat/MobileActionSheet.js";
 import { MentionInput, MentionInputHandle } from "./chat/MentionInput.js";
 import { TypingIndicator } from "./chat/TypingIndicator.js";
 import { PinnedMessagesPopover } from "./PinnedMessagesPopover.js";
-import { UserProfilePopout } from "./profile/UserProfilePopout.js";
-import { MessageContextMenu } from "./context-menu/MessageContextMenu.js";
-import { UserContextMenu } from "./context-menu/UserContextMenu.js";
+import { useUserProfilePopoutStore } from "../stores/useUserProfilePopoutStore.js";
+import { useContextMenuStore } from "../stores/useContextMenuStore.js";
+import { useMomentumScroll } from "../hooks/useMomentumScroll.js";
 import { InputContextMenu } from "./context-menu/InputContextMenu.js";
 import { API_BASE, resolveServerUrl } from "../config.js";
 import { gatewayClient } from "../services/gateway.js";
@@ -55,10 +60,14 @@ import { useViewport } from "../hooks/useViewport.js";
 import { useLongPress } from "../hooks/useLongPress.js";
 import { useAuthStore } from "../stores/useAuthStore.js";
 
+// 频道草稿缓存字典（按频道隔离保留用户未发送的草稿，切回时自动恢复）
+const channelDraftMap = new Map<string, string>();
+
 interface ChatAreaProps {
   channel: Channel;
   guild?: Guild | null;
   messages: Message[];
+  isLoadingMessages?: boolean;
   currentUser: User;
   onSendMessage: (
     content: string,
@@ -80,6 +89,7 @@ interface ChatAreaProps {
     status: "idle" | "negotiating" | "tofu" | "trusted" | "failed";
     fingerprint?: string;
   };
+  onMarkChannelAsRead?: (channelId: string, sequence: number) => void;
 }
 
 interface ChatMessageItemProps {
@@ -112,7 +122,7 @@ const isImageMime = (mime: string, name: string) => {
   return mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(name);
 };
 
-const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
+const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
   msg,
   guild,
   currentUser,
@@ -139,6 +149,10 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
     hour: "2-digit",
     minute: "2-digit",
   });
+  const isMsgEncrypted =
+    msg.isEncrypted ||
+    !!decryptedContents[msg.id] ||
+    doubleRatchetManager.isEncryptedEnvelope(msg.content);
 
   const longPressProps = useLongPress(() => {
     if (isMobile) {
@@ -146,92 +160,111 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
     }
   });
 
-  return (
-    <MessageContextMenu
-      message={msg}
-      guild={guild}
-      onReply={(m) => setReplyingTo(m)}
-      onTogglePin={onTogglePin}
-      onDelete={onDeleteMessage}
-      onAddReaction={onReactionAdd}
-    >
-      <div
-        id={`message-${msg.id}`}
-        data-message-id={msg.id}
-        {...longPressProps}
-        className={`relative flex flex-col group -mx-2 sm:-mx-4 px-2 sm:px-4 py-1.5 rounded transition ${
-          isHighlighted ? "animate-message-highlight" : ""
-        } ${
-          msg.isPinned
-            ? "bg-discord-brand/5 border-l-2 border-yellow-500/80"
-            : isHighlighted
-              ? ""
-              : "hover:bg-[#2e3035]"
-        }`}
-      >
-        {/* 引用回复提示条 */}
-        {msg.replyTo && (
-          <div
-            onClick={(e) => {
-              e.stopPropagation();
-              if (msg.replyTo?.id) {
-                onJumpToMessage?.(msg.replyTo.id);
-              }
-            }}
-            title="点击跳转至被引用的原文"
-            className="flex items-center space-x-2 text-xs text-discord-textMuted mb-1 ml-10 pl-2 border-l-2 border-[#4e5058] cursor-pointer hover:opacity-100 hover:text-discord-textNormal transition-all duration-150 group/reply"
-          >
-            <Reply className="w-3 h-3 text-discord-textMuted group-hover/reply:text-discord-brand transform rotate-180 transition-colors" />
-            <span className="font-semibold text-discord-brand group-hover/reply:underline">
-              @{msg.replyTo.authorName}
-            </span>
-            <span className="truncate max-w-md text-discord-textNormal opacity-80 group-hover/reply:opacity-100">
-              {msg.replyTo.content}
-            </span>
-          </div>
-        )}
+  const handleContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    useContextMenuStore.getState().openMenu(e.clientX, e.clientY, {
+      type: "message",
+      message: msg,
+      guild,
+      onReply: setReplyingTo,
+      onTogglePin,
+      onDelete: onDeleteMessage,
+      onAddReaction: onReactionAdd,
+    });
+  };
 
-        <div className="flex space-x-3 items-start">
-          <UserContextMenu
-            targetUser={msg.author}
-            guild={guild}
-            onMention={(username) => onMentionUser?.(username)}
-          >
-            <img
-              src={
-                msg.author.avatarUrl ||
-                "https://api.dicebear.com/7.x/bottts/svg?seed=user"
-              }
-              alt={msg.author.username}
+  const handleAuthorContextMenu = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    useContextMenuStore.getState().openMenu(e.clientX, e.clientY, {
+      type: "user",
+      targetUser: msg.author,
+      guild,
+      onMention: onMentionUser,
+      onOpenProfile: () => {
+        onOpenProfile?.(
+          msg.author,
+          (e.currentTarget as HTMLElement).getBoundingClientRect(),
+        );
+      },
+    });
+  };
+
+  return (
+    <div
+      id={`message-${msg.id}`}
+      data-message-id={msg.id}
+      {...longPressProps}
+      onContextMenu={handleContextMenu}
+      className={`relative flex flex-col group -mx-2 sm:-mx-4 px-2 sm:px-4 py-1.5 rounded transition ${
+        isHighlighted ? "animate-message-highlight" : ""
+      } ${
+        msg.isPinned
+          ? "bg-discord-brand/5 border-l-2 border-yellow-500/80"
+          : isHighlighted
+            ? ""
+            : "hover:bg-[#2e3035]"
+      }`}
+    >
+      {/* 引用回复提示条 */}
+      {msg.replyTo && (
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            if (msg.replyTo?.id) {
+              onJumpToMessage?.(msg.replyTo.id);
+            }
+          }}
+          title="点击跳转至被引用的原文"
+          className="flex items-center space-x-2 text-xs text-discord-textMuted mb-1 ml-10 pl-2 border-l-2 border-[#4e5058] cursor-pointer hover:opacity-100 hover:text-discord-textNormal transition-all duration-150 group/reply"
+        >
+          <Reply className="w-3 h-3 text-discord-textMuted group-hover/reply:text-discord-brand transform rotate-180 transition-colors" />
+          <span className="font-semibold text-discord-brand group-hover/reply:underline">
+            @{msg.replyTo.authorName}
+          </span>
+          <span className="truncate max-w-md text-discord-textNormal opacity-80 group-hover/reply:opacity-100">
+            {msg.replyTo.content}
+          </span>
+        </div>
+      )}
+
+      <div className="flex space-x-3 items-start">
+        <img
+          src={
+            msg.author.avatarUrl ||
+            "https://api.dicebear.com/7.x/bottts/svg?seed=user"
+          }
+          alt={msg.author.username}
+          width={40}
+          height={40}
+          loading="lazy"
+          decoding="async"
+          data-profile-trigger={`chat-${msg.author.id}`}
+          onContextMenu={handleAuthorContextMenu}
+          onClick={(e) =>
+            onOpenProfile?.(
+              msg.author,
+              e.currentTarget.getBoundingClientRect(),
+            )
+          }
+          className="w-10 h-10 rounded-full flex-shrink-0 cursor-pointer hover:opacity-80 transition mt-0.5"
+        />
+        <div className="flex-1 overflow-hidden">
+          {/* 用户信息与时间栏 */}
+          <div className="flex items-center space-x-2">
+            <span
+              data-profile-trigger={`chat-${msg.author.id}`}
+              onContextMenu={handleAuthorContextMenu}
               onClick={(e) =>
                 onOpenProfile?.(
                   msg.author,
                   e.currentTarget.getBoundingClientRect(),
                 )
               }
-              className="w-10 h-10 rounded-full flex-shrink-0 cursor-pointer hover:opacity-80 transition mt-0.5"
-            />
-          </UserContextMenu>
-          <div className="flex-1 overflow-hidden">
-            {/* 用户信息与时间栏 */}
-            <div className="flex items-center space-x-2">
-              <UserContextMenu
-                targetUser={msg.author}
-                guild={guild}
-                onMention={(username) => onMentionUser?.(username)}
-              >
-                <span
-                  onClick={(e) =>
-                    onOpenProfile?.(
-                      msg.author,
-                      e.currentTarget.getBoundingClientRect(),
-                    )
-                  }
-                  className="font-semibold text-discord-textHeader text-sm cursor-pointer hover:underline"
-                >
-                  {msg.author.username}
-                </span>
-              </UserContextMenu>
+              className="font-semibold text-discord-textHeader text-sm cursor-pointer hover:underline"
+            >
+              {msg.author.username}
+            </span>
               {isMe && (
                 <span className="text-[10px] bg-discord-brand/20 text-discord-brand px-1 rounded font-medium">
                   我
@@ -249,24 +282,6 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                   <span>已置顶</span>
                 </span>
               )}
-              {msg.isEncrypted && (
-                <span
-                  className="flex items-center space-x-0.5 text-[10px] text-discord-green bg-discord-green/10 px-1 rounded border border-discord-green/30"
-                  title={
-                    decryptedContents[msg.id]?.fingerprint
-                      ? `安全码指纹: ${decryptedContents[msg.id]?.fingerprint}`
-                      : "端到端加密消息"
-                  }
-                >
-                  <Lock className="w-2.5 h-2.5" />
-                  <span>
-                    Double Ratchet 已解密
-                    {decryptedContents[msg.id]?.fingerprint
-                      ? ` (${decryptedContents[msg.id]?.fingerprint?.slice(0, 6)})`
-                      : ""}
-                  </span>
-                </span>
-              )}
             </div>
 
             {/* 消息正文 (支持 Markdown 与剧透) */}
@@ -274,7 +289,7 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
               <div className="mt-1 selectable-text">
                 <MarkdownRenderer
                   content={
-                    msg.isEncrypted
+                    isMsgEncrypted
                       ? decryptedContents[msg.id]?.text ||
                         "🔒 [端到端双棘轮密文解密中...]"
                       : msg.content
@@ -302,11 +317,13 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
                             name: att.fileName,
                           })
                         }
-                        className="relative group/att rounded-lg overflow-hidden border border-[#3f4147] cursor-pointer max-w-sm max-h-64 bg-[#1e1f22]"
+                        className="relative group/att rounded-lg overflow-hidden border border-[#3f4147] cursor-pointer max-w-sm max-h-64 min-h-[100px] bg-[#1e1f22]"
                       >
                         <img
                           src={resolveServerUrl(att.url)}
                           alt={att.fileName}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover transition group-hover/att:scale-105"
                         />
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/att:opacity-100 transition flex items-center justify-center text-white text-xs space-x-1 font-medium">
@@ -446,7 +463,48 @@ const ChatMessageItem: React.FC<ChatMessageItemProps> = ({
           </button>
         )}
       </div>
-    </MessageContextMenu>
+  );
+};
+
+const ChatMessageItem = React.memo(ChatMessageItemComponent);
+
+// Discord 风格消息加载骨架屏组件 (波纹脉冲动画，消除切频道大片空白与突兀感)
+export const MessageSkeletonList: React.FC = () => {
+  return (
+    <div
+      className="space-y-4 py-2 animate-pulse animate-fade-in"
+      data-testid="chat-message-skeleton-list"
+    >
+      {[1, 2, 3, 4, 5].map((idx) => {
+        const widths = ["w-3/4", "w-1/2", "w-5/6", "w-2/3", "w-4/5"];
+        const extraWidths = ["w-1/3", "w-1/4", "w-2/5"];
+        return (
+          <div key={idx} className="flex items-start space-x-3 px-2">
+            {/* 头像骨架 */}
+            <div className="w-10 h-10 rounded-full bg-[#35373c]/70 flex-shrink-0" />
+            {/* 消息骨架 */}
+            <div className="flex-1 space-y-2 py-1">
+              <div className="flex items-center space-x-2">
+                {/* 名字占位 */}
+                <div className="h-4 w-24 bg-[#35373c] rounded" />
+                {/* 时间占位 */}
+                <div className="h-3 w-14 bg-[#35373c]/60 rounded" />
+              </div>
+              {/* 正文行 1 */}
+              <div
+                className={`h-3.5 ${widths[idx % widths.length]} bg-[#35373c]/70 rounded`}
+              />
+              {/* 正文行 2 (部分显示) */}
+              {idx % 2 === 0 && (
+                <div
+                  className={`h-3.5 ${extraWidths[idx % extraWidths.length]} bg-[#35373c]/50 rounded`}
+                />
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 };
 
@@ -454,6 +512,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   channel,
   guild,
   messages,
+  isLoadingMessages = false,
   currentUser,
   onSendMessage,
   onReactionAdd,
@@ -467,77 +526,137 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onStartCall,
   onStartDM,
   callEncryption,
+  onMarkChannelAsRead,
 }) => {
   const { t } = useTranslation(["chat", "common"]);
   const { isMobile, isDesktop } = useViewport();
   const isCompact = !isDesktop;
   const [mobileActionMessage, setMobileActionMessage] =
     useState<Message | null>(null);
-  const [inputText, setInputText] = useState("");
+  const [inputText, setInputText] = useState<string>(
+    () => channelDraftMap.get(channel.id) || "",
+  );
   const inputRef = useRef<HTMLInputElement>(null);
   const mentionInputRef = useRef<MentionInputHandle>(null);
-  const [selectedUserPopout, setSelectedUserPopout] = useState<{
-    user: User;
-    member?: GuildMember | null;
-    targetRect: DOMRect;
-  } | null>(null);
 
-  const handleOpenProfile = (
-    author: { id: string; username: string; avatarUrl?: string | null },
-    rect: DOMRect,
-  ) => {
-    const member =
-      guild?.members?.find(
-        (m) => m.userId === author.id || m.user?.id === author.id,
-      ) || null;
-    const fullUser: User = member?.user || {
-      id: author.id,
-      username: author.username,
-      avatarUrl: author.avatarUrl,
-      email: "",
-      status: "OFFLINE",
-      createdAt: new Date().toISOString(),
-    };
-    setSelectedUserPopout({
-      user: fullUser,
-      member,
-      targetRect: rect,
-    });
-  };
+  // 切换频道时：恢复当前频道的草稿文本，重置回复引用与待发附件（防止跨频道误发）
+  useEffect(() => {
+    setInputText(channelDraftMap.get(channel.id) || "");
+    setReplyingTo(null);
+    setPendingAttachments([]);
+    setSearchQuery("");
+  }, [channel.id]);
+  const { togglePopout } = useUserProfilePopoutStore();
 
-  const handleOpenProfileByName = (name: string, rect: DOMRect) => {
-    const cleanName = name.trim().toLowerCase();
-    const member = guild?.members?.find(
-      (m) =>
-        m.user?.username?.toLowerCase() === cleanName ||
-        m.nickname?.toLowerCase() === cleanName,
-    );
-    if (member && member.user) {
-      setSelectedUserPopout({
-        user: member.user,
+  const handleOpenProfile = useCallback(
+    (
+      author: { id: string; username: string; avatarUrl?: string | null },
+      rect: DOMRect,
+    ) => {
+      const member =
+        guild?.members?.find(
+          (m) => m.userId === author.id || m.user?.id === author.id,
+        ) || null;
+      const fullUser: User = member?.user || {
+        id: author.id,
+        username: author.username,
+        avatarUrl: author.avatarUrl,
+        email: "",
+        status: "OFFLINE",
+        createdAt: new Date().toISOString(),
+      };
+
+      const memberRoleIds = new Set(
+        member?.roleIds
+          ? Array.isArray(member.roleIds)
+            ? member.roleIds
+            : parseRoleIds(member.roleIds)
+          : [],
+      );
+      const userRoles = (guild?.roles || [])
+        .filter((r) => memberRoleIds.has(r.id))
+        .sort((a, b) => b.position - a.position);
+
+      togglePopout({
+        user: fullUser,
         member,
+        guild,
         targetRect: rect,
+        roles: userRoles,
+        isOwner: guild?.ownerId === fullUser.id,
+        triggerId: `chat-${author.id}`,
       });
-      return;
-    }
-    const msgAuthor = messages.find(
-      (m) => m.author.username.toLowerCase() === cleanName,
-    )?.author;
-    if (msgAuthor) {
-      setSelectedUserPopout({
-        user: {
-          id: msgAuthor.id,
-          username: msgAuthor.username,
-          avatarUrl: msgAuthor.avatarUrl,
-          email: "",
-          status: "OFFLINE",
-          createdAt: new Date().toISOString(),
-        },
-        member: null,
-        targetRect: rect,
-      });
-    }
-  };
+    },
+    [guild, togglePopout],
+  );
+
+  const handleOpenProfileByName = useCallback(
+    (name: string, rect: DOMRect) => {
+      const cleanName = name.trim().toLowerCase();
+      const member = guild?.members?.find(
+        (m) =>
+          m.user?.username?.toLowerCase() === cleanName ||
+          m.nickname?.toLowerCase() === cleanName,
+      );
+      if (member && member.user) {
+        const memberRoleIds = new Set(
+          member?.roleIds
+            ? Array.isArray(member.roleIds)
+              ? member.roleIds
+              : parseRoleIds(member.roleIds)
+            : [],
+        );
+        const userRoles = (guild?.roles || [])
+          .filter((r) => memberRoleIds.has(r.id))
+          .sort((a, b) => b.position - a.position);
+
+        togglePopout({
+          user: member.user,
+          member,
+          guild,
+          targetRect: rect,
+          roles: userRoles,
+          isOwner: guild?.ownerId === member.user.id,
+          triggerId: `chat-${member.user.id}`,
+        });
+        return;
+      }
+      const msgAuthor = messages.find(
+        (m) => m.author.username.toLowerCase() === cleanName,
+      )?.author;
+      if (msgAuthor) {
+        togglePopout({
+          user: {
+            id: msgAuthor.id,
+            username: msgAuthor.username,
+            avatarUrl: msgAuthor.avatarUrl,
+            email: "",
+            status: "OFFLINE",
+            createdAt: new Date().toISOString(),
+          },
+          member: null,
+          guild,
+          targetRect: rect,
+          roles: [],
+          isOwner: guild?.ownerId === msgAuthor.id,
+          triggerId: `chat-${msgAuthor.id}`,
+        });
+      }
+    },
+    [guild, messages, togglePopout],
+  );
+
+  const handleSetReplyingTo = useCallback((m: Message) => {
+    setReplyingTo(m);
+  }, []);
+
+  const handleOpenMobileActions = useCallback((m: Message) => {
+    setMobileActionMessage(m);
+  }, []);
+
+  const handleMentionUser = useCallback((username: string) => {
+    mentionInputRef.current?.insertMention(username, username);
+  }, []);
 
   const [replyingTo, setReplyingTo] = useState<Message | null>(null);
   const [pendingAttachments, setPendingAttachments] = useState<Attachment[]>(
@@ -584,6 +703,83 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   // 视口距离底部与顶部状态（离开底部则显示顶部“跳到最新”横幅与底部渐变，离开顶部则显示顶部渐变）
   const [isNearBottom, setIsNearBottom] = useState(true);
   const [hasScrolledTop, setHasScrolledTop] = useState(false);
+  const isNearBottomRef = useRef<boolean>(true);
+  isNearBottomRef.current = isNearBottom;
+
+  // 滚动记忆状态缓存与持久化 Ref
+  const currentScrollTopRef = useRef<number>(0);
+  const currentScrollHeightRef = useRef<number>(0);
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+
+  // 视口未读红线动态淡出与可见性检测状态
+  const [isFadingDivider, setIsFadingDivider] = useState(false);
+  const dividerVisibleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 文件拖拽上传状态
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
+  const dragCounterRef = useRef<number>(0);
+
+  // 已读游标与滚动恢复状态
+  const [initialUnreadSequence, setInitialUnreadSequence] = useState<number | null>(null);
+  const lastReadSequenceRef = useRef<number>(0);
+  const isInitialPositionedRef = useRef<boolean>(false);
+  const lastMessageIdRef = useRef<string | null>(null);
+
+  // 骨架屏防闪烁延迟（100ms 阈值）：若 100ms 内已读出本地 IndexedDB 缓存或完成加载，绝不闪现骨架屏
+  const [showSkeleton, setShowSkeleton] = useState(false);
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    if (isLoadingMessages && messages.length === 0) {
+      timer = setTimeout(() => {
+        setShowSkeleton(true);
+      }, 100);
+    } else {
+      setShowSkeleton(false);
+    }
+    return () => {
+      if (timer) clearTimeout(timer);
+    };
+  }, [isLoadingMessages, messages.length]);
+
+  // 端侧本地密文全文检索过滤
+  const matchingMessageIds = React.useMemo(() => {
+    if (!searchQuery.trim()) return null;
+    const results = clientFtsStorage.search(searchQuery.trim(), channel.id);
+    return new Set(results.map((r) => r.id));
+  }, [searchQuery, channel.id, messages.length]);
+
+  const displayedMessages = React.useMemo(() => {
+    if (!matchingMessageIds) return messages;
+    return messages.filter((m) => matchingMessageIds.has(m.id));
+  }, [messages, matchingMessageIds]);
+
+  // 计算未读红线分割条位置（采用 Frozen Unread Marker 视觉冻结机制，当前会话期间红线位置绝对静止）
+  const firstUnreadMessageId = React.useMemo(() => {
+    if (initialUnreadSequence === null || initialUnreadSequence <= 0) return null;
+    const unread = displayedMessages.find(
+      (m) => (m.sequence || 0) > initialUnreadSequence,
+    );
+    return unread ? unread.id : null;
+  }, [displayedMessages, initialUnreadSequence]);
+
+  // 基于 @tanstack/react-virtual 的动态高度虚拟视口计算
+  // 必须显式指定 getItemKey 绑定真实消息 ID，彻底杜绝数据变化时高度缓存错位导致的卡片重叠 (Overlap)
+  const rowVirtualizer = useVirtualizer({
+    count: displayedMessages.length,
+    getScrollElement: () => scrollContainerRef.current,
+    getItemKey: (index) => displayedMessages[index]?.id ?? index,
+    estimateSize: () => 80,
+    overscan: displayedMessages.length <= 40 ? 40 : 10,
+  });
+
+  // 接管滚轮平滑阻尼动效 (Discord 风格)
+  useMomentumScroll(scrollContainerRef, {
+    damping: 0.2,
+    multiplier: 1.0,
+    enabled: true,
+  });
 
   // 轻量全局提示浮层
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -597,20 +793,118 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     }, 3000);
   };
 
-  const handleScroll = () => {
-    if (!scrollContainerRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } =
-      scrollContainerRef.current;
-    const nearBottom = scrollHeight - scrollTop - clientHeight < 120;
-    setIsNearBottom(nearBottom);
-    setHasScrolledTop(scrollTop > 16);
-  };
+  const markDividerAsRead = useCallback(
+    (maxSeq: number) => {
+      if (lastReadSequenceRef.current >= maxSeq && (initialUnreadSequence ?? 0) >= maxSeq) return;
+      lastReadSequenceRef.current = Math.max(lastReadSequenceRef.current, maxSeq);
+      setIsFadingDivider(true);
+      setTimeout(() => {
+        setInitialUnreadSequence(lastReadSequenceRef.current);
+        setIsFadingDivider(false);
+      }, 300);
+      messageDb.saveChannelMeta(channel.id, {
+        lastReadSequence: lastReadSequenceRef.current,
+      });
+      onMarkChannelAsRead?.(channel.id, lastReadSequenceRef.current);
+    },
+    [channel.id, initialUnreadSequence, onMarkChannelAsRead],
+  );
+
+  const checkUnreadDividerVisibility = useCallback(() => {
+    if (!firstUnreadMessageId || isFadingDivider) return;
+    const unreadIdx = displayedMessages.findIndex((m) => m.id === firstUnreadMessageId);
+    if (unreadIdx === -1) return;
+
+    const virtualItems = rowVirtualizer.getVirtualItems();
+    if (virtualItems.length === 0) return;
+
+    const firstVisibleIdx = virtualItems[0].index;
+    const lastVisibleIdx = virtualItems[virtualItems.length - 1].index;
+
+    // 1. 向上滚出可视区域：用户已向下滚动使红线脱离视口顶部
+    if (firstVisibleIdx > unreadIdx) {
+      if (dividerVisibleTimerRef.current) {
+        clearTimeout(dividerVisibleTimerRef.current);
+        dividerVisibleTimerRef.current = null;
+      }
+      const maxSeenSeq = Math.max(
+        ...displayedMessages.slice(0, firstVisibleIdx + 1).map((m) => m.sequence || 0),
+      );
+      markDividerAsRead(maxSeenSeq);
+    }
+    // 2. 红线位于可视区域内：启动 1 秒停留计时器
+    else if (unreadIdx >= firstVisibleIdx && unreadIdx <= lastVisibleIdx) {
+      if (!dividerVisibleTimerRef.current) {
+        dividerVisibleTimerRef.current = setTimeout(() => {
+          dividerVisibleTimerRef.current = null;
+          const maxSeenSeq = Math.max(
+            ...displayedMessages.slice(0, lastVisibleIdx + 1).map((m) => m.sequence || 0),
+          );
+          markDividerAsRead(maxSeenSeq);
+        }, 1000);
+      }
+    } else {
+      // 滚回红线上方，取消计时器
+      if (dividerVisibleTimerRef.current) {
+        clearTimeout(dividerVisibleTimerRef.current);
+        dividerVisibleTimerRef.current = null;
+      }
+    }
+  }, [
+    firstUnreadMessageId,
+    isFadingDivider,
+    displayedMessages,
+    rowVirtualizer,
+    markDividerAsRead,
+  ]);
+
+  useEffect(() => {
+    if (isInitialPositionedRef.current && firstUnreadMessageId) {
+      checkUnreadDividerVisibility();
+    }
+  }, [firstUnreadMessageId, displayedMessages.length, checkUnreadDividerVisibility]);
+
+  const scrollRafRef = useRef<number | null>(null);
+  const handleScroll = useCallback(() => {
+    if (scrollRafRef.current !== null) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = null;
+      if (!scrollContainerRef.current) return;
+      const { scrollTop, scrollHeight, clientHeight } =
+        scrollContainerRef.current;
+      currentScrollTopRef.current = scrollTop;
+      currentScrollHeightRef.current = scrollHeight;
+      const nearBottom = scrollHeight - scrollTop - clientHeight < 120;
+      if (isNearBottomRef.current !== nearBottom) {
+        setIsNearBottom(nearBottom);
+        isNearBottomRef.current = nearBottom;
+      }
+      const scrolledTop = scrollTop > 16;
+      setHasScrolledTop((prev) => (prev !== scrolledTop ? scrolledTop : prev));
+
+      // 实时保存当前频道的滚动坐标（由 messageDb 内置的 metaCache 即时同步）
+      messageDb.saveChannelMeta(channel.id, {
+        scrollTop,
+        isNearBottom: nearBottom,
+      });
+
+      checkUnreadDividerVisibility();
+    });
+  }, [channel.id, checkUnreadDividerVisibility]);
 
   const scrollToBottom = (smooth = true) => {
-    messagesEndRef.current?.scrollIntoView({
-      behavior: smooth ? "smooth" : "auto",
-    });
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        top: scrollContainerRef.current.scrollHeight,
+        behavior: smooth ? "smooth" : "auto",
+      });
+    } else {
+      messagesEndRef.current?.scrollIntoView({
+        behavior: smooth ? "smooth" : "auto",
+      });
+    }
     setIsNearBottom(true);
+    isNearBottomRef.current = true;
   };
 
   const handleJumpToMessage = (targetMessageId: string) => {
@@ -630,24 +924,27 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       }
     }
 
+    // 优先借助虚拟列表跳转至对应索引
+    const targetIdx = displayedMessages.findIndex((m) => m.id === targetMessageId);
+    if (targetIdx !== -1) {
+      rowVirtualizer.scrollToIndex(targetIdx, { align: "center" });
+    }
+
     setTimeout(() => {
       const el = document.getElementById(`message-${targetMessageId}`);
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
-
-        if (highlightTimerRef.current) {
-          clearTimeout(highlightTimerRef.current);
-        }
-        setHighlightedMessageId(null);
-        requestAnimationFrame(() => {
-          setHighlightedMessageId(targetMessageId);
-          highlightTimerRef.current = setTimeout(() => {
-            setHighlightedMessageId(null);
-          }, 1900);
-        });
-      } else {
-        showToast("未找到被引用的原文，该消息可能已被删除");
       }
+      if (highlightTimerRef.current) {
+        clearTimeout(highlightTimerRef.current);
+      }
+      setHighlightedMessageId(null);
+      requestAnimationFrame(() => {
+        setHighlightedMessageId(targetMessageId);
+        highlightTimerRef.current = setTimeout(() => {
+          setHighlightedMessageId(null);
+        }, 1900);
+      });
     }, 60);
   };
 
@@ -731,35 +1028,127 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     });
   }, [messages]);
 
-  // 用户输入变动与打字状态节流发送 (3.5 秒窗口)
+  // 用户输入变动、草稿持久化与打字状态节流发送 (3.5 秒窗口)
   const handleInputChange = (text: string) => {
     setInputText(text);
     if (text.trim().length > 0) {
+      channelDraftMap.set(channel.id, text);
       const now = Date.now();
       if (now - lastTypingSentRef.current > 3500) {
         lastTypingSentRef.current = now;
         gatewayClient.sendTyping(channel.id);
       }
+    } else {
+      channelDraftMap.delete(channel.id);
     }
   };
 
-  // 切换频道时重置滚动到底部，并重置高亮、置顶弹窗与离开状态
+  // 切换频道时：从 IndexedDB/metaCache 读取滚动记忆与已读游标，离开时持久化保存最新游标与滚动坐标
   useEffect(() => {
-    scrollToBottom(false);
-    setIsNearBottom(true);
+    let isCancelled = false;
+    isInitialPositionedRef.current = false;
+    lastMessageIdRef.current = null;
     setHighlightedMessageId(null);
     setIsPinnedPopoverOpen(false);
-  }, [channel.id]);
 
-  // 新消息到达时：如果原本就在底部，或者发送者是当前用户自己，自动平滑滚到底部
+    messageDb.getChannelMeta(channel.id).then((meta) => {
+      if (isCancelled) return;
+      const savedLastRead = meta?.lastReadSequence || 0;
+      setInitialUnreadSequence(savedLastRead);
+      lastReadSequenceRef.current = savedLastRead;
+    });
+
+    return () => {
+      isCancelled = true;
+      if (dividerVisibleTimerRef.current) {
+        clearTimeout(dividerVisibleTimerRef.current);
+        dividerVisibleTimerRef.current = null;
+      }
+
+      // 切换离开或卸载时，精确持久化保存当前频道的滚动坐标与已读状态
+      // 核心修复：使用 Ref 记录的坐标，彻底解决 React 18 卸载时 DOM ref 已置空为 null 导致的丢失
+      const currentScrollTop = currentScrollTopRef.current;
+      const wasNearBottom = isNearBottomRef.current;
+      const currentMessages = messagesRef.current;
+      const maxSeq =
+        currentMessages.length > 0
+          ? currentMessages[currentMessages.length - 1].sequence || 0
+          : lastReadSequenceRef.current;
+
+      const finalLastReadSeq = wasNearBottom
+        ? Math.max(lastReadSequenceRef.current, maxSeq)
+        : lastReadSequenceRef.current;
+
+      messageDb.saveChannelMeta(channel.id, {
+        scrollTop: currentScrollTop,
+        isNearBottom: wasNearBottom,
+        lastReadSequence: finalLastReadSeq,
+      });
+
+      if (wasNearBottom && maxSeq > 0) {
+        onMarkChannelAsRead?.(channel.id, finalLastReadSeq);
+      }
+    };
+  }, [channel.id, onMarkChannelAsRead]);
+
+  // 当初次加载消息到达时，执行纯物理位置恢复（无论是否有未读，始终精准还原上次离开时的 scrollTop）
   useEffect(() => {
-    if (messages.length === 0) return;
+    if (messages.length === 0 || isInitialPositionedRef.current) return;
+
+    messageDb.getChannelMeta(channel.id).then((meta) => {
+      requestAnimationFrame(() => {
+        if (!scrollContainerRef.current) return;
+
+        if (meta && !meta.isNearBottom && meta.scrollTop > 0) {
+          scrollContainerRef.current.scrollTop = meta.scrollTop;
+          rowVirtualizer.scrollToOffset(meta.scrollTop);
+          currentScrollTopRef.current = meta.scrollTop;
+          setIsNearBottom(false);
+          isNearBottomRef.current = false;
+        } else {
+          // 默认贴底
+          scrollContainerRef.current.scrollTop =
+            scrollContainerRef.current.scrollHeight;
+          currentScrollTopRef.current = scrollContainerRef.current.scrollTop;
+          setIsNearBottom(true);
+          isNearBottomRef.current = true;
+        }
+
+        isInitialPositionedRef.current = true;
+        lastMessageIdRef.current = messages[messages.length - 1]?.id || null;
+
+        // 延迟二次校准，解决虚拟列表子项在初次 DOM 测量高度完成后发生位移抖动
+        setTimeout(() => {
+          if (
+            scrollContainerRef.current &&
+            meta &&
+            !meta.isNearBottom &&
+            meta.scrollTop > 0
+          ) {
+            if (
+              Math.abs(scrollContainerRef.current.scrollTop - meta.scrollTop) > 5
+            ) {
+              scrollContainerRef.current.scrollTop = meta.scrollTop;
+              rowVirtualizer.scrollToOffset(meta.scrollTop);
+            }
+          }
+        }, 50);
+      });
+    });
+  }, [messages.length, displayedMessages, channel.id]);
+
+  // 运行中的单条实时新消息到达：仅当自身发送或原本就在底部时平滑滚到底部
+  useEffect(() => {
+    if (messages.length === 0 || !isInitialPositionedRef.current) return;
     const latestMsg = messages[messages.length - 1];
-    const isMyMessage = latestMsg?.authorId === currentUser.id;
-    if (isNearBottom || isMyMessage) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (latestMsg && latestMsg.id !== lastMessageIdRef.current) {
+      lastMessageIdRef.current = latestMsg.id;
+      const isMyMessage = latestMsg.authorId === currentUser.id;
+      if (isNearBottomRef.current || isMyMessage) {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      }
     }
-  }, [messages]);
+  }, [messages, currentUser.id]);
 
   // 监听全局 @提及 事件（来自右侧成员列表或用户浮层），追加至文本框并聚焦
   useEffect(() => {
@@ -796,7 +1185,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       let hasUpdates = false;
 
       for (const msg of messages) {
-        if (msg.isEncrypted) {
+        const isMsgEncrypted =
+          msg.isEncrypted ||
+          (channel.isE2EE && doubleRatchetManager.isEncryptedEnvelope(msg.content));
+        if (isMsgEncrypted) {
           if (!processedMessageIdsRef.current.has(msg.id)) {
             processedMessageIdsRef.current.add(msg.id);
             const res = await doubleRatchetManager.decryptMessage(
@@ -839,20 +1231,29 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     };
   }, [messages, channel.id, currentUser.id]);
 
-  // 端侧本地密文全文检索过滤
-  const matchingMessageIds = React.useMemo(() => {
-    if (!searchQuery.trim()) return null;
-    const results = clientFtsStorage.search(searchQuery.trim(), channel.id);
-    return new Set(results.map((r) => r.id));
-  }, [searchQuery, channel.id, messages.length]);
-
-  const displayedMessages = React.useMemo(() => {
-    if (!matchingMessageIds) return messages;
-    return messages.filter((m) => matchingMessageIds.has(m.id));
-  }, [messages, matchingMessageIds]);
-
   // 上传文件并追加至附件列表
   const uploadAndAttachFile = async (file: File) => {
+    if (file.size > 50 * 1024 * 1024) {
+      showToast("文件大小超过 50MB 限制，无法上传");
+      return;
+    }
+    const dangerousExts = [
+      ".exe",
+      ".bat",
+      ".cmd",
+      ".sh",
+      ".vbs",
+      ".msi",
+      ".ps1",
+      ".com",
+      ".scr",
+    ];
+    const fileExt = "." + (file.name.split(".").pop() || "").toLowerCase();
+    if (dangerousExts.includes(fileExt)) {
+      showToast("出于安全考虑，禁止上传可执行程序或脚本文件（.exe, .bat 等）");
+      return;
+    }
+
     setIsUploading(true);
     try {
       // 1. 获取预签名上传链接
@@ -872,7 +1273,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         },
       );
 
-      if (!presignRes.ok) throw new Error("获取上传凭证失败");
+      if (!presignRes.ok) {
+        const errorData = await presignRes.json().catch(() => ({}));
+        throw new Error(errorData.error || "获取上传凭证失败");
+      }
       const presignData = await presignRes.json();
 
       // 2. 直传二进制数据 (通过 resolveServerUrl 转换为局域网/代理安全路径)
@@ -888,11 +1292,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         body: file,
       });
 
-      if (!uploadRes.ok) throw new Error("附件直传失败");
+      if (!uploadRes.ok) {
+        const errorData = await uploadRes.json().catch(() => ({}));
+        throw new Error(errorData.error || "附件直传失败");
+      }
 
       const newAttachment: Attachment = {
         id: presignData.fileKey,
-        url: resolveServerUrl(presignData.fileUrl),
+        url: presignData.fileUrl,
         fileName: file.name,
         fileSize: file.size,
         mimeType: file.type || "application/octet-stream",
@@ -901,7 +1308,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       setPendingAttachments((prev) => [...prev, newAttachment]);
     } catch (err: any) {
       console.error("File upload error:", err);
-      alert(`上传失败: ${err.message || "未知错误"}`);
+      showToast(`上传失败: ${err.message || "未知错误"}`);
     } finally {
       setIsUploading(false);
     }
@@ -917,13 +1324,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // 处理剪贴板粘贴 (Ctrl+V 截图即传)
+  // 处理剪贴板粘贴 (Ctrl+V 截图或文件即传)
   const handlePaste = async (e: React.ClipboardEvent) => {
     const items = e.clipboardData?.items;
     if (!items) return;
 
     for (let i = 0; i < items.length; i++) {
-      if (items[i].type.indexOf("image") !== -1) {
+      if (items[i].kind === "file") {
         const file = items[i].getAsFile();
         if (file) {
           e.preventDefault();
@@ -965,6 +1372,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     );
 
     setInputText("");
+    channelDraftMap.delete(channel.id);
     mentionInputRef.current?.clear();
     setReplyingTo(null);
     setPendingAttachments([]);
@@ -998,7 +1406,52 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     <div
       className="flex-1 flex flex-col h-full bg-discord-chat relative"
       data-channel-id={channel.id}
+      onDragEnter={(e) => {
+        if (e.dataTransfer.types.includes("Files")) {
+          e.preventDefault();
+          dragCounterRef.current += 1;
+          setIsDraggingFile(true);
+        }
+      }}
+      onDragOver={(e) => {
+        if (e.dataTransfer.types.includes("Files")) {
+          e.preventDefault();
+        }
+      }}
+      onDragLeave={(e) => {
+        if (e.dataTransfer.types.includes("Files")) {
+          e.preventDefault();
+          dragCounterRef.current -= 1;
+          if (dragCounterRef.current <= 0) {
+            dragCounterRef.current = 0;
+            setIsDraggingFile(false);
+          }
+        }
+      }}
+      onDrop={async (e) => {
+        if (e.dataTransfer.types.includes("Files")) {
+          e.preventDefault();
+          dragCounterRef.current = 0;
+          setIsDraggingFile(false);
+          const files = Array.from(e.dataTransfer.files);
+          if (files.length > 0) {
+            await handleFilesSelected(files);
+          }
+        }
+      }}
     >
+      {/* 拖拽文件进入聊天区域的高亮蒙层 (Discord 风格 Drag & Drop Overlay) */}
+      {isDraggingFile && (
+        <div
+          data-testid="chat-drag-drop-overlay"
+          className="absolute inset-0 z-50 bg-[#2b2d31]/95 border-4 border-dashed border-discord-brand flex flex-col items-center justify-center pointer-events-none rounded-lg backdrop-blur-sm transition-all"
+        >
+          <UploadCloud className="w-16 h-16 text-discord-brand animate-bounce mb-3" />
+          <h3 className="text-xl font-bold text-white mb-1">拖放到此处即可上传</h3>
+          <p className="text-sm text-discord-textMuted">支持上传最大 50MB 的任意图片、音视频及文档</p>
+        </div>
+      )}
+
       {/* 全局轻量提示浮层（如引用原消息未找到/已删除） */}
       {toastMessage && (
         <div className="absolute top-14 left-1/2 -translate-x-1/2 z-50 bg-[#111214]/95 border border-discord-danger/50 text-discord-danger px-4 py-2 rounded-lg shadow-2xl text-xs flex items-center space-x-2 animate-fade-in backdrop-blur-md">
@@ -1025,7 +1478,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               @
             </span>
           ) : channel.isE2EE ? (
-            <Lock className="w-5 h-5 text-discord-green flex-shrink-0" />
+            <div className="relative flex-shrink-0">
+              <Hash className="w-5 h-5 text-discord-textMuted" />
+              <Lock className="w-3 h-3 text-discord-green absolute -top-0.5 -right-1" />
+            </div>
           ) : (
             <Hash className="w-5 h-5 text-discord-textMuted flex-shrink-0" />
           )}
@@ -1034,13 +1490,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           </span>
           {channel.isE2EE && (
             <button
+              data-testid="chat-header-e2ee-badge"
               onClick={() => setShowFingerprintModal(true)}
-              className="flex items-center space-x-1 px-1.5 py-0.5 rounded bg-discord-green/10 hover:bg-discord-green/20 border border-discord-green/30 text-[11px] text-discord-green transition cursor-pointer flex-shrink-0"
-              title="点击查看端到端双棘轮密钥安全码与加密状态"
+              className="flex items-center space-x-1 px-2 py-0.5 rounded bg-discord-green/10 hover:bg-discord-green/20 border border-discord-green/30 text-[11px] text-discord-green transition cursor-pointer flex-shrink-0"
+              title="点击查看端加密安全状态"
             >
-              <ShieldCheck className="w-3 h-3" />
-              <span className="hidden sm:inline">Double Ratchet </span>
-              <span>E2EE</span>
+              <ShieldCheck className="w-3.5 h-3.5" />
+              <span>端加密</span>
             </button>
           )}
           {channel.topic && (
@@ -1195,7 +1651,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       {/* 消息视口区域主容器：包含吸顶历史提示横幅与上下边缘渐变模糊遮罩 */}
       <div className="flex-1 relative min-h-0 overflow-hidden flex flex-col">
         {/* 顶部悬浮“正在查看较旧的消息”横幅 (Discord 经典 Full-width Top Banner) */}
-        {!isNearBottom && (
+        {!isNearBottom && isInitialPositionedRef.current && messages.length > 0 && (
           <div
             onClick={() => scrollToBottom(true)}
             className="absolute top-0 inset-x-0 z-20 animate-slide-down bg-[#2b2d31]/95 backdrop-blur-md border-b border-[#35373c] px-4 py-2 flex items-center justify-between shadow-md cursor-pointer hover:bg-[#313338] transition group"
@@ -1222,32 +1678,32 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           </div>
         )}
 
-        {/* 顶部渐变模糊遮罩 (Gradient + Backdrop Blur + Mask, 滚动离开最顶部时平滑淡入) */}
+        {/* 顶部纯色渐变遮罩 (Discord 风格纯色渐变，零 GPU 抓屏开销) */}
         <div
-          className={`absolute top-0 inset-x-0 h-7 pointer-events-none z-10 transition-opacity duration-300 ${
+          className={`absolute top-0 inset-x-0 h-6 pointer-events-none z-10 transition-opacity duration-200 bg-gradient-to-b from-discord-chat/80 to-transparent ${
             hasScrolledTop ? "opacity-100" : "opacity-0"
           }`}
-          style={{
-            backdropFilter: "blur(4px)",
-            WebkitMaskImage:
-              "linear-gradient(to bottom, black 0%, transparent 100%)",
-            maskImage: "linear-gradient(to bottom, black 0%, transparent 100%)",
-          }}
-        >
-          <div className="w-full h-full bg-gradient-to-b from-discord-chat/80 to-transparent" />
-        </div>
+        />
 
         {/* 聊天内容流 */}
         <div
           ref={scrollContainerRef}
+          data-testid="chat-scroll-container"
           onScroll={handleScroll}
           className="flex-1 overflow-y-auto p-4 space-y-3"
+          style={{
+            transform: "translateZ(0)",
+            willChange: "scroll-position",
+          }}
         >
           {/* 欢迎卡片 */}
           <div className="pt-4 pb-2 border-b border-[#35373c] mb-4">
             <div className="w-16 h-16 rounded-full bg-[#2b2d31] flex items-center justify-center mb-2">
               {channel.isE2EE ? (
-                <Lock className="w-8 h-8 text-discord-green" />
+                <div className="relative">
+                  <Hash className="w-8 h-8 text-discord-textHeader" />
+                  <Lock className="w-4 h-4 text-discord-green absolute -top-1 -right-1" />
+                </div>
               ) : (
                 <Hash className="w-8 h-8 text-discord-textHeader" />
               )}
@@ -1257,58 +1713,93 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             </h2>
             <p className="text-sm text-discord-textMuted mt-1">
               {channel.isE2EE
-                ? "这是一个端到端双棘轮加密绝密频道，所有消息均在客户端本地密文封装，服务器仅充当盲中继，零明文存储。"
+                ? "这是一个实验性端到端双棘轮加密绝密频道 (Beta)。所有消息均在客户端本地密文封装，服务器仅充当盲中继，零明文存储。"
                 : `这是 #${channel.name} 频道的起点。畅所欲言吧！`}
             </p>
           </div>
 
-          {/* 消息项 */}
-          {displayedMessages.map((msg) => (
-            <ChatMessageItem
-              key={msg.id}
-              msg={msg}
-              guild={guild}
-              currentUser={currentUser}
-              decryptedContents={decryptedContents}
-              isMobile={isMobile}
-              activeEmojiPickerMsgId={activeEmojiPickerMsgId}
-              setActiveEmojiPickerMsgId={setActiveEmojiPickerMsgId}
-              setReplyingTo={(m: Message) => setReplyingTo(m)}
-              onTogglePin={onTogglePin}
-              onDeleteMessage={onDeleteMessage}
-              onReactionAdd={onReactionAdd}
-              onReactionRemove={onReactionRemove}
-              setLightboxImage={setLightboxImage}
-              setInputText={setInputText}
-              onOpenMobileActions={(m: Message) => setMobileActionMessage(m)}
-              onMentionUser={(username) =>
-                mentionInputRef.current?.insertMention(username, username)
-              }
-              onOpenProfile={(author, rect) => handleOpenProfile(author, rect)}
-              onOpenProfileByName={(name, rect) =>
-                handleOpenProfileByName(name, rect)
-              }
-              isHighlighted={highlightedMessageId === msg.id}
-              onJumpToMessage={handleJumpToMessage}
-            />
-          ))}
+          {/* 骨架屏加载状态 (延迟 100ms 显示防瞬闪) vs 虚拟化消息流 */}
+          {showSkeleton && displayedMessages.length === 0 ? (
+            <MessageSkeletonList />
+          ) : (
+            <div
+              data-testid="virtual-message-list-container"
+              style={{
+                height: `${rowVirtualizer.getTotalSize()}px`,
+                width: "100%",
+                position: "relative",
+              }}
+            >
+              {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                const msg = displayedMessages[virtualRow.index];
+                if (!msg) return null;
+                const isFirstUnread = msg.id === firstUnreadMessageId;
+
+                return (
+                  <div
+                    key={virtualRow.key}
+                    data-index={virtualRow.index}
+                    ref={rowVirtualizer.measureElement}
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      transform: `translateY(${virtualRow.start}px)`,
+                      contain: "layout style",
+                    }}
+                    className="pb-2"
+                  >
+                    {isFirstUnread && (
+                      <div
+                        data-testid="unread-message-divider"
+                        className={`flex items-center py-2 select-none transition-opacity duration-300 ${
+                          isFadingDivider ? "opacity-0" : "opacity-100"
+                        }`}
+                      >
+                        <div className="flex-1 h-[1px] bg-rose-500/80" />
+                        <span className="px-2.5 py-0.5 text-[11px] font-bold text-white bg-rose-500 rounded-full shadow-sm mx-2">
+                          {t("chat:historyDivider", "以下是新消息")}
+                        </span>
+                        <div className="flex-1 h-[1px] bg-rose-500/80" />
+                      </div>
+                    )}
+                    <ChatMessageItem
+                      msg={msg}
+                      guild={guild}
+                      currentUser={currentUser}
+                      decryptedContents={decryptedContents}
+                      isMobile={isMobile}
+                      activeEmojiPickerMsgId={activeEmojiPickerMsgId}
+                      setActiveEmojiPickerMsgId={setActiveEmojiPickerMsgId}
+                      setReplyingTo={handleSetReplyingTo}
+                      onTogglePin={onTogglePin}
+                      onDeleteMessage={onDeleteMessage}
+                      onReactionAdd={onReactionAdd}
+                      onReactionRemove={onReactionRemove}
+                      setLightboxImage={setLightboxImage}
+                      setInputText={setInputText}
+                      onOpenMobileActions={handleOpenMobileActions}
+                      onMentionUser={handleMentionUser}
+                      onOpenProfile={handleOpenProfile}
+                      onOpenProfileByName={handleOpenProfileByName}
+                      isHighlighted={highlightedMessageId === msg.id}
+                      onJumpToMessage={handleJumpToMessage}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
 
-        {/* 底部渐变模糊遮罩 (Gradient + Backdrop Blur + Mask, 离开底部时平滑淡入) */}
+        {/* 底部纯色渐变遮罩 (Discord 风格纯色渐变，零 GPU 抓屏开销) */}
         <div
-          className={`absolute bottom-0 inset-x-0 h-7 pointer-events-none z-10 transition-opacity duration-300 ${
+          className={`absolute bottom-0 inset-x-0 h-6 pointer-events-none z-10 transition-opacity duration-200 bg-gradient-to-t from-discord-chat/80 to-transparent ${
             !isNearBottom ? "opacity-100" : "opacity-0"
           }`}
-          style={{
-            backdropFilter: "blur(4px)",
-            WebkitMaskImage:
-              "linear-gradient(to top, black 0%, transparent 100%)",
-            maskImage: "linear-gradient(to top, black 0%, transparent 100%)",
-          }}
-        >
-          <div className="w-full h-full bg-gradient-to-t from-discord-chat/80 to-transparent" />
-        </div>
+        />
       </div>
 
       {/* 底部输入与附件区 */}
@@ -1346,7 +1837,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               >
                 {isImageMime(att.mimeType, att.fileName) ? (
                   <img
-                    src={att.url}
+                    src={resolveServerUrl(att.url)}
                     alt={att.fileName}
                     className="w-8 h-8 rounded object-cover"
                   />
@@ -1407,6 +1898,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           {/* 富文本 @提及 Tag 输入框 */}
           <MentionInput
             ref={mentionInputRef}
+            initialValue={inputText}
             placeholder={
               isMobile
                 ? t("chat:sendToChannel", { name: channel.name })
@@ -1479,6 +1971,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             </div>
 
             <div className="py-4 space-y-3 text-xs text-discord-textMuted">
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded p-2.5 text-[11px] text-amber-300">
+                ⚠️ <strong>实验性功能提示 (Beta)</strong>：当前频道采用双棘轮密文信封防网络嗅探与服务端直读；基于用户设备私钥的多方动态树状握手协议正在持续演进中。
+              </div>
               <p>
                 当前频道已激活{" "}
                 <b className="text-discord-textHeader">
@@ -1542,31 +2037,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         onDelete={onDeleteMessage}
         onAddReaction={onReactionAdd}
       />
-
-      {/* 用户资料卡片浮层 (支持点击头像、用户名及正文 @Tag 唤出) */}
-      {selectedUserPopout && (
-        <UserProfilePopout
-          isOpen={true}
-          onClose={() => setSelectedUserPopout(null)}
-          targetRect={selectedUserPopout.targetRect}
-          user={selectedUserPopout.user}
-          member={selectedUserPopout.member}
-          guild={guild}
-          currentUser={currentUser}
-          roles={guild?.roles || []}
-          onMention={(username) => {
-            mentionInputRef.current?.insertMention(username, username);
-            setSelectedUserPopout(null);
-          }}
-          onSendMessage={() => {
-            setSelectedUserPopout(null);
-          }}
-          onStartDM={(userId) => {
-            setSelectedUserPopout(null);
-            onStartDM?.(userId);
-          }}
-        />
-      )}
     </div>
   );
 };

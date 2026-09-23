@@ -1,6 +1,6 @@
 {
   "sendToChannel": "Message #{{name}}",
-  "sendToChannelPlaceholder": "Message #{{name}} (Type @ to mention, supports Markdown, spoilers ||text||, and paste)",
+  "sendToChannelPlaceholder": "Message #{{name}}",
   "uploadFile": "Upload file or image (MinIO direct upload)",
   "selectEmoji": "Select Emoji",
   "replyingTo": "Replying to {{name}}",

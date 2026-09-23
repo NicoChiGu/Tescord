@@ -39,7 +39,8 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
   onLeaveGuild,
   onMarkAsRead,
 }) => {
-  const { isOwner, canManageChannels, canManageGuild } = usePermissions(guild);
+  const { isOwner, canManageChannels, canManageGuild, canCreateInvite } =
+    usePermissions(guild);
   const [copiedId, setCopiedId] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
 
@@ -79,19 +80,21 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
       <ContextMenuContent className="w-56">
-        <ContextMenuItem
-          onClick={handleCreateAndCopyInvite}
-          className="text-discord-brand hover:text-white"
-        >
-          <div className="flex items-center space-x-2">
-            {copiedInvite ? (
-              <Check className="w-4 h-4 text-discord-green" />
-            ) : (
-              <UserPlus className="w-4 h-4" />
-            )}
-            <span>{copiedInvite ? "邀请码已复制" : "邀请其他人"}</span>
-          </div>
-        </ContextMenuItem>
+        {canCreateInvite && (
+          <ContextMenuItem
+            onClick={handleCreateAndCopyInvite}
+            className="text-discord-brand hover:text-white"
+          >
+            <div className="flex items-center space-x-2">
+              {copiedInvite ? (
+                <Check className="w-4 h-4 text-discord-green" />
+              ) : (
+                <UserPlus className="w-4 h-4" />
+              )}
+              <span>{copiedInvite ? "邀请码已复制" : "邀请其他人"}</span>
+            </div>
+          </ContextMenuItem>
+        )}
 
         <ContextMenuItem
           onClick={() => onMarkAsRead?.(guild)}

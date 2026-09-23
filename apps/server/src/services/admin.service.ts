@@ -286,14 +286,10 @@ export class AdminService {
       });
     });
     const next = await this.getSettings();
-    gatewayManager.broadcast({
-      op: GatewayOpCode.DISPATCH,
-      t: GatewayEvents.MAINTENANCE_UPDATE,
-      d: { enabled: Boolean(next.maintenanceMode), announcement: next.systemAnnouncement },
-    });
-    if (!previous.maintenanceMode && next.maintenanceMode) {
-      await gatewayManager.disconnectNonSuperAdmins("系统进入维护模式");
-    }
+    await gatewayManager.setMaintenanceMode(
+      Boolean(next.maintenanceMode),
+      next.systemAnnouncement || "",
+    );
     return next;
   }
 

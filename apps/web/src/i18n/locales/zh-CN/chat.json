@@ -1,6 +1,6 @@
 {
   "sendToChannel": "发送到 #{{name}}",
-  "sendToChannelPlaceholder": "发送消息到 #{{name}} (键入 @ 快捷提及，支持 Markdown、剧透 ||文字|| 与截图粘贴)",
+  "sendToChannelPlaceholder": "发送消息到 #{{name}}",
   "uploadFile": "上传文件或图片 (支持 MinIO 直传)",
   "selectEmoji": "选择常用 Emoji",
   "replyingTo": "正在回复 {{name}}",

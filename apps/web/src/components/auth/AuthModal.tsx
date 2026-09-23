@@ -210,6 +210,7 @@ export const AuthModal: React.FC = () => {
               <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type={isLogin ? "text" : "email"}
+                data-testid="auth-email-input"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -231,6 +232,7 @@ export const AuthModal: React.FC = () => {
               <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="password"
+                data-testid="auth-password-input"
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -242,6 +244,7 @@ export const AuthModal: React.FC = () => {
 
           <button
             type="submit"
+            data-testid="auth-submit-btn"
             disabled={isSubmitting}
             className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#5865f2] hover:bg-[#4752c4] active:scale-[0.98] py-2.5 text-sm font-semibold text-white shadow-md shadow-[#5865f2]/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2"
           >

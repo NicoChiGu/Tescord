@@ -11,6 +11,7 @@ process.env.DATABASE_URL = "file:./tescord-playwright.sqlite";
 process.env.PORT = "3001";
 process.env.HOST = "127.0.0.1";
 process.env.NODE_ENV = "development";
+process.env.IS_E2E = "true";
 process.env.STORAGE_MODE = "local";
 process.env.REDIS_URL = "";
 
@@ -40,4 +41,5 @@ try {
   await prisma.$disconnect();
 }
 
-await import("../src/index.js");
+const { start } = await import("../src/index.js");
+await start();

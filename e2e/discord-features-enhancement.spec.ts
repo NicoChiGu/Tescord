@@ -89,7 +89,7 @@ test.describe("Discord 级体验增强核心交互验证 (问题2/3/4/5/6)", () 
       });
     });
 
-    await page.route("**/api/channels/**/messages", (route) => {
+    await page.route("**/api/channels/**/messages*", (route) => {
       route.fulfill({
         status: 200,
         contentType: "application/json",

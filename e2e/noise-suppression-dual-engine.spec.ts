@@ -128,18 +128,24 @@ test.describe("双引擎 AI 降噪（RNNoise + DTLN）与三轨 A/B 录音试听
       .first();
     await expect(leaveVoiceBtn).toBeVisible({ timeout: 8000 });
 
-    // 12. 验证头像上的降噪徽标
-    const noiseBadge = page.locator("text=RNNoise 降噪").first();
-    await expect(noiseBadge).toBeVisible({ timeout: 5000 });
+    // 12. 验证用户画像上的降噪徽标已移除
+    await expect(page.locator("text=RNNoise 降噪")).not.toBeVisible();
 
     // 13. 点击底栏 Sparkles 按钮进行模式轮转 (RNNoise -> DTLN)
     const sparklesBtn = page.getByTestId("voice-sparkles-btn");
     await expect(sparklesBtn).toBeVisible({ timeout: 5000 });
+    await expect(sparklesBtn).toHaveAttribute(
+      "title",
+      /RNNoise AI 智能降噪已开启/,
+    );
     await sparklesBtn.click();
 
-    // 验证头像徽标动态切换为 DTLN 深度降噪
-    const dtlnBadge = page.locator("text=DTLN 深度降噪").first();
-    await expect(dtlnBadge).toBeVisible({ timeout: 5000 });
+    // 验证底栏按钮动态切换为 DTLN 深度降噪，头像上依然无残留徽标
+    await expect(sparklesBtn).toHaveAttribute(
+      "title",
+      /DTLN 深度净化降噪已开启/,
+    );
+    await expect(page.locator("text=DTLN 深度降噪")).not.toBeVisible();
 
     // 14. 退出语音频道
     await leaveVoiceBtn.click();

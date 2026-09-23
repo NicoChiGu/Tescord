@@ -3,6 +3,7 @@ import { WebSocket } from "ws";
 import { randomUUID } from "crypto";
 import {
   GatewayOpCode,
+  GatewayCloseCode,
   GatewayPayload,
   HelloPayload,
   HeartbeatData,
@@ -18,6 +19,7 @@ import {
   UserPresence,
   StatusUpdatePayload,
   PresenceUpdateEvent,
+  MaintenanceUpdatePayload,
 } from "@tescord/types";
 import { prisma } from "./db.js";
 import { removeParticipantFromRoom } from "./livekit.js";
@@ -39,7 +41,9 @@ interface ClientConnection {
 
 export class GatewayManager {
   private tokenVerifier?: (token: string) => Promise<Record<string, unknown>>;
-  public setTokenVerifier(verifier: (token: string) => Promise<Record<string, unknown>>) {
+  public setTokenVerifier(
+    verifier: (token: string) => Promise<Record<string, unknown>>,
+  ) {
     this.tokenVerifier = verifier;
   }
   private connections: Set<ClientConnection> = new Set();
@@ -48,10 +52,16 @@ export class GatewayManager {
   // 全网单用户仅存一个活跃语音会话：userId -> VoiceState
   private voiceStates: Map<string, VoiceState> = new Map();
   // 离线防抖缓冲池：userId -> NodeJS.Timeout (3.5秒防抖)
+  public isMaintenanceActive = false;
+  public maintenancePayload: MaintenanceUpdatePayload = {
+    enabled: false,
+    announcement: "",
+  };
   private disconnectGraceTimers: Map<string, NodeJS.Timeout> = new Map();
   private heartbeatSweepTimer: NodeJS.Timeout;
 
   constructor() {
+    this.initMaintenanceState();
     // 启动周期性心跳巡检（每 30 秒），及时识别并清理 TCP 僵尸假死连接
     this.heartbeatSweepTimer = setInterval(() => {
       for (const conn of this.connections) {
@@ -103,6 +113,21 @@ export class GatewayManager {
   }
 
   private async handlePayload(conn: ClientConnection, payload: GatewayPayload) {
+    if (this.isMaintenanceActive) {
+      const isAllowedOp =
+        payload.op === GatewayOpCode.HEARTBEAT ||
+        payload.op === GatewayOpCode.IDENTIFY;
+      if (!isAllowedOp && conn.userId) {
+        const user = await prisma.user.findUnique({
+          where: { id: conn.userId },
+          select: { role: true },
+        });
+        if (user?.role !== "SUPER_ADMIN") {
+          return;
+        }
+      }
+    }
+
     switch (payload.op) {
       case GatewayOpCode.HEARTBEAT:
         conn.isAlive = true;
@@ -150,6 +175,11 @@ export class GatewayManager {
           this.send(conn.ws, {
             op: GatewayOpCode.INVALID_SESSION,
           });
+          try {
+            conn.ws.close(GatewayCloseCode.TOKEN_EXPIRED, "Invalid or expired token");
+          } catch {
+            // ignore
+          }
           return;
         }
 
@@ -185,8 +215,13 @@ export class GatewayManager {
         };
         await cacheStore.setUserPresence(user.id, presence);
 
-        // 获取公会数据供客户端初始化
+        // 获取当前用户已加入的公会数据供客户端初始化
         const guilds = await prisma.guild.findMany({
+          where: {
+            members: {
+              some: { userId: user.id },
+            },
+          },
           include: {
             categories: {
               orderBy: { position: "asc" },
@@ -200,11 +235,14 @@ export class GatewayManager {
                   select: {
                     id: true,
                     username: true,
-                    email: true,
                     avatarUrl: true,
                     status: true,
                     customStatus: true,
                     bio: true,
+                    bannerUrl: true,
+                    bannerColor: true,
+                    themeColor: true,
+                    showActivity: true,
                     createdAt: true,
                   },
                 },
@@ -233,12 +271,17 @@ export class GatewayManager {
                   ...m.user,
                   status: effectiveStatus,
                   customStatus: user.customStatus,
+                  bannerUrl: user.bannerUrl,
+                  bannerColor: user.bannerColor,
+                  themeColor: user.themeColor,
+                  showActivity: user.showActivity,
                 },
               };
             }
             const p = presences.get(m.userId);
             const isOnline =
               p && p.status !== "OFFLINE" && p.status !== "INVISIBLE";
+            const canShowMemberActivity = isOnline && m.user.showActivity !== false;
             return {
               ...m,
               user: {
@@ -248,6 +291,7 @@ export class GatewayManager {
                   p?.customStatus !== undefined
                     ? p.customStatus
                     : m.user.customStatus,
+                activities: canShowMemberActivity ? p?.activities : undefined,
               },
             };
           }),
@@ -266,6 +310,10 @@ export class GatewayManager {
               status: effectiveStatus,
               customStatus: user.customStatus,
               bio: user.bio,
+              bannerUrl: user.bannerUrl,
+              bannerColor: user.bannerColor,
+              themeColor: user.themeColor,
+              showActivity: user.showActivity,
             },
             guilds: hydratedGuilds,
             voiceStates: Array.from(this.voiceStates.values()),
@@ -274,6 +322,14 @@ export class GatewayManager {
 
         // 向共同公会成员广播在线状态更新 (PRESENCE_UPDATE)
         await this.broadcastPresenceUpdate(user.id, presence);
+
+        if (this.isMaintenanceActive && user.role !== "SUPER_ADMIN") {
+          this.send(conn.ws, {
+            op: GatewayOpCode.DISPATCH,
+            t: GatewayEvents.MAINTENANCE_UPDATE,
+            d: this.maintenancePayload,
+          });
+        }
         break;
       }
 
@@ -298,6 +354,7 @@ export class GatewayManager {
           userId: conn.userId,
           status: data.status,
           customStatus: data.customStatus,
+          activities: data.activities,
           clientStatus: {
             web: data.status,
           },
@@ -617,6 +674,25 @@ export class GatewayManager {
     }
   }
 
+  async broadcastToGuild(
+    guildId: string,
+    payload: GatewayPayload,
+    excludeUserId?: string,
+  ) {
+    try {
+      const members = await prisma.guildMember.findMany({
+        where: { guildId },
+        select: { userId: true },
+      });
+      for (const m of members) {
+        if (excludeUserId && m.userId === excludeUserId) continue;
+        this.sendToUser(m.userId, payload);
+      }
+    } catch (err) {
+      console.error("[Gateway] broadcastToGuild error:", err);
+    }
+  }
+
   private cleanup(conn: ClientConnection) {
     if (conn.userId && conn.sessionId) {
       const sessions = this.userSessions.get(conn.userId);
@@ -696,6 +772,13 @@ export class GatewayManager {
 
   async broadcastPresenceUpdate(userId: string, presence: UserPresence) {
     try {
+      // 0. 获取当前用户的是否展示活动设置
+      const userRecord = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { showActivity: true },
+      });
+      const showActivity = userRecord?.showActivity ?? true;
+
       // 1. 获取该用户加入的所有公会
       const userMemberships = await prisma.guildMember.findMany({
         where: { userId },
@@ -716,11 +799,18 @@ export class GatewayManager {
         const sessions = this.userSessions.get(targetId);
         if (!sessions || sessions.size === 0) continue;
 
+        const isSelf = targetId === userId;
         // 若当前用户处于 INVISIBLE 隐身状态，他人视角统一显示为 OFFLINE
         const visibleStatus =
-          targetId !== userId && presence.status === "INVISIBLE"
+          !isSelf && presence.status === "INVISIBLE"
             ? "OFFLINE"
             : presence.status;
+
+        // 若处于隐身状态或关闭了“显示游戏状态”，他人视角下不发送 activities
+        const visibleActivities =
+          !isSelf && (presence.status === "INVISIBLE" || !showActivity)
+            ? undefined
+            : presence.activities;
 
         const eventPayload: GatewayPayload<PresenceUpdateEvent> = {
           op: GatewayOpCode.DISPATCH,
@@ -729,6 +819,7 @@ export class GatewayManager {
             userId,
             status: visibleStatus,
             customStatus: presence.customStatus,
+            activities: visibleActivities,
             clientStatus: presence.clientStatus,
             lastActiveAt: presence.lastActiveAt,
           },
@@ -747,7 +838,10 @@ export class GatewayManager {
    * 处理来自 LiveKit Webhook 的参与者离开事件（权威兜底清理）
    * 当客户端崩溃、掉线、网络异常中断或被 LiveKit SFU 超时移除时，由 LiveKit 服务端主动通知网关收敛状态
    */
-  public handleLiveKitParticipantLeft(userId: string, roomName?: string): boolean {
+  public handleLiveKitParticipantLeft(
+    userId: string,
+    roomName?: string,
+  ): boolean {
     const currentVoice = this.voiceStates.get(userId);
     if (!currentVoice) {
       return false;
@@ -756,13 +850,13 @@ export class GatewayManager {
     // 若提供了 roomName，校验是否是当前频道的离开事件（避免旧房间事件误杀新房间状态）
     if (roomName && currentVoice.channelId !== roomName) {
       console.log(
-        `[Gateway] Ignored LiveKit participant_left for ${userId} in ${roomName} (current channel: ${currentVoice.channelId})`
+        `[Gateway] Ignored LiveKit participant_left for ${userId} in ${roomName} (current channel: ${currentVoice.channelId})`,
       );
       return false;
     }
 
     console.log(
-      `[Gateway] LiveKit webhook reconciled: removing user ${userId} from voice channel ${currentVoice.channelId}`
+      `[Gateway] LiveKit webhook reconciled: removing user ${userId} from voice channel ${currentVoice.channelId}`,
     );
 
     this.voiceStates.delete(userId);
@@ -801,7 +895,12 @@ export class GatewayManager {
     if (sessions) {
       for (const conn of sessions.values()) {
         try {
-          conn.ws.close(4003, "Account terminated or banned");
+          this.send(conn.ws, {
+            op: GatewayOpCode.DISPATCH,
+            t: GatewayEvents.AUTH_SESSION_EXPIRED,
+            d: { userId, reason: "Account terminated or banned" },
+          });
+          conn.ws.close(GatewayCloseCode.ACCOUNT_BANNED, "Account terminated or banned");
         } catch {
           // ignore
         }
@@ -813,9 +912,15 @@ export class GatewayManager {
     return dmCallService.terminateForUser(userId, reason);
   }
 
-  private async terminateCallMedia(channelId: string, callId: string, userIds: string[]) {
+  private async terminateCallMedia(
+    channelId: string,
+    callId: string,
+    userIds: string[],
+  ) {
     const roomName = `dm_${channelId}_${callId}`;
-    await Promise.allSettled(userIds.map((userId) => removeParticipantFromRoom(roomName, userId)));
+    await Promise.allSettled(
+      userIds.map((userId) => removeParticipantFromRoom(roomName, userId)),
+    );
   }
 
   async broadcastTypingAuthorized(
@@ -830,9 +935,10 @@ export class GatewayManager {
       },
     });
     if (!channel) return;
-    const recipients = channel.type === "DM" || channel.type === "GROUP_DM"
-      ? channel.recipients.map((item) => item.userId)
-      : channel.guild?.members.map((item) => item.userId) || [];
+    const recipients =
+      channel.type === "DM" || channel.type === "GROUP_DM"
+        ? channel.recipients.map((item) => item.userId)
+        : channel.guild?.members.map((item) => item.userId) || [];
     if (!recipients.includes(user.id)) return;
     for (const userId of recipients) {
       if (userId === user.id) continue;
@@ -844,28 +950,83 @@ export class GatewayManager {
     }
   }
 
-  async disconnectNonSuperAdmins(reason = "Maintenance mode") {
-    const userIds = Array.from(this.userSessions.keys());
-    const admins = await prisma.user.findMany({
-      where: { id: { in: userIds }, role: "SUPER_ADMIN", isBanned: false },
-      select: { id: true },
-    });
-    const allowed = new Set(admins.map((user) => user.id));
-    for (const userId of userIds) {
-      if (allowed.has(userId)) continue;
-      dmCallService.terminateForUser(userId, "maintenance_mode");
-      const sessions = this.userSessions.get(userId);
-      for (const conn of sessions?.values() || []) {
-        try {
-          this.send(conn.ws, {
-            op: GatewayOpCode.DISPATCH,
-            t: GatewayEvents.MAINTENANCE_UPDATE,
-            d: { enabled: true, reason },
-          });
-          conn.ws.close(4013, reason);
-        } catch {}
-      }
+  async initMaintenanceState() {
+    try {
+      const mode = await prisma.systemSetting.findUnique({
+        where: { key: "maintenance_mode" },
+      });
+      const announcement = await prisma.systemSetting.findUnique({
+        where: { key: "system_announcement" },
+      });
+      this.isMaintenanceActive = mode?.value === "true";
+      this.maintenancePayload = {
+        enabled: this.isMaintenanceActive,
+        announcement: announcement?.value || "",
+      };
+    } catch (err) {
+      console.error("[Gateway] Failed to init maintenance state:", err);
     }
+  }
+
+  async setMaintenanceMode(enabled: boolean, announcement: string = "") {
+    this.isMaintenanceActive = enabled;
+    this.maintenancePayload = {
+      enabled,
+      announcement,
+      triggeredAt: new Date().toISOString(),
+    };
+
+    // 1. 全网长连接广播 MAINTENANCE_UPDATE 事件
+    this.broadcast({
+      op: GatewayOpCode.DISPATCH,
+      t: GatewayEvents.MAINTENANCE_UPDATE,
+      d: this.maintenancePayload,
+    });
+
+    if (enabled) {
+      // 2. 开启维护模式：清理非超级管理员的语音房间与私信呼叫，释放声卡和 WebRTC 资源
+      const userIds = Array.from(this.userSessions.keys());
+      const admins = await prisma.user.findMany({
+        where: { id: { in: userIds }, role: "SUPER_ADMIN", isBanned: false },
+        select: { id: true },
+      });
+      const adminSet = new Set(admins.map((user) => user.id));
+
+      for (const userId of userIds) {
+        if (adminSet.has(userId)) continue;
+
+        // 挂断 1v1 私信呼叫
+        try {
+          dmCallService.terminateForUser(userId, "maintenance_mode");
+        } catch {}
+
+        // 清理公会语音房间与拓扑
+        const voiceState = this.voiceStates.get(userId);
+        if (voiceState && voiceState.channelId) {
+          try {
+            await removeParticipantFromRoom(voiceState.channelId, userId);
+            p2pTopologyManager.unregisterStream(voiceState.channelId);
+            p2pTopologyManager.removeViewer(voiceState.channelId, userId);
+          } catch {}
+          this.voiceStates.delete(userId);
+          this.broadcast({
+            op: GatewayOpCode.DISPATCH,
+            t: "VOICE_STATE_UPDATE",
+            d: {
+              userId,
+              channelId: null,
+              guildId: voiceState.guildId,
+              sessionId: voiceState.sessionId,
+            },
+          });
+        }
+      }
+      // 注意：不断开普通用户的 WebSocket 连接，保持受限长连接广播通道
+    }
+  }
+
+  async disconnectNonSuperAdmins(reason = "Maintenance mode") {
+    await this.setMaintenanceMode(true, reason);
   }
 }
 

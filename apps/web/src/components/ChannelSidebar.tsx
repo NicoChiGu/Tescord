@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Channel,
   ChannelCategory,
@@ -20,7 +20,6 @@ import {
   ScreenShare,
   ScreenShareOff,
   Signal,
-  Sparkles,
   Plus,
   UserPlus,
   Check,
@@ -31,6 +30,7 @@ import {
   ChevronDown,
   ChevronRight,
   FolderPlus,
+  BellOff,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -59,6 +59,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import { API_BASE } from "../config.js";
+import { useSettingsStore } from "../stores/useSettingsStore.js";
 import { audioEngine } from "../services/audioEngine.js";
 import { useNetworkStats } from "../hooks/useNetworkStats.js";
 import { useGatewayStatus } from "../hooks/useGatewayStatus.js";
@@ -70,6 +71,7 @@ import { UserContextMenu } from "./context-menu/UserContextMenu.js";
 import { voiceMeshManager } from "../services/p2p/VoiceMeshManager.js";
 import { p2pStreamManager } from "../services/p2p/P2PStreamManager.js";
 import { DirectMessageList } from "./dm/DirectMessageList.js";
+import { CurrentUserPopout } from "./profile/CurrentUserPopout.js";
 
 export interface VoiceTransferNotice {
   targetPlatform: string;
@@ -182,6 +184,7 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
   const isSelected = selectedChannelId === channel.id;
   const isConnected = activeVoiceChannelId === channel.id;
   const isVoice = channel.type === "VOICE";
+  const isChannelMuted = useSettingsStore((s) => s.isChannelMuted(channel.id));
 
   const {
     attributes: { role: _role, tabIndex: _tabIndex, ...sortableAttributes },
@@ -193,6 +196,7 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
   } = useSortable({
     id: `chn_${channel.id}`,
     data: { type: "channel", channel },
+    disabled: !canManageChannels,
   });
 
   const style: React.CSSProperties = {
@@ -214,8 +218,8 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
         onMarkAsRead={onMarkChannelAsRead}
       >
         <div
-          {...sortableAttributes}
-          {...listeners}
+          {...(canManageChannels ? sortableAttributes : {})}
+          {...(canManageChannels ? listeners : {})}
           className="relative group w-full flex items-center"
         >
           {isVoice ? (
@@ -228,12 +232,14 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
                 if (!isConnected) onJoinVoiceChannel(channel);
               }}
               title="单击预览房间，双击加入语音通话"
-              className={`w-full flex items-center pl-2 pr-12 py-1.5 rounded-md text-sm font-medium transition ${
+              className={`w-full flex items-center pl-2 pr-16 py-1.5 rounded-md text-sm font-medium transition ${
                 isConnected
                   ? "bg-[#23a55a1a] text-discord-green font-semibold"
                   : isSelected
                     ? "bg-discord-active text-white"
-                    : "text-discord-textMuted hover:bg-discord-hover hover:text-discord-textNormal"
+                    : isChannelMuted
+                      ? "text-[#80848e] opacity-75 hover:bg-discord-hover hover:text-discord-textNormal"
+                      : "text-discord-textMuted hover:bg-discord-hover hover:text-discord-textNormal"
               }`}
             >
               <Volume2
@@ -242,49 +248,67 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
                 }`}
               />
               <span className="truncate">{channel.name}</span>
-              <span className="ml-auto mr-1 text-xs px-1.5 py-0.5 rounded bg-[#1f2023] text-discord-textMuted">
-                {participants.length}
-              </span>
             </button>
           ) : (
             <button
               type="button"
               data-testid={`channel-button-${channel.name}`}
               onClick={() => onSelectChannel(channel)}
-              className={`w-full flex items-center pl-2 pr-8 py-1.5 rounded-md text-sm font-medium transition ${
+              className={`w-full flex items-center pl-2 pr-12 py-1.5 rounded-md text-sm font-medium transition ${
                 isSelected
                   ? "bg-discord-active text-white"
-                  : "text-discord-textMuted hover:bg-discord-hover hover:text-discord-textNormal"
+                  : isChannelMuted
+                    ? "text-[#80848e] opacity-75 hover:bg-discord-hover hover:text-discord-textNormal"
+                    : "text-discord-textMuted hover:bg-discord-hover hover:text-discord-textNormal"
               }`}
             >
               {channel.isE2EE ? (
-                <Lock className="w-4 h-4 mr-1.5 text-discord-green flex-shrink-0" />
+                <div className="relative mr-1.5 flex-shrink-0">
+                  <Hash className="w-4 h-4 text-discord-textMuted" />
+                  <Lock className="w-2.5 h-2.5 text-discord-green absolute -top-0.5 -right-1" />
+                </div>
               ) : (
                 <Hash className="w-4 h-4 mr-1.5 text-discord-textMuted flex-shrink-0" />
               )}
               <span className="truncate">{channel.name}</span>
-              {channel.isE2EE && (
-                <span className="ml-auto mr-1 text-[10px] bg-[#23a55a22] text-discord-green px-1 rounded border border-discord-green/30">
-                  E2EE
-                </span>
-              )}
             </button>
           )}
 
-          {canManageChannels && onEditChannel && (
-            <button
-              type="button"
-              data-testid={`edit-channel-gear-${channel.id}`}
-              onClick={(e) => {
-                e.stopPropagation();
-                onEditChannel(channel);
-              }}
-              className="absolute right-2 opacity-0 group-hover:opacity-100 hover:text-white text-discord-textMuted p-0.5 rounded transition"
-              title="编辑频道"
-            >
-              <Settings className="w-3.5 h-3.5" />
-            </button>
-          )}
+          {/* 右侧指示器与操作区域 */}
+          <div className="absolute right-2 flex items-center space-x-1.5 pointer-events-none">
+            {isChannelMuted && (
+              <span
+                className="flex items-center text-discord-textMuted"
+                title="该频道已被静音"
+              >
+                <BellOff
+                  className="w-3.5 h-3.5 text-discord-textMuted flex-shrink-0"
+                  data-testid={`channel-muted-icon-${channel.id}`}
+                />
+              </span>
+            )}
+
+            {isVoice && (
+              <span className="text-xs px-1.5 py-0.5 rounded bg-[#1f2023] text-discord-textMuted flex-shrink-0">
+                {participants.length}
+              </span>
+            )}
+
+            {canManageChannels && onEditChannel && (
+              <button
+                type="button"
+                data-testid={`edit-channel-gear-${channel.id}`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEditChannel(channel);
+                }}
+                className="pointer-events-auto opacity-0 group-hover:opacity-100 hover:text-white text-discord-textMuted p-0.5 rounded transition"
+                title="编辑频道"
+              >
+                <Settings className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
         </div>
       </ChannelContextMenu>
 
@@ -423,7 +447,18 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   const [copiedInvite, setCopiedInvite] = useState<string | null>(null);
   const networkStats = useNetworkStats();
   const { ping: gatewayPing } = useGatewayStatus();
-  const { canManageChannels } = usePermissions(guild);
+  const { canManageChannels, canCreateInvite } = usePermissions(guild);
+  const [isCurrentUserCardOpen, setIsCurrentUserCardOpen] = useState(false);
+  const [userTriggerRect, setUserTriggerRect] = useState<DOMRect | null>(null);
+  const userTriggerBtnRef = useRef<HTMLButtonElement | null>(null);
+
+  const handleToggleUserCard = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (userTriggerBtnRef.current) {
+      setUserTriggerRect(userTriggerBtnRef.current.getBoundingClientRect());
+    }
+    setIsCurrentUserCardOpen((prev) => !prev);
+  };
 
   // 分类折叠状态：持久化保存在 localStorage 中
   const storageKey = guild ? `tescord_collapsed_categories_${guild.id}` : "";
@@ -609,6 +644,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   };
 
   const handleDragStart = (event: DragStartEvent) => {
+    if (!canManageChannels) return;
     const { active } = event;
     const activeData = active.data.current;
     if (activeData?.type === "channel") {
@@ -844,7 +880,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
           <div className="h-12 border-b border-[#1f2023] px-4 flex items-center justify-between font-bold text-discord-textHeader shadow-sm hover:bg-[#35373c] transition cursor-pointer">
             <span className="truncate">{guild.name}</span>
             <div className="flex items-center space-x-1">
-              {onOpenCreateCategory && (
+              {canManageChannels && onOpenCreateCategory && (
                 <button
                   type="button"
                   data-testid="sidebar-create-category-btn"
@@ -858,7 +894,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                   <FolderPlus className="w-4 h-4" />
                 </button>
               )}
-              {onOpenCreateChannel && (
+              {canManageChannels && onOpenCreateChannel && (
                 <button
                   type="button"
                   data-testid="sidebar-create-channel-btn"
@@ -872,20 +908,22 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                   <Plus className="w-4 h-4" />
                 </button>
               )}
-              <button
-                onClick={handleCreateInvite}
-                className="p-1 rounded hover:bg-[#3f4147] text-discord-textMuted hover:text-white transition flex items-center space-x-1"
-                title="生成并复制邀请码"
-              >
-                {copiedInvite ? (
-                  <span className="flex items-center text-xs text-discord-green space-x-0.5">
-                    <Check className="w-3.5 h-3.5" />
-                    <span className="font-mono text-[10px]">{copiedInvite}</span>
-                  </span>
-                ) : (
-                  <UserPlus className="w-4 h-4" />
-                )}
-              </button>
+              {canCreateInvite && (
+                <button
+                  onClick={handleCreateInvite}
+                  className="p-1 rounded hover:bg-[#3f4147] text-discord-textMuted hover:text-white transition flex items-center space-x-1"
+                  title="生成并复制邀请码"
+                >
+                  {copiedInvite ? (
+                    <span className="flex items-center text-xs text-discord-green space-x-0.5">
+                      <Check className="w-3.5 h-3.5" />
+                      <span className="font-mono text-[10px]">{copiedInvite}</span>
+                    </span>
+                  ) : (
+                    <UserPlus className="w-4 h-4" />
+                  )}
+                </button>
+              )}
             </div>
           </div>
         </ServerContextMenu>
@@ -1018,7 +1056,10 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                 {activeItem.channel.type === "VOICE" ? (
                   <Volume2 className="w-4 h-4 mr-1.5 text-discord-green flex-shrink-0" />
                 ) : activeItem.channel.isE2EE ? (
-                  <Lock className="w-4 h-4 mr-1.5 text-discord-green flex-shrink-0" />
+                  <div className="relative mr-1.5 flex-shrink-0">
+                    <Hash className="w-4 h-4 text-discord-textMuted" />
+                    <Lock className="w-2.5 h-2.5 text-discord-green absolute -top-0.5 -right-1" />
+                  </div>
                 ) : (
                   <Hash className="w-4 h-4 mr-1.5 text-discord-textMuted flex-shrink-0" />
                 )}
@@ -1211,27 +1252,6 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
               )}
               <span>{isScreenSharing ? "停止直播" : "直播分享"}</span>
             </button>
-            <div
-              className={`flex items-center space-x-1 px-1.5 py-1 rounded text-[11px] ${
-                isNoiseSuppressionEnabled
-                  ? "text-discord-green bg-[#23a55a22]"
-                  : "text-discord-textMuted"
-              }`}
-              title={
-                audioEngine.config.noiseSuppressionMode === "dtln"
-                  ? "DTLN 深度消键盘音降噪激活中"
-                  : isNoiseSuppressionEnabled
-                    ? "RNNoise AI 智能降噪激活中"
-                    : "AI 降噪已关闭"
-              }
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">
-                {audioEngine.config.noiseSuppressionMode === "dtln"
-                  ? "DTLN"
-                  : "AI"}
-              </span>
-            </div>
           </div>
         </div>
       )}
@@ -1293,10 +1313,12 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
           onOpenAudioSettings={onOpenSettings}
         >
           <button
+            ref={userTriggerBtnRef}
             type="button"
-            onClick={onOpenUserSettings}
+            data-testid="current-user-panel-btn"
+            onClick={handleToggleUserCard}
             className="flex items-center space-x-2 overflow-hidden mr-1 p-1 -ml-1 rounded hover:bg-discord-hover transition text-left group min-w-0 cursor-pointer"
-            title="点击打开设置，或右键快捷切换在线状态"
+            title="点击打开个人卡片，或右键快捷切换在线状态"
           >
             <div className="relative flex-shrink-0">
               <img
@@ -1381,6 +1403,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
           <button
             type="button"
             data-testid="user-settings-gear-btn"
+            data-action="open-user-settings"
             onClick={onOpenSettings}
             className="p-1.5 rounded hover:bg-discord-hover hover:text-discord-textNormal transition cursor-pointer"
             title={t("voice:deviceSettings")}
@@ -1389,6 +1412,16 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Discord 风格左下角当前用户弹窗卡片 */}
+      <CurrentUserPopout
+        isOpen={isCurrentUserCardOpen}
+        onClose={() => setIsCurrentUserCardOpen(false)}
+        targetRect={userTriggerRect}
+        triggerRef={userTriggerBtnRef}
+        currentUser={currentUser}
+        onOpenUserSettings={onOpenUserSettings}
+      />
     </div>
   );
 };
@@ -1426,6 +1459,7 @@ const SortableCategorySection: React.FC<SortableCategorySectionProps> = ({
   } = useSortable({
     id: `cat_${category.id}`,
     data: { type: "category", category },
+    disabled: !canManageChannels,
   });
 
   const style: React.CSSProperties = {
@@ -1446,14 +1480,16 @@ const SortableCategorySection: React.FC<SortableCategorySectionProps> = ({
         onDeleteCategory={onDeleteCategory}
       >
         <div
-          {...sortableAttributes}
-          {...listeners}
-          className="text-[11px] font-bold text-discord-textMuted uppercase tracking-wider px-2 py-1 mb-0.5 flex items-center justify-between group cursor-pointer hover:text-discord-textNormal rounded"
+          {...(canManageChannels ? sortableAttributes : {})}
+          {...(canManageChannels ? listeners : {})}
+          className={`text-[11px] font-bold text-discord-textMuted uppercase tracking-wider px-2 py-1 mb-0.5 flex items-center justify-between group select-none hover:text-discord-textNormal rounded ${
+            canManageChannels ? "cursor-grab" : "cursor-pointer"
+          }`}
           data-testid={`category-header-${category.id}`}
         >
           <div
             onClick={onToggleCollapse}
-            className="flex items-center space-x-1 min-w-0 flex-1"
+            className="flex items-center space-x-1 min-w-0 flex-1 cursor-pointer"
           >
             {isCollapsed ? (
               <ChevronRight className="w-3.5 h-3.5 flex-shrink-0 transition-transform" />
@@ -1462,7 +1498,7 @@ const SortableCategorySection: React.FC<SortableCategorySectionProps> = ({
             )}
             <span className="truncate">{category.name}</span>
           </div>
-          {onOpenCreateChannel && (
+          {canManageChannels && onOpenCreateChannel && (
             <button
               type="button"
               data-testid={`create-channel-in-category-${category.id}`}

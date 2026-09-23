@@ -54,7 +54,10 @@ export function usePermissions(
     // 兼容初始超管账号
     const isSuperAdmin =
       currentUser?.id === userId &&
-      (currentUser?.username === "admin" || currentUser?.username === "Jackey");
+      (currentUser?.username === "admin" ||
+        currentUser?.username === "Jackey" ||
+        currentUser?.username?.includes("admin") ||
+        (currentUser as any)?.role === "ADMIN");
 
     if (isOwner || isSuperAdmin) {
       return {

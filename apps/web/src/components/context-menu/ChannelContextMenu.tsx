@@ -1,13 +1,17 @@
 import React, { useState } from "react";
-import { Channel, Guild } from "@tescord/types";
+import { Channel, Guild, CHANNEL_MUTE_DURATION_OPTIONS } from "@tescord/types";
 import {
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
+  ContextMenuSub,
+  ContextMenuSubTrigger,
+  ContextMenuSubContent,
 } from "../ui/context-menu.js";
 import { usePermissions } from "../../hooks/usePermissions.js";
+import { useSettingsStore } from "../../stores/useSettingsStore.js";
 import {
   CheckCircle2,
   Edit3,
@@ -16,8 +20,11 @@ import {
   Check,
   Hash,
   Volume2,
+  Bell,
   BellOff,
+  UserPlus,
 } from "lucide-react";
+import { API_BASE } from "../../config.js";
 
 interface ChannelContextMenuProps {
   channel: Channel;
@@ -40,9 +47,13 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
   onDeleteChannel,
   onMarkAsRead,
 }) => {
-  const { canManageChannels } = usePermissions(guild);
+  const { canManageChannels, canCreateInvite } = usePermissions(guild);
   const [copiedId, setCopiedId] = useState(false);
-  const [isMuted, setIsMuted] = useState(false);
+  const [copiedInvite, setCopiedInvite] = useState(false);
+
+  const setChannelMute = useSettingsStore((state) => state.setChannelMute);
+  const unmuteChannel = useSettingsStore((state) => state.unmuteChannel);
+  const isMuted = useSettingsStore((state) => state.isChannelMuted(channel.id));
 
   const handleCopyId = async () => {
     try {
@@ -51,6 +62,29 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
       setTimeout(() => setCopiedId(false), 2000);
     } catch (e) {
       console.error("Failed to copy channel id:", e);
+    }
+  };
+
+  const handleCreateAndCopyInvite = async () => {
+    if (!guild) return;
+    try {
+      const token = localStorage.getItem("tescord_access_token");
+      const res = await fetch(`${API_BASE}/api/guilds/${guild.id}/invites`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ maxUses: 10, expiresInHours: 24 }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        await navigator.clipboard.writeText(data.code);
+        setCopiedInvite(true);
+        setTimeout(() => setCopiedInvite(false), 2000);
+      }
+    } catch (err) {
+      console.error("Failed to create invite:", err);
     }
   };
 
@@ -89,15 +123,84 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
           </div>
         </ContextMenuItem>
 
-        <ContextMenuItem
-          onClick={() => setIsMuted(!isMuted)}
-          className="hover:bg-discord-brand"
-        >
-          <div className="flex items-center space-x-2">
-            <BellOff className="w-4 h-4 text-discord-textMuted" />
-            <span>{isMuted ? "取消静音频道" : "静音频道"}</span>
-          </div>
-        </ContextMenuItem>
+        {canCreateInvite && guild && (
+          <ContextMenuItem
+            onClick={handleCreateAndCopyInvite}
+            className="text-discord-brand hover:text-white"
+            data-testid="channel-context-menu-invite"
+          >
+            <div className="flex items-center space-x-2">
+              {copiedInvite ? (
+                <Check className="w-4 h-4 text-discord-green" />
+              ) : (
+                <UserPlus className="w-4 h-4" />
+              )}
+              <span>{copiedInvite ? "邀请码已复制" : "邀请其他人"}</span>
+            </div>
+          </ContextMenuItem>
+        )}
+
+        {isMuted ? (
+          <>
+            <ContextMenuItem
+              data-testid="channel-context-menu-unmute"
+              onClick={() => unmuteChannel(channel.id)}
+              className="hover:bg-discord-brand"
+            >
+              <div className="flex items-center space-x-2">
+                <Bell className="w-4 h-4 text-discord-green" />
+                <span>取消静音频道</span>
+              </div>
+            </ContextMenuItem>
+            <ContextMenuSub>
+              <ContextMenuSubTrigger
+                data-testid="channel-context-menu-change-mute-trigger"
+                className="hover:bg-discord-brand"
+              >
+                <div className="flex items-center space-x-2">
+                  <BellOff className="w-4 h-4 text-discord-textMuted" />
+                  <span>更改静音时长</span>
+                </div>
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent className="w-44">
+                {CHANNEL_MUTE_DURATION_OPTIONS.map((opt) => (
+                  <ContextMenuItem
+                    key={opt.label}
+                    data-testid={`mute-duration-option-${opt.label}`}
+                    onClick={() => setChannelMute(channel.id, opt.durationMs)}
+                    className="hover:bg-discord-brand text-xs"
+                  >
+                    <span>{opt.label}</span>
+                  </ContextMenuItem>
+                ))}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          </>
+        ) : (
+          <ContextMenuSub>
+            <ContextMenuSubTrigger
+              data-testid="channel-context-menu-mute-trigger"
+              className="hover:bg-discord-brand"
+            >
+              <div className="flex items-center space-x-2">
+                <BellOff className="w-4 h-4 text-discord-textMuted" />
+                <span>静音频道</span>
+              </div>
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="w-44">
+              {CHANNEL_MUTE_DURATION_OPTIONS.map((opt) => (
+                <ContextMenuItem
+                  key={opt.label}
+                  data-testid={`mute-duration-option-${opt.label}`}
+                  onClick={() => setChannelMute(channel.id, opt.durationMs)}
+                  className="hover:bg-discord-brand text-xs"
+                >
+                  <span>{opt.label}</span>
+                </ContextMenuItem>
+              ))}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+        )}
 
         <ContextMenuSeparator />
 

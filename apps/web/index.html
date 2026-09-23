@@ -8,9 +8,59 @@
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content"
     />
     <title>Tescord - 本地私有化语音聊天与直播</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background-color: #313338;
+        overflow: hidden;
+      }
+      .app-loader-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+        background-color: #313338;
+      }
+      .app-loader-track {
+        width: 200px;
+        height: 3px;
+        background-color: #2b2d31;
+        border-radius: 9999px;
+        overflow: hidden;
+        position: relative;
+      }
+      .app-loader-fill {
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 40%;
+        background: linear-gradient(90deg, #5865f2, #7983f5);
+        border-radius: 9999px;
+        animation: app-loader-slide 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+      }
+      @keyframes app-loader-slide {
+        0% {
+          transform: translateX(-100%);
+        }
+        100% {
+          transform: translateX(250%);
+        }
+      }
+    </style>
   </head>
   <body class="h-full overflow-hidden select-none antialiased">
-    <div id="root" class="h-full w-full"></div>
+    <div id="root" class="h-full w-full">
+      <div class="app-loader-container">
+        <div class="app-loader-track" role="progressbar" aria-label="Loading">
+          <div class="app-loader-fill"></div>
+        </div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

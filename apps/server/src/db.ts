@@ -14,7 +14,9 @@ export async function seedInitialData(): Promise<void> {
     const userCount = await prisma.user.count();
     if (userCount === 0) {
       if (process.env.NODE_ENV === "production") {
-        console.warn("生产环境数据库为空：已跳过默认账号和测试数据注入。请先注册目标账号，再离线运行 pnpm admin:grant <username>。 ");
+        console.warn(
+          "生产环境数据库为空：已跳过默认账号和测试数据注入。请先注册目标账号，再离线运行 pnpm admin:grant <username>。 ",
+        );
         return;
       }
       console.log("🌱 首次启动，开始初始化系统默认种子数据...");
@@ -42,6 +44,7 @@ export async function seedInitialData(): Promise<void> {
           id: "gld_default_01",
           name: "Tescord 极客总部",
           iconUrl: "https://api.dicebear.com/7.x/identicon/svg?seed=Tescord",
+          isPublic: true,
           ownerId: admin.id,
         },
       });
@@ -140,6 +143,12 @@ export async function seedInitialData(): Promise<void> {
       console.log(
         "✅ 系统基础种子数据注入完成！管理员账号: admin@tescord.local / adminpassword123",
       );
+    } else {
+      // 确保已有数据库中的默认公会同步设为公开
+      await prisma.guild.updateMany({
+        where: { id: "gld_default_01" },
+        data: { isPublic: true },
+      });
     }
 
     if (process.env.NODE_ENV === "production") return;

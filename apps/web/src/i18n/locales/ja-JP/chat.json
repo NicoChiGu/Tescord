@@ -1,6 +1,6 @@
 {
   "sendToChannel": "#{{name}} へのメッセージ",
-  "sendToChannelPlaceholder": "#{{name}} にメッセージを送信 (@でメンション、Markdown・スポイラー ||テキスト||・貼り付け対応)",
+  "sendToChannelPlaceholder": "#{{name}} にメッセージを送信",
   "uploadFile": "ファイルまたは画像をアップロード (MinIO 直送対応)",
   "selectEmoji": "絵文字を選択",
   "replyingTo": "{{name}} への返信中",

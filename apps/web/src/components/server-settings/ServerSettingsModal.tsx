@@ -94,6 +94,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     name?: string;
     iconUrl?: string | null;
     description?: string | null;
+    isPublic?: boolean;
   }) => {
     const res = await fetch(`${API_BASE}/api/guilds/${guild.id}`, {
       method: "PATCH",

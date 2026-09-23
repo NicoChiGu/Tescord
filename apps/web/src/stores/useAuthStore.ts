@@ -7,6 +7,7 @@ import {
   AuthTokens,
 } from "@tescord/types";
 import { API_BASE } from "../config.js";
+import { cancelPendingRequests } from "../services/apiClient.js";
 
 interface AuthState {
   user: User | null;
@@ -17,6 +18,10 @@ interface AuthState {
   isLoading: boolean;
   error: string | null;
 
+  isReauthModalOpen: boolean;
+  reauthReason: string | null;
+  lastActiveUser: User | null;
+
   initAuth: () => Promise<void>;
   login: (dto: LoginDTO) => Promise<void>;
   register: (dto: RegisterDTO) => Promise<void>;
@@ -25,6 +30,10 @@ interface AuthState {
   updateProfile: (dto: UpdateProfileDTO) => Promise<void>;
   refreshAuth: () => Promise<boolean>;
   getAuthHeaders: () => Record<string, string>;
+  openReauthModal: (reason?: string) => void;
+  closeReauthModal: () => void;
+  reauth: (password: string) => Promise<void>;
+  switchAccount: () => void;
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -36,6 +45,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: false,
   isLoading: true,
   error: null,
+  isReauthModalOpen: false,
+  reauthReason: null,
+  lastActiveUser: (() => {
+    try {
+      const saved = typeof localStorage !== "undefined" ? localStorage.getItem("tescord_last_user") : null;
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  })(),
 
   getAuthHeaders: () => {
     const token = get().accessToken;
@@ -65,8 +84,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
         if (res.ok) {
           const user: User = await res.json();
+          localStorage.setItem("tescord_last_user", JSON.stringify(user));
           set({
             user,
+            lastActiveUser: user,
             accessToken,
             token: accessToken,
             refreshToken,
@@ -111,9 +132,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const tokens = data as AuthTokens;
       localStorage.setItem("tescord_access_token", tokens.accessToken);
       localStorage.setItem("tescord_refresh_token", tokens.refreshToken);
+      localStorage.setItem("tescord_last_user", JSON.stringify(tokens.user));
 
       set({
         user: tokens.user,
+        lastActiveUser: tokens.user,
         accessToken: tokens.accessToken,
         token: tokens.accessToken,
         refreshToken: tokens.refreshToken,
@@ -144,9 +167,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const tokens = data as AuthTokens;
       localStorage.setItem("tescord_access_token", tokens.accessToken);
       localStorage.setItem("tescord_refresh_token", tokens.refreshToken);
+      localStorage.setItem("tescord_last_user", JSON.stringify(tokens.user));
 
       set({
         user: tokens.user,
+        lastActiveUser: tokens.user,
         accessToken: tokens.accessToken,
         token: tokens.accessToken,
         refreshToken: tokens.refreshToken,
@@ -177,9 +202,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const data = (await res.json()) as AuthTokens;
       localStorage.setItem("tescord_access_token", data.accessToken);
       localStorage.setItem("tescord_refresh_token", data.refreshToken);
+      localStorage.setItem("tescord_last_user", JSON.stringify(data.user));
 
       set({
         user: data.user,
+        lastActiveUser: data.user,
         accessToken: data.accessToken,
         token: data.accessToken,
         refreshToken: data.refreshToken,
@@ -203,7 +230,72 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       refreshToken: null,
       isAuthenticated: false,
       isLoading: false,
+      isReauthModalOpen: false,
+      reauthReason: null,
       error: null,
+    });
+  },
+
+  openReauthModal: (reason?: string) => {
+    const currentOrLast = get().user || get().lastActiveUser;
+    set({
+      isReauthModalOpen: true,
+      reauthReason: reason || null,
+      lastActiveUser: currentOrLast,
+    });
+  },
+
+  closeReauthModal: () => {
+    set({ isReauthModalOpen: false, reauthReason: null });
+  },
+
+  reauth: async (password: string) => {
+    const currentUser = get().user || get().lastActiveUser;
+    const account = currentUser?.email || currentUser?.username;
+    if (!account) {
+      throw new Error("未能获取当前账号信息，请切换账号重新登录");
+    }
+
+    const res = await fetch(`${API_BASE}/api/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        emailOrUsername: account,
+        password,
+      }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      throw new Error(data.error || "验证失败，请确认密码是否正确");
+    }
+
+    const tokens = data as AuthTokens;
+    localStorage.setItem("tescord_access_token", tokens.accessToken);
+    localStorage.setItem("tescord_refresh_token", tokens.refreshToken);
+    localStorage.setItem("tescord_last_user", JSON.stringify(tokens.user));
+
+    set({
+      user: tokens.user,
+      lastActiveUser: tokens.user,
+      accessToken: tokens.accessToken,
+      token: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      isAuthenticated: true,
+      isReauthModalOpen: false,
+      reauthReason: null,
+      error: null,
+    });
+  },
+
+  switchAccount: () => {
+    cancelPendingRequests("用户切换账号");
+    localStorage.removeItem("tescord_last_user");
+    get().logout();
+    set({
+      isReauthModalOpen: false,
+      reauthReason: null,
+      lastActiveUser: null,
     });
   },
 
@@ -226,3 +318,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ user: data as User });
   },
 }));
+
+if (typeof window !== "undefined") {
+  (window as any).useAuthStore = useAuthStore;
+}

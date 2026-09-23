@@ -86,4 +86,43 @@ contextBridge.exposeInMainWorld("electronAPI", {
     unmapPort: (port: number, protocol?: "UDP" | "TCP") =>
       ipcRenderer.invoke("desktop-upnp-unmap-port", port, protocol),
   },
+
+  // 游戏状态侦测
+  getDetectedGame: () => ipcRenderer.invoke("get-detected-game"),
+  setGameDetectionEnabled: (enabled: boolean) =>
+    ipcRenderer.invoke("set-game-detection-enabled", enabled),
+  getGameDetectionEnabled: () =>
+    ipcRenderer.invoke("get-game-detection-enabled"),
+  onGameActivityChanged: (callback: (activity: any) => void) => {
+    const handler = (_e: any, activity: any) => callback(activity);
+    ipcRenderer.on("game-activity-changed", handler);
+    return () => {
+      ipcRenderer.removeListener("game-activity-changed", handler);
+    };
+  },
+
+  // 客户端自动更新服务 (基于 gh-proxy 阶梯加速与双轨增量热更新)
+  updater: {
+    getConfig: () => ipcRenderer.invoke("updater-get-config"),
+    checkForUpdates: () => ipcRenderer.invoke("updater-check"),
+    downloadAndApply: () => ipcRenderer.invoke("updater-download-apply"),
+    restartToApply: () => ipcRenderer.invoke("updater-restart"),
+    setCustomProxy: (proxyUrl: string) =>
+      ipcRenderer.invoke("updater-set-proxy", proxyUrl),
+    onProgress: (callback: (progress: any) => void) => {
+      const handler = (_e: any, progress: any) => callback(progress);
+      ipcRenderer.on("updater-progress", handler);
+      return () => {
+        ipcRenderer.removeListener("updater-progress", handler);
+      };
+    },
+    onUpdateReady: (callback: (data: { version: string }) => void) => {
+      const handler = (_e: any, data: { version: string }) => callback(data);
+      ipcRenderer.on("updater-update-ready", handler);
+      return () => {
+        ipcRenderer.removeListener("updater-update-ready", handler);
+      };
+    },
+  },
 });
+

@@ -40,3 +40,6 @@ Thumbs.db
 
 # Tools & Binaries
 bin/
+*.db.bak
+release/
+

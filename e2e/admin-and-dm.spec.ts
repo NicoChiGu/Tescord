@@ -117,7 +117,7 @@ test.describe("超级管理员控制台与私信列表全链路端到端验收",
     });
 
     // Mock 频道消息
-    await page.route("**/api/channels/*/messages", (route) => {
+    await page.route("**/api/channels/*/messages*", (route) => {
       route.fulfill({
         status: 200,
         contentType: "application/json",
@@ -362,7 +362,7 @@ test.describe("超级管理员控制台与私信列表全链路端到端验收",
       });
     });
 
-    await page.route("**/api/channels/*/messages", (route) => {
+    await page.route("**/api/channels/*/messages*", (route) => {
       route.fulfill({
         status: 200,
         contentType: "application/json",

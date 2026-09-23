@@ -25,6 +25,12 @@ import {
 } from "@tescord/types";
 import { detectLocalNetwork, UPnPClient } from "./upnp.js";
 import { getDesktopLocale } from "./locales.js";
+import { gameDetector } from "./gameDetector.js";
+import { UpdateManager } from "./updater/update-manager.js";
+import { SplashWindow } from "./updater/splash.js";
+import { ProxyManager } from "./updater/proxy-manager.js";
+import { BUILD_CONFIG } from "./build-config.js";
+
 
 // 开发环境下忽略自签名证书错误 (配合 Vite basicSsl HTTPS 开发模式)
 if (process.env.NODE_ENV !== "production") {
@@ -48,6 +54,12 @@ app.commandLine.appendSwitch(
 app.commandLine.appendSwitch("enable-accelerated-video-decode");
 app.commandLine.appendSwitch("enable-accelerated-video-encode");
 app.commandLine.appendSwitch("ignore-gpu-blocklist");
+app.commandLine.appendSwitch("enable-gpu-rasterization");
+app.commandLine.appendSwitch("enable-zero-copy");
+app.commandLine.appendSwitch(
+  "disable-features",
+  "CalculateNativeWinOcclusion",
+);
 
 // 1. 单例进程保护 (Single Instance Lock)
 const gotTheLock = app.requestSingleInstanceLock();
@@ -232,7 +244,7 @@ function setupSystemTray() {
   });
 }
 
-function createWindow() {
+function createWindow(targetEntryPath?: string) {
   // 隐藏系统原生菜单栏 (去掉 Alt 菜单与原生白条)
   Menu.setApplicationMenu(null);
 
@@ -252,6 +264,7 @@ function createWindow() {
       contextIsolation: true,
       sandbox: true,
       webSecurity: true,
+      backgroundThrottling: false,
     },
   });
 
@@ -375,7 +388,9 @@ function createWindow() {
     "https://localhost:3000",
     "http://localhost:3000",
   ].filter(Boolean) as string[];
-  const distPath = path.join(__dirname, "../../web/dist/index.html");
+
+  const activeEntry = UpdateManager.getInstance().getActiveWebEntry();
+  const distPath = targetEntryPath || activeEntry.indexPath;
 
   const probe = (url: string): Promise<boolean> => {
     return new Promise((resolve) => {
@@ -391,15 +406,19 @@ function createWindow() {
     });
   };
 
-  (async () => {
-    for (const url of devUrls) {
-      if (await probe(url)) {
-        mainWindow?.loadURL(url);
-        return;
-      }
-    }
+  if (app.isPackaged) {
     mainWindow?.loadFile(distPath);
-  })();
+  } else {
+    (async () => {
+      for (const url of devUrls) {
+        if (await probe(url)) {
+          mainWindow?.loadURL(url);
+          return;
+        }
+      }
+      mainWindow?.loadFile(distPath);
+    })();
+  }
 
   mainWindow.on("closed", () => {
     mainWindow = null;
@@ -640,6 +659,51 @@ ipcMain.handle("get-gpu-info", async () => {
   }
 });
 
+// 游戏状态侦测 IPC 处理
+ipcMain.handle("get-detected-game", async (event) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+  return gameDetector.getCurrentActivity();
+});
+
+ipcMain.handle("set-game-detection-enabled", async (event, enabled: boolean) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+  gameDetector.setEnabled(Boolean(enabled));
+  return true;
+});
+
+ipcMain.handle("get-game-detection-enabled", async (event) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+  return gameDetector.isDetectionEnabled();
+});
+
+// 客户端自动更新服务 IPC 处理 (基于 gh-proxy 阶梯加速与双轨增量热更新)
+ipcMain.handle("updater-get-config", async (event) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+  return UpdateManager.getInstance().getUpdaterConfig();
+});
+
+ipcMain.handle("updater-check", async (event) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+  return await UpdateManager.getInstance().checkForUpdates();
+});
+
+ipcMain.handle("updater-download-apply", async (event) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+  return await UpdateManager.getInstance().downloadAndApplyWebUpdate();
+});
+
+ipcMain.handle("updater-restart", async (event) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+  UpdateManager.getInstance().restartToApply();
+  return true;
+});
+
+ipcMain.handle("updater-set-proxy", async (event, proxyUrl: string) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+  ProxyManager.getInstance().setCustomProxy(proxyUrl);
+  return true;
+});
+
 // 单例唤醒监听
 app.on("second-instance", () => {
   if (mainWindow) {
@@ -649,9 +713,123 @@ app.on("second-instance", () => {
   }
 });
 
-app.whenReady().then(() => {
-  createWindow();
+let splashWindow: SplashWindow | null = null;
+
+async function startApplicationWithSplash(): Promise<void> {
+  const updateManager = UpdateManager.getInstance();
+  const activeEntry = updateManager.getActiveWebEntry();
+
+  // 若处于打包环境或显式指定测试 Splash (开发环境下可通过 SHOW_SPLASH=true 开启)
+  const shouldShowSplash = app.isPackaged || process.env.SHOW_SPLASH === "true";
+
+  if (shouldShowSplash) {
+    splashWindow = new SplashWindow();
+    splashWindow.updateStatus({
+      text: "正在启动 Tescord...",
+      version: `v${activeEntry.version}`,
+    });
+
+    if (BUILD_CONFIG.IS_UPDATER_ENABLED) {
+      splashWindow.updateStatus({ text: "正在检查更新..." });
+      try {
+        const check = await updateManager.checkForUpdates();
+        if (check.hasUpdate && !check.isHostUpdateRequired && check.latestVersion) {
+          splashWindow.updateStatus({
+            text: `发现新版本 v${check.latestVersion}，正在下载...`,
+            showProgress: true,
+            percent: 5,
+          });
+
+          const applyRes = await updateManager.downloadAndApplyWebUpdate((prog) => {
+            splashWindow?.updateStatus({
+              text:
+                prog.state === "extracting"
+                  ? "正在解压安装增量包..."
+                  : `正在下载更新 (${prog.percent}%)...`,
+              percent: prog.percent,
+              showProgress: true,
+            });
+          });
+
+          if (applyRes.success) {
+            splashWindow.updateStatus({
+              text: "更新已完成，正在载入...",
+              showProgress: false,
+              hideSpinner: true,
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("⚠️ [Startup] 更新检测异常，继续启动:", err);
+      }
+    }
+
+    // 稍作平滑过渡展示
+    await new Promise((resolve) => setTimeout(resolve, 350));
+  }
+
+  // 获取最终生效路径并创建主窗口
+  const finalEntry = updateManager.getActiveWebEntry();
+  createWindow(finalEntry.indexPath);
+
+  mainWindow?.once("ready-to-show", () => {
+    if (splashWindow) {
+      splashWindow.close();
+      splashWindow = null;
+    }
+    mainWindow?.show();
+    mainWindow?.focus();
+  });
+
+  // 兜底保护：若 6 秒后未能正常触发 ready-to-show，强制呈现主窗口
+  setTimeout(() => {
+    if (splashWindow) {
+      splashWindow.close();
+      splashWindow = null;
+    }
+    if (mainWindow && !mainWindow.isVisible()) {
+      mainWindow.show();
+    }
+  }, 6000);
+}
+
+function startBackgroundUpdateChecker(): void {
+  if (!BUILD_CONFIG.IS_UPDATER_ENABLED) return;
+  const updateManager = UpdateManager.getInstance();
+
+  const runCheck = async () => {
+    try {
+      console.log("⏱️ [Updater] 触发后台静默更新检测...");
+      const check = await updateManager.checkForUpdates();
+      if (check.hasUpdate && !check.isHostUpdateRequired && check.latestVersion) {
+        console.log(`⬇️ [Updater] 后台检测到增量更新 v${check.latestVersion}，开始静默下载...`);
+        const applyRes = await updateManager.downloadAndApplyWebUpdate();
+        if (applyRes.success) {
+          console.log(`✨ [Updater] 增量包已静默准备就绪: v${check.latestVersion}`);
+          mainWindow?.webContents.send("updater-update-ready", {
+            version: check.latestVersion,
+          });
+        }
+      }
+    } catch (err) {
+      console.warn("⚠️ [Updater] 后台静默更新检测失败:", err);
+    }
+  };
+
+  // 启动 45 秒后首次静默检测，之后每 30 分钟检测一次
+  setTimeout(runCheck, 45 * 1000);
+  setInterval(runCheck, 30 * 60 * 1000);
+}
+
+app.whenReady().then(async () => {
+  await startApplicationWithSplash();
   setupSystemTray();
+  startBackgroundUpdateChecker();
+
+  // 监听游戏状态变动并推送给渲染进程
+  gameDetector.onActivityChange((activity) => {
+    mainWindow?.webContents.send("game-activity-changed", activity);
+  });
 
   // 注册系统全局静音热键 (Ctrl+Shift+M / Command+Shift+M)
   globalShortcut.register("CommandOrControl+Shift+M", () => {
@@ -685,3 +863,4 @@ app.on("window-all-closed", () => {
     app.quit();
   }
 });
+

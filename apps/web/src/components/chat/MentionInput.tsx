@@ -22,6 +22,7 @@ export interface MentionInputHandle {
 }
 
 interface MentionInputProps {
+  initialValue?: string;
   placeholder?: string;
   members?: GuildMember[];
   roles?: Role[];
@@ -34,6 +35,7 @@ interface MentionInputProps {
 export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
   (
     {
+      initialValue,
       placeholder = "发送消息...",
       members = [],
       roles = [],
@@ -90,6 +92,21 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
       setIsEmpty(!textTrimmed && editorRef.current.childNodes.length === 0);
       onChangeText?.(text);
     }, [serializeToPlainText, onChangeText]);
+
+    // 当外部传入或切换 initialValue 时（例如频道草稿恢复/清空），同步更新 DOM
+    useEffect(() => {
+      if (editorRef.current) {
+        const currentText = serializeToPlainText(editorRef.current);
+        const nextText = initialValue ?? "";
+        if (currentText !== nextText) {
+          editorRef.current.innerText = nextText;
+          const textTrimmed = nextText
+            .replace(/[\u200B-\u200D\uFEFF]/g, "")
+            .trim();
+          setIsEmpty(!textTrimmed);
+        }
+      }
+    }, [initialValue, serializeToPlainText]);
 
     // 创建 Mention Tag DOM 节点
     const createMentionTagElement = useCallback(
@@ -404,12 +421,10 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
         e.preventDefault();
         if (!editorRef.current) return;
         const text = serializeToPlainText(editorRef.current).trim();
-        if (text) {
-          onSendMessage(text);
-          editorRef.current.innerHTML = "";
-          handleContentChange();
-          setIsMenuOpen(false);
-        }
+        onSendMessage(text);
+        editorRef.current.innerHTML = "";
+        handleContentChange();
+        setIsMenuOpen(false);
         return;
       }
 
@@ -500,7 +515,10 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
 
         {/* 占位符 */}
         {isEmpty && (
-          <span className="absolute left-0 top-1/2 -translate-y-1/2 text-sm text-discord-textMuted pointer-events-none select-none truncate">
+          <span
+            data-testid="chat-input-placeholder"
+            className="absolute left-0 top-1/2 -translate-y-1/2 text-sm text-discord-textMuted pointer-events-none select-none truncate"
+          >
             {placeholder}
           </span>
         )}
@@ -508,6 +526,7 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
         {/* ContentEditable 主输入容器 */}
         <div
           ref={editorRef}
+          data-testid="chat-mention-input"
           contentEditable={!disabled}
           onInput={() => {
             handleContentChange();

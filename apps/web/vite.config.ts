@@ -21,6 +21,15 @@ const proxyConfig = {
     target: "http://127.0.0.1:3001",
     changeOrigin: true,
   },
+  "/attachments": {
+    target: "http://127.0.0.1:3001",
+    changeOrigin: true,
+  },
+  "/minio": {
+    target: "http://127.0.0.1:9000",
+    changeOrigin: true,
+    rewrite: (path: string) => path.replace(/^\/minio/, ""),
+  },
   "/rtc": {
     target: "http://127.0.0.1:7880",
     ws: true,

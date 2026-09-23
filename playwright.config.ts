@@ -12,8 +12,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   /* 失败重试次数 */
   retries: process.env.CI ? 2 : 0,
-  /* 并发 worker 数量 */
-  workers: process.env.CI ? 1 : 2,
+  /* 并发 worker 数量：音视频房间与全局单例测试需串行执行避免状态竞态 */
+  workers: 1,
   /* 控制台与 HTML 报告 */
   reporter: [["list"], ["html", { open: "never" }]],
   /* 通用配置 */

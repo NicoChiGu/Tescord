@@ -10,6 +10,7 @@ interface OverviewTabProps {
     name?: string;
     iconUrl?: string | null;
     description?: string | null;
+    isPublic?: boolean;
   }) => Promise<void>;
 }
 
@@ -21,6 +22,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const [name, setName] = useState(guild.name || "");
   const [iconUrl, setIconUrl] = useState(guild.iconUrl || "");
   const [description, setDescription] = useState(guild.description || "");
+  const [isPublic, setIsPublic] = useState(Boolean(guild.isPublic));
   const [isSaving, setIsSaving] = useState(false);
   const [copiedId, setCopiedId] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -29,7 +31,15 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const hasChanges =
     name.trim() !== (guild.name || "").trim() ||
     iconUrl.trim() !== (guild.iconUrl || "").trim() ||
-    description.trim() !== (guild.description || "").trim();
+    description.trim() !== (guild.description || "").trim() ||
+    isPublic !== Boolean(guild.isPublic);
+
+  const handleReset = () => {
+    setName(guild.name || "");
+    setIconUrl(guild.iconUrl || "");
+    setDescription(guild.description || "");
+    setIsPublic(Boolean(guild.isPublic));
+  };
 
   const handleCopyId = () => {
     navigator.clipboard.writeText(guild.id);
@@ -60,8 +70,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       if (!res.ok) throw new Error("获取上传凭证失败");
       const { uploadUrl, fileUrl, requiresAuth } = await res.json();
 
-      // 2. 直传文件
-      const uploadRes = await fetch(uploadUrl, {
+      // 2. 直传文件 (经 resolveServerUrl 自愈相对路径走 Vite 代理)
+      const targetUploadUrl = resolveServerUrl(uploadUrl);
+      const uploadRes = await fetch(targetUploadUrl, {
         method: "PUT",
         headers: {
           "Content-Type": file.type || "application/octet-stream",
@@ -91,6 +102,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         name: name.trim(),
         iconUrl: iconUrl.trim() || null,
         description: description.trim() || null,
+        isPublic,
       });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2500);
@@ -99,12 +111,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const handleReset = () => {
-    setName(guild.name || "");
-    setIconUrl(guild.iconUrl || "");
-    setDescription(guild.description || "");
   };
 
   return (
@@ -195,6 +201,36 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
               rows={3}
               className="w-full bg-[#1e1f22] border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#5865f2] transition-colors resize-none"
             />
+          </div>
+
+          {/* 公开状态开关 */}
+          <div className="pt-2">
+            <div className="flex items-center justify-between p-4 rounded-xl bg-[#1e1f22] border border-white/5">
+              <div className="space-y-1">
+                <div className="text-sm font-semibold text-white">
+                  在探索中心公开此服务器
+                </div>
+                <p className="text-xs text-discord-textMuted">
+                  开启后，任何用户均可在“探索社区”大厅中发现此服务器卡片并直接一键加入。
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                data-testid="toggle-guild-public-btn"
+                aria-checked={isPublic}
+                onClick={() => setIsPublic(!isPublic)}
+                className={`w-12 h-6 flex items-center rounded-full p-1 transition-colors duration-200 ease-in-out cursor-pointer ${
+                  isPublic ? "bg-discord-brand" : "bg-white/10"
+                }`}
+              >
+                <div
+                  className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ease-in-out ${
+                    isPublic ? "translate-x-6" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
           </div>
         </div>
       </div>

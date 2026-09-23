@@ -4,15 +4,85 @@
   "private": true,
   "main": "dist/main.js",
   "scripts": {
-    "build": "tsc",
+    "copy-assets": "node -e \"const fs=require('fs'); fs.mkdirSync('dist/updater', {recursive:true}); fs.copyFileSync('src/updater/splash.html', 'dist/updater/splash.html');\"",
+    "build": "node ../../scripts/generate-build-config.mjs && tsc && pnpm run copy-assets",
     "start": "electron .",
-    "dev": "tsc && electron ."
+    "dev": "node ../../scripts/generate-build-config.mjs && tsc && pnpm run copy-assets && electron .",
+    "dist": "pnpm run build && electron-builder",
+    "dist:win": "pnpm run build && electron-builder --win",
+    "dist:mac": "pnpm run build && electron-builder --mac"
   },
   "dependencies": {
-    "@tescord/types": "workspace:*"
+    "@tescord/types": "workspace:*",
+    "adm-zip": "^0.6.1"
   },
   "devDependencies": {
+    "@types/adm-zip": "^0.5.8",
     "electron": "^33.2.1",
+    "electron-builder": "^26.15.3",
     "typescript": "^5.8.2"
+  },
+  "build": {
+    "appId": "com.tescord.desktop",
+    "productName": "Tescord",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "node_modules/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../web/dist",
+        "to": "web/dist",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.social-networking"
+    }
   }
 }
+

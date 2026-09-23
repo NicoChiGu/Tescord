@@ -34,6 +34,10 @@ export class AuthService {
       status: (u.status as UserStatus) || "ONLINE",
       customStatus: u.customStatus || null,
       bio: u.bio || null,
+      bannerUrl: u.bannerUrl || null,
+      bannerColor: u.bannerColor || null,
+      themeColor: u.themeColor || null,
+      showActivity: u.showActivity !== undefined ? Boolean(u.showActivity) : true,
       role: (u.role as any) || "USER",
       isBanned: u.isBanned || false,
       mustChangePassword: u.mustChangePassword || false,
@@ -132,36 +136,6 @@ export class AuthService {
         status: "ONLINE",
       },
     });
-
-    // 自动将新用户加入默认公会 (若存在)
-    const defaultGuild = await prisma.guild.findFirst();
-    if (defaultGuild) {
-      const member = await prisma.guildMember.create({
-        data: {
-          guildId: defaultGuild.id,
-          userId: user.id,
-          nickname: user.username,
-          roleIds: "[]",
-        },
-      });
-
-      gatewayManager.broadcast({
-        op: GatewayOpCode.DISPATCH,
-        t: GatewayEvents.GUILD_MEMBER_ADD,
-        d: {
-          guildId: defaultGuild.id,
-          member: {
-            userId: member.userId,
-            guildId: member.guildId,
-            nickname: member.nickname,
-            roleIds: [],
-            roles: [],
-            joinedAt: member.joinedAt.toISOString(),
-            user: this.formatUser(user),
-          },
-        },
-      });
-    }
 
     return this.generateAuthTokens(user);
   }
@@ -287,6 +261,16 @@ export class AuthService {
           : {}),
         ...(dto.bio !== undefined ? { bio: dto.bio } : {}),
         ...(dto.status ? { status: dto.status } : {}),
+        ...(dto.bannerUrl !== undefined ? { bannerUrl: dto.bannerUrl } : {}),
+        ...(dto.bannerColor !== undefined
+          ? { bannerColor: dto.bannerColor }
+          : {}),
+        ...(dto.themeColor !== undefined
+          ? { themeColor: dto.themeColor }
+          : {}),
+        ...(dto.showActivity !== undefined
+          ? { showActivity: dto.showActivity }
+          : {}),
       },
     });
 

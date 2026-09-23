@@ -6,6 +6,8 @@ import {
   UserSettingsDTO,
   SupportedLocale,
   VoiceTransmissionMode,
+  ChannelMuteConfig,
+  isChannelMuted as checkIsChannelMuted,
 } from "@tescord/types";
 import { API_BASE } from "../config.js";
 import { useAuthStore } from "./useAuthStore.js";
@@ -14,6 +16,7 @@ import i18n from "../i18n/index.js";
 interface SettingsState extends UserSettingsDTO {
   isCloudSyncing: boolean;
   lastCloudSyncedAt: number | null;
+  mutedChannels: Record<string, ChannelMuteConfig>;
 
   // Actions
   setAudioConfig: (partial: Partial<AudioProcessingConfig>) => void;
@@ -22,6 +25,10 @@ interface SettingsState extends UserSettingsDTO {
   setUserVolume: (userId: string, volume: number) => void;
   setLanguage: (lang: SupportedLocale) => void;
   setVoiceTransmissionMode: (mode: VoiceTransmissionMode) => void;
+  setChannelMute: (channelId: string, durationMs: number | null) => void;
+  unmuteChannel: (channelId: string) => void;
+  isChannelMuted: (channelId: string) => boolean;
+  setGuildPositions: (positions: string[]) => void;
   fetchCloudSettings: () => Promise<void>;
   syncToCloud: () => Promise<void>;
 }
@@ -63,6 +70,8 @@ export const useSettingsStore = create<SettingsState>()(
       userVolumes: {},
       language: (i18n.language as SupportedLocale) || "zh-CN",
       voiceTransmissionMode: "sfu",
+      mutedChannels: {},
+      guildPositions: [],
       isCloudSyncing: false,
       lastCloudSyncedAt: null,
 
@@ -104,11 +113,58 @@ export const useSettingsStore = create<SettingsState>()(
       setLanguage: (lang) => {
         set({ language: lang });
         i18n.changeLanguage(lang);
-        get().syncToCloud();
+        if (typeof window !== "undefined") {
+          localStorage.setItem("tescord_locale", lang);
+        }
+        // 语言设置作为关键选项立即同步云端，避免 1 秒防抖导致的即时刷新竞态
+        const { getAuthHeaders, isAuthenticated } = useAuthStore.getState();
+        if (isAuthenticated) {
+          fetch(`${API_BASE}/api/users/@me/settings`, {
+            method: "PATCH",
+            headers: {
+              "Content-Type": "application/json",
+              ...getAuthHeaders(),
+            },
+            body: JSON.stringify({ language: lang }),
+          }).catch(() => {});
+        }
       },
 
       setVoiceTransmissionMode: (mode) => {
         set({ voiceTransmissionMode: mode });
+        get().syncToCloud();
+      },
+
+      setChannelMute: (channelId, durationMs) => {
+        const mutedUntil = durationMs ? Date.now() + durationMs : null;
+        set((state) => ({
+          mutedChannels: {
+            ...state.mutedChannels,
+            [channelId]: {
+              muted: true,
+              mutedUntil,
+            },
+          },
+        }));
+        get().syncToCloud();
+      },
+
+      unmuteChannel: (channelId) => {
+        set((state) => {
+          const updated = { ...state.mutedChannels };
+          delete updated[channelId];
+          return { mutedChannels: updated };
+        });
+        get().syncToCloud();
+      },
+
+      isChannelMuted: (channelId) => {
+        const config = get().mutedChannels?.[channelId];
+        return checkIsChannelMuted(config);
+      },
+
+      setGuildPositions: (positions: string[]) => {
+        set({ guildPositions: positions });
         get().syncToCloud();
       },
 
@@ -140,12 +196,28 @@ export const useSettingsStore = create<SettingsState>()(
               },
               language: cloudSettings.language || state.language,
               voiceTransmissionMode:
-                cloudSettings.voiceTransmissionMode || state.voiceTransmissionMode,
+                cloudSettings.voiceTransmissionMode ||
+                state.voiceTransmissionMode,
+              mutedChannels: {
+                ...state.mutedChannels,
+                ...(cloudSettings.mutedChannels || {}),
+              },
+              guildPositions: Array.isArray(cloudSettings.guildPositions)
+                ? cloudSettings.guildPositions
+                : state.guildPositions,
               lastCloudSyncedAt: Date.now(),
             }));
 
-            // 如果云端语言和当前不同，同步切换
-            if (cloudSettings.language && cloudSettings.language !== i18n.language) {
+            // 如果云端语言和当前不同，优先尊重本地显式持久化的 tescord_locale 偏好
+            const localLocale =
+              typeof window !== "undefined"
+                ? localStorage.getItem("tescord_locale")
+                : null;
+            if (
+              cloudSettings.language &&
+              !localLocale &&
+              cloudSettings.language !== i18n.language
+            ) {
               i18n.changeLanguage(cloudSettings.language);
             }
           }
@@ -171,6 +243,8 @@ export const useSettingsStore = create<SettingsState>()(
             userVolumes: state.userVolumes,
             language: state.language,
             voiceTransmissionMode: state.voiceTransmissionMode,
+            mutedChannels: state.mutedChannels,
+            guildPositions: state.guildPositions,
           };
 
           try {
@@ -198,6 +272,8 @@ export const useSettingsStore = create<SettingsState>()(
         userVolumes: state.userVolumes,
         language: state.language,
         voiceTransmissionMode: state.voiceTransmissionMode,
+        mutedChannels: state.mutedChannels,
+        guildPositions: state.guildPositions,
       }),
     },
   ),

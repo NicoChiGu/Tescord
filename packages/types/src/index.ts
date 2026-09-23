@@ -7,6 +7,26 @@ export type UserStatus = "ONLINE" | "IDLE" | "DND" | "OFFLINE" | "INVISIBLE";
 
 export type SystemRole = "USER" | "ADMIN" | "SUPER_ADMIN";
 
+export type ActivityType = "PLAYING" | "STREAMING" | "LISTENING" | "WATCHING" | "CUSTOM";
+
+export interface Activity {
+  name: string;
+  type: ActivityType;
+  details?: string;
+  state?: string;
+  applicationId?: string;
+  timestamps?: {
+    start?: number;
+    end?: number;
+  };
+  assets?: {
+    largeImage?: string;
+    largeText?: string;
+    smallImage?: string;
+    smallText?: string;
+  };
+}
+
 export interface User {
   id: string;
   username: string;
@@ -15,6 +35,11 @@ export interface User {
   status: UserStatus;
   customStatus?: string | null;
   bio?: string | null;
+  bannerUrl?: string | null;
+  bannerColor?: string | null;
+  themeColor?: string | null;
+  showActivity?: boolean;
+  activities?: Activity[];
   role?: SystemRole;
   isBanned?: boolean;
   mustChangePassword?: boolean;
@@ -57,6 +82,10 @@ export interface UpdateProfileDTO {
   customStatus?: string | null;
   bio?: string | null;
   status?: UserStatus;
+  bannerUrl?: string | null;
+  bannerColor?: string | null;
+  themeColor?: string | null;
+  showActivity?: boolean;
 }
 
 // 2. 位掩码权限体系与角色 (Bitwise Permissions & Roles)
@@ -336,6 +365,7 @@ export interface Guild {
   name: string;
   iconUrl?: string | null;
   description?: string | null;
+  isPublic?: boolean;
   ownerId: string;
   channels: Channel[];
   categories?: ChannelCategory[];
@@ -343,6 +373,17 @@ export interface Guild {
   roles?: Role[];
   createdAt: string;
   updatedAt?: string;
+}
+
+export interface PublicGuild {
+  id: string;
+  name: string;
+  iconUrl?: string | null;
+  description?: string | null;
+  ownerId: string;
+  memberCount: number;
+  isJoined?: boolean;
+  createdAt: string;
 }
 
 export interface Invite {
@@ -538,6 +579,15 @@ export enum GatewayOpCode {
   HEARTBEAT_ACK = 11,
 }
 
+export enum GatewayCloseCode {
+  NORMAL = 1000,
+  TOKEN_EXPIRED = 4001,
+  UNAUTHORIZED = 4002,
+  ACCOUNT_BANNED = 4003,
+  SESSION_INVALID = 4004,
+  MAINTENANCE_MODE = 4013,
+}
+
 export interface GatewayPayload<T = any> {
   op: GatewayOpCode;
   d?: T;
@@ -618,12 +668,14 @@ export interface ReadyPayload {
 export interface StatusUpdatePayload {
   status: UserStatus;
   customStatus?: string | null;
+  activities?: Activity[];
 }
 
 export interface UserPresence {
   userId: string;
   status: UserStatus;
   customStatus?: string | null;
+  activities?: Activity[];
   clientStatus?: {
     web?: UserStatus;
     desktop?: UserStatus;
@@ -635,6 +687,7 @@ export interface PresenceUpdateEvent {
   userId: string;
   status: UserStatus;
   customStatus?: string | null;
+  activities?: Activity[];
   clientStatus?: {
     web?: UserStatus;
     desktop?: UserStatus;
@@ -803,6 +856,42 @@ export interface PeerLatencyReport {
   updatedAt: number;
 }
 
+// 频道静音配置项
+export interface ChannelMuteConfig {
+  muted: boolean;
+  mutedUntil: number | null; // 毫秒绝对时间戳；null 表示永久静音（直到重新开启）
+}
+
+// 频道静音预设时长选项
+export interface MuteDurationOption {
+  label: string;
+  durationMs: number | null;
+}
+
+export const CHANNEL_MUTE_DURATION_OPTIONS: MuteDurationOption[] = [
+  { label: "15 分钟", durationMs: 15 * 60 * 1000 },
+  { label: "1 小时", durationMs: 60 * 60 * 1000 },
+  { label: "3 小时", durationMs: 3 * 60 * 60 * 1000 },
+  { label: "8 小时", durationMs: 8 * 60 * 60 * 1000 },
+  { label: "24 小时", durationMs: 24 * 60 * 60 * 1000 },
+  { label: "直到重新开启", durationMs: null },
+];
+
+/**
+ * 判定频道配置当前是否处于有效静音状态（毫秒级判断）
+ */
+export function isChannelMuted(config?: ChannelMuteConfig | null): boolean {
+  if (!config || !config.muted) return false;
+  if (
+    config.mutedUntil === null ||
+    config.mutedUntil === undefined ||
+    config.mutedUntil === -1
+  ) {
+    return true;
+  }
+  return Date.now() < config.mutedUntil;
+}
+
 // 用户全量偏好设置 DTO (支持本地 Zustand Persist 持久化与后端云端漫游)
 export interface UserSettingsDTO {
   audio: AudioProcessingConfig;
@@ -811,6 +900,8 @@ export interface UserSettingsDTO {
   userVolumes: Record<string, number>; // 针对特定成员的独立音量配置 (0 - 200)
   language?: SupportedLocale; // 用户界面多语言首选项
   voiceTransmissionMode?: VoiceTransmissionMode; // 纯语音偏好模式 (默认 sfu)
+  mutedChannels?: Record<string, ChannelMuteConfig>; // 频道静音配置项字典 (key 为 channelId)
+  guildPositions?: string[]; // 用户个人服务器排序偏好列表 (guildId 顺序)
 }
 
 export interface CameraDeviceInfo {
@@ -962,6 +1053,7 @@ export const GatewayEvents = {
   CALL_END: "CALL_END",
   CALL_STATE_UPDATE: "CALL_STATE_UPDATE",
   ACCOUNT_SESSION_REVOKED: "ACCOUNT_SESSION_REVOKED",
+  AUTH_SESSION_EXPIRED: "AUTH_SESSION_EXPIRED",
   MAINTENANCE_UPDATE: "MAINTENANCE_UPDATE",
   // 全网系统广播
   SYSTEM_BROADCAST: "SYSTEM_BROADCAST",
@@ -2167,6 +2259,11 @@ export class DoubleRatchetSession {
       }
 
       const chainState = this.channelReceivingChains.get(chainId)!;
+      if (envelope.sequenceNumber < chainState.seq) {
+        throw new Error(
+          `消息 sequenceNumber (${envelope.sequenceNumber}) 已落后于当前接收链游标 (${chainState.seq})，该消息已解密过或已被单向棘轮消费`,
+        );
+      }
       const MAX_SKIP = 2000;
       if (chainState.seq + MAX_SKIP < envelope.sequenceNumber) {
         throw new Error("跳过的消息数量过多，疑似拒绝服务攻击 (DoS)");
@@ -2557,6 +2654,13 @@ export interface SystemSettingsDTO {
   systemAnnouncement?: string;
 }
 
+export interface MaintenanceUpdatePayload {
+  enabled: boolean;
+  announcement?: string;
+  estimatedEndTime?: string | null;
+  triggeredAt?: string;
+}
+
 // ==========================================
 // 21. 私信与 1v1 实时音视频呼叫契约 (Direct Messages & 1v1 Calling)
 // ==========================================
@@ -2656,3 +2760,80 @@ export interface MediaKeyEnvelopePayload {
 export interface MarkDMReadDTO {
   lastReadSequence: number;
 }
+
+export interface GetMessagesQueryDTO {
+  limit?: number | string;
+  before?: number | string;
+  after?: number | string;
+}
+
+export interface ChannelMetaRecord {
+  channelId: string;
+  lastReadSequence: number;
+  scrollTop: number;
+  isNearBottom: boolean;
+  lastVisitedAt: number;
+}
+
+// ==========================================
+// 22. 桌面客户端自动更新与 gh-proxy 加速协议 (Client Updater & Acceleration)
+// ==========================================
+export type UpdaterState =
+  | "disabled"     // 未配置 Git 仓库或更新服务被禁用
+  | "idle"         // 空闲待命
+  | "checking"     // 正在检查更新
+  | "downloading"  // 正在下载增量包
+  | "verifying"    // 正在校验 SHA256 哈希
+  | "extracting"   // 正在解压至本地用户目录
+  | "ready"        // 增量包已就绪，等待重启生效
+  | "error";       // 发生异常
+
+export interface UpdateManifest {
+  version: string;                    // 目标版本号 (如 "0.2.0")
+  releaseDate: string;                // 发布时间 (ISO 8601)
+  minHostVersion: string;             // 最低需要的 Electron 原生 Host 壳版本
+  webPackageUrl: string;              // 增量包相对路径或完整 URL (如 tescord-web-v0.2.0.zip)
+  webPackageSha256: string;           // 增量包 SHA256 校验和
+  changelog?: string;                 // 更新日志段落
+  mandatory?: boolean;                // 是否为强制更新
+  hostInstallers?: {
+    windows?: { url: string; sha256?: string };
+    macOS?: { url: string; sha256?: string };
+    linux?: { url: string; sha256?: string };
+  };
+}
+
+export interface UpdateCheckResult {
+  enabled: boolean;
+  hasUpdate: boolean;
+  currentHostVersion: string;
+  currentWebVersion: string;
+  latestVersion?: string;
+  isHostUpdateRequired?: boolean;
+  manifest?: UpdateManifest;
+  error?: string;
+}
+
+export interface UpdateProgress {
+  state: UpdaterState;
+  percent: number;                    // 0 - 100
+  transferredBytes: number;
+  totalBytes: number;
+  speedBytesPerSec?: number;
+  error?: string;
+}
+
+export interface UpdaterConfig {
+  enabled: boolean;
+  currentHostVersion: string;
+  currentWebVersion: string;
+  gitRepo: string | null;             // e.g. "owner/repo" 或 null
+  preferredProxy: string;             // 默认 "https://v6.gh-proxy.org/"
+  customProxy?: string;               // 用户自定义代理地址
+  lastCheckedAt?: string;
+}
+
+export interface SetCustomProxyDTO {
+  proxyUrl: string;                   // 自定义代理前缀，传空字符串代表清除自定义代理
+}
+

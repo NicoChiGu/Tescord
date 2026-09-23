@@ -8,14 +8,14 @@ test.describe("频道创建单向数据流与防重复/防强制跳频端到端�
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 
-    // Mock 登录用户详情接口
+    // Mock 登录用户详情接口 (具有频道管理权限的管理员)
     await page.route("**/api/auth/me", (route) => {
       route.fulfill({
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "e2e_user_creator",
-          username: "tester_admin",
+          id: "usr_default_admin",
+          username: "Jackey",
           displayName: "测试管理员",
           email: "admin@tescord.local",
           avatarUrl: null,

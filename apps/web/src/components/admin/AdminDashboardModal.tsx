@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { API_BASE } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
+import { useMaintenanceStore } from "../../stores/useMaintenanceStore.js";
 
 interface AdminDashboardModalProps {
   isOpen: boolean;
@@ -245,6 +246,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
         body: JSON.stringify(settings),
       });
       if (!res.ok) throw new Error("保存系统设置失败");
+      if (settings.maintenanceMode) {
+        useMaintenanceStore.getState().setMaintenance({
+          enabled: true,
+          announcement: settings.systemAnnouncement || "",
+        });
+      } else {
+        useMaintenanceStore.getState().clearMaintenance();
+      }
       showSuccess("系统维护设置已保存生效！");
     } catch (err: any) {
       setError(err.message);

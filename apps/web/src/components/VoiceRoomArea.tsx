@@ -662,16 +662,6 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
               <MicOff className="w-2.5 h-2.5" />
             </div>
           )}
-          {isMe && isNoiseSuppressionEnabled && !hasAnyVideo && (
-            <span className="hidden sm:flex text-[10px] bg-discord-green/20 text-discord-green px-1.5 py-0.5 rounded items-center space-x-1 font-medium">
-              <Sparkles className="w-2.5 h-2.5" />
-              <span>
-                {noiseSuppressionMode === "dtln"
-                  ? "DTLN 深度降噪"
-                  : "RNNoise 降噪"}
-              </span>
-            </span>
-          )}
 
           {/* 点对点独立物理直连延迟徽标 */}
           {!isMe && peerLatency && peerLatency.rtt > 0 && (

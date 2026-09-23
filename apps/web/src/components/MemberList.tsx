@@ -1,8 +1,8 @@
 import React from "react";
 import { Guild, User, GuildMember, Role, parseRoleIds } from "@tescord/types";
-import { Crown, ShieldCheck } from "lucide-react";
+import { Crown, ShieldCheck, Gamepad2 } from "lucide-react";
 import { UserContextMenu } from "./context-menu/UserContextMenu.js";
-import { UserProfilePopout } from "./profile/UserProfilePopout.js";
+import { useUserProfilePopoutStore } from "../stores/useUserProfilePopoutStore.js";
 import { resolveServerUrl } from "../config.js";
 
 interface MemberListProps {
@@ -52,16 +52,13 @@ export const MemberList: React.FC<MemberListProps> = ({
   onKickMember,
   onBanMember,
 }) => {
-  // 当前弹出用户信息卡片的选定成员及其坐标
-  const [selectedMember, setSelectedMember] = React.useState<{
-    item: MemberDisplayItem;
-    targetRect: DOMRect;
-  } | null>(null);
+  const { isOpen, activeTriggerId, togglePopout, closePopout } =
+    useUserProfilePopoutStore();
 
   // 切换服务器时自动关闭已打开的卡片
   React.useEffect(() => {
-    setSelectedMember(null);
-  }, [guild?.id]);
+    closePopout();
+  }, [guild?.id, closePopout]);
 
   // 从真实公会成员中提取展示列表并按 Hoist 角色分组
   const groups = React.useMemo<MemberGroup[]>(() => {
@@ -235,20 +232,21 @@ export const MemberList: React.FC<MemberListProps> = ({
               >
                 <div
                   data-member-item={m.id}
+                  data-profile-trigger={`member-${m.id}`}
                   onClick={(e) => {
                     const rect = e.currentTarget.getBoundingClientRect();
-                    // 若点击当前已展开成员则折叠关闭；若点击新成员则直接无缝切换
-                    if (selectedMember?.item.id === m.id) {
-                      setSelectedMember(null);
-                    } else {
-                      setSelectedMember({
-                        item: m,
-                        targetRect: rect,
-                      });
-                    }
+                    togglePopout({
+                      user: m.rawUser,
+                      member: m.rawMember,
+                      guild: guild,
+                      targetRect: rect,
+                      roles: m.roles,
+                      isOwner: m.isOwner,
+                      triggerId: `member-${m.id}`,
+                    });
                   }}
                   className={`flex items-center space-x-2.5 p-1.5 rounded transition cursor-pointer group ${
-                    selectedMember?.item.id === m.id
+                    isOpen && activeTriggerId === `member-${m.id}`
                       ? "bg-discord-hover text-white"
                       : "hover:bg-discord-hover"
                   }`}
@@ -296,11 +294,20 @@ export const MemberList: React.FC<MemberListProps> = ({
                         </span>
                       )}
                     </div>
-                    {m.customStatus && (
+                    {m.rawUser.activities &&
+                    m.rawUser.activities.length > 0 &&
+                    m.rawUser.showActivity !== false ? (
+                      <div className="flex items-center space-x-1 text-[10px] text-discord-textMuted truncate">
+                        <Gamepad2 className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+                        <span className="truncate">
+                          正在玩 {m.rawUser.activities[0].name}
+                        </span>
+                      </div>
+                    ) : m.customStatus ? (
                       <span className="text-[10px] text-discord-textMuted truncate">
                         {m.customStatus}
                       </span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
               </UserContextMenu>
@@ -308,38 +315,6 @@ export const MemberList: React.FC<MemberListProps> = ({
           </div>
         </div>
       ))}
-
-      {/* 仿 Discord 用户信息浮动卡片 (User Popout) */}
-      {selectedMember && (
-        <UserProfilePopout
-          isOpen={true}
-          onClose={() => setSelectedMember(null)}
-          targetRect={selectedMember.targetRect}
-          user={selectedMember.item.rawUser}
-          member={selectedMember.item.rawMember}
-          guild={guild}
-          currentUser={currentUser}
-          roles={selectedMember.item.roles}
-          isOwner={selectedMember.item.isOwner}
-          onOpenSettings={onOpenUserSettings}
-          onMention={(username) => {
-            if (onMention) {
-              onMention(username);
-            } else {
-              window.dispatchEvent(
-                new CustomEvent("tescord:mention", { detail: { username } }),
-              );
-            }
-          }}
-          onSendMessage={onSendMessage}
-          onStartDM={(userId) => {
-            setSelectedMember(null);
-            onStartDM?.(userId);
-          }}
-          onKickMember={onKickMember}
-          onBanMember={onBanMember}
-        />
-      )}
     </div>
   );
 };

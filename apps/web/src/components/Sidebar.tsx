@@ -1,7 +1,27 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Guild } from "@tescord/types";
 import { MessageSquare, Plus, Compass, ShieldAlert } from "lucide-react";
 import { ServerContextMenu } from "./context-menu/ServerContextMenu.js";
+import {
+  DndContext,
+  closestCenter,
+  MouseSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  DragStartEvent,
+  DragEndEvent,
+  DragOverlay,
+  defaultDropAnimationSideEffects,
+  DropAnimation,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 interface SidebarProps {
   guilds: Guild[];
@@ -15,7 +35,91 @@ interface SidebarProps {
   onOpenServerSettings?: (guild: Guild) => void;
   onLeaveGuild?: (guild: Guild) => void;
   onMarkGuildAsRead?: (guild: Guild) => void;
+  onReorderGuilds?: (reorderedGuilds: Guild[]) => void;
 }
+
+interface SortableServerItemProps {
+  guild: Guild;
+  isSelected: boolean;
+  onSelectGuild: (guildId: string) => void;
+  onOpenCreateChannel?: (guild: Guild) => void;
+  onOpenServerSettings?: (guild: Guild) => void;
+  onLeaveGuild?: (guild: Guild) => void;
+  onMarkGuildAsRead?: (guild: Guild) => void;
+}
+
+const SortableServerItem: React.FC<SortableServerItemProps> = ({
+  guild,
+  isSelected,
+  onSelectGuild,
+  onOpenCreateChannel,
+  onOpenServerSettings,
+  onLeaveGuild,
+  onMarkGuildAsRead,
+}) => {
+  const {
+    attributes: { role: _role, tabIndex: _tabIndex, ...sortableAttributes },
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: guild.id,
+    data: { type: "guild", guild },
+  });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Translate.toString(transform),
+    transition: isDragging ? undefined : transition,
+    opacity: isDragging ? 0.25 : 1,
+    zIndex: isDragging ? 0 : "auto",
+  };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="shrink-0 flex items-center justify-center w-full relative outline-none"
+    >
+      <ServerContextMenu
+        guild={guild}
+        onOpenCreateChannel={onOpenCreateChannel}
+        onOpenServerSettings={onOpenServerSettings}
+        onLeaveGuild={onLeaveGuild}
+        onMarkAsRead={onMarkGuildAsRead}
+      >
+        <button
+          {...sortableAttributes}
+          {...listeners}
+          onClick={() => onSelectGuild(guild.id)}
+          className={`group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] transition-all duration-200 overflow-hidden shrink-0 touch-none select-none ${
+            isSelected ? "!rounded-[16px]" : ""
+          }`}
+          title={guild.name}
+          aria-label={guild.name}
+        >
+          <span
+            className={`absolute left-0 w-1 bg-white rounded-r-full transition-all duration-200 ${
+              isSelected ? "h-10" : "h-0 group-hover:h-5"
+            }`}
+          />
+          {guild.iconUrl ? (
+            <img
+              src={guild.iconUrl}
+              alt={guild.name}
+              className="w-full h-full object-cover pointer-events-none"
+            />
+          ) : (
+            <div className="w-full h-full bg-discord-channelList text-discord-textHeader flex items-center justify-center font-semibold text-sm pointer-events-none">
+              {guild.name.slice(0, 2).toUpperCase()}
+            </div>
+          )}
+        </button>
+      </ServerContextMenu>
+    </div>
+  );
+};
 
 export const Sidebar: React.FC<SidebarProps> = ({
   guilds,
@@ -29,13 +133,84 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onOpenServerSettings,
   onLeaveGuild,
   onMarkGuildAsRead,
+  onReorderGuilds,
 }) => {
+  const [activeGuild, setActiveGuild] = useState<Guild | null>(null);
+
+  // 拖拽传感器：MouseSensor 5px 快速响应，低于 5px 保留为单击选择或右键菜单；TouchSensor 200ms 防滚屏误触
+  const sensors = useSensors(
+    useSensor(MouseSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 200,
+        tolerance: 6,
+      },
+    }),
+  );
+
+  // 拖拽激活时在全局禁止文本选择并显示抓取光标
+  useEffect(() => {
+    if (activeGuild) {
+      document.body.style.userSelect = "none";
+      document.body.style.cursor = "grabbing";
+    } else {
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    }
+    return () => {
+      document.body.style.userSelect = "";
+      document.body.style.cursor = "";
+    };
+  }, [activeGuild]);
+
+  const dropAnimation: DropAnimation = {
+    sideEffects: defaultDropAnimationSideEffects({
+      styles: {
+        active: {
+          opacity: "0.4",
+        },
+      },
+    }),
+    duration: 180,
+    easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)",
+  };
+
+  const handleDragStart = (event: DragStartEvent) => {
+    const found = guilds.find((g) => g.id === event.active.id);
+    if (found) {
+      setActiveGuild(found);
+    }
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    setActiveGuild(null);
+
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = guilds.findIndex((g) => g.id === active.id);
+    const newIndex = guilds.findIndex((g) => g.id === over.id);
+
+    if (oldIndex !== -1 && newIndex !== -1) {
+      const reordered = arrayMove(guilds, oldIndex, newIndex);
+      onReorderGuilds?.(reordered);
+    }
+  };
+
+  const handleDragCancel = () => {
+    setActiveGuild(null);
+  };
+
   return (
-    <aside className="w-[72px] bg-discord-sidebar flex flex-col items-center py-3 space-y-2 select-none z-20">
+    <aside className="w-[72px] h-full bg-discord-sidebar flex flex-col items-center py-3 space-y-2 select-none z-20 shrink-0">
       {/* 私信 / 首页 */}
       <button
         onClick={() => onSelectGuild(null)}
-        className={`group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] transition-all duration-200 ${
+        className={`group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] transition-all duration-200 shrink-0 ${
           selectedGuildId === null
             ? "bg-discord-brand text-white !rounded-[16px]"
             : "bg-discord-channelList text-discord-textNormal hover:bg-discord-brand hover:text-white"
@@ -54,7 +229,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {isSuperAdmin && (
         <button
           onClick={onOpenAdminDashboard}
-          className="group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-discord-channelList text-amber-400 hover:bg-amber-500 hover:text-white transition-all duration-200 shadow-md"
+          className="group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-discord-channelList text-amber-400 hover:bg-amber-500 hover:text-white transition-all duration-200 shadow-md shrink-0"
           title="系统管理控制台 (超级管理员)"
           data-testid="admin-dashboard-btn"
         >
@@ -63,63 +238,77 @@ export const Sidebar: React.FC<SidebarProps> = ({
       )}
 
       {/* 分隔线 */}
-      <div className="w-8 h-[2px] bg-discord-channelList rounded-full my-1" />
+      <div className="w-8 h-[2px] bg-discord-channelList rounded-full my-1 shrink-0" />
 
-      {/* 服务器列表 */}
-      <div className="flex-1 w-full space-y-2 overflow-y-auto overflow-x-hidden flex flex-col items-center">
-        {guilds.map((guild) => {
-          const isSelected = selectedGuildId === guild.id;
-          return (
-            <ServerContextMenu
-              key={guild.id}
-              guild={guild}
-              onOpenCreateChannel={onOpenCreateChannel}
-              onOpenServerSettings={onOpenServerSettings}
-              onLeaveGuild={onLeaveGuild}
-              onMarkAsRead={onMarkGuildAsRead}
-            >
-              <button
-                onClick={() => onSelectGuild(guild.id)}
-                className={`group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] transition-all duration-200 overflow-hidden ${
-                  isSelected ? "!rounded-[16px]" : ""
-                }`}
-                title={guild.name}
-                aria-label={guild.name}
-              >
-                <span
-                  className={`absolute left-0 w-1 bg-white rounded-r-full transition-all duration-200 ${
-                    isSelected ? "h-10" : "h-0 group-hover:h-5"
-                  }`}
+      {/* 服务器列表 (支持拖拽调整排序，超出高度时纵向滚动，隐藏滚动条) */}
+      <DndContext
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
+      >
+        <SortableContext
+          items={guilds.map((g) => g.id)}
+          strategy={verticalListSortingStrategy}
+        >
+          <div
+            data-testid="server-list-container"
+            className="flex-1 w-full min-h-0 space-y-2 overflow-y-auto overflow-x-hidden flex flex-col items-center no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-1"
+          >
+            {guilds.map((guild) => {
+              const isSelected = selectedGuildId === guild.id;
+              return (
+                <SortableServerItem
+                  key={guild.id}
+                  guild={guild}
+                  isSelected={isSelected}
+                  onSelectGuild={onSelectGuild}
+                  onOpenCreateChannel={onOpenCreateChannel}
+                  onOpenServerSettings={onOpenServerSettings}
+                  onLeaveGuild={onLeaveGuild}
+                  onMarkGuildAsRead={onMarkGuildAsRead}
                 />
-                {guild.iconUrl ? (
-                  <img
-                    src={guild.iconUrl}
-                    alt={guild.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-discord-channelList text-discord-textHeader flex items-center justify-center font-semibold text-sm">
-                    {guild.name.slice(0, 2).toUpperCase()}
-                  </div>
-                )}
-              </button>
-            </ServerContextMenu>
-          );
-        })}
+              );
+            })}
+          </div>
+        </SortableContext>
 
+        <DragOverlay dropAnimation={dropAnimation}>
+          {activeGuild ? (
+            <div className="w-12 h-12 rounded-[16px] overflow-hidden shadow-2xl bg-discord-channelList flex items-center justify-center ring-2 ring-discord-brand/80 scale-105 select-none pointer-events-none">
+              {activeGuild.iconUrl ? (
+                <img
+                  src={activeGuild.iconUrl}
+                  alt={activeGuild.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full text-discord-textHeader flex items-center justify-center font-semibold text-sm bg-discord-channelList">
+                  {activeGuild.name.slice(0, 2).toUpperCase()}
+                </div>
+              )}
+            </div>
+          ) : null}
+        </DragOverlay>
+      </DndContext>
+
+      {/* 底部常驻操作区：创建新服务器与探索发现 */}
+      <div className="flex flex-col items-center space-y-2 shrink-0 pt-1">
         {/* 添加服务器 */}
         <button
-          className="group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-discord-channelList text-discord-green hover:bg-discord-green hover:text-white transition-all duration-200"
+          className="group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-discord-channelList text-discord-green hover:bg-discord-green hover:text-white transition-all duration-200 shrink-0"
           title="创建新服务器"
           onClick={onOpenCreateGuild}
         >
           <Plus className="w-6 h-6" />
         </button>
 
-        {/* 加入公共社区 */}
+        {/* 加入公共社区 / 探索中心 */}
         <button
-          className="group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-discord-channelList text-discord-green hover:bg-discord-green hover:text-white transition-all duration-200"
-          title="加入服务器 (使用邀请码)"
+          data-testid="open-discovery-btn"
+          className="group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-discord-channelList text-discord-green hover:bg-discord-green hover:text-white transition-all duration-200 shrink-0"
+          title="探索与加入服务器"
           onClick={onOpenJoinGuild}
         >
           <Compass className="w-6 h-6" />

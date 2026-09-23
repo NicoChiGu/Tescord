@@ -15,12 +15,14 @@
     "test:member-add": "node ./scripts/test-member-add.mjs",
     "test:e2e": "playwright test",
     "test:security-media": "pnpm --filter @tescord/server exec tsx ../../scripts/verify-media-crypto.ts",
+    "test:updater": "node ./scripts/test-updater-service.mjs",
     "test:e2e:ui": "playwright test --ui",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
+    "adm-zip": "^0.6.1",
     "playwright": "^1.63.0",
     "prettier": "^3.5.3",
     "turbo": "^2.4.4",

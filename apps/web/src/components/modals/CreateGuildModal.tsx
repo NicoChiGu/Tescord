@@ -24,6 +24,7 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
   const [iconSeed, setIconSeed] = useState(() =>
     Math.random().toString(36).substring(7),
   );
+  const [isPublic, setIsPublic] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,6 +50,7 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
         body: JSON.stringify({
           name: guildName.trim(),
           iconUrl,
+          isPublic,
         }),
       });
 
@@ -130,6 +132,21 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
               onChange={(e) => setGuildName(e.target.value)}
               placeholder="输入服务器名称..."
               className="w-full bg-[#1e1f22] text-discord-textHeader px-3 py-2.5 rounded text-sm focus:outline-none focus:ring-2 focus:ring-discord-brand transition border border-transparent focus:border-discord-brand"
+            />
+          </div>
+
+          {/* 是否公开 */}
+          <div className="flex items-center justify-between p-3 rounded-lg bg-[#1e1f22] border border-white/5">
+            <div className="space-y-0.5">
+              <div className="text-xs font-bold text-discord-textHeader">在探索中心公开此服务器</div>
+              <p className="text-[11px] text-discord-textMuted">允许其他人在公共社区大厅发现并直接加入</p>
+            </div>
+            <input
+              type="checkbox"
+              data-testid="create-guild-is-public-checkbox"
+              checked={isPublic}
+              onChange={(e) => setIsPublic(e.target.checked)}
+              className="w-4 h-4 rounded text-discord-brand focus:ring-discord-brand bg-[#2b2d31] border-gray-600 cursor-pointer"
             />
           </div>
 
