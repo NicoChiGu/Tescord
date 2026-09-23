@@ -89,6 +89,12 @@ async function main() {
 
     const userCount = await prisma.user.count();
     if (userCount === 0) {
+      if (process.env.NODE_ENV === "production") {
+        console.warn(
+          "⚠️ 生产环境安全拦截：已跳过默认账号和测试种子数据注入。请运行 pnpm admin:create 初始化管理员账号。",
+        );
+        return;
+      }
       const bcrypt = (await import("bcryptjs")).default;
       const salt = await bcrypt.genSalt(10);
       const passwordHash = await bcrypt.hash("adminpassword123", salt);

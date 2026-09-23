@@ -216,6 +216,17 @@ test.describe("服务器未加入隔离与公开社区探索中心验收 (Server
     expect(bobLogin.ok()).toBeTruthy();
     const bobData = await bobLogin.json();
 
+    // 确保 Bob 处于纯净零公会状态（防上一次测试残留加入）
+    const bobGuildsRes = await request.get("/api/guilds", {
+      headers: { Authorization: `Bearer ${bobData.accessToken}` },
+    });
+    const bobInitialGuilds = await bobGuildsRes.json();
+    for (const g of bobInitialGuilds) {
+      await request.post(`/api/guilds/${g.id}/leave`, {
+        headers: { Authorization: `Bearer ${bobData.accessToken}` },
+      });
+    }
+
     // 2. Jackey 在所属公会的 general 频道发送特有测试消息
     const jackeyGuildsRes = await request.get("/api/guilds", {
       headers: { Authorization: `Bearer ${jackeyData.accessToken}` },
@@ -274,6 +285,11 @@ test.describe("服务器未加入隔离与公开社区探索中心验收 (Server
     const logoutBtn = page.locator('[data-testid="user-logout-btn"]');
     await expect(logoutBtn).toBeVisible({ timeout: 5000 });
     await logoutBtn.click();
+
+    // 确认自定义退出登录模态框
+    const dialogConfirmBtn = page.locator('[data-testid="dialog-confirm-btn"]');
+    await expect(dialogConfirmBtn).toBeVisible({ timeout: 5000 });
+    await dialogConfirmBtn.click();
 
     // 5. 验证弹窗成功触发登出并展示登录弹窗 AuthModal
     const emailInput = page.locator('[data-testid="auth-email-input"]');

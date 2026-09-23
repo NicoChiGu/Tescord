@@ -1532,9 +1532,26 @@ export interface AutoLaunchSettings {
   openAsHidden: boolean;
 }
 
+export type DesktopWindowMode = "auth" | "main";
+
+export interface DesktopWindowBounds {
+  x?: number;
+  y?: number;
+  width: number;
+  height: number;
+  isMaximized?: boolean;
+}
+
+export interface DesktopWindowModeOptions {
+  mode: DesktopWindowMode;
+  animate?: boolean;
+  center?: boolean;
+}
+
 export interface DesktopWindowState {
   isMaximized: boolean;
   platform: string;
+  mode?: DesktopWindowMode;
 }
 
 export type WindowControlAction = "minimize" | "maximize" | "close";

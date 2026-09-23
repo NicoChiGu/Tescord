@@ -25,11 +25,17 @@ test.describe("Tescord Web 端到端冒烟与核心交互验收", () => {
     const loginButton = page.getByRole("button", { name: /登\s*录/i });
     await expect(loginButton).toBeVisible();
 
-    // 验证快捷填充测试账号按钮可见
+    // 验证输入表单正常挂载
+    const emailInput = page.locator('input[type="text"]');
+    const passwordInput = page.locator('input[type="password"]');
+    await expect(emailInput).toBeVisible();
+    await expect(passwordInput).toBeVisible();
+
+    // 生产构建环境下，验证快捷预设账号已被彻底隐藏/剔除，确保生产安全
     const quickAccountBtn = page
       .getByRole("button", { name: /Jackey 系统管理员|纯净测试/i })
       .first();
-    await expect(quickAccountBtn).toBeVisible();
+    await expect(quickAccountBtn).toHaveCount(0);
 
     // 确保没有致命控制台错误
     const criticalErrors = consoleErrors.filter(

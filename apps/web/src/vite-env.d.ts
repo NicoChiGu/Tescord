@@ -32,6 +32,13 @@ interface ElectronAPI {
   onWindowMaximizedChange: (
     callback: (isMaximized: boolean) => void,
   ) => () => void;
+  setWindowMode?: (
+    mode: import("@tescord/types").DesktopWindowMode,
+  ) => Promise<{ success: boolean; mode: import("@tescord/types").DesktopWindowMode }>;
+  getWindowMode?: () => Promise<import("@tescord/types").DesktopWindowMode>;
+  onWindowModeChange?: (
+    callback: (mode: import("@tescord/types").DesktopWindowMode) => void,
+  ) => () => void;
   getGPUInfo?: () => Promise<{
     isIntel: boolean;
     isNvidia: boolean;

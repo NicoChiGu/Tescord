@@ -16,6 +16,8 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { useAuthStore } from "../../stores/useAuthStore.js";
+import { dialog } from "../../stores/useDialogStore.js";
+import { toast } from "../../stores/useToastStore.js";
 
 interface RolesTabProps {
   guild: Guild;
@@ -141,7 +143,7 @@ export const RolesTab: React.FC<RolesTabProps> = ({
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
     } catch (err: any) {
-      alert(err?.message || "更新身份组失败");
+      toast.error(err?.message || "更新身份组失败");
     } finally {
       setIsSaving(false);
     }
@@ -151,23 +153,31 @@ export const RolesTab: React.FC<RolesTabProps> = ({
     try {
       const newRole = await onCreateRole("新身份组");
       setSelectedRoleId(newRole.id);
+      toast.success("已创建新身份组");
     } catch (err: any) {
-      alert(err?.message || "创建新角色失败");
+      toast.error(err?.message || "创建新角色失败");
     }
   };
 
   const handleDelete = async () => {
     if (!selectedRole || !canDeleteSelectedRole) return;
-    if (window.confirm(`确定要彻底删除角色 “${selectedRole.name}” 吗？`)) {
-      try {
-        await onDeleteRole(selectedRole.id);
-        const remaining = sortedRoles.filter((r) => r.id !== selectedRole.id);
-        if (remaining.length > 0) {
-          setSelectedRoleId(remaining[0].id);
-        }
-      } catch (err: any) {
-        alert(err?.message || "删除角色失败");
+    const confirmed = await dialog.confirm({
+      title: "删除身份组",
+      description: `确定要彻底删除角色 “${selectedRole.name}” 吗？删除后所有已赋予该身份组的成员将失去对应权限。`,
+      variant: "danger",
+      confirmText: "删除角色",
+    });
+    if (!confirmed) return;
+
+    try {
+      await onDeleteRole(selectedRole.id);
+      const remaining = sortedRoles.filter((r) => r.id !== selectedRole.id);
+      if (remaining.length > 0) {
+        setSelectedRoleId(remaining[0].id);
       }
+      toast.success("身份组已成功删除");
+    } catch (err: any) {
+      toast.error(err?.message || "删除角色失败");
     }
   };
 

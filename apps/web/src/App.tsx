@@ -35,6 +35,9 @@ import { AuthModal } from "./components/auth/AuthModal.js";
 import { ReauthModal } from "./components/auth/ReauthModal.js";
 import { ForcedPasswordChangeModal } from "./components/auth/ForcedPasswordChangeModal.js";
 import { GlobalContextMenu } from "./components/context-menu/GlobalContextMenu.js";
+import { GlobalDialogContainer } from "./components/ui/dialog/GlobalDialogContainer.js";
+import { GlobalToastContainer } from "./components/ui/dialog/GlobalToastContainer.js";
+import { dialog } from "./stores/useDialogStore.js";
 import { installFetchInterceptor } from "./services/apiClient.js";
 
 installFetchInterceptor();
@@ -2055,9 +2058,13 @@ export const App: React.FC = () => {
 
   // 业务：删除频道 (右键菜单调用)
   const handleDeleteChannel = async (channel: Channel) => {
-    if (
-      !window.confirm(`确定要删除频道 #${channel.name} 吗？此操作无法撤销。`)
-    ) {
+    const confirmed = await dialog.confirm({
+      title: "删除频道",
+      description: `确定要删除频道 #${channel.name} 吗？此操作无法撤销，该频道下的所有历史聊天记录将被永久清除。`,
+      variant: "danger",
+      confirmText: "删除频道",
+    });
+    if (!confirmed) {
       return;
     }
     try {
@@ -2195,7 +2202,13 @@ export const App: React.FC = () => {
 
   // 业务：退出公会 (右键菜单调用)
   const handleLeaveGuild = async (guild: Guild) => {
-    if (!window.confirm(`确定要退出服务器 "${guild.name}" 吗？`)) {
+    const confirmed = await dialog.confirm({
+      title: "退出服务器",
+      description: `确定要退出服务器 “${guild.name}” 吗？退出后您需要重新通过邀请链接才能再次加入。`,
+      variant: "danger",
+      confirmText: "退出服务器",
+    });
+    if (!confirmed) {
       return;
     }
     try {
@@ -2238,7 +2251,13 @@ export const App: React.FC = () => {
   // 业务：踢出成员 (右键菜单调用)
   const handleKickMember = async (userId: string, username: string) => {
     if (!selectedGuildId) return;
-    if (!window.confirm(`确定要将成员 "${username}" 踢出服务器吗？`)) {
+    const confirmed = await dialog.confirm({
+      title: "踢出成员",
+      description: `确定要将成员 “${username}” 踢出服务器吗？对方可以重新凭邀请链接进入。`,
+      variant: "warning",
+      confirmText: "确认踢出",
+    });
+    if (!confirmed) {
       return;
     }
     try {
@@ -2260,7 +2279,13 @@ export const App: React.FC = () => {
   // 业务：封禁成员 (右键菜单调用)
   const handleBanMember = async (userId: string, username: string) => {
     if (!selectedGuildId) return;
-    if (!window.confirm(`确定要封禁成员 "${username}" 吗？`)) {
+    const confirmed = await dialog.confirm({
+      title: "封禁成员",
+      description: `确定要封禁成员 “${username}” 吗？封禁后对方将无法再次凭邀请链接进入本服务器。`,
+      variant: "danger",
+      confirmText: "确认封禁",
+    });
+    if (!confirmed) {
       return;
     }
     try {
@@ -3916,6 +3941,12 @@ export const App: React.FC = () => {
 
       {/* 18. 桌面端后台更新就绪悬浮通知 */}
       <UpdateNotificationBanner />
+
+      {/* 19. 全局通用决策与安全验证模态框 */}
+      <GlobalDialogContainer />
+
+      {/* 20. 全局 Toast 消息容器 */}
+      <GlobalToastContainer />
     </div>
   );
 };

@@ -25,6 +25,9 @@ export const AuthModal: React.FC = () => {
 
   const { t, i18n } = useTranslation(["auth", "common"]);
   const currentLocale = normalizeLocale(i18n.language);
+  const isElectron =
+    typeof window !== "undefined" && Boolean(window.electronAPI);
+  const isDev = import.meta.env.DEV;
 
   const { login, register } = useAuthStore();
 
@@ -109,11 +112,16 @@ export const AuthModal: React.FC = () => {
     setLocalError(null);
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md overflow-hidden rounded-2xl bg-[#313338] p-8 shadow-2xl border border-white/5">
-        {/* 右上角快捷语言切换下拉器 */}
-        <div className="absolute top-4 right-4 z-10">
+  const content = (
+    <div
+      className={
+        isElectron
+          ? "relative w-full h-full bg-[#313338] px-6 py-5 flex flex-col justify-between overflow-y-auto select-none"
+          : "relative w-full max-w-md overflow-hidden rounded-2xl bg-[#313338] p-8 shadow-2xl border border-white/5"
+      }
+    >
+      {/* 右上角快捷语言切换下拉器 */}
+      <div className="absolute top-4 right-4 z-10">
           <div className="relative">
             <button
               type="button"
@@ -263,39 +271,41 @@ export const AuthModal: React.FC = () => {
 
         {/* 底部切换模式与快速测试账号 */}
         <div className="mt-6 pt-4 border-t border-white/5 flex flex-col gap-3.5">
-          {/* 快速填入测试账号面板 */}
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between text-xs text-gray-400">
-              <span className="flex items-center gap-1.5 font-medium text-gray-300">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                {t("auth:quickPresetLogin")}
-              </span>
-            </div>
+          {/* 快速填入测试账号面板 (仅在开发环境下展示，生产环境自动隐藏) */}
+          {isDev && (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between text-xs text-gray-400">
+                <span className="flex items-center gap-1.5 font-medium text-gray-300">
+                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                  {t("auth:quickPresetLogin")}
+                </span>
+              </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              {PRESET_ACCOUNTS.map((acc) => (
-                <button
-                  key={acc.email}
-                  type="button"
-                  onClick={() => handleFillAccount(acc)}
-                  title={`一键填入 ${acc.name} (${acc.email})`}
-                  className={`flex flex-col items-center justify-center py-2 px-1.5 rounded-xl bg-[#2b2d31]/80 border border-white/5 ${acc.borderHoverClass} transition-all duration-150 active:scale-[0.97] group`}
-                >
-                  <div className="flex items-center gap-1.5 mb-1">
-                    <span className={`w-2 h-2 rounded-full ${acc.dotColor}`} />
-                    <span className="text-xs font-semibold text-white group-hover:text-white transition-colors">
-                      {acc.name}
-                    </span>
-                  </div>
-                  <span
-                    className={`text-[10px] px-1.5 py-0.5 rounded border leading-none ${acc.tagClass}`}
+              <div className="grid grid-cols-3 gap-2">
+                {PRESET_ACCOUNTS.map((acc) => (
+                  <button
+                    key={acc.email}
+                    type="button"
+                    onClick={() => handleFillAccount(acc)}
+                    title={`一键填入 ${acc.name} (${acc.email})`}
+                    className={`flex flex-col items-center justify-center py-2 px-1.5 rounded-xl bg-[#2b2d31]/80 border border-white/5 ${acc.borderHoverClass} transition-all duration-150 active:scale-[0.97] group`}
                   >
-                    {acc.roleLabel}
-                  </span>
-                </button>
-              ))}
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className={`w-2 h-2 rounded-full ${acc.dotColor}`} />
+                      <span className="text-xs font-semibold text-white group-hover:text-white transition-colors">
+                        {acc.name}
+                      </span>
+                    </div>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.5 rounded border leading-none ${acc.tagClass}`}
+                    >
+                      {acc.roleLabel}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* 模式切换 */}
           <div className="flex items-center justify-between text-xs text-gray-400 pt-1 border-t border-white/5">
@@ -314,7 +324,20 @@ export const AuthModal: React.FC = () => {
             </button>
           </div>
         </div>
+    </div>
+  );
+
+  if (isElectron) {
+    return (
+      <div className="w-full h-full bg-[#313338] overflow-hidden select-none">
+        {content}
       </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+      {content}
     </div>
   );
 };

@@ -32,6 +32,7 @@ import {
 import { API_BASE } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { useMaintenanceStore } from "../../stores/useMaintenanceStore.js";
+import { dialog } from "../../stores/useDialogStore.js";
 
 interface AdminDashboardModalProps {
   isOpen: boolean;
@@ -62,10 +63,6 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   // 3. 公会管理数据
   const [guilds, setGuilds] = useState<AdminGuildItem[]>([]);
   const [guildSearch, setGuildSearch] = useState("");
-  const [deleteGuildConfirmId, setDeleteGuildConfirmId] = useState<string | null>(
-    null,
-  );
-  const [deleteGuildConfirmName, setDeleteGuildConfirmName] = useState("");
 
   // 4. 系统设置与广播
   const [settings, setSettings] = useState<SystemSettingsDTO>({
@@ -127,6 +124,20 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
   // 用户操作：封禁/解封
   const handleToggleBan = async (user: AdminUserItem) => {
+    const actionText = user.isBanned ? "解封" : "封禁";
+    const confirmed = await dialog.confirm({
+      title: `${actionText}用户账号`,
+      description: `确定要${actionText}用户 “${user.username}” (${user.email}) 吗？${
+        !user.isBanned
+          ? "封禁后该用户将立即断开连接且无法登录。"
+          : "解封后该用户将恢复正常登录权限。"
+      }`,
+      variant: user.isBanned ? "warning" : "danger",
+      requireSecurityCode: true,
+      confirmText: `确认${actionText}`,
+    });
+    if (!confirmed) return;
+
     try {
       const res = await fetch(`${API_BASE}/api/admin/users/${user.id}`, {
         method: "PATCH",
@@ -165,6 +176,16 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
   // 用户操作：重置密码
   const handleResetPassword = async (userId: string) => {
+    const targetUser = users.find((u) => u.id === userId);
+    const confirmed = await dialog.confirm({
+      title: "高危确认：重置用户密码",
+      description: `确定要重置用户 “${targetUser?.username || userId}” 的登录密码吗？操作后该用户的全部旧会话将被强制撤销并生成临时密码。`,
+      variant: "danger",
+      requireSecurityCode: true,
+      confirmText: "重置密码",
+    });
+    if (!confirmed) return;
+
     try {
       const res = await fetch(`${API_BASE}/api/admin/users/${userId}`, {
         method: "PATCH",
@@ -185,20 +206,23 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
   // 公会操作：强制解散
   const handleForceDeleteGuild = async (guildId: string, guildName: string) => {
-    if (deleteGuildConfirmName !== guildName) {
-      setError("请输入完整服务器名称以确认解散");
-      return;
-    }
+    const confirmed = await dialog.confirm({
+      title: "高危确认：强制解散服务器",
+      description: `确定要强制解散并删除服务器 “${guildName}” 吗？此操作具有毁灭性且无法撤销，该服务器下的所有频道与聊天记录将被永久清除！`,
+      variant: "danger",
+      requireSecurityCode: true,
+      confirmText: "强制解散",
+    });
+    if (!confirmed) return;
+
     try {
       const res = await fetch(`${API_BASE}/api/admin/guilds/${guildId}`, {
         method: "DELETE",
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
-        body: JSON.stringify({ nameConfirmation: deleteGuildConfirmName }),
+        body: JSON.stringify({ nameConfirmation: guildName }),
       });
       if (!res.ok) throw new Error("强制解散服务器失败");
       showSuccess("违规服务器已强制解散并清理");
-      setDeleteGuildConfirmId(null);
-      setDeleteGuildConfirmName("");
       loadTabData("GUILDS");
     } catch (err: any) {
       setError(err.message);
@@ -690,43 +714,13 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       </div>
 
                       <div>
-                        {deleteGuildConfirmId === g.id ? (
-                          <div className="flex items-center space-x-2">
-                            <input
-                              value={deleteGuildConfirmName}
-                              onChange={(event) => setDeleteGuildConfirmName(event.target.value)}
-                              placeholder={`输入 ${g.name}`}
-                              aria-label="输入服务器名称确认解散"
-                              className="w-36 bg-[#1e1f22] border border-rose-500/40 rounded px-2 py-1 text-xs text-white outline-none"
-                            />
-                            <button
-                              onClick={() => handleForceDeleteGuild(g.id, g.name)}
-                              className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded"
-                            >
-                              确认
-                            </button>
-                            <button
-                              onClick={() => {
-                                setDeleteGuildConfirmId(null);
-                                setDeleteGuildConfirmName("");
-                              }}
-                              className="px-2 py-1 text-xs text-discord-textMuted hover:text-white"
-                            >
-                              取消
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              setDeleteGuildConfirmId(g.id);
-                              setDeleteGuildConfirmName("");
-                            }}
-                            className="px-3 py-1 bg-rose-600/20 text-rose-400 hover:bg-rose-600 hover:text-white text-xs font-semibold rounded transition flex items-center space-x-1"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                            <span>强制解散</span>
-                          </button>
-                        )}
+                        <button
+                          onClick={() => handleForceDeleteGuild(g.id, g.name)}
+                          className="px-3 py-1 bg-rose-600/20 text-rose-400 hover:bg-rose-600 hover:text-white text-xs font-semibold rounded transition flex items-center space-x-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>强制解散</span>
+                        </button>
                       </div>
                     </div>
                   ))}

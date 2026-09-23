@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useAuthStore } from "../../stores/useAuthStore.js";
+import { dialog } from "../../stores/useDialogStore.js";
+import { toast } from "../../stores/useToastStore.js";
 import { UserStatus, Activity } from "@tescord/types";
 import {
   X,
@@ -232,14 +234,20 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err) {
-      alert("保存个人资料失败，请重试");
+      toast.error("保存个人资料失败，请重试");
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleLogout = () => {
-    if (window.confirm("确定要退出当前账号吗？")) {
+  const handleLogout = async () => {
+    const confirmed = await dialog.confirm({
+      title: "退出登录",
+      description: "确定要退出当前账号吗？退出后您需要重新验证身份并登录。",
+      variant: "warning",
+      confirmText: "退出登录",
+    });
+    if (confirmed) {
       logout();
       onClose();
     }

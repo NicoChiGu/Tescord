@@ -3,6 +3,7 @@ import { Guild } from "@tescord/types";
 import { Camera, Copy, Check, UploadCloud } from "lucide-react";
 import { API_BASE, resolveServerUrl } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
+import { toast } from "../../stores/useToastStore.js";
 
 interface OverviewTabProps {
   guild: Guild;
@@ -84,7 +85,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       if (!uploadRes.ok) throw new Error("上传文件到存储服务失败");
       setIconUrl(fileUrl);
     } catch (err: any) {
-      alert(err.message || "上传图标失败");
+      toast.error(err.message || "上传图标失败");
     } finally {
       setIsUploading(false);
     }
@@ -92,7 +93,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
   const handleSave = async () => {
     if (!name.trim()) {
-      alert("服务器名称不能为空");
+      toast.error("服务器名称不能为空");
       return;
     }
     setIsSaving(true);
@@ -105,9 +106,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         isPublic,
       });
       setSaveSuccess(true);
+      toast.success("服务器设置已保存");
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err: any) {
-      alert(err.message || "保存服务器设置失败");
+      toast.error(err.message || "保存服务器设置失败");
     } finally {
       setIsSaving(false);
     }

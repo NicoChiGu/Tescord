@@ -20,6 +20,10 @@ test.describe("Electron 自定义无边框窗口与沉浸式顶栏 (TitleBar) �
   }) => {
     // 注入 Windows 环境下的完整 Mock Electron API (包含应用全局事件订阅)
     await page.addInitScript(() => {
+      localStorage.setItem(
+        "tescord_access_token",
+        localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token",
+      );
       (window as any).__ipcCalls = [];
       let maximized = false;
       let maximizeChangeHandler: ((isMax: boolean) => void) | null = null;
@@ -47,6 +51,12 @@ test.describe("Electron 自定义无边框窗口与沉浸式顶栏 (TitleBar) �
             maximizeChangeHandler = null;
           };
         },
+        setWindowMode: async (mode: string) => {
+          (window as any).__ipcCalls.push(`mode:${mode}`);
+          return { success: true, mode };
+        },
+        getWindowMode: async () => "main",
+        onWindowModeChange: () => () => {},
         // 核心配套桌面 API (防未实现报错)
         getDesktopSources: async () => [],
         showNotification: async () => true,
@@ -156,5 +166,74 @@ test.describe("Electron 自定义无边框窗口与沉浸式顶栏 (TitleBar) �
     // 3. 验证左侧区域避让交通灯 (包含 pl-20 类)
     const logoContainer = titlebar.locator("div").first();
     await expect(logoContainer).toHaveClass(/pl-20/);
+  });
+
+  test("4. 未登录状态下自动进入小窗口模式 (auth mode)：隐藏最大化按钮与 Ping 徽标，仅保留最小化与关闭", async ({
+    browser,
+  }) => {
+    // 创建一个完全隔离且无登录凭据的独立 Context
+    const context = await browser.newContext({
+      storageState: { cookies: [], origins: [] },
+    });
+    const page = await context.newPage();
+
+    await page.addInitScript(() => {
+      (window as any).__ipcCalls = [];
+      let currentMode = "auth";
+
+      (window as any).electronAPI = {
+        platform: "win32",
+        minimizeWindow: async () => {
+          (window as any).__ipcCalls.push("minimize");
+        },
+        maximizeWindow: async () => {},
+        closeWindow: async () => {
+          (window as any).__ipcCalls.push("close");
+        },
+        isWindowMaximized: async () => false,
+        onWindowMaximizedChange: () => () => {},
+        setWindowMode: async (mode: string) => {
+          currentMode = mode;
+          (window as any).__ipcCalls.push(`mode:${mode}`);
+          return { success: true, mode };
+        },
+        getWindowMode: async () => currentMode,
+        onWindowModeChange: () => () => {},
+        getDesktopSources: async () => [],
+        showNotification: async () => true,
+        onNotificationClick: () => () => {},
+        getAutoLaunch: async () => false,
+        setAutoLaunch: async () => false,
+        onStatusChangeFromTray: () => () => {},
+        syncUserStatus: () => {},
+        onGlobalMuteToggle: () => () => {},
+        onGlobalPTTDown: () => () => {},
+        onGlobalPTTUp: () => () => {},
+        setPTTKeybind: async () => true,
+      };
+    });
+
+    await page.goto("/");
+
+    // 1. 验证自定义顶栏可见
+    const titlebar = page.locator('[data-testid="custom-titlebar"]');
+    await expect(titlebar).toBeVisible({ timeout: 10000 });
+
+    // 2. 验证最小化与关闭按钮可见，但最大化按钮和 Ping 徽标彻底隐藏
+    const minimizeBtn = page.locator('[data-testid="window-minimize-btn"]');
+    const maximizeBtn = page.locator('[data-testid="window-maximize-btn"]');
+    const closeBtn = page.locator('[data-testid="window-close-btn"]');
+    const pingBadge = page.locator('[data-testid="titlebar-ping-badge"]');
+
+    await expect(minimizeBtn).toBeVisible();
+    await expect(closeBtn).toBeVisible();
+    await expect(maximizeBtn).toHaveCount(0);
+    await expect(pingBadge).toHaveCount(0);
+
+    // 3. 验证触发了 setWindowMode("auth")
+    const calls = await page.evaluate(() => (window as any).__ipcCalls);
+    expect(calls).toContain("mode:auth");
+
+    await context.close();
   });
 });

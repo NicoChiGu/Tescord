@@ -9,6 +9,7 @@
     "dev:web": "pnpm --filter @tescord/web dev",
     "dev:desktop": "pnpm --filter @tescord/desktop dev",
     "admin:grant": "pnpm --filter @tescord/server admin:grant",
+    "admin:create": "pnpm --filter @tescord/server admin:create",
     "livekit": "powershell -ExecutionPolicy Bypass -File ./scripts/start-livekit.ps1",
     "build": "turbo run build",
     "build:web": "turbo run build --filter=@tescord/web...",

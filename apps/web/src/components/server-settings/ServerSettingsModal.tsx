@@ -19,6 +19,7 @@ import { AuditLogTab } from "./AuditLogTab.js";
 import { DeleteGuildModal } from "./DeleteGuildModal.js";
 import { API_BASE } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
+import { toast } from "../../stores/useToastStore.js";
 
 interface ServerSettingsModalProps {
   isOpen: boolean;
@@ -155,7 +156,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     if (onGuildUpdated) {
       onGuildUpdated({ ...guild, ...updated });
     }
-    alert("服务器所有权已成功转让！");
+    toast.success("服务器所有权已成功转让！");
   };
 
   // 4. 创建角色

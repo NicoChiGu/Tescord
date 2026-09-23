@@ -3,6 +3,8 @@ import { Guild, GuildBan } from "@tescord/types";
 import { Search, Ban, Unlock, AlertCircle } from "lucide-react";
 import { API_BASE, resolveServerUrl } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
+import { dialog } from "../../stores/useDialogStore.js";
+import { toast } from "../../stores/useToastStore.js";
 
 interface BansTabProps {
   guild: Guild;
@@ -44,17 +46,20 @@ export const BansTab: React.FC<BansTabProps> = ({ guild, onUnbanMember }) => {
 
   const handleUnban = async (ban: GuildBan) => {
     const name = ban.user?.username || "该用户";
-    if (
-      window.confirm(
-        `确定要解除对 “${name}” 的封禁吗？解封后对方可重新凭邀请码进入服务器。`,
-      )
-    ) {
-      try {
-        await onUnbanMember(ban.userId);
-        setBans((prev) => prev.filter((b) => b.userId !== ban.userId));
-      } catch (err: any) {
-        alert(err?.message || "解封失败");
-      }
+    const confirmed = await dialog.confirm({
+      title: "解除成员封禁",
+      description: `确定要解除对 “${name}” 的封禁吗？解封后对方可重新凭邀请码进入服务器。`,
+      variant: "info",
+      confirmText: "确认解封",
+    });
+    if (!confirmed) return;
+
+    try {
+      await onUnbanMember(ban.userId);
+      setBans((prev) => prev.filter((b) => b.userId !== ban.userId));
+      toast.success(`已解除对 “${name}” 的封禁`);
+    } catch (err: any) {
+      toast.error(err?.message || "解封失败");
     }
   };
 

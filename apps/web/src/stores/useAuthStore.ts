@@ -36,6 +36,12 @@ interface AuthState {
   switchAccount: () => void;
 }
 
+const syncDesktopWindowMode = (mode: "auth" | "main") => {
+  if (typeof window !== "undefined" && window.electronAPI?.setWindowMode) {
+    window.electronAPI.setWindowMode(mode).catch(() => {});
+  }
+};
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   setUser: (user) => set({ user }),
@@ -72,6 +78,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     if (!accessToken && !refreshToken) {
       set({ isLoading: false, isAuthenticated: false, user: null });
+      syncDesktopWindowMode("auth");
       return;
     }
 
@@ -94,6 +101,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             isAuthenticated: true,
             isLoading: false,
           });
+          syncDesktopWindowMode("main");
           return;
         }
       }
@@ -102,6 +110,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (refreshToken) {
         const refreshed = await get().refreshAuth();
         if (refreshed) {
+          syncDesktopWindowMode("main");
           return;
         }
       }
@@ -144,6 +153,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false,
         error: null,
       });
+      syncDesktopWindowMode("main");
     } catch (err: any) {
       set({ error: err.message, isLoading: false });
       throw err;
@@ -179,6 +189,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isLoading: false,
         error: null,
       });
+      syncDesktopWindowMode("main");
     } catch (err: any) {
       set({ error: err.message, isLoading: false });
       throw err;
@@ -234,6 +245,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       reauthReason: null,
       error: null,
     });
+    syncDesktopWindowMode("auth");
   },
 
   openReauthModal: (reason?: string) => {
@@ -286,6 +298,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       reauthReason: null,
       error: null,
     });
+    syncDesktopWindowMode("main");
   },
 
   switchAccount: () => {
@@ -297,6 +310,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       reauthReason: null,
       lastActiveUser: null,
     });
+    syncDesktopWindowMode("auth");
   },
 
   updateProfile: async (dto: UpdateProfileDTO) => {

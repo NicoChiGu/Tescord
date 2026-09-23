@@ -22,6 +22,8 @@ import {
   DesktopSource,
   UserStatus,
   SupportedLocale,
+  DesktopWindowMode,
+  DesktopWindowBounds,
 } from "@tescord/types";
 import { detectLocalNetwork, UPnPClient } from "./upnp.js";
 import { getDesktopLocale } from "./locales.js";
@@ -82,6 +84,231 @@ let isQuitting = false;
 let currentPTTKey: string | null = null;
 let currentUserStatus: UserStatus = "ONLINE";
 let currentLocale: SupportedLocale = "zh-CN";
+
+let currentWindowMode: DesktopWindowMode = "auth";
+let savedMainBounds: DesktopWindowBounds | null = null;
+let isSwitchingWindowMode = false;
+
+const AUTH_WINDOW_CONFIG = {
+  width: 480,
+  height: 680,
+};
+
+const MAIN_WINDOW_CONFIG = {
+  width: 1280,
+  height: 800,
+  minWidth: 940,
+  minHeight: 500,
+};
+
+function animateWindowBounds(
+  win: BrowserWindow,
+  start: { x: number; y: number; width: number; height: number },
+  target: { x: number; y: number; width: number; height: number },
+  durationMs: number = 180,
+): Promise<void> {
+  return new Promise((resolve) => {
+    if (!win || win.isDestroyed()) return resolve();
+    if (!win.isVisible()) {
+      win.setBounds(target);
+      return resolve();
+    }
+
+    const steps = 10;
+    const interval = Math.max(12, Math.floor(durationMs / steps));
+    let step = 0;
+
+    const timer = setInterval(() => {
+      if (!win || win.isDestroyed()) {
+        clearInterval(timer);
+        return resolve();
+      }
+      step++;
+      const progress = step / steps;
+      const ease = 1 - Math.pow(1 - progress, 3);
+
+      const curBounds = {
+        x: Math.round(start.x + (target.x - start.x) * ease),
+        y: Math.round(start.y + (target.y - start.y) * ease),
+        width: Math.round(start.width + (target.width - start.width) * ease),
+        height: Math.round(start.height + (target.height - start.height) * ease),
+      };
+
+      try {
+        win.setBounds(curBounds);
+      } catch {}
+
+      if (step >= steps) {
+        clearInterval(timer);
+        try {
+          win.setBounds(target);
+        } catch {}
+        resolve();
+      }
+    }, interval);
+  });
+}
+
+async function applyWindowMode(targetMode: DesktopWindowMode): Promise<void> {
+  if (!mainWindow || mainWindow.isDestroyed() || isSwitchingWindowMode) return;
+  if (currentWindowMode === targetMode && mainWindow.isVisible()) return;
+
+  isSwitchingWindowMode = true;
+  currentWindowMode = targetMode;
+
+  try {
+    if (targetMode === "auth") {
+      // 1. 如果窗口当前为最大化状态，先取消最大化并记录
+      if (mainWindow.isMaximized()) {
+        savedMainBounds = {
+          width: MAIN_WINDOW_CONFIG.width,
+          height: MAIN_WINDOW_CONFIG.height,
+          isMaximized: true,
+        };
+        mainWindow.unmaximize();
+      } else {
+        const bounds = mainWindow.getBounds();
+        if (bounds.width >= 600 && bounds.height >= 500) {
+          savedMainBounds = {
+            x: bounds.x,
+            y: bounds.y,
+            width: bounds.width,
+            height: bounds.height,
+            isMaximized: false,
+          };
+        }
+      }
+
+      // 2. 临时解除拉伸与尺寸限制以执行尺寸调整
+      mainWindow.setMinimumSize(300, 300);
+      mainWindow.setMaximumSize(10000, 10000);
+      mainWindow.setResizable(true);
+      mainWindow.setMaximizable(false);
+
+      // 3. 计算屏幕居中位置
+      const currentDisplay = screen.getDisplayMatching(mainWindow.getBounds());
+      const workArea = currentDisplay.workArea;
+      const targetX = Math.round(
+        workArea.x + (workArea.width - AUTH_WINDOW_CONFIG.width) / 2,
+      );
+      const targetY = Math.round(
+        workArea.y + (workArea.height - AUTH_WINDOW_CONFIG.height) / 2,
+      );
+
+      const startBounds = mainWindow.getBounds();
+      const targetBounds = {
+        x: targetX,
+        y: targetY,
+        width: AUTH_WINDOW_CONFIG.width,
+        height: AUTH_WINDOW_CONFIG.height,
+      };
+
+      if (process.platform === "darwin") {
+        mainWindow.setBounds(targetBounds, true);
+      } else {
+        await animateWindowBounds(mainWindow, startBounds, targetBounds, 180);
+      }
+
+      // 4. 锁定小窗口属性
+      mainWindow.setMinimumSize(
+        AUTH_WINDOW_CONFIG.width,
+        AUTH_WINDOW_CONFIG.height,
+      );
+      mainWindow.setMaximumSize(
+        AUTH_WINDOW_CONFIG.width,
+        AUTH_WINDOW_CONFIG.height,
+      );
+      mainWindow.setResizable(false);
+      mainWindow.setMaximizable(false);
+    } else {
+      // targetMode === "main"
+      // 1. 解除小窗口限制
+      mainWindow.setMaximumSize(10000, 10000);
+      mainWindow.setMinimumSize(
+        MAIN_WINDOW_CONFIG.minWidth,
+        MAIN_WINDOW_CONFIG.minHeight,
+      );
+      mainWindow.setResizable(true);
+      mainWindow.setMaximizable(true);
+
+      const currentDisplay = screen.getDisplayMatching(mainWindow.getBounds());
+      const workArea = currentDisplay.workArea;
+
+      let targetBounds: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      };
+      let shouldMaximize = false;
+
+      if (savedMainBounds) {
+        if (savedMainBounds.isMaximized) {
+          shouldMaximize = true;
+          targetBounds = {
+            x: Math.round(
+              workArea.x + (workArea.width - MAIN_WINDOW_CONFIG.width) / 2,
+            ),
+            y: Math.round(
+              workArea.y + (workArea.height - MAIN_WINDOW_CONFIG.height) / 2,
+            ),
+            width: MAIN_WINDOW_CONFIG.width,
+            height: MAIN_WINDOW_CONFIG.height,
+          };
+        } else {
+          const width = Math.min(
+            Math.max(savedMainBounds.width, MAIN_WINDOW_CONFIG.minWidth),
+            workArea.width,
+          );
+          const height = Math.min(
+            Math.max(savedMainBounds.height, MAIN_WINDOW_CONFIG.minHeight),
+            workArea.height,
+          );
+          const x =
+            savedMainBounds.x !== undefined
+              ? Math.max(
+                  workArea.x,
+                  Math.min(savedMainBounds.x, workArea.x + workArea.width - width),
+                )
+              : Math.round(workArea.x + (workArea.width - width) / 2);
+          const y =
+            savedMainBounds.y !== undefined
+              ? Math.max(
+                  workArea.y,
+                  Math.min(
+                    savedMainBounds.y,
+                    workArea.y + workArea.height - height,
+                  ),
+                )
+              : Math.round(workArea.y + (workArea.height - height) / 2);
+          targetBounds = { x, y, width, height };
+        }
+      } else {
+        const width = Math.min(MAIN_WINDOW_CONFIG.width, workArea.width);
+        const height = Math.min(MAIN_WINDOW_CONFIG.height, workArea.height);
+        const x = Math.round(workArea.x + (workArea.width - width) / 2);
+        const y = Math.round(workArea.y + (workArea.height - height) / 2);
+        targetBounds = { x, y, width, height };
+      }
+
+      const startBounds = mainWindow.getBounds();
+
+      if (process.platform === "darwin") {
+        mainWindow.setBounds(targetBounds, true);
+      } else {
+        await animateWindowBounds(mainWindow, startBounds, targetBounds, 180);
+      }
+
+      if (shouldMaximize) {
+        mainWindow.maximize();
+      }
+    }
+
+    mainWindow.webContents.send("window-mode-changed", targetMode);
+  } finally {
+    isSwitchingWindowMode = false;
+  }
+}
 
 const isSafeExternalUrl = (raw: string) => {
   try {
@@ -248,11 +475,28 @@ function createWindow(targetEntryPath?: string) {
   // 隐藏系统原生菜单栏 (去掉 Alt 菜单与原生白条)
   Menu.setApplicationMenu(null);
 
+  const initialIsAuth = currentWindowMode === "auth";
+  const initialWidth = initialIsAuth
+    ? AUTH_WINDOW_CONFIG.width
+    : MAIN_WINDOW_CONFIG.width;
+  const initialHeight = initialIsAuth
+    ? AUTH_WINDOW_CONFIG.height
+    : MAIN_WINDOW_CONFIG.height;
+
   mainWindow = new BrowserWindow({
-    width: 1280,
-    height: 800,
-    minWidth: 940,
-    minHeight: 500,
+    width: initialWidth,
+    height: initialHeight,
+    minWidth: initialIsAuth
+      ? AUTH_WINDOW_CONFIG.width
+      : MAIN_WINDOW_CONFIG.minWidth,
+    minHeight: initialIsAuth
+      ? AUTH_WINDOW_CONFIG.height
+      : MAIN_WINDOW_CONFIG.minHeight,
+    maxWidth: initialIsAuth ? AUTH_WINDOW_CONFIG.width : undefined,
+    maxHeight: initialIsAuth ? AUTH_WINDOW_CONFIG.height : undefined,
+    resizable: !initialIsAuth,
+    maximizable: !initialIsAuth,
+    show: false,
     backgroundColor: "#313338",
     title: "Tescord 客户端",
     frame: false,
@@ -270,11 +514,55 @@ function createWindow(targetEntryPath?: string) {
 
   // 监听窗口最大化与还原事件，向渲染进程实时广播以同步自定义顶栏按钮图标
   mainWindow.on("maximize", () => {
+    if (currentWindowMode === "main" && savedMainBounds) {
+      savedMainBounds.isMaximized = true;
+    }
     mainWindow?.webContents.send("window-maximized-change", true);
   });
 
   mainWindow.on("unmaximize", () => {
+    if (currentWindowMode === "main" && savedMainBounds) {
+      savedMainBounds.isMaximized = false;
+    }
     mainWindow?.webContents.send("window-maximized-change", false);
+  });
+
+  mainWindow.on("resize", () => {
+    if (
+      currentWindowMode === "main" &&
+      mainWindow &&
+      !mainWindow.isMaximized()
+    ) {
+      const b = mainWindow.getBounds();
+      if (b.width >= 600 && b.height >= 500) {
+        savedMainBounds = {
+          x: b.x,
+          y: b.y,
+          width: b.width,
+          height: b.height,
+          isMaximized: false,
+        };
+      }
+    }
+  });
+
+  mainWindow.on("move", () => {
+    if (
+      currentWindowMode === "main" &&
+      mainWindow &&
+      !mainWindow.isMaximized()
+    ) {
+      const b = mainWindow.getBounds();
+      if (b.width >= 600 && b.height >= 500) {
+        savedMainBounds = {
+          x: b.x,
+          y: b.y,
+          width: b.width,
+          height: b.height,
+          isMaximized: false,
+        };
+      }
+    }
   });
 
   // 注册 WebContents 原生右键上下文菜单 (编辑、选中文本、链接、图片及开发者调试)
@@ -588,6 +876,7 @@ ipcMain.handle("window-minimize", () => {
 });
 
 ipcMain.handle("window-maximize", () => {
+  if (currentWindowMode === "auth") return;
   if (mainWindow?.isMaximized()) {
     mainWindow?.unmaximize();
   } else {
@@ -601,6 +890,20 @@ ipcMain.handle("window-close", () => {
 
 ipcMain.handle("window-is-maximized", () => {
   return mainWindow?.isMaximized() ?? false;
+});
+
+ipcMain.handle("window-set-mode", async (event, mode: DesktopWindowMode) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+  if (mode !== "auth" && mode !== "main") {
+    return { success: false, mode: currentWindowMode };
+  }
+  await applyWindowMode(mode);
+  return { success: true, mode: currentWindowMode };
+});
+
+ipcMain.handle("window-get-mode", (event) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+  return currentWindowMode;
 });
 
 // 原生网络穿透与 UPnP 自动打洞
@@ -839,6 +1142,10 @@ app.whenReady().then(async () => {
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow();
+      mainWindow?.once("ready-to-show", () => {
+        mainWindow?.show();
+        mainWindow?.focus();
+      });
     } else if (mainWindow) {
       mainWindow.show();
       mainWindow.focus();

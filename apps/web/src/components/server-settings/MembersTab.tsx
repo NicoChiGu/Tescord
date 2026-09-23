@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { resolveServerUrl } from "../../config.js";
+import { dialog } from "../../stores/useDialogStore.js";
+import { toast } from "../../stores/useToastStore.js";
 
 interface MembersTabProps {
   guild: Guild;
@@ -99,7 +101,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({
     try {
       await onUpdateMember(member.userId, { roleIds: newRoleIds });
     } catch (err: any) {
-      alert(err?.message || "分配角色失败");
+      toast.error(err?.message || "分配角色失败");
     }
   };
 
@@ -108,49 +110,64 @@ export const MembersTab: React.FC<MembersTabProps> = ({
       await onUpdateMember(userId, { nickname: tempNickname.trim() || null });
       setEditingNicknameUserId(null);
     } catch (err: any) {
-      alert(err?.message || "更新昵称失败");
+      toast.error(err?.message || "更新昵称失败");
     }
   };
 
   const handleKick = async (member: GuildMember) => {
     const name = member.nickname || member.user?.username || "该成员";
-    const reason = window.prompt(
-      `请输入将 “${name}” 踢出服务器的理由（可选）：`,
-    );
+    const reason = await dialog.prompt({
+      title: `踢出成员 “${name}”`,
+      description: `请输入将 “${name}” 踢出服务器的理由（可选）：`,
+      placeholder: "输入踢出原因...",
+      confirmText: "确认踢出",
+    });
     if (reason !== null) {
       try {
         await onKickMember(member.userId, reason || undefined);
+        toast.success(`已将成员 “${name}” 踢出服务器`);
       } catch (err: any) {
-        alert(err?.message || "踢出成员失败");
+        toast.error(err?.message || "踢出成员失败");
       }
     }
   };
 
   const handleBan = async (member: GuildMember) => {
     const name = member.nickname || member.user?.username || "该成员";
-    const reason = window.prompt(`请输入将 “${name}” 封禁并拉入黑名单的理由：`);
+    const reason = await dialog.prompt({
+      title: `封禁成员 “${name}”`,
+      description: `请输入将 “${name}” 封禁并拉入黑名单的理由：`,
+      placeholder: "输入封禁原因...",
+      confirmText: "确认封禁",
+      required: false,
+    });
     if (reason !== null) {
       try {
         await onBanMember(member.userId, reason || undefined);
+        toast.success(`已封禁成员 “${name}”`);
       } catch (err: any) {
-        alert(err?.message || "封禁成员失败");
+        toast.error(err?.message || "封禁成员失败");
       }
     }
   };
 
   const handleTransfer = async (member: GuildMember) => {
     const name = member.nickname || member.user?.username || "该成员";
-    if (
-      window.confirm(
-        `【高危操作】您确认将服务器的所有权转让给 “${name}” 吗？此操作无法撤销！`,
-      )
-    ) {
-      if (onTransferOwnership) {
-        try {
-          await onTransferOwnership(member.userId);
-        } catch (err: any) {
-          alert(err?.message || "转让所有权失败");
-        }
+    const confirmed = await dialog.confirm({
+      title: "转让服务器所有权",
+      description: `您确认将服务器的所有权转让给 “${name}” 吗？此操作无法撤销，转让后您将失去该服务器的最高所有者权限！`,
+      variant: "danger",
+      requireSecurityCode: true,
+      confirmText: "确认转让",
+    });
+    if (!confirmed) return;
+
+    if (onTransferOwnership) {
+      try {
+        await onTransferOwnership(member.userId);
+        toast.success(`已成功将服务器所有权转让给 “${name}”`);
+      } catch (err: any) {
+        toast.error(err?.message || "转让所有权失败");
       }
     }
   };

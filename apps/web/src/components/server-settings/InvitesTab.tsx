@@ -3,6 +3,8 @@ import { Guild, Invite } from "@tescord/types";
 import { Link, Copy, Check, Trash2, Plus, Clock, Users } from "lucide-react";
 import { API_BASE, resolveServerUrl } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
+import { dialog } from "../../stores/useDialogStore.js";
+import { toast } from "../../stores/useToastStore.js";
 
 interface InvitesTabProps {
   guild: Guild;
@@ -48,24 +50,29 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
   };
 
   const handleDeleteInvite = async (code: string) => {
-    if (
-      window.confirm(
-        "确定要作废该邀请码吗？作废后使用该链接的新用户将无法加入。",
-      )
-    ) {
-      try {
-        const res = await fetch(`${API_BASE}/api/invites/${code}`, {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        if (res.ok) {
-          setInvites((prev) => prev.filter((i) => i.code !== code));
-        }
-      } catch (err: any) {
-        alert(err?.message || "删除邀请码失败");
+    const confirmed = await dialog.confirm({
+      title: "作废邀请码",
+      description: "确定要作废该邀请码吗？作废后使用该链接的新用户将无法加入服务器。",
+      variant: "warning",
+      confirmText: "确认作废",
+    });
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/invites/${code}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      if (res.ok) {
+        setInvites((prev) => prev.filter((i) => i.code !== code));
+        toast.success("邀请码已作废");
+      } else {
+        toast.error("作废邀请码失败");
       }
+    } catch (err: any) {
+      toast.error(err?.message || "删除邀请码失败");
     }
   };
 
@@ -88,12 +95,13 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
         setInvites((prev) => [created, ...prev]);
         setIsCreating(false);
         handleCopyLink(created.code);
+        toast.success("邀请码已生成并复制到剪贴板");
       } else {
         const err = await res.json().catch(() => ({}));
-        alert(err.error || "创建邀请码失败");
+        toast.error(err.error || "创建邀请码失败");
       }
     } catch (err: any) {
-      alert(err.message || "创建邀请码失败");
+      toast.error(err.message || "创建邀请码失败");
     }
   };
 

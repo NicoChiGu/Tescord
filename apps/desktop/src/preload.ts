@@ -1,5 +1,9 @@
 import { contextBridge, ipcRenderer } from "electron";
-import { DesktopNotificationPayload, UserStatus } from "@tescord/types";
+import {
+  DesktopNotificationPayload,
+  UserStatus,
+  DesktopWindowMode,
+} from "@tescord/types";
 
 contextBridge.exposeInMainWorld("electronAPI", {
   platform: process.platform,
@@ -71,6 +75,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.on("window-maximized-change", handler);
     return () => {
       ipcRenderer.removeListener("window-maximized-change", handler);
+    };
+  },
+  setWindowMode: (mode: DesktopWindowMode) =>
+    ipcRenderer.invoke("window-set-mode", mode),
+  getWindowMode: () => ipcRenderer.invoke("window-get-mode"),
+  onWindowModeChange: (callback: (mode: DesktopWindowMode) => void) => {
+    const handler = (_e: any, mode: DesktopWindowMode) => callback(mode);
+    ipcRenderer.on("window-mode-changed", handler);
+    return () => {
+      ipcRenderer.removeListener("window-mode-changed", handler);
     };
   },
 
