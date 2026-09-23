@@ -47,6 +47,7 @@ import { LightboxModal } from "./chat/LightboxModal.js";
 import { MobileActionSheet } from "./chat/MobileActionSheet.js";
 import { MentionInput, MentionInputHandle } from "./chat/MentionInput.js";
 import { TypingIndicator } from "./chat/TypingIndicator.js";
+import { ImageAttachment } from "./chat/ImageAttachment.js";
 import { PinnedMessagesPopover } from "./PinnedMessagesPopover.js";
 import { useUserProfilePopoutStore } from "../stores/useUserProfilePopoutStore.js";
 import { useContextMenuStore } from "../stores/useContextMenuStore.js";
@@ -309,27 +310,16 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
                   const isImg = isImageMime(att.mimeType, att.fileName);
                   if (isImg) {
                     return (
-                      <div
+                      <ImageAttachment
                         key={att.id}
-                        onClick={() =>
+                        attachment={att}
+                        onPreview={(targetAtt) =>
                           setLightboxImage({
-                            url: att.url,
-                            name: att.fileName,
+                            url: targetAtt.url,
+                            name: targetAtt.fileName,
                           })
                         }
-                        className="relative group/att rounded-lg overflow-hidden border border-[#3f4147] cursor-pointer max-w-sm max-h-64 min-h-[100px] bg-[#1e1f22]"
-                      >
-                        <img
-                          src={resolveServerUrl(att.url)}
-                          alt={att.fileName}
-                          loading="lazy"
-                          decoding="async"
-                          className="w-full h-full object-cover transition group-hover/att:scale-105"
-                        />
-                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/att:opacity-100 transition flex items-center justify-center text-white text-xs space-x-1 font-medium">
-                          <span>点击放大预览</span>
-                        </div>
-                      </div>
+                      />
                     );
                   }
 
