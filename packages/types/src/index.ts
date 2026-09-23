@@ -7,7 +7,8 @@ export type UserStatus = "ONLINE" | "IDLE" | "DND" | "OFFLINE" | "INVISIBLE";
 
 export type SystemRole = "USER" | "ADMIN" | "SUPER_ADMIN";
 
-export type ActivityType = "PLAYING" | "STREAMING" | "LISTENING" | "WATCHING" | "CUSTOM";
+export type ActivityType =
+  "PLAYING" | "STREAMING" | "LISTENING" | "WATCHING" | "CUSTOM";
 
 export interface Activity {
   name: string;
@@ -649,7 +650,7 @@ export interface VoiceState {
   selfVideo: boolean;
   streaming: boolean;
   streamMode?: StreamTransmissionMode;
-  user?: User;
+  user?: Omit<User, "email">;
 }
 
 export interface VoiceServerDisconnectPayload {
@@ -994,6 +995,9 @@ export interface PresignedUploadRequest {
   fileName: string;
   fileSize: number;
   mimeType: string;
+  purpose?: "attachment" | "guild-icon";
+  channelId?: string;
+  guildId?: string;
 }
 
 export interface PresignedUploadResponse {
@@ -2801,23 +2805,23 @@ export interface ChannelMetaRecord {
 // 22. 桌面客户端自动更新与 gh-proxy 加速协议 (Client Updater & Acceleration)
 // ==========================================
 export type UpdaterState =
-  | "disabled"     // 未配置 Git 仓库或更新服务被禁用
-  | "idle"         // 空闲待命
-  | "checking"     // 正在检查更新
-  | "downloading"  // 正在下载增量包
-  | "verifying"    // 正在校验 SHA256 哈希
-  | "extracting"   // 正在解压至本地用户目录
-  | "ready"        // 增量包已就绪，等待重启生效
-  | "error";       // 发生异常
+  | "disabled" // 未配置 Git 仓库或更新服务被禁用
+  | "idle" // 空闲待命
+  | "checking" // 正在检查更新
+  | "downloading" // 正在下载增量包
+  | "verifying" // 正在校验 SHA256 哈希
+  | "extracting" // 正在解压至本地用户目录
+  | "ready" // 增量包已就绪，等待重启生效
+  | "error"; // 发生异常
 
 export interface UpdateManifest {
-  version: string;                    // 目标版本号 (如 "0.2.0")
-  releaseDate: string;                // 发布时间 (ISO 8601)
-  minHostVersion: string;             // 最低需要的 Electron 原生 Host 壳版本
-  webPackageUrl: string;              // 增量包相对路径或完整 URL (如 tescord-web-v0.2.0.zip)
-  webPackageSha256: string;           // 增量包 SHA256 校验和
-  changelog?: string;                 // 更新日志段落
-  mandatory?: boolean;                // 是否为强制更新
+  version: string; // 目标版本号 (如 "0.2.0")
+  releaseDate: string; // 发布时间 (ISO 8601)
+  minHostVersion: string; // 最低需要的 Electron 原生 Host 壳版本
+  webPackageUrl: string; // 已签名清单中的包文件名 (如 tescord-web-v0.2.0.zip)
+  webPackageSha256: string; // 增量包 SHA256 校验和
+  changelog?: string; // 更新日志段落
+  mandatory?: boolean; // 是否为强制更新
   hostInstallers?: {
     windows?: { url: string; sha256?: string };
     macOS?: { url: string; sha256?: string };
@@ -2838,7 +2842,7 @@ export interface UpdateCheckResult {
 
 export interface UpdateProgress {
   state: UpdaterState;
-  percent: number;                    // 0 - 100
+  percent: number; // 0 - 100
   transferredBytes: number;
   totalBytes: number;
   speedBytesPerSec?: number;
@@ -2849,13 +2853,12 @@ export interface UpdaterConfig {
   enabled: boolean;
   currentHostVersion: string;
   currentWebVersion: string;
-  gitRepo: string | null;             // e.g. "owner/repo" 或 null
-  preferredProxy: string;             // 默认 "https://v6.gh-proxy.org/"
-  customProxy?: string;               // 用户自定义代理地址
+  gitRepo: string | null; // e.g. "owner/repo" 或 null
+  preferredProxy: string; // 默认 "https://v6.gh-proxy.org/"
+  customProxy?: string; // 用户自定义代理地址
   lastCheckedAt?: string;
 }
 
 export interface SetCustomProxyDTO {
-  proxyUrl: string;                   // 自定义代理前缀，传空字符串代表清除自定义代理
+  proxyUrl: string; // 自定义代理前缀，传空字符串代表清除自定义代理
 }
-

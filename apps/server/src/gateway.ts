@@ -12,7 +12,6 @@ import {
   VoiceState,
   VoiceServerDisconnectPayload,
   GatewayEvents,
-  TypingIndicatorPayload,
   P2PSignalPayload,
   P2PNodeMetrics,
   UserStatus,
@@ -20,15 +19,19 @@ import {
   StatusUpdatePayload,
   PresenceUpdateEvent,
   MaintenanceUpdatePayload,
+  PermissionFlags,
 } from "@tescord/types";
 import { prisma } from "./db.js";
 import { removeParticipantFromRoom } from "./livekit.js";
 import { p2pTopologyManager } from "./p2pTopology.js";
 import { cacheStore } from "./cache.js";
+import { permissionService } from "./services/permission.service.js";
 
 interface ClientConnection {
   ws: WebSocket;
   userId?: string;
+  sessionVersion?: number;
+  tokenExpiresAt?: number;
   sessionId?: string;
   properties?: {
     os?: string;
@@ -113,6 +116,22 @@ export class GatewayManager {
   }
 
   private async handlePayload(conn: ClientConnection, payload: GatewayPayload) {
+    if (conn.userId && payload.op !== GatewayOpCode.IDENTIFY) {
+      const current = await prisma.user.findUnique({
+        where: { id: conn.userId },
+        select: { isBanned: true, sessionVersion: true },
+      });
+      if (
+        !current ||
+        current.isBanned ||
+        current.sessionVersion !== conn.sessionVersion ||
+        (conn.tokenExpiresAt && Date.now() >= conn.tokenExpiresAt)
+      ) {
+        this.send(conn.ws, { op: GatewayOpCode.INVALID_SESSION });
+        conn.ws.close(GatewayCloseCode.TOKEN_EXPIRED, "Session revoked");
+        return;
+      }
+    }
     if (this.isMaintenanceActive) {
       const isAllowedOp =
         payload.op === GatewayOpCode.HEARTBEAT ||
@@ -146,40 +165,36 @@ export class GatewayManager {
 
       case GatewayOpCode.IDENTIFY: {
         const data = payload.d as IdentifyPayload;
-        let userId = data?.token;
-
-        // 若为 JWT Token，解析其载荷中的 sub
-        if (userId && userId.includes(".")) {
-          try {
-            const parts = userId.split(".");
-            if (parts.length === 3) {
-              const payloadJson = Buffer.from(parts[1], "base64").toString(
-                "utf8",
-              );
-              const decoded = JSON.parse(payloadJson);
-              if (decoded?.sub) {
-                userId = decoded.sub;
-              }
-            }
-          } catch {
-            // 解析失败按原值处理
+        let claims: Record<string, unknown> | null = null;
+        try {
+          if (
+            !conn.userId &&
+            typeof data?.token === "string" &&
+            this.tokenVerifier
+          ) {
+            claims = await this.tokenVerifier(data.token);
           }
+        } catch {
+          // An invalid JWT must never become an authenticated connection.
         }
-
-        let user = userId
-          ? await prisma.user.findUnique({ where: { id: userId } })
-          : null;
-        if (!user) {
-          // 尝试查找默认用户作为回退兜底
-          user = await prisma.user.findFirst();
-        }
-
-        if (!user) {
+        const user =
+          typeof claims?.sub === "string"
+            ? await prisma.user.findUnique({ where: { id: claims.sub } })
+            : null;
+        if (
+          !user ||
+          user.isBanned ||
+          !Number.isSafeInteger(claims?.sessionVersion) ||
+          claims?.sessionVersion !== user.sessionVersion
+        ) {
           this.send(conn.ws, {
             op: GatewayOpCode.INVALID_SESSION,
           });
           try {
-            conn.ws.close(GatewayCloseCode.TOKEN_EXPIRED, "Invalid or expired token");
+            conn.ws.close(
+              GatewayCloseCode.TOKEN_EXPIRED,
+              "Invalid or expired token",
+            );
           } catch {
             // ignore
           }
@@ -194,6 +209,9 @@ export class GatewayManager {
 
         const sessionId = data?.sessionId || randomUUID();
         conn.userId = user.id;
+        conn.sessionVersion = user.sessionVersion;
+        conn.tokenExpiresAt =
+          typeof claims?.exp === "number" ? claims.exp * 1000 : undefined;
         conn.sessionId = sessionId;
         conn.properties = data?.properties;
 
@@ -216,11 +234,7 @@ export class GatewayManager {
           },
           lastActiveAt: new Date().toISOString(),
         };
-        await cacheStore.setUserPresence(
-          user.id,
-          presence,
-          90,
-        );
+        await cacheStore.setUserPresence(user.id, presence, 90);
 
         // 获取当前用户已加入的公会数据供客户端初始化
         const guilds = await prisma.guild.findMany({
@@ -288,7 +302,8 @@ export class GatewayManager {
             const p = presences.get(m.userId);
             const isOnline =
               p && p.status !== "OFFLINE" && p.status !== "INVISIBLE";
-            const canShowMemberActivity = isOnline && m.user.showActivity !== false;
+            const canShowMemberActivity =
+              isOnline && m.user.showActivity !== false;
             return {
               ...m,
               user: {
@@ -323,7 +338,9 @@ export class GatewayManager {
               showActivity: user.showActivity,
             },
             guilds: hydratedGuilds,
-            voiceStates: Array.from(this.voiceStates.values()),
+            voiceStates: Array.from(this.voiceStates.values()).filter((state) =>
+              guilds.some((guild) => guild.id === state.guildId),
+            ),
           },
         });
 
@@ -388,6 +405,21 @@ export class GatewayManager {
         const existingVoice = this.voiceStates.get(conn.userId);
 
         if (data.channelId) {
+          const channel = await prisma.channel.findUnique({
+            where: { id: data.channelId },
+            select: { id: true, guildId: true, type: true },
+          });
+          if (
+            !channel?.guildId ||
+            channel.type !== "VOICE" ||
+            !(await permissionService.hasChannelPermission(
+              conn.userId,
+              channel.id,
+              PermissionFlags.CONNECT,
+            ))
+          )
+            return;
+          data.guildId = channel.guildId;
           // 1. 如果已有语音会话，且来自不同 sessionId，进行互斥裁决与踢出旧设备
           if (
             existingVoice &&
@@ -441,14 +473,13 @@ export class GatewayManager {
                   username: user.username,
                   avatarUrl: user.avatarUrl || undefined,
                   status: user.status as any,
-                  email: user.email,
                   createdAt: user.createdAt.toISOString(),
                 }
               : undefined,
           };
 
           this.voiceStates.set(conn.userId, voiceState);
-          this.broadcast({
+          await this.broadcastToChannelViewers(data.channelId, {
             op: GatewayOpCode.DISPATCH,
             t: "VOICE_STATE_UPDATE",
             d: voiceState,
@@ -466,7 +497,7 @@ export class GatewayManager {
               conn.userId,
               data.streamMode,
             );
-            this.broadcastChannel(data.channelId, {
+            await this.broadcastChannel(data.channelId, {
               op: GatewayOpCode.DISPATCH,
               t: GatewayEvents.P2P_TOPOLOGY_UPDATE,
               d: topology,
@@ -477,7 +508,7 @@ export class GatewayManager {
             existingVoice.channelId
           ) {
             p2pTopologyManager.unregisterStream(existingVoice.channelId);
-            this.broadcastChannel(existingVoice.channelId, {
+            await this.broadcastChannel(existingVoice.channelId, {
               op: GatewayOpCode.DISPATCH,
               t: GatewayEvents.P2P_TOPOLOGY_UPDATE,
               d: {
@@ -490,15 +521,18 @@ export class GatewayManager {
           }
         } else {
           // 退出语音：仅当当前持有语音的 sessionId 发起时才处理，避免无关标签页关闭误退
-          if (!existingVoice || existingVoice.sessionId === conn.sessionId) {
+          if (
+            existingVoice?.channelId &&
+            existingVoice.sessionId === conn.sessionId
+          ) {
             this.voiceStates.delete(conn.userId);
-            this.broadcast({
+            await this.broadcastToChannelViewers(existingVoice.channelId, {
               op: GatewayOpCode.DISPATCH,
               t: "VOICE_STATE_UPDATE",
               d: {
                 userId: conn.userId,
                 channelId: null,
-                guildId: data.guildId,
+                guildId: existingVoice.guildId,
                 sessionId: conn.sessionId,
                 selfMute: false,
                 selfDeaf: false,
@@ -533,10 +567,30 @@ export class GatewayManager {
           });
           if (!user) return;
 
-          this.broadcastTyping(channelId, user);
+          await this.broadcastTypingAuthorized(channelId, user);
         } else if (payload.t === GatewayEvents.P2P_SIGNAL) {
           const signalData = payload.d as P2PSignalPayload;
           if (!signalData || !conn.userId) return;
+          if (
+            !signalData.channelId ||
+            !(await this.canSignalVoice(conn, signalData.channelId))
+          )
+            return;
+          if (
+            signalData.targetId &&
+            this.voiceStates.get(signalData.targetId)?.channelId !==
+              signalData.channelId
+          )
+            return;
+          if (
+            signalData.targetId &&
+            !(await permissionService.hasChannelPermission(
+              signalData.targetId,
+              signalData.channelId,
+              PermissionFlags.CONNECT,
+            ))
+          )
+            return;
           signalData.senderId = conn.userId;
 
           if (signalData.targetId) {
@@ -546,7 +600,7 @@ export class GatewayManager {
               d: signalData,
             });
           } else if (signalData.channelId) {
-            this.broadcastChannel(
+            await this.broadcastChannel(
               signalData.channelId,
               {
                 op: GatewayOpCode.DISPATCH,
@@ -562,13 +616,14 @@ export class GatewayManager {
             initialMetrics?: P2PNodeMetrics;
           };
           if (!channelId || !conn.userId) return;
+          if (!(await this.canSignalVoice(conn, channelId))) return;
           const result = p2pTopologyManager.addViewer(
             channelId,
             conn.userId,
             initialMetrics,
           );
           if (result) {
-            this.broadcastChannel(channelId, {
+            await this.broadcastChannel(channelId, {
               op: GatewayOpCode.DISPATCH,
               t: GatewayEvents.P2P_TOPOLOGY_UPDATE,
               d: result.payload,
@@ -580,13 +635,14 @@ export class GatewayManager {
             metrics: P2PNodeMetrics;
           };
           if (!channelId || !conn.userId || !metrics) return;
+          if (!(await this.canSignalVoice(conn, channelId))) return;
           const updatedTopology = p2pTopologyManager.reportMetrics(
             channelId,
             conn.userId,
             metrics,
           );
           if (updatedTopology) {
-            this.broadcastChannel(channelId, {
+            await this.broadcastChannel(channelId, {
               op: GatewayOpCode.DISPATCH,
               t: GatewayEvents.P2P_TOPOLOGY_UPDATE,
               d: updatedTopology,
@@ -595,12 +651,13 @@ export class GatewayManager {
         } else if (payload.t === GatewayEvents.P2P_FALLBACK_REQUEST) {
           const { channelId } = (payload.d || {}) as { channelId: string };
           if (!channelId || !conn.userId) return;
+          if (!(await this.canSignalVoice(conn, channelId))) return;
           const updatedTopology = p2pTopologyManager.removeViewer(
             channelId,
             conn.userId,
           );
           if (updatedTopology) {
-            this.broadcastChannel(channelId, {
+            await this.broadcastChannel(channelId, {
               op: GatewayOpCode.DISPATCH,
               t: GatewayEvents.P2P_TOPOLOGY_UPDATE,
               d: updatedTopology,
@@ -615,46 +672,42 @@ export class GatewayManager {
     }
   }
 
-  broadcastTyping(
+  private async canSignalVoice(
+    conn: ClientConnection,
     channelId: string,
-    user: { id: string; username: string; avatarUrl?: string | null },
-  ) {
-    const payload: GatewayPayload<TypingIndicatorPayload> = {
-      op: GatewayOpCode.DISPATCH,
-      t: GatewayEvents.TYPING_START,
-      d: {
+  ): Promise<boolean> {
+    if (!conn.userId || !conn.sessionId) return false;
+    const voice = this.voiceStates.get(conn.userId);
+    return (
+      voice?.channelId === channelId &&
+      voice.sessionId === conn.sessionId &&
+      (await permissionService.hasChannelPermission(
+        conn.userId,
         channelId,
-        userId: user.id,
-        user: {
-          id: user.id,
-          username: user.username,
-          avatarUrl: user.avatarUrl,
-        },
-        timestamp: Date.now(),
-      },
-    };
-    const data = JSON.stringify(payload);
-    for (const conn of this.connections) {
-      if (conn.userId !== user.id && conn.ws.readyState === WebSocket.OPEN) {
-        conn.ws.send(data);
-      }
-    }
+        PermissionFlags.CONNECT,
+      ))
+    );
   }
 
-  broadcastChannel(
+  async broadcastChannel(
     channelId: string,
     payload: GatewayPayload,
     excludeUserId?: string,
   ) {
-    const data = JSON.stringify(payload);
     for (const [userId, voiceState] of this.voiceStates.entries()) {
       if (voiceState.channelId === channelId && userId !== excludeUserId) {
+        if (
+          !(await permissionService.hasChannelPermission(
+            userId,
+            channelId,
+            PermissionFlags.CONNECT,
+          ))
+        )
+          continue;
         const sessions = this.userSessions.get(userId);
         if (sessions) {
           for (const conn of sessions.values()) {
-            if (conn.ws.readyState === WebSocket.OPEN) {
-              conn.ws.send(data);
-            }
+            this.send(conn.ws, payload);
           }
         }
       }
@@ -662,12 +715,116 @@ export class GatewayManager {
   }
 
   broadcast(payload: GatewayPayload) {
-    const data = JSON.stringify(payload);
-    for (const conn of this.connections) {
-      if (conn.ws.readyState === WebSocket.OPEN) {
-        conn.ws.send(data);
+    if (payload.t === GatewayEvents.MAINTENANCE_UPDATE) {
+      for (const conn of this.connections) {
+        if (conn.userId) this.send(conn.ws, payload);
       }
+      return;
     }
+    void this.broadcastScoped(payload).catch((error) =>
+      console.error("[Gateway] Scoped broadcast failed:", error),
+    );
+  }
+
+  private async broadcastScoped(payload: GatewayPayload): Promise<void> {
+    const data = payload.d as Record<string, unknown> | undefined;
+    if (!data) return;
+    if (
+      payload.t === GatewayEvents.VOICE_STATE_UPDATE &&
+      (typeof data.channelId === "string" ||
+        typeof data.previousChannelId === "string")
+    ) {
+      await this.broadcastToChannelViewers(
+        String(data.channelId || data.previousChannelId),
+        payload,
+      );
+      return;
+    }
+    if (
+      payload.t === GatewayEvents.USER_UPDATE &&
+      typeof data.id === "string"
+    ) {
+      const safeUser = {
+        id: data.id,
+        username: data.username,
+        avatarUrl: data.avatarUrl,
+        status: data.status,
+        customStatus: data.customStatus,
+        bio: data.bio,
+        bannerUrl: data.bannerUrl,
+        bannerColor: data.bannerColor,
+        themeColor: data.themeColor,
+        showActivity: data.showActivity,
+        createdAt: data.createdAt,
+      };
+      const safePayload: GatewayPayload = { ...payload, d: safeUser };
+      const memberships = await prisma.guildMember.findMany({
+        where: { userId: data.id },
+        select: { guildId: true },
+      });
+      const recipients = await prisma.guildMember.findMany({
+        where: { guildId: { in: memberships.map((item) => item.guildId) } },
+        select: { userId: true },
+      });
+      for (const userId of new Set([
+        data.id,
+        ...recipients.map((item) => item.userId),
+      ])) {
+        this.sendToUser(userId, safePayload);
+      }
+      return;
+    }
+    let guildId = typeof data.guildId === "string" ? data.guildId : undefined;
+    if (
+      !guildId &&
+      payload.t === GatewayEvents.GUILD_UPDATE &&
+      typeof data.id === "string"
+    ) {
+      guildId = data.id;
+    }
+    if (guildId) {
+      await this.broadcastToGuild(guildId, payload);
+      if (
+        (payload.t === GatewayEvents.GUILD_MEMBER_REMOVE ||
+          payload.t === GatewayEvents.GUILD_BAN_ADD) &&
+        typeof data.userId === "string"
+      ) {
+        this.sendToUser(data.userId, payload);
+      }
+      return;
+    }
+    if (typeof data.channelId === "string") {
+      const channel = await prisma.channel.findUnique({
+        where: { id: data.channelId },
+        select: {
+          id: true,
+          guildId: true,
+          recipients: { select: { userId: true } },
+        },
+      });
+      if (channel?.guildId) {
+        const members = await prisma.guildMember.findMany({
+          where: { guildId: channel.guildId },
+          select: { userId: true },
+        });
+        for (const member of members) {
+          if (
+            await permissionService.hasChannelPermission(
+              member.userId,
+              channel.id,
+              PermissionFlags.VIEW_CHANNEL,
+            )
+          ) {
+            this.sendToUser(member.userId, payload);
+          }
+        }
+      } else {
+        for (const recipient of channel?.recipients || [])
+          this.sendToUser(recipient.userId, payload);
+      }
+      return;
+    }
+    console.warn("[Gateway] Dropped unscoped event:", payload.t);
   }
 
   send(ws: WebSocket, payload: GatewayPayload) {
@@ -680,7 +837,11 @@ export class GatewayManager {
     const sessions = this.userSessions.get(userId);
     if (sessions) {
       for (const conn of sessions.values()) {
-        this.send(conn.ws, payload);
+        if (conn.tokenExpiresAt && Date.now() >= conn.tokenExpiresAt) {
+          conn.ws.close(GatewayCloseCode.TOKEN_EXPIRED, "Token expired");
+        } else {
+          this.send(conn.ws, payload);
+        }
       }
     }
   }
@@ -701,6 +862,32 @@ export class GatewayManager {
       }
     } catch (err) {
       console.error("[Gateway] broadcastToGuild error:", err);
+    }
+  }
+
+  private async broadcastToChannelViewers(
+    channelId: string,
+    payload: GatewayPayload,
+  ): Promise<void> {
+    const channel = await prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { guildId: true },
+    });
+    if (!channel?.guildId) return;
+    const members = await prisma.guildMember.findMany({
+      where: { guildId: channel.guildId },
+      select: { userId: true },
+    });
+    for (const member of members) {
+      if (
+        await permissionService.hasChannelPermission(
+          member.userId,
+          channelId,
+          PermissionFlags.VIEW_CHANNEL,
+        )
+      ) {
+        this.sendToUser(member.userId, payload);
+      }
     }
   }
 
@@ -758,6 +945,7 @@ export class GatewayManager {
           d: {
             userId: conn.userId,
             channelId: null,
+            previousChannelId: currentVoice.channelId,
             guildId: currentVoice.guildId,
             sessionId: conn.sessionId,
             selfMute: false,
@@ -899,6 +1087,7 @@ export class GatewayManager {
       d: {
         userId,
         channelId: null,
+        previousChannelId: currentVoice.channelId,
         guildId: currentVoice.guildId,
         sessionId: currentVoice.sessionId,
         selfMute: false,
@@ -933,7 +1122,10 @@ export class GatewayManager {
             t: GatewayEvents.AUTH_SESSION_EXPIRED,
             d: { userId, reason: "Account terminated or banned" },
           });
-          conn.ws.close(GatewayCloseCode.ACCOUNT_BANNED, "Account terminated or banned");
+          conn.ws.close(
+            GatewayCloseCode.ACCOUNT_BANNED,
+            "Account terminated or banned",
+          );
         } catch {
           // ignore
         }
@@ -973,8 +1165,26 @@ export class GatewayManager {
         ? channel.recipients.map((item) => item.userId)
         : channel.guild?.members.map((item) => item.userId) || [];
     if (!recipients.includes(user.id)) return;
+    if (
+      channel.guildId &&
+      !(await permissionService.hasChannelPermission(
+        user.id,
+        channelId,
+        PermissionFlags.VIEW_CHANNEL,
+      ))
+    )
+      return;
     for (const userId of recipients) {
       if (userId === user.id) continue;
+      if (
+        channel.guildId &&
+        !(await permissionService.hasChannelPermission(
+          userId,
+          channelId,
+          PermissionFlags.VIEW_CHANNEL,
+        ))
+      )
+        continue;
       this.sendToUser(userId, {
         op: GatewayOpCode.DISPATCH,
         t: GatewayEvents.TYPING_START,
@@ -1048,6 +1258,7 @@ export class GatewayManager {
             d: {
               userId,
               channelId: null,
+              previousChannelId: voiceState.channelId,
               guildId: voiceState.guildId,
               sessionId: voiceState.sessionId,
             },

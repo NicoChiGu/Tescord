@@ -30,12 +30,24 @@ function isPrismaClientGenerated(): boolean {
 function runPrismaGenerate(): { success: boolean; output: string } {
   try {
     const prismaCli = require.resolve("prisma");
-    const result = spawnSync(process.execPath, [prismaCli, "generate"], {
-      cwd: serverRoot,
-      env: process.env,
-      encoding: "utf-8",
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    const provider = process.env.DATABASE_PROVIDER;
+    if (provider !== "sqlite" && provider !== "postgresql") {
+      throw new Error("DATABASE_PROVIDER must be sqlite or postgresql");
+    }
+    const schema =
+      provider === "postgresql"
+        ? "prisma-postgres/schema.prisma"
+        : "prisma/schema.prisma";
+    const result = spawnSync(
+      process.execPath,
+      [prismaCli, "generate", "--schema", schema],
+      {
+        cwd: serverRoot,
+        env: process.env,
+        encoding: "utf-8",
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
 
     const combinedOutput =
       `${result.stdout || ""}\n${result.stderr || ""}`.trim();
@@ -62,7 +74,12 @@ if (!generateResult.success) {
     generateResult.output.includes("operation not permitted") ||
     generateResult.output.includes("query_engine-windows.dll.node");
 
-  if (alreadyGenerated && isWindowsLocked) {
+  if (
+    alreadyGenerated &&
+    isWindowsLocked &&
+    process.env.DATABASE_PROVIDER === "sqlite" &&
+    process.env.NODE_ENV !== "production"
+  ) {
     console.warn(
       "⚠️ [server:ensure-prisma] 检测到 Prisma 引擎文件被正在运行的开发服务占用（EPERM）。现存 Prisma Client 类型定义完备，继续执行构建流程...",
     );

@@ -16,6 +16,11 @@ import AdmZip from "adm-zip";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, "..");
+const { privateKey, publicKey } = crypto.generateKeyPairSync("ed25519");
+const signingEnv = {
+  UPDATE_SIGNING_PRIVATE_KEY_BASE64: privateKey.export({ format: "der", type: "pkcs8" }).toString("base64"),
+  UPDATE_SIGNING_PUBLIC_KEY_BASE64: publicKey.export({ format: "der", type: "spki" }).toString("base64"),
+};
 
 let passed = 0;
 let failed = 0;
@@ -38,27 +43,33 @@ console.log("==========================================\n");
 console.log("▶️ 测试用例 1: 构建期 Git 变量检测与未配置禁用逻辑");
 {
   // 模拟带环境变量执行 generate-build-config
+  const buildConfigPath = path.join(rootDir, "apps/desktop/src/build-config.ts");
+  const originalBuildConfig = fs.readFileSync(buildConfigPath, "utf8");
   const outputValid = execSync("node scripts/generate-build-config.mjs", {
     cwd: rootDir,
-    env: { ...process.env, GITHUB_REPOSITORY: "test-org/test-project" },
+    env: { ...process.env, ...signingEnv, GITHUB_REPOSITORY: "test-org/test-project" },
     encoding: "utf-8",
   });
   assert(
-    outputValid.includes("test-org/test-project") && outputValid.includes("IS_UPDATER_ENABLED = true"),
-    "当 GITHUB_REPOSITORY 存在时，正确识别并启用更新服务"
+    outputValid.includes("test-org/test-project") && outputValid.includes("更新已启用"),
+    "仓库和 Ed25519 公钥同时存在时启用更新服务"
   );
 
-  const buildConfigPath = path.join(rootDir, "apps/desktop/src/build-config.ts");
   const buildConfigContent = fs.readFileSync(buildConfigPath, "utf-8");
   assert(
     buildConfigContent.includes('REPO_OWNER: "test-org"') &&
       buildConfigContent.includes('REPO_NAME: "test-project"') &&
-      buildConfigContent.includes("IS_UPDATER_ENABLED: true"),
-    "build-config.ts 成功固化仓库名称并写死在常量中"
+      buildConfigContent.includes("IS_UPDATER_ENABLED: true") &&
+      buildConfigContent.includes(signingEnv.UPDATE_SIGNING_PUBLIC_KEY_BASE64),
+    "客户端构建配置固化仓库和可信公钥"
   );
 
-  // 恢复为当前真实探测
-  execSync("node scripts/generate-build-config.mjs", { cwd: rootDir, encoding: "utf-8" });
+  execSync("node scripts/generate-build-config.mjs", {
+    cwd: rootDir, env: { ...process.env, UPDATE_SIGNING_PUBLIC_KEY_BASE64: "" }, encoding: "utf8",
+  });
+  assert(fs.readFileSync(buildConfigPath, "utf8").includes("IS_UPDATER_ENABLED: false"),
+    "没有可信公钥时更新器关闭");
+  fs.writeFileSync(buildConfigPath, originalBuildConfig, "utf8");
 }
 
 // 2. 测试 gh-proxy 代理前缀包装与候选阶梯顺序
@@ -136,6 +147,28 @@ console.log("\n▶️ 测试用例 4: Web 增量包压缩、SHA256 哈希校验�
 
   // 清理临时目录
   fs.rmSync(tempDir, { recursive: true, force: true });
+}
+
+console.log("\n▶️ 测试用例 5: 真实发布清单 Ed25519 签名与篡改拒绝");
+{
+  execSync("node scripts/package-web-update.mjs 0.1.0", {
+    cwd: rootDir, env: { ...process.env, ...signingEnv }, stdio: "ignore",
+  });
+  const manifestPath = path.join(rootDir, "release/manifest.json");
+  const manifest = fs.readFileSync(manifestPath);
+  const signature = Buffer.from(fs.readFileSync(`${manifestPath}.sig`, "utf8"), "base64");
+  assert(crypto.verify(null, manifest, publicKey, signature), "发布脚本生成可验证签名");
+  assert(!crypto.verify(null, Buffer.concat([manifest, Buffer.from("tampered")]), publicKey, signature),
+    "清单内容篡改后签名失效");
+  const other = crypto.generateKeyPairSync("ed25519").publicKey;
+  assert(!crypto.verify(null, manifest, other, signature), "非信任公钥不能验证清单");
+  let rejected = false;
+  try {
+    execSync("node scripts/package-web-update.mjs ../escape", {
+      cwd: rootDir, env: { ...process.env, ...signingEnv }, stdio: "ignore",
+    });
+  } catch { rejected = true; }
+  assert(rejected, "包含路径穿越的版本号被拒绝");
 }
 
 console.log("\n==========================================");

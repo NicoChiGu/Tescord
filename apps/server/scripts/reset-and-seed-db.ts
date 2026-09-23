@@ -9,6 +9,17 @@ const prismaDir = path.resolve(serverRoot, "prisma");
 const require = createRequire(import.meta.url);
 const prismaCli = require.resolve("prisma");
 
+if (
+  process.env.NODE_ENV === "production" ||
+  process.env.DATABASE_PROVIDER === "postgresql" ||
+  process.env.TESCORD_ALLOW_DEV_DB_RESET !==
+    "I_UNDERSTAND_THIS_DELETES_DEV_DATA"
+) {
+  throw new Error(
+    "Database reset is disabled; explicit development-only opt-in is required",
+  );
+}
+
 const dbFiles = ["tescord.db", "dev.db"];
 
 async function resetDb(fileName: string) {
@@ -39,11 +50,13 @@ async function resetDb(fileName: string) {
       "prisma/schema.prisma",
       "--script",
     ],
-    { cwd: serverRoot, env: process.env, encoding: "utf8" }
+    { cwd: serverRoot, env: process.env, encoding: "utf8" },
   );
 
   if (diff.status !== 0 || !diff.stdout) {
-    throw new Error(`无法生成全量 DDL: ${diff.stderr || "unknown schema engine error"}`);
+    throw new Error(
+      `无法生成全量 DDL: ${diff.stderr || "unknown schema engine error"}`,
+    );
   }
 
   process.env.DATABASE_URL = `file:./${fileName}`;
@@ -60,12 +73,17 @@ async function resetDb(fileName: string) {
     const statements = diff.stdout
       .split(/;\s*(?:\r?\n|$)/)
       .map((statement) => statement.trim())
-      .filter((statement) => statement && !/^--\s*This is an empty migration/i.test(statement));
+      .filter(
+        (statement) =>
+          statement && !/^--\s*This is an empty migration/i.test(statement),
+      );
 
     for (const statement of statements) {
       await prisma.$executeRawUnsafe(statement);
     }
-    console.log(`✅ ${fileName} 表结构创建完成，共执行 ${statements.length} 条 DDL。`);
+    console.log(
+      `✅ ${fileName} 表结构创建完成，共执行 ${statements.length} 条 DDL。`,
+    );
   } finally {
     await prisma.$disconnect();
   }
@@ -239,7 +257,9 @@ async function main() {
       });
     }
 
-    const checkUser = await prisma.user.findFirst({ where: { username: "Jackey" } });
+    const checkUser = await prisma.user.findFirst({
+      where: { username: "Jackey" },
+    });
     console.log(`👤 ${dbName} 管理员验证:`, {
       id: checkUser?.id,
       username: checkUser?.username,

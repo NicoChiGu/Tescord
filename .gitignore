@@ -13,11 +13,17 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 test-results/e2e-admin-storage.json
+test-results/
+playwright-report/
 
 # Environment
 .env
 .env.local
 .env.*.local
+docker/.env.production
+docker/certs/
+docker/backups/
+release-keys/
 
 # Database & Storage
 *.db

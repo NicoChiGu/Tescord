@@ -1,0 +1,322 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 1. 用户与刷新令牌
+model User {
+  id           String         @id @default(cuid())
+  username     String         @unique
+  email        String         @unique
+  passwordHash String
+  avatarUrl    String?
+  status       String         @default("ONLINE") // ONLINE | IDLE | DND | OFFLINE
+  customStatus String?
+  bio          String?
+  bannerUrl    String?
+  bannerColor  String?
+  themeColor   String?
+  showActivity Boolean        @default(true)
+  settings     String?        // 用户个人设置项 JSON (UserSettingsDTO)
+  role         String         @default("USER") // USER | ADMIN | SUPER_ADMIN
+  isBanned     Boolean        @default(false)
+  sessionVersion Int          @default(0)
+  mustChangePassword Boolean  @default(false)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  refreshTokens RefreshToken[]
+  ownedGuilds   Guild[]        @relation("GuildOwner")
+  memberships   GuildMember[]
+  messages      Message[]
+  reactions     Reaction[]
+  invites       Invite[]
+  bans          Ban[]
+  auditLogs     AuditLog[]
+  dmRecipients  ChannelRecipient[]
+  deviceKeys    DeviceKey[]
+  platformAuditLogs PlatformAuditLog[] @relation("PlatformAuditActor")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// 2. 公会 (Guild / Server) 与成员
+model Guild {
+  id          String        @id @default(cuid())
+  name        String
+  iconUrl     String?
+  description String?
+  isPublic    Boolean       @default(false)
+  ownerId     String
+  owner       User          @relation("GuildOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  channels    Channel[]
+  categories  ChannelCategory[]
+  members     GuildMember[]
+  roles       Role[]
+  invites     Invite[]
+  bans        Ban[]
+  auditLogs   AuditLog[]
+
+  @@index([ownerId])
+}
+
+model GuildMember {
+  id       String   @id @default(cuid())
+  guildId  String
+  guild    Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nickname String?
+  roleIds  String   @default("[]") // JSON string of role ids
+  joinedAt DateTime @default(now())
+
+  @@unique([guildId, userId])
+  @@index([guildId])
+  @@index([userId])
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  guildId     String
+  guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  name        String
+  color       String?
+  hoist       Boolean  @default(false)
+  position    Int      @default(0)
+  permissions Int      @default(0) // 位掩码 PermissionFlags
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@index([guildId])
+}
+
+// 3. 频道与分类 (Channel & Category)
+model ChannelCategory {
+  id        String    @id @default(cuid())
+  guildId   String
+  guild     Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  name      String
+  position  Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  channels  Channel[]
+
+  @@index([guildId])
+}
+
+model Channel {
+  id        String           @id @default(cuid())
+  guildId   String?
+  guild     Guild?           @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  name      String
+  type      String           @default("TEXT") // TEXT | VOICE | DM | GROUP_DM
+  topic     String?
+  parentId  String?          // 分类 Category ID
+  parent    ChannelCategory? @relation(fields: [parentId], references: [id], onDelete: SetNull)
+  position  Int              @default(0)
+  isE2EE    Boolean          @default(false)
+  bitrate   Int              @default(64000)
+  dmKey     String?          @unique
+  nextMessageSequence Int    @default(0)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  messages   Message[]
+  recipients ChannelRecipient[]
+
+  @@index([guildId])
+  @@index([parentId])
+}
+
+// 4. 消息与互动反应
+model Message {
+  id          String        @id @default(cuid())
+  channelId   String
+  channel     Channel       @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User          @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  content     String
+  isEncrypted Boolean       @default(false)
+  replyToId   String?
+  isPinned    Boolean       @default(false)
+  sequence    Int           @default(0)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  reactions   Reaction[]
+  attachments Attachment[]
+
+  @@index([channelId])
+  @@index([authorId])
+  @@unique([channelId, sequence])
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  messageId String
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji     String
+  createdAt DateTime @default(now())
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+}
+
+model Attachment {
+  id        String   @id @default(cuid())
+  messageId String?
+  message   Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  url       String
+  fileName  String
+  fileSize  Int
+  mimeType  String
+  createdAt DateTime @default(now())
+
+  @@index([messageId])
+}
+
+// 5. 专属邀请
+model Invite {
+  code      String    @id
+  guildId   String
+  guild     Guild     @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  inviterId String
+  inviter   User      @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+  maxUses   Int       @default(0) // 0 表示无限制
+  uses      Int       @default(0)
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([guildId])
+}
+
+// 6. 封禁黑名单 (Ban)
+model Ban {
+  id        String   @id @default(cuid())
+  guildId   String
+  guild     Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@unique([guildId, userId])
+  @@index([guildId])
+  @@index([userId])
+}
+
+// 7. 服务器审计日志 (Audit Log)
+model AuditLog {
+  id          String   @id @default(cuid())
+  guildId     String
+  guild       Guild    @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  action      String
+  targetId    String?
+  targetName  String?
+  changesJson String?
+  reason      String?
+  createdAt   DateTime @default(now())
+
+  @@index([guildId])
+  @@index([userId])
+  @@index([createdAt])
+}
+// 8. 私信会话与接收者关系 (Channel Recipient)
+model ChannelRecipient {
+  id         String   @id @default(cuid())
+  channelId  String
+  channel    Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  isClosed   Boolean  @default(false)
+  lastReadAt DateTime @default(now())
+  lastReadSequence Int @default(0)
+  createdAt  DateTime @default(now())
+
+  @@unique([channelId, userId])
+  @@index([userId])
+}
+
+// 9. 全局系统设置与运行维护 (System Setting)
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
+}
+
+// 10. 设备身份公钥。私钥只保存在客户端。
+model DeviceKey {
+  id                 String   @id @default(cuid())
+  userId             String
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deviceId           String
+  signingPublicKey   String
+  agreementPublicKey String
+  fingerprint        String
+  revokedAt          DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([userId, deviceId])
+  @@index([userId, revokedAt])
+}
+
+// 11. 在线媒体密钥信封。仅保存端到端密文，短期补偿网关漏包。
+model MediaKeyEnvelope {
+  id                    String   @id @default(cuid())
+  callId                String
+  channelId             String
+  senderId              String
+  senderDeviceId        String
+  recipientId           String
+  recipientDeviceId     String
+  ephemeralPublicKey    String
+  senderSigningPublicKey String
+  senderFingerprint     String
+  iv                    String
+  ciphertext            String
+  signature             String
+  createdAt             DateTime @default(now())
+  consumedAt            DateTime?
+
+  @@unique([callId, senderDeviceId, recipientDeviceId])
+  @@index([recipientId, recipientDeviceId, callId, createdAt])
+  @@index([createdAt])
+}
+// 12. 平台治理审计。公会删除后记录仍保留。
+model PlatformAuditLog {
+  id          String   @id @default(cuid())
+  actorId     String?
+  actor       User?    @relation("PlatformAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  action      String
+  targetType  String
+  targetId    String?
+  targetName  String?
+  detailsJson String?
+  createdAt   DateTime @default(now())
+
+  @@index([actorId])
+  @@index([createdAt])
+}
+

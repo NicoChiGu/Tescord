@@ -17,13 +17,14 @@
     "test:member-add": "node ./scripts/test-member-add.mjs",
     "test:e2e": "playwright test",
     "test:security-media": "pnpm --filter @tescord/server exec tsx ../../scripts/verify-media-crypto.ts",
-    "test:updater": "node ./scripts/test-updater-service.mjs",
+    "test:updater": "node ./scripts/test-updater-service.mjs && pnpm --filter @tescord/server exec tsx ../../scripts/test-updater-archive.ts",
     "test:e2e:ui": "playwright test --ui",
     "tunnel:up": "docker compose -f docker/docker-compose.yml -f docker/docker-compose-tunnel.yml --env-file docker/.env.tunnel up -d",
     "tunnel:down": "docker compose -f docker/docker-compose.yml -f docker/docker-compose-tunnel.yml down",
     "tunnel:logs": "docker compose -f docker/docker-compose-tunnel.yml logs -f cloudflared",
     "lint": "turbo run lint",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "node scripts/check-format-changed.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

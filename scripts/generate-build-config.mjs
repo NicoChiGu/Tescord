@@ -8,6 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { createPublicKey } from "node:crypto";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -84,19 +85,26 @@ function main() {
   let repoOwner = "";
   let repoName = "";
   let repoFullName = "";
+  const publicKey = process.env.UPDATE_SIGNING_PUBLIC_KEY_BASE64?.trim() || "";
+  let validPublicKey = false;
+  if (publicKey) {
+    try {
+      validPublicKey = createPublicKey({ key: Buffer.from(publicKey, "base64"), format: "der", type: "spki" }).asymmetricKeyType === "ed25519";
+    } catch { validPublicKey = false; }
+  }
 
   if (repoString && repoString.includes("/")) {
     const [owner, name] = repoString.split("/");
     if (owner && name) {
-      isUpdaterEnabled = true;
+      isUpdaterEnabled = validPublicKey;
       repoOwner = owner.trim();
       repoName = name.replace(/\.git$/i, "").trim();
       repoFullName = `${repoOwner}/${repoName}`;
-      console.log(`✅ [BuildConfig] 检测到有效的 GitHub 仓库: "${repoFullName}"，自动更新服务已启用 (IS_UPDATER_ENABLED = true)。`);
+      console.log(`[BuildConfig] GitHub 仓库: "${repoFullName}"；更新签名公钥${validPublicKey ? "有效，更新已启用" : "缺失或无效，更新已禁用"}。`);
     }
   }
 
-  if (!isUpdaterEnabled) {
+  if (!repoFullName) {
     console.log(
       `⚠️ [BuildConfig] 未检测到有效的 GitHub 仓库信息 (未设置 GITHUB_REPOSITORY 且无有效 GitHub remote)，自动更新服务将不生效 (IS_UPDATER_ENABLED = false)。`
     );
@@ -118,6 +126,8 @@ export const BUILD_CONFIG = {
   REPO_NAME: ${JSON.stringify(repoName)},
   /** GitHub 仓库全称 (owner/repo) */
   REPO_FULL_NAME: ${JSON.stringify(repoFullName)},
+  /** Ed25519 public key in DER/SPKI base64; absent keys disable updates. */
+  UPDATE_SIGNING_PUBLIC_KEY_BASE64: ${JSON.stringify(validPublicKey ? publicKey : "")},
   /** 编译时间戳 (ISO 8601) */
   BUILD_TIME: ${JSON.stringify(new Date().toISOString())},
   /** 默认首选 gh-proxy 加速代理 (优先使用 v6.gh-proxy.org) */

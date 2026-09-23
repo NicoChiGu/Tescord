@@ -4,7 +4,10 @@ test.describe("打字指示器 (Typing Indicator) 端到端交互与动效验收
   test.beforeEach(async ({ page }) => {
     // 注入 Mock Token 模拟已登录态
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
+      localStorage.setItem(
+        "tescord_access_token",
+        localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token",
+      );
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 
@@ -54,11 +57,10 @@ test.describe("打字指示器 (Typing Indicator) 端到端交互与动效验收
     await expect(typingIndicator).toHaveClass(/opacity-0/);
 
     // 获取当前频道的 channelId
-    const currentChannelId = await page.evaluate(() => {
-      const el = document.querySelector("[data-channel-id]");
-      if (el) return el.getAttribute("data-channel-id");
-      return "general";
-    });
+    const currentChannelId = await typingIndicator
+      .locator("xpath=ancestor::*[@data-channel-id][1]")
+      .getAttribute("data-channel-id");
+    expect(currentChannelId).toBeTruthy();
 
     // 2. 模拟单人打字：Alice 正在输入
     await page.evaluate(

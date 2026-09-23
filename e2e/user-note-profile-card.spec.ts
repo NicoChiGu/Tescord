@@ -140,7 +140,9 @@ test.describe("用户信息Card备注功能（1:1 Discord 交互与私有备注�
     // ===============================================================
     // 阶段 3：持久化验证（关闭后重新打开他人卡片）
     // ===============================================================
-    await page.keyboard.press("Escape");
+    await page
+      .locator("[data-testid='server-list-container']")
+      .click({ position: { x: 1, y: 1 } });
     await expect(popoutLocator).toHaveCount(0);
 
     // 重新点击该成员

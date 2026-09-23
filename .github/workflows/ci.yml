@@ -1,6 +1,7 @@
 name: CI Build & Verify
 
 on:
+  workflow_call:
   push:
     branches:
       - main
@@ -19,10 +20,24 @@ jobs:
   build-and-test:
     name: Build & Verify Monorepo
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.4-alpine
+        env:
+          POSTGRES_USER: tescord
+          POSTGRES_PASSWORD: ci_isolated_password
+          POSTGRES_DB: tescord_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tescord -d tescord_ci"
+          --health-interval 10s --health-timeout 5s --health-retries 10
 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
@@ -39,8 +54,10 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Verify Code Formatting
-        run: pnpm format --check
-        continue-on-error: true
+        run: pnpm format:check
+
+      - name: Verify SQLite/PostgreSQL Model Parity
+        run: pnpm --filter @tescord/server db:schema:check
 
       - name: Generate Database Client
         run: pnpm --filter @tescord/server db:generate
@@ -49,3 +66,28 @@ jobs:
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: pnpm build
+
+      - name: Install Chromium for Playwright
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Security and Media Tests
+        run: pnpm test:security-media
+
+      - name: Desktop Updater Tests
+        run: pnpm test:updater
+
+      - name: Browser End-to-End Tests
+        run: pnpm test:e2e
+
+      - name: PostgreSQL Migration, Client and Core Model Tests
+        env:
+          DATABASE_PROVIDER: postgresql
+          DATABASE_URL: postgresql://tescord:ci_isolated_password@127.0.0.1:5432/tescord_ci
+        run: |
+          pnpm --filter @tescord/server db:generate
+          pnpm --filter @tescord/server db:migrate:deploy
+          pnpm --filter @tescord/server build
+          pnpm --filter @tescord/server exec tsx scripts/verify-postgres.ts
+
+      - name: Production Dependency Audit
+        run: pnpm audit --prod --audit-level high --registry=https://registry.npmjs.org

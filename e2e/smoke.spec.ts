@@ -2,6 +2,10 @@ import { test, expect } from "@playwright/test";
 
 test.describe("Tescord Web 端到端冒烟与核心交互验收", () => {
   test("未登录状态下能够正常加载并呈现登录/注册引导", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.removeItem("tescord_access_token");
+      localStorage.removeItem("tescord_refresh_token");
+    });
     const consoleErrors: string[] = [];
     page.on("console", (msg) => {
       if (msg.type() === "error") {
@@ -48,7 +52,10 @@ test.describe("Tescord Web 端到端冒烟与核心交互验收", () => {
     page,
   }) => {
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
+      localStorage.setItem(
+        "tescord_access_token",
+        localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token",
+      );
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 

@@ -2,9 +2,27 @@ import { test, expect } from "@playwright/test";
 
 test.describe("超级管理员控制台与私信列表全链路端到端验收", () => {
   test.beforeEach(async ({ page }) => {
-    await page.route("**/api/e2ee/devices", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "{}" }));
-    await page.route("**/api/e2ee/keys/prekey", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "{}" }));
-    await page.route("**/api/channels/*/read", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ lastReadSequence: 0 }) }));
+    await page.route("**/api/e2ee/devices", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: "{}",
+      }),
+    );
+    await page.route("**/api/e2ee/keys/prekey", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: "{}",
+      }),
+    );
+    await page.route("**/api/channels/*/read", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ lastReadSequence: 0 }),
+      }),
+    );
   });
   test("超级管理员登录后：具备管理入口、可开启看板模态框、切换四大标签页与发布全网广播", async ({
     page,
@@ -18,8 +36,14 @@ test.describe("超级管理员控制台与私信列表全链路端到端验收",
 
     // 预置超级管理员身份凭据与 mock 接口
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "super_admin_mock_token");
-      localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
+      localStorage.setItem(
+        "tescord_access_token",
+        localStorage.getItem("tescord_e2e_access_token") || "",
+      );
+      localStorage.setItem(
+        "tescord_refresh_token",
+        localStorage.getItem("tescord_e2e_refresh_token") || "",
+      );
     });
 
     // Mock 当前用户信息为 SUPER_ADMIN
@@ -301,8 +325,14 @@ test.describe("超级管理员控制台与私信列表全链路端到端验收",
     });
 
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "normal_user_mock_token");
-      localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
+      localStorage.setItem(
+        "tescord_access_token",
+        localStorage.getItem("tescord_e2e_normal_access_token") || "",
+      );
+      localStorage.setItem(
+        "tescord_refresh_token",
+        localStorage.getItem("tescord_e2e_normal_refresh_token") || "",
+      );
     });
 
     // Mock 普通用户 (role: USER)
@@ -311,7 +341,7 @@ test.describe("超级管理员控制台与私信列表全链路端到端验收",
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "normal_user_id",
+          id: "usr_test_alice",
           username: "Alice",
           displayName: "Alice",
           email: "alice@tescord.local",
@@ -408,8 +438,12 @@ test.describe("超级管理员控制台与私信列表全链路端到端验收",
     await dmItem.click();
 
     // 4. 验证聊天主区域头部呈现 "@Bob" 专属私信标题及语音/视频呼叫按钮
-    const voiceCallBtn = page.locator("[data-testid='dm-start-voice-call-btn']");
-    const videoCallBtn = page.locator("[data-testid='dm-start-video-call-btn']");
+    const voiceCallBtn = page.locator(
+      "[data-testid='dm-start-voice-call-btn']",
+    );
+    const videoCallBtn = page.locator(
+      "[data-testid='dm-start-video-call-btn']",
+    );
     await expect(voiceCallBtn).toBeVisible();
     await expect(videoCallBtn).toBeVisible();
 

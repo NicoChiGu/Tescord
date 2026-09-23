@@ -15,7 +15,10 @@ export class ProxyManager {
   private settingsFilePath: string;
 
   private constructor() {
-    this.settingsFilePath = path.join(app.getPath("userData"), "updater-settings.json");
+    this.settingsFilePath = path.join(
+      app.getPath("userData"),
+      "updater-settings.json",
+    );
     this.loadSettings();
   }
 
@@ -29,7 +32,9 @@ export class ProxyManager {
   private loadSettings(): void {
     try {
       if (fs.existsSync(this.settingsFilePath)) {
-        const data = JSON.parse(fs.readFileSync(this.settingsFilePath, "utf-8")) as SavedUpdaterSettings;
+        const data = JSON.parse(
+          fs.readFileSync(this.settingsFilePath, "utf-8"),
+        ) as SavedUpdaterSettings;
         if (typeof data.customProxy === "string") {
           this.customProxy = data.customProxy.trim();
         }
@@ -42,7 +47,11 @@ export class ProxyManager {
   private saveSettings(): void {
     try {
       const data: SavedUpdaterSettings = { customProxy: this.customProxy };
-      fs.writeFileSync(this.settingsFilePath, JSON.stringify(data, null, 2), "utf-8");
+      fs.writeFileSync(
+        this.settingsFilePath,
+        JSON.stringify(data, null, 2),
+        "utf-8",
+      );
     } catch (err) {
       console.error("❌ [ProxyManager] 保存代理设置失败:", err);
     }
@@ -53,7 +62,22 @@ export class ProxyManager {
   }
 
   public setCustomProxy(proxyUrl: string): void {
-    this.customProxy = (proxyUrl || "").trim();
+    const requested = (proxyUrl || "").trim();
+    if (requested) {
+      const parsed = new URL(requested);
+      if (
+        parsed.protocol !== "https:" ||
+        parsed.username ||
+        parsed.password ||
+        parsed.search ||
+        parsed.hash
+      ) {
+        throw new Error(
+          "Update proxy must be an HTTPS URL without credentials or query parameters",
+        );
+      }
+    }
+    this.customProxy = requested;
     if (this.customProxy && !this.customProxy.endsWith("/")) {
       this.customProxy += "/";
     }
@@ -90,7 +114,10 @@ export class ProxyManager {
   /**
    * 探测指定 URL 是否可在 timeoutMs 毫秒内连通
    */
-  public async probe(url: string, timeoutMs: number = 3000): Promise<{ ok: boolean; rtt: number }> {
+  public async probe(
+    url: string,
+    timeoutMs: number = 3000,
+  ): Promise<{ ok: boolean; rtt: number }> {
     const start = Date.now();
     return new Promise((resolve) => {
       try {
@@ -109,7 +136,7 @@ export class ProxyManager {
             // 只要不是 502/504 等代理挂掉即可，404/200/302 都说明代理链路可通
             const ok = Boolean(res.statusCode && res.statusCode < 500);
             resolve({ ok, rtt });
-          }
+          },
         );
 
         req.on("error", () => resolve({ ok: false, rtt: Date.now() - start }));
@@ -132,7 +159,8 @@ export class ProxyManager {
     options: {
       timeoutMs?: number;
       headers?: Record<string, string>;
-    } = {}
+      maxBytes?: number;
+    } = {},
   ): Promise<{ data: Buffer; usedProxy: string; contentType?: string }> {
     const proxies = this.getCandidateProxyPrefixes();
     let lastError: any = null;
@@ -141,22 +169,39 @@ export class ProxyManager {
       const targetUrl = this.wrapUrl(rawUrl, proxy);
       try {
         const buffer = await this.downloadBuffer(targetUrl, options);
-        return { data: buffer.data, usedProxy: proxy, contentType: buffer.contentType };
+        return {
+          data: buffer.data,
+          usedProxy: proxy,
+          contentType: buffer.contentType,
+        };
       } catch (err: any) {
         lastError = err;
-        console.warn(`⚠️ [ProxyManager] 请求代理失败 [${proxy || "直连"}]: ${err.message}，自动尝试下一阶梯...`);
+        console.warn(
+          `⚠️ [ProxyManager] 请求代理失败 [${proxy || "直连"}]: ${err.message}，自动尝试下一阶梯...`,
+        );
       }
     }
 
-    throw new Error(`所有加速代理及直连均尝试失败: ${lastError?.message || "未知错误"}`);
+    throw new Error(
+      `所有加速代理及直连均尝试失败: ${lastError?.message || "未知错误"}`,
+    );
   }
 
   private downloadBuffer(
     url: string,
-    options: { timeoutMs?: number; headers?: Record<string, string> }
+    options: {
+      timeoutMs?: number;
+      headers?: Record<string, string>;
+      maxBytes?: number;
+    },
+    redirects = 0,
   ): Promise<{ data: Buffer; contentType?: string }> {
     return new Promise((resolve, reject) => {
       const parsed = new URL(url);
+      if (parsed.protocol !== "https:" || redirects > 5) {
+        reject(new Error("Unsafe updater URL or redirect chain"));
+        return;
+      }
       const client = parsed.protocol === "https:" ? https : http;
       const headers = {
         "User-Agent": "Tescord-Desktop-Updater/1.0",
@@ -166,18 +211,39 @@ export class ProxyManager {
 
       const req = client.get(url, { headers }, (res) => {
         // 处理 301/302 重定向
-        if (res.statusCode && [301, 302, 307, 308].includes(res.statusCode) && res.headers.location) {
+        if (
+          res.statusCode &&
+          [301, 302, 307, 308].includes(res.statusCode) &&
+          res.headers.location
+        ) {
+          res.resume();
           const redirectUrl = res.headers.location;
-          this.downloadBuffer(redirectUrl, options).then(resolve).catch(reject);
+          this.downloadBuffer(
+            new URL(redirectUrl, url).toString(),
+            options,
+            redirects + 1,
+          )
+            .then(resolve)
+            .catch(reject);
           return;
         }
 
         if (!res.statusCode || res.statusCode >= 400) {
-          return reject(new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`));
+          return reject(
+            new Error(`HTTP ${res.statusCode}: ${res.statusMessage}`),
+          );
         }
 
         const chunks: Buffer[] = [];
-        res.on("data", (chunk) => chunks.push(chunk));
+        let received = 0;
+        res.on("data", (chunk: Buffer) => {
+          received += chunk.length;
+          if (received > (options.maxBytes || 50 * 1024 * 1024)) {
+            req.destroy(new Error("Updater response is too large"));
+            return;
+          }
+          chunks.push(chunk);
+        });
         res.on("end", () => {
           resolve({
             data: Buffer.concat(chunks),

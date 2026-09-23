@@ -215,6 +215,85 @@ export const App: React.FC = () => {
   selectedGuildIdRef.current = selectedGuildId;
   const selectedChannelRef = useRef<Channel | null>(null);
   selectedChannelRef.current = selectedChannel;
+  const sfuFallbackInProgressRef = useRef(false);
+  const connectSfuFallbackRef = useRef<
+    (channelId: string, callId?: string | null) => Promise<boolean>
+  >(async () => false);
+  connectSfuFallbackRef.current = async (channelId, callId) => {
+    if (
+      activeVoiceChannelIdRef.current !== channelId ||
+      sfuFallbackInProgressRef.current
+    )
+      return false;
+    if (livekitService.isConnected) return true;
+    sfuFallbackInProgressRef.current = true;
+    try {
+      const user = useAuthStore.getState().user;
+      const token = useAuthStore.getState().token;
+      const channel = guildsRef.current
+        .flatMap((guild) => guild.channels)
+        .find((candidate) => candidate.id === channelId);
+      const requireE2EE = Boolean(callId || channel?.isE2EE);
+      if (
+        !user ||
+        !token ||
+        (!callId && !channel) ||
+        (requireE2EE && !sframeManager.getStats().enabled)
+      ) {
+        throw new Error("媒体身份或 E2EE 密钥尚未就绪");
+      }
+      const stream = audioEngine.getStream();
+      if (!stream) throw new Error("麦克风媒体流不可用");
+      const endpoint = callId
+        ? `${API_BASE}/api/channels/dm/${channelId}/call-token`
+        : `${API_BASE}/api/livekit/token`;
+      const body = callId
+        ? { callId, sessionId: gatewayClient.getSessionId() }
+        : {
+            roomName: channelId,
+            identity: user.id,
+            name: user.username,
+            bitrate:
+              channel?.bitrate || audioEngine.config.audioBitrate || 64000,
+          };
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok)
+        throw new Error(`SFU 令牌请求失败 (${response.status})`);
+      const media = await response.json();
+      const joined = await livekitService.joinRoom(
+        media.serverUrl || media.url,
+        media.token,
+        media.roomName || channelId,
+        stream,
+        channel?.bitrate || audioEngine.config.audioBitrate || 64000,
+        requireE2EE,
+      );
+      if (!joined || activeVoiceChannelIdRef.current !== channelId) {
+        if (joined) await livekitService.leaveRoom();
+        throw new Error("SFU 媒体连接失败或频道已切换");
+      }
+      voiceMeshManager.stopAll();
+      livekitService.setConnectionStatus("connected");
+      showGlobalToast("已连接 LiveKit SFU 媒体服务", "info");
+      return true;
+    } catch (error) {
+      livekitService.setConnectionStatus("disconnected");
+      showGlobalToast(
+        `SFU 切换失败：${error instanceof Error ? error.message : "未知错误"}`,
+        "error",
+      );
+      return false;
+    } finally {
+      sfuFallbackInProgressRef.current = false;
+    }
+  };
   const isMutedRef = useRef<boolean>(false);
   isMutedRef.current = isMuted;
   const handleToggleMuteRef = useRef<() => void>(() => {});
@@ -515,7 +594,8 @@ export const App: React.FC = () => {
     doubleRatchetManager.init(currentUser.id, token);
 
     // 连接 WebSocket 网关
-    gatewayClient.connect(currentUser.id);
+    const gatewayToken = useAuthStore.getState().accessToken;
+    if (gatewayToken) gatewayClient.connect(gatewayToken);
     voiceMeshManager.setContext(currentUser.id);
     useSettingsStore.getState().fetchCloudSettings();
     if (typeof window !== "undefined") {
@@ -567,6 +647,11 @@ export const App: React.FC = () => {
       setP2PFallbackReason(reason);
       setIsP2PFallbackModalOpen(true);
     });
+    const unbindVoiceMeshFallback = voiceMeshManager.onFallbackNeeded(
+      (context) => {
+        void connectSfuFallbackRef.current(context.channelId, context.callId);
+      },
+    );
 
     // 监听网关信令事件
     const unbindReady = gatewayClient.on("READY", (data) => {
@@ -1601,6 +1686,7 @@ export const App: React.FC = () => {
       unbindP2PSignal();
       unbindP2PTopology();
       unbindP2PFallback();
+      unbindVoiceMeshFallback();
       unbindCallOffer();
       unbindCallAnswer();
       unbindCallReject();
@@ -2088,8 +2174,9 @@ export const App: React.FC = () => {
         );
         if (channel.guildId) {
           if (
-            useChannelNavStore.getState().getLastVisitedChannel(channel.guildId) ===
-            channel.id
+            useChannelNavStore
+              .getState()
+              .getLastVisitedChannel(channel.guildId) === channel.id
           ) {
             useChannelNavStore.getState().removeGuildMemory(channel.guildId);
           }
@@ -2230,7 +2317,11 @@ export const App: React.FC = () => {
             const lastChId = useChannelNavStore
               .getState()
               .getLastVisitedChannel(nextGuild.id);
-            const targetChannel = resolveGuildChannel(nextGuild, lastChId, true);
+            const targetChannel = resolveGuildChannel(
+              nextGuild,
+              lastChId,
+              true,
+            );
             setSelectedChannel(targetChannel);
             if (targetChannel?.guildId) {
               useChannelNavStore
@@ -2405,6 +2496,7 @@ export const App: React.FC = () => {
           channel.id,
           processedStream,
           bitrate,
+          Boolean(channel.isE2EE),
         );
       }
     } catch (e) {
@@ -2519,7 +2611,10 @@ export const App: React.FC = () => {
       if (defaultTextChannel?.guildId) {
         useChannelNavStore
           .getState()
-          .recordChannelVisit(defaultTextChannel.guildId, defaultTextChannel.id);
+          .recordChannelVisit(
+            defaultTextChannel.guildId,
+            defaultTextChannel.id,
+          );
       }
     }
   };
@@ -2696,6 +2791,7 @@ export const App: React.FC = () => {
           data.roomName || `dm_${channelId}`,
           processedStream,
           bitrate,
+          true,
         );
       }
     } catch (e) {
@@ -3142,9 +3238,12 @@ export const App: React.FC = () => {
   };
 
   // 观众端 P2P 穿透受阻时一键切换回服务器中继模式
-  const handleP2PFallbackToSFU = () => {
-    p2pStreamManager.stopAll();
-    if (activeVoiceChannelId) {
+  const handleP2PFallbackToSFU = async () => {
+    if (
+      activeVoiceChannelId &&
+      (await connectSfuFallbackRef.current(activeVoiceChannelId))
+    ) {
+      p2pStreamManager.stopAll();
       gatewayClient.sendRaw({
         op: GatewayOpCode.DISPATCH,
         t: GatewayEvents.P2P_FALLBACK_REQUEST,
@@ -3215,11 +3314,7 @@ export const App: React.FC = () => {
               const lastChannelId = useChannelNavStore
                 .getState()
                 .getLastVisitedChannel(g.id);
-              const targetChannel = resolveGuildChannel(
-                g,
-                lastChannelId,
-                true,
-              );
+              const targetChannel = resolveGuildChannel(g, lastChannelId, true);
               setSelectedChannel(targetChannel);
               if (targetChannel?.guildId) {
                 useChannelNavStore
@@ -3341,7 +3436,9 @@ export const App: React.FC = () => {
 
       {/* 超级管理员维护模式横幅 */}
       {isMaintenance && currentUser?.role === "SUPER_ADMIN" && (
-        <MaintenanceAdminBanner onOpenAdminModal={() => setIsAdminModalOpen(true)} />
+        <MaintenanceAdminBanner
+          onOpenAdminModal={() => setIsAdminModalOpen(true)}
+        />
       )}
 
       {/* Discord 风格网关长连接状态指示条 */}
@@ -3793,7 +3890,9 @@ export const App: React.FC = () => {
                   if (ch) {
                     setSelectedGuildId(g.id);
                     setSelectedChannel(ch);
-                    useChannelNavStore.getState().recordChannelVisit(g.id, ch.id);
+                    useChannelNavStore
+                      .getState()
+                      .recordChannelVisit(g.id, ch.id);
                     break;
                   }
                 }
@@ -3824,7 +3923,11 @@ export const App: React.FC = () => {
               const lastChId = useChannelNavStore
                 .getState()
                 .getLastVisitedChannel(nextGuild.id);
-              const targetChannel = resolveGuildChannel(nextGuild, lastChId, true);
+              const targetChannel = resolveGuildChannel(
+                nextGuild,
+                lastChId,
+                true,
+              );
               setSelectedChannel(targetChannel);
               if (targetChannel?.guildId) {
                 useChannelNavStore

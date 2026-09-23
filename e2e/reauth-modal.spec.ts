@@ -107,10 +107,16 @@ test.describe("令牌失效重新登录 Modal 与会话无感恢复验收", () =
       }
     });
 
+    // Keep this case focused on HTTP refresh; a deliberately fake JWT would
+    // otherwise be rejected by the real Gateway before the request below.
+    await page.routeWebSocket("**/gateway", (socket) => socket.close());
+
     await page.goto("/");
 
     // 1. 等待主界面渲染完毕
-    const reauthBackdrop = page.locator('[data-testid="reauth-modal-backdrop"]');
+    const reauthBackdrop = page.locator(
+      '[data-testid="reauth-modal-backdrop"]',
+    );
     await expect(reauthBackdrop).not.toBeVisible();
 
     const root = page.locator("#root");
@@ -165,15 +171,19 @@ test.describe("令牌失效重新登录 Modal 与会话无感恢复验收", () =
 
     // 3. 验证 ReauthModal 被成功唤起
     await expect(reauthBackdrop).toBeVisible({ timeout: 5000 });
-    expect(refreshAttempted).toBe(true);
+    await expect.poll(() => refreshAttempted).toBe(true);
 
     // 验证遮罩类名包含 backdrop-blur-md (毛玻璃背景虚化效果)
     const backdropClass = await reauthBackdrop.getAttribute("class");
     expect(backdropClass).toContain("backdrop-blur-md");
 
     // 验证用户名与安全警示显示
-    await expect(reauthBackdrop.getByRole("heading", { name: "JackeyTester" })).toBeVisible();
-    await expect(reauthBackdrop.getByText("jackey@tescord.local")).toBeVisible();
+    await expect(
+      reauthBackdrop.getByRole("heading", { name: "JackeyTester" }),
+    ).toBeVisible();
+    await expect(
+      reauthBackdrop.getByText("jackey@tescord.local"),
+    ).toBeVisible();
 
     // 4. 验证模态阻断特性：按 Escape 键不可退出
     await page.keyboard.press("Escape");
@@ -273,18 +283,26 @@ test.describe("令牌失效重新登录 Modal 与会话无感恢复验收", () =
     const root = page.locator("#root");
     await expect(root).toBeVisible({ timeout: 10000 });
 
-    const reauthBackdrop = page.locator('[data-testid="reauth-modal-backdrop"]');
+    const reauthBackdrop = page.locator(
+      '[data-testid="reauth-modal-backdrop"]',
+    );
 
     // 模拟服务端推送 AUTH_SESSION_EXPIRED 事件或通过 useAuthStore.openReauthModal 触发
     await page.evaluate(() => {
-      (window as any).useAuthStore?.getState().openReauthModal("WebSocket 会话被服务端主动终止");
+      (window as any).useAuthStore
+        ?.getState()
+        .openReauthModal("WebSocket 会话被服务端主动终止");
     });
 
     // 验证 ReauthModal 弹出
     await expect(reauthBackdrop).toBeVisible({ timeout: 5000 });
-    await expect(reauthBackdrop.getByRole("heading", { name: "WebSocketTester" })).toBeVisible();
     await expect(
-      reauthBackdrop.getByText(/WebSocket 会话被服务端主动终止|登录凭据已完全失效|登录会话已过期/),
+      reauthBackdrop.getByRole("heading", { name: "WebSocketTester" }),
+    ).toBeVisible();
+    await expect(
+      reauthBackdrop.getByText(
+        /WebSocket 会话被服务端主动终止|登录凭据已完全失效|登录会话已过期/,
+      ),
     ).toBeVisible();
 
     // 点击“切换其他账号”

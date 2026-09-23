@@ -21,6 +21,12 @@ const DEFAULT_ICE_SERVERS: RTCIceServer[] = [];
 export type LatencyUpdateCallback = (
   reports: Map<string, PeerLatencyReport>,
 ) => void;
+export type VoiceFallbackCallback = (context: {
+  channelId: string;
+  guildId: string | null;
+  callId: string | null;
+  reason: string;
+}) => void;
 
 export class VoiceMeshManager {
   private activeChannelId: string | null = null;
@@ -28,8 +34,10 @@ export class VoiceMeshManager {
   private activeCallId: string | null = null;
   private currentUserId: string | null = null;
   private isMeshActive: boolean = false;
+  private hasConnectedPeer = false;
   private isFallbackToSFU: boolean = false;
   private fallbackReason: string = "";
+  private fallbackCallbacks = new Set<VoiceFallbackCallback>();
 
   // 动态 ICE 服务器 (双栈 STUN + Coturn TURN)
   private currentIceServers: RTCIceServer[] = [...DEFAULT_ICE_SERVERS];
@@ -115,10 +123,27 @@ export class VoiceMeshManager {
     return count;
   }
 
-  public triggerFallbackToSFU(reason: string = "网络穿透协商受阻，已平滑降级回退至 LiveKit SFU 服务器"): void {
+  public triggerFallbackToSFU(
+    reason: string = "网络穿透协商受阻，已平滑降级回退至 LiveKit SFU 服务器",
+  ): void {
+    if (!this.isMeshActive || this.isFallbackToSFU || !this.activeChannelId)
+      return;
     this.isFallbackToSFU = true;
     this.fallbackReason = reason;
+    for (const callback of this.fallbackCallbacks) {
+      callback({
+        channelId: this.activeChannelId,
+        guildId: this.activeGuildId,
+        callId: this.activeCallId,
+        reason,
+      });
+    }
     this.notifyLatencyUpdate();
+  }
+
+  public onFallbackNeeded(callback: VoiceFallbackCallback): () => void {
+    this.fallbackCallbacks.add(callback);
+    return () => this.fallbackCallbacks.delete(callback);
   }
 
   public onLatencyUpdate(cb: LatencyUpdateCallback): () => void {
@@ -144,6 +169,7 @@ export class VoiceMeshManager {
     this.activeGuildId = guildId;
     this.activeCallId = callId || null;
     this.isMeshActive = true;
+    this.hasConnectedPeer = false;
     this.isFallbackToSFU = false;
     this.fallbackReason = "";
 
@@ -157,7 +183,11 @@ export class VoiceMeshManager {
     // 与房间内已存在的其他成员主动建立点对点呼叫 (PeerConnection Offer)
     for (const targetId of otherUserIds) {
       if (targetId && targetId !== this.currentUserId) {
-        if (this.activeCallId && this.currentUserId && this.currentUserId.localeCompare(targetId) > 0) {
+        if (
+          this.activeCallId &&
+          this.currentUserId &&
+          this.currentUserId.localeCompare(targetId) > 0
+        ) {
           continue;
         }
         await this.initiateCallToPeer(targetId);
@@ -173,6 +203,7 @@ export class VoiceMeshManager {
    */
   public stopAll(): void {
     this.isMeshActive = false;
+    this.hasConnectedPeer = false;
     this.isFallbackToSFU = false;
     this.fallbackReason = "";
     this.activeChannelId = null;
@@ -268,9 +299,7 @@ export class VoiceMeshManager {
     allReports.sort((a, b) => a.rtt - b.rtt);
     const mid = Math.floor(allReports.length / 2);
     const medianReport =
-      allReports.length % 2 !== 0
-        ? allReports[mid]
-        : allReports[mid - 1];
+      allReports.length % 2 !== 0 ? allReports[mid] : allReports[mid - 1];
 
     return {
       rtt: medianReport.rtt,
@@ -323,7 +352,10 @@ export class VoiceMeshManager {
             await pc.setRemoteDescription(new RTCSessionDescription(sdp));
             await this.flushPendingCandidates(senderId, pc);
           } catch (e) {
-            console.error(`[VoiceMesh] 处理来自 ${senderId} 的 ANSWER 失败:`, e);
+            console.error(
+              `[VoiceMesh] 处理来自 ${senderId} 的 ANSWER 失败:`,
+              e,
+            );
           }
         }
         break;
@@ -336,7 +368,10 @@ export class VoiceMeshManager {
           try {
             await pc.addIceCandidate(new RTCIceCandidate(candidate));
           } catch (e) {
-            console.warn(`[VoiceMesh] 添加来自 ${senderId} 的 ICE candidate 失败:`, e);
+            console.warn(
+              `[VoiceMesh] 添加来自 ${senderId} 的 ICE candidate 失败:`,
+              e,
+            );
           }
         } else {
           // 暂存到 buffer 队列
@@ -388,7 +423,9 @@ export class VoiceMeshManager {
     pc = new RTCPeerConnection({
       iceServers: this.currentIceServers,
       bundlePolicy: "max-bundle",
-      ...(sframeManager.getStats().enabled ? { encodedInsertableStreams: true } : {}),
+      ...(sframeManager.getStats().enabled
+        ? { encodedInsertableStreams: true }
+        : {}),
     } as RTCConfiguration);
 
     // 绑定本地音频轨道
@@ -414,7 +451,8 @@ export class VoiceMeshManager {
 
     // 监听远端音频流
     pc.ontrack = (event) => {
-      if (sframeManager.getStats().enabled) sframeManager.attachReceiver(event.receiver);
+      if (sframeManager.getStats().enabled)
+        sframeManager.attachReceiver(event.receiver);
       const remoteStream = event.streams[0] || new MediaStream([event.track]);
       this.attachRemoteAudio(peerId, remoteStream);
     };
@@ -422,6 +460,7 @@ export class VoiceMeshManager {
     pc.onconnectionstatechange = () => {
       const state = pc?.connectionState;
       if (state === "connected") {
+        this.hasConnectedPeer = true;
         const retryInfo = this.peerRetries.get(peerId);
         if (retryInfo?.timer) clearTimeout(retryInfo.timer);
         this.peerRetries.delete(peerId);
@@ -465,7 +504,11 @@ export class VoiceMeshManager {
         `[VoiceMesh] 节点 ${peerId} 经历 ${MAX_RETRIES} 次打洞重试后仍未连通，判定穿透受阻`,
       );
       this.closePeer(peerId);
-      if (this.getConnectedPeersCount() === 0 && this.peerConnections.size === 0) {
+      if (
+        this.hasConnectedPeer &&
+        this.getConnectedPeersCount() === 0 &&
+        this.peerConnections.size === 0
+      ) {
         this.triggerFallbackToSFU(
           "P2P 网状打洞经 3 次重试失败（双方可能存在双对称 NAT 或防火墙阻止），已平滑降级至 SFU 服务端中继",
         );
@@ -591,10 +634,14 @@ export class VoiceMeshManager {
     }
 
     this.latencyReports.delete(peerId);
-    if (this.isMeshActive && this.peerConnections.size === 0) {
-      this.isFallbackToSFU = true;
-      this.fallbackReason =
-        "P2P 直连断开或穿透协商受阻，已平滑降级回退至 LiveKit SFU 服务器";
+    if (
+      this.isMeshActive &&
+      this.hasConnectedPeer &&
+      this.peerConnections.size === 0
+    ) {
+      this.triggerFallbackToSFU(
+        "P2P 直连断开或穿透协商受阻，正在连接 LiveKit SFU",
+      );
     }
     this.notifyLatencyUpdate();
   }
@@ -681,19 +728,29 @@ export class VoiceMeshManager {
           }
         }
 
-        if (stat.type === "inbound-rtp" && stat.kind === "audio" && !stat.isRemote) {
+        if (
+          stat.type === "inbound-rtp" &&
+          stat.kind === "audio" &&
+          !stat.isRemote
+        ) {
           const codec = stat.codecId ? report.get(stat.codecId) : null;
-          if (codec?.mimeType && !/red|cn/i.test(codec.mimeType)) actualReceiveCodec = codec.mimeType;
+          if (codec?.mimeType && !/red|cn/i.test(codec.mimeType))
+            actualReceiveCodec = codec.mimeType;
           if (stat.bytesReceived) totalBytesReceived += stat.bytesReceived;
           if (typeof stat.jitter === "number")
             jitter = `${(stat.jitter * 1000).toFixed(1)}ms`;
-            if (typeof stat.fractionLost === "number")
-              packetLoss = `${(stat.fractionLost * 100).toFixed(1)}%`;
+          if (typeof stat.fractionLost === "number")
+            packetLoss = `${(stat.fractionLost * 100).toFixed(1)}%`;
         }
 
-        if (stat.type === "outbound-rtp" && stat.kind === "audio" && !stat.isRemote) {
+        if (
+          stat.type === "outbound-rtp" &&
+          stat.kind === "audio" &&
+          !stat.isRemote
+        ) {
           const codec = stat.codecId ? report.get(stat.codecId) : null;
-          if (codec?.mimeType && !/red|cn/i.test(codec.mimeType)) actualSendCodec = codec.mimeType;
+          if (codec?.mimeType && !/red|cn/i.test(codec.mimeType))
+            actualSendCodec = codec.mimeType;
           if (stat.bytesSent) totalBytesSent += stat.bytesSent;
         }
       });
@@ -710,7 +767,9 @@ export class VoiceMeshManager {
     return {
       participantIdentity: peerId,
       isLocal: false,
-      mimeType: [actualSendCodec, actualReceiveCodec].filter(Boolean).join(" / ") || "未知",
+      mimeType:
+        [actualSendCodec, actualReceiveCodec].filter(Boolean).join(" / ") ||
+        "未知",
       playerCore: "WebRTC P2P Mesh Engine",
       videoInfo: "无视频 (纯语音 Mesh)",
       audioInfo: "由 WebRTC 实际协商",

@@ -2,7 +2,6 @@ import "./env.js";
 
 import fastify, { FastifyReply, FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
-import fastifyStatic from "@fastify/static";
 import websocket from "@fastify/websocket";
 import fastifyJwt from "@fastify/jwt";
 import path from "path";
@@ -130,13 +129,6 @@ await server.register(cors, {
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
 });
 
-// 1.1 注册本地静态文件目录服务 (供直传附件与缩略图预览)
-await server.register(fastifyStatic, {
-  root: storageService.getUploadsDir(),
-  prefix: "/uploads/",
-  decorateReply: false,
-});
-
 // 2. 注册二进制上传 Content-Type 解析器 (用于本地直传附件，支持任意音视频、图片、压缩包及文档)
 server.addContentTypeParser(
   "text/plain",
@@ -218,6 +210,7 @@ const publicApiPaths = new Set([
   "/api/auth/login",
   "/api/auth/refresh",
   "/api/discovery/guilds",
+  "/api/livekit/webhook",
 ]);
 
 server.addHook("preHandler", async (request, reply) => {
@@ -605,7 +598,9 @@ server.put(
         note: trimmedNote,
       });
     } catch (err: any) {
-      return reply.status(500).send({ error: err.message || "更新用户备注失败" });
+      return reply
+        .status(500)
+        .send({ error: err.message || "更新用户备注失败" });
     }
   },
 );
@@ -1296,6 +1291,13 @@ server.patch("/api/guilds/:guildId", async (request, reply) => {
   if (!guild) return reply.status(404).send({ error: "服务器不存在" });
 
   const body = (request.body || {}) as UpdateGuildDTO;
+  if (
+    body.iconUrl?.includes("/public-assets/") &&
+    body.iconUrl !== guild.iconUrl &&
+    !storageService.claimPublicAsset(user.id, guildId, body.iconUrl)
+  ) {
+    return reply.status(403).send({ error: "服务器图标上传授权无效" });
+  }
   const updated = await prisma.guild.update({
     where: { id: guildId },
     data: {
@@ -1367,13 +1369,18 @@ server.delete("/api/guilds/:guildId", async (request, reply) => {
     return reply.status(400).send({ error: "服务器名称确认不匹配" });
   }
 
+  const memberIds = await prisma.guildMember.findMany({
+    where: { guildId },
+    select: { userId: true },
+  });
   await prisma.guild.delete({ where: { id: guildId } });
 
-  gatewayManager.broadcast({
-    op: GatewayOpCode.DISPATCH,
-    t: GatewayEvents.GUILD_DELETE,
-    d: { guildId },
-  });
+  for (const member of memberIds)
+    gatewayManager.sendToUser(member.userId, {
+      op: GatewayOpCode.DISPATCH,
+      t: GatewayEvents.GUILD_DELETE,
+      d: { guildId },
+    });
 
   return { success: true, guildId };
 });
@@ -2964,12 +2971,17 @@ server.get("/api/channels/:channelId/messages", async (request, reply) => {
   });
   if (!channel) return reply.status(404).send({ error: "频道不存在" });
   const canRead = channel.guildId
-    ? await permissionService.hasChannelPermission(
+    ? (await permissionService.hasChannelPermission(
+        currentUserId,
+        channelId,
+        PermissionFlags.VIEW_CHANNEL,
+      )) &&
+      (await permissionService.hasChannelPermission(
         currentUserId,
         channelId,
         PermissionFlags.READ_MESSAGE_HISTORY,
-      )
-    : channel.type === "DM" &&
+      ))
+    : (channel.type === "DM" || channel.type === "GROUP_DM") &&
       channel.recipients.some(
         (recipient) => recipient.userId === currentUserId,
       );
@@ -3127,11 +3139,17 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
       return reply.status(403).send({ error: "您不是该私信会话的参与者" });
     }
   } else {
-    const canSend = await permissionService.hasChannelPermission(
-      author.id,
-      channelId,
-      PermissionFlags.SEND_MESSAGES,
-    );
+    const canSend =
+      (await permissionService.hasChannelPermission(
+        author.id,
+        channelId,
+        PermissionFlags.VIEW_CHANNEL,
+      )) &&
+      (await permissionService.hasChannelPermission(
+        author.id,
+        channelId,
+        PermissionFlags.SEND_MESSAGES,
+      ));
     if (!canSend) {
       return reply
         .status(403)
@@ -3157,8 +3175,18 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
   const requestedAttachments = Array.isArray(attachments)
     ? attachments.slice(0, 10)
     : [];
+  if (
+    requestedAttachments.length > 0 &&
+    !(await permissionService.hasChannelPermission(
+      author.id,
+      channelId,
+      PermissionFlags.ATTACH_FILES,
+    ))
+  ) {
+    return reply.status(403).send({ error: "缺少频道附件权限 (ATTACH_FILES)" });
+  }
   const claimedAttachments = requestedAttachments.map((attachment: any) =>
-    storageService.claimAttachment(author.id, attachment),
+    storageService.claimAttachment(author.id, channelId, attachment),
   );
   if (claimedAttachments.some((attachment) => !attachment)) {
     return reply
@@ -3628,6 +3656,50 @@ server.post("/api/attachments/presigned-url", async (request, reply) => {
     if (!body?.fileName) {
       return reply.status(400).send({ error: "未提供 fileName" });
     }
+    if (body.purpose === "guild-icon") {
+      if (
+        !body.guildId ||
+        !(await permissionService.hasGuildPermission(
+          userId,
+          body.guildId,
+          PermissionFlags.MANAGE_GUILD,
+        ))
+      ) {
+        return reply.status(403).send({ error: "缺少管理服务器权限" });
+      }
+      if (
+        !/^(image\/png|image\/jpeg|image\/webp|image\/gif)$/.test(
+          body.mimeType,
+        ) ||
+        !/\.(png|jpe?g|webp|gif)$/i.test(body.fileName)
+      ) {
+        return reply.status(400).send({ error: "不支持的服务器图标格式" });
+      }
+    } else {
+      if (body.purpose && body.purpose !== "attachment") {
+        return reply.status(400).send({ error: "未知上传用途" });
+      }
+      if (
+        !body.channelId ||
+        !(await permissionService.hasChannelPermission(
+          userId,
+          body.channelId,
+          PermissionFlags.VIEW_CHANNEL,
+        )) ||
+        !(await permissionService.hasChannelPermission(
+          userId,
+          body.channelId,
+          PermissionFlags.SEND_MESSAGES,
+        )) ||
+        !(await permissionService.hasChannelPermission(
+          userId,
+          body.channelId,
+          PermissionFlags.ATTACH_FILES,
+        ))
+      ) {
+        return reply.status(403).send({ error: "缺少频道附件上传权限" });
+      }
+    }
     const result = await storageService.getPresignedUploadUrl(body, userId);
     return result;
   } catch (err: any) {
@@ -3655,11 +3727,41 @@ server.put("/api/attachments/upload/:fileName", async (request, reply) => {
   ) {
     return reply.status(403).send({ error: "上传凭证无效或已过期" });
   }
-  const filePath = storageService.resolveLocalUploadPath(decodedFileName);
-  if (!filePath) {
-    return reply.status(400).send({ error: "非法文件路径" });
+  const scope = storageService.getUploadGrantScope(decodedFileName, userId);
+  if (!scope) {
+    return reply.status(403).send({ error: "上传授权无效或已过期" });
   }
-
+  const stillAuthorized =
+    scope.purpose === "guild-icon"
+      ? Boolean(
+          scope.guildId &&
+          (await permissionService.hasGuildPermission(
+            userId,
+            scope.guildId,
+            PermissionFlags.MANAGE_GUILD,
+          )),
+        )
+      : Boolean(
+          scope.channelId &&
+          (await permissionService.hasChannelPermission(
+            userId,
+            scope.channelId,
+            PermissionFlags.VIEW_CHANNEL,
+          )) &&
+          (await permissionService.hasChannelPermission(
+            userId,
+            scope.channelId,
+            PermissionFlags.SEND_MESSAGES,
+          )) &&
+          (await permissionService.hasChannelPermission(
+            userId,
+            scope.channelId,
+            PermissionFlags.ATTACH_FILES,
+          )),
+        );
+  if (!stillAuthorized) {
+    return reply.status(403).send({ error: "上传权限已被撤销" });
+  }
   const buffer = Buffer.isBuffer(request.body)
     ? request.body
     : Buffer.from(
@@ -3674,14 +3776,23 @@ server.put("/api/attachments/upload/:fileName", async (request, reply) => {
   if (buffer.byteLength > maxUploadBytes) {
     return reply.status(413).send({ error: "附件超过大小限制" });
   }
+  if (
+    !storageService.verifyUploadMetadata(
+      decodedFileName,
+      userId,
+      buffer.byteLength,
+      request.headers["content-type"],
+    )
+  ) {
+    return reply.status(403).send({ error: "上传内容与授权不一致" });
+  }
 
-  await fs.promises.writeFile(filePath, buffer);
-
-  const baseUrl = process.env.SERVER_BASE_URL || "http://localhost:3001";
-  return {
-    success: true,
-    fileUrl: `${baseUrl}/uploads/${encodeURIComponent(decodedFileName)}`,
-  };
+  try {
+    await storageService.storeObject(decodedFileName, buffer);
+    return { success: true };
+  } catch {
+    return reply.status(503).send({ error: "附件存储暂不可用" });
+  }
 });
 
 server.get("/attachments/:fileName", async (request, reply) => {
@@ -3711,19 +3822,46 @@ server.get("/attachments/:fileName", async (request, reply) => {
     },
   });
   if (!attachment) return reply.status(404).send({ error: "附件不存在" });
-  const filePath = storageService.resolveLocalUploadPath(decodedFileName);
-  if (!filePath || !fs.existsSync(filePath))
-    return reply.status(404).send({ error: "附件文件不存在" });
   reply.header(
     "Content-Type",
     attachment.mimeType || "application/octet-stream",
   );
+  reply.header("X-Content-Type-Options", "nosniff");
   reply.header("Cache-Control", "private, max-age=60");
   reply.header(
     "Content-Disposition",
-    `inline; filename*=UTF-8''${encodeURIComponent(attachment.fileName)}`,
+    `${/^(image\/(png|jpeg|gif|webp)|audio\/(mpeg|ogg|wav|webm)|video\/(mp4|webm))$/i.test(attachment.mimeType) ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(attachment.fileName)}`,
   );
-  return reply.send(fs.createReadStream(filePath));
+  try {
+    return reply.send(await storageService.openObject(attachment.url));
+  } catch {
+    return reply.status(503).send({ error: "附件存储暂不可用" });
+  }
+});
+
+server.get("/public-assets/:fileName", async (request, reply) => {
+  const { fileName } = request.params as { fileName: string };
+  const decoded = decodeURIComponent(fileName);
+  if (
+    !storageService.resolveLocalUploadPath(decoded) ||
+    !/\.(png|jpe?g|webp|gif)$/i.test(decoded)
+  ) {
+    return reply.status(404).send({ error: "资源不存在" });
+  }
+  const fileUrl = `${process.env.SERVER_BASE_URL || "http://localhost:3001"}/public-assets/${encodeURIComponent(decoded)}`;
+  const guild = await prisma.guild.findFirst({
+    where: { iconUrl: fileUrl },
+    select: { id: true },
+  });
+  if (!guild) return reply.status(404).send({ error: "资源不存在" });
+  const ext = decoded.split(".").pop()?.toLowerCase();
+  reply.header("Content-Type", ext === "jpg" ? "image/jpeg" : `image/${ext}`);
+  reply.header("X-Content-Type-Options", "nosniff");
+  try {
+    return reply.send(await storageService.openObject(fileUrl));
+  } catch {
+    return reply.status(503).send({ error: "资源存储暂不可用" });
+  }
 });
 
 // ==========================================
@@ -3939,11 +4077,9 @@ server.post(
         channelId,
       );
     } catch (error) {
-      return reply
-        .status(403)
-        .send({
-          error: error instanceof Error ? error.message : "呼叫上下文无效",
-        });
+      return reply.status(403).send({
+        error: error instanceof Error ? error.message : "呼叫上下文无效",
+      });
     }
     if (call.callerId !== senderId) {
       return reply
@@ -4056,11 +4192,9 @@ server.get(
     try {
       dmCallService.authorizeKeyExchange(recipientId, callId, channelId);
     } catch (error) {
-      return reply
-        .status(403)
-        .send({
-          error: error instanceof Error ? error.message : "呼叫上下文无效",
-        });
+      return reply.status(403).send({
+        error: error instanceof Error ? error.message : "呼叫上下文无效",
+      });
     }
     const device = await prisma.deviceKey.findFirst({
       where: { userId: recipientId, deviceId, revokedAt: null },
@@ -4625,7 +4759,7 @@ async function start() {
 
     await server.listen({ port: PORT, host: HOST });
     console.log(
-      `🚀 Tescord 后端服务与 Gateway 网关已在 http://${HOST}:${PORT} 启动 (SQLite 持久化与存储双模引擎已就绪)`,
+      `🚀 Tescord 后端服务与 Gateway 网关已在 http://${HOST}:${PORT} 启动 (${process.env.DATABASE_PROVIDER} 持久化与 ${storageService.getMode()} 存储已就绪)`,
     );
   } catch (err) {
     server.log.error(err);

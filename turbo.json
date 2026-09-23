@@ -6,6 +6,11 @@
     },
     "build": {
       "dependsOn": ["^build"],
+      "env": [
+        "DATABASE_PROVIDER",
+        "GITHUB_REPOSITORY",
+        "UPDATE_SIGNING_PUBLIC_KEY_BASE64"
+      ],
       "outputs": ["dist/**", ".next/**", "build/**"]
     },
     "lint": {

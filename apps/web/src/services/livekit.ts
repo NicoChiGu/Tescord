@@ -41,7 +41,9 @@ export type { StreamDetailedStats };
 let cachedH265Supported: boolean | null = null;
 let cachedH265Reason: string | undefined = undefined;
 
-export async function detectSupportedVideoCodecsAsync(): Promise<CodecCapabilityInfo[]> {
+export async function detectSupportedVideoCodecsAsync(): Promise<
+  CodecCapabilityInfo[]
+> {
   if (cachedH265Supported === null) {
     let supported = false;
     let isIntel = false;
@@ -60,7 +62,11 @@ export async function detectSupportedVideoCodecsAsync(): Promise<CodecCapability
     }
 
     // 2. Web 浏览器端通过标准 WebCodecs 异步校验底层硬件加速 (Chrome/Edge 107+ HEVC)
-    if (!supported && typeof VideoEncoder !== "undefined" && typeof VideoEncoder.isConfigSupported === "function") {
+    if (
+      !supported &&
+      typeof VideoEncoder !== "undefined" &&
+      typeof VideoEncoder.isConfigSupported === "function"
+    ) {
       try {
         const configEnc = await VideoEncoder.isConfigSupported({
           codec: "hev1.1.6.L93.B0", // HEVC Main Profile, Level 3.1
@@ -76,7 +82,11 @@ export async function detectSupportedVideoCodecsAsync(): Promise<CodecCapability
       } catch {}
     }
 
-    if (!supported && typeof VideoDecoder !== "undefined" && typeof VideoDecoder.isConfigSupported === "function") {
+    if (
+      !supported &&
+      typeof VideoDecoder !== "undefined" &&
+      typeof VideoDecoder.isConfigSupported === "function"
+    ) {
       try {
         const configDec = await VideoDecoder.isConfigSupported({
           codec: "hev1.1.6.L93.B0",
@@ -89,7 +99,11 @@ export async function detectSupportedVideoCodecsAsync(): Promise<CodecCapability
     }
 
     // 3. WebRTC RTCRtpSender 能力回退校验
-    if (!supported && typeof RTCRtpSender !== "undefined" && typeof RTCRtpSender.getCapabilities === "function") {
+    if (
+      !supported &&
+      typeof RTCRtpSender !== "undefined" &&
+      typeof RTCRtpSender.getCapabilities === "function"
+    ) {
       try {
         const caps = RTCRtpSender.getCapabilities("video");
         if (
@@ -139,9 +153,9 @@ export function detectSupportedVideoCodecs(): CodecCapabilityInfo[] {
   const vp9Supported = Boolean(supportsVP9() || mimeTypes.has("video/vp9"));
   const h265Supported = Boolean(
     cachedH265Supported ??
-      (supportsH265() ||
-        mimeTypes.has("video/hevc") ||
-        mimeTypes.has("video/h265")),
+    (supportsH265() ||
+      mimeTypes.has("video/hevc") ||
+      mimeTypes.has("video/h265")),
   );
   const h264Supported =
     mimeTypes.size === 0 ? true : mimeTypes.has("video/h264");
@@ -204,7 +218,6 @@ export interface ActiveScreenShare {
   frameRate?: number;
   codec?: string;
 }
-
 
 interface RemoteAudioTrackEntry {
   trackId: string;
@@ -544,8 +557,12 @@ export class LiveKitService {
     roomName: string,
     audioStream?: MediaStream | null,
     bitrate: number = 64000,
+    requireE2EE: boolean = false,
   ): Promise<boolean> {
     try {
+      if (requireE2EE && !this.negotiatedE2EEKey) {
+        throw new Error("E2EE key is required for this media room");
+      }
       this.leaveRoom();
       this.currentAudioBitrate = bitrate;
       this.currentRoomName = roomName;
@@ -574,7 +591,8 @@ export class LiveKitService {
         this.preferredVideoCodec,
       );
 
-      let e2ee: { keyProvider: ExternalE2EEKeyProvider; worker: Worker } | undefined;
+      let e2ee:
+        { keyProvider: ExternalE2EEKeyProvider; worker: Worker } | undefined;
       if (this.negotiatedE2EEKey) {
         const keyProvider = new ExternalE2EEKeyProvider();
         await keyProvider.setKey(this.negotiatedE2EEKey.buffer.slice(0));
@@ -604,10 +622,12 @@ export class LiveKitService {
 
       // 若提供了本地麦克风音频流，立即执行高品质 Opus 推流
       if (audioStream) {
-        await this.publishMicrophoneStream(
+        const published = await this.publishMicrophoneStream(
           audioStream,
           this.currentAudioBitrate,
         );
+        if (!published)
+          throw new Error("LiveKit microphone track publication failed");
       }
 
       this.startNetworkStatsPolling();
@@ -615,6 +635,7 @@ export class LiveKitService {
 
       return true;
     } catch (err) {
+      this.leaveRoom();
       console.error(
         "LiveKit SFU connect failed (请确保 7880 端口 LiveKit 服务已启动):",
         err,
@@ -628,12 +649,15 @@ export class LiveKitService {
   }
 
   // 2. 发布麦克风推流 (支持 16kbps ~ 128kbps Opus 编码码率可配)
-  async publishMicrophoneStream(stream: MediaStream, bitrate: number = 64000) {
-    if (!this.room || !this.isConnected) return;
+  async publishMicrophoneStream(
+    stream: MediaStream,
+    bitrate: number = 64000,
+  ): Promise<boolean> {
+    if (!this.room || !this.isConnected) return false;
 
     this.currentAudioBitrate = bitrate;
     const audioTrack = stream.getAudioTracks()[0];
-    if (!audioTrack) return;
+    if (!audioTrack) return false;
 
     try {
       // 1. 若当前发布的底层 MediaStreamTrack 已经是一致且处于活跃状态的实例，无需重复处理
@@ -643,7 +667,7 @@ export class LiveKitService {
           audioTrack &&
         audioTrack.readyState === "live"
       ) {
-        return;
+        return true;
       }
 
       // 2. 优先利用 WebRTC RTCRtpSender.replaceTrack 进行平滑热替换 (Zero-glitch hot swap)
@@ -655,7 +679,7 @@ export class LiveKitService {
             console.log(
               `🎙️ 成功通过 replaceTrack 无缝热替换麦克风音轨 (Opus ${bitrate / 1000}kbps)`,
             );
-            return;
+            return true;
           } catch (replaceErr) {
             console.warn(
               "LiveKit replaceTrack 失败，回退至 unpublish/publish 重建:",
@@ -687,8 +711,10 @@ export class LiveKitService {
 
       this.localAudioPublication = publication as LocalTrackPublication;
       console.log(`🎙️ 成功发布麦克风音频推流 (Opus ${bitrate / 1000}kbps)`);
+      return true;
     } catch (e) {
       console.warn("LiveKit publishTrack error:", e);
+      return false;
     }
   }
 
@@ -1173,10 +1199,7 @@ export class LiveKitService {
                 if (stat.type === "codec" && stat.mimeType) {
                   codecMap.set(stat.id, stat.mimeType);
                 }
-                if (
-                  stat.type === "transport" &&
-                  stat.selectedCandidatePairId
-                ) {
+                if (stat.type === "transport" && stat.selectedCandidatePairId) {
                   selectedCandidatePairId = stat.selectedCandidatePairId;
                 }
               });
@@ -1232,10 +1255,7 @@ export class LiveKitService {
                   const negotiatedCodec = stat.codecId
                     ? codecMap.get(stat.codecId)
                     : undefined;
-                  if (
-                    negotiatedCodec &&
-                    !/red|cn/i.test(negotiatedCodec)
-                  ) {
+                  if (negotiatedCodec && !/red|cn/i.test(negotiatedCodec)) {
                     localAudioCodec = negotiatedCodec.replace(/^audio\//i, "");
                   }
                   totalAudioBytesSent += stat.bytesSent || 0;
@@ -1924,7 +1944,9 @@ export class LiveKitService {
   }
 
   get isSharingScreen(): boolean {
-    return Boolean(this.localScreenVideoTrack || this.activeScreenShare?.isLocal);
+    return Boolean(
+      this.localScreenVideoTrack || this.activeScreenShare?.isLocal,
+    );
   }
 
   getLocalScreenVideoTrack(): any {
@@ -2298,7 +2320,8 @@ export class LiveKitService {
                 }
 
                 // 判断 IPv4 / IPv6
-                const checkAddr = remoteCand?.address || localCand?.address || "";
+                const checkAddr =
+                  remoteCand?.address || localCand?.address || "";
                 if (checkAddr.includes(":") && !checkAddr.startsWith("fe80:")) {
                   ipVersion = "IPv6";
                 } else {
@@ -2356,9 +2379,13 @@ export class LiveKitService {
                     if (typeof stat.jitter === "number") {
                       jitter = `${(stat.jitter * 1000).toFixed(1)}ms`;
                     }
-                    if (stat.jitterBufferDelay && stat.jitterBufferEmittedCount) {
+                    if (
+                      stat.jitterBufferDelay &&
+                      stat.jitterBufferEmittedCount
+                    ) {
                       const avgDelay =
-                        (stat.jitterBufferDelay / stat.jitterBufferEmittedCount) *
+                        (stat.jitterBufferDelay /
+                          stat.jitterBufferEmittedCount) *
                         1000;
                       bufferLength = `${avgDelay.toFixed(1)}ms`;
                     }
@@ -2444,7 +2471,9 @@ export class LiveKitService {
       decodedFrames: decodedFrames || "N/A",
       downloadBitrate,
       uploadBitrate,
-      rawDownloadBitrateBps: isLocal ? rateCalc.uploadBps : rateCalc.downloadBps,
+      rawDownloadBitrateBps: isLocal
+        ? rateCalc.uploadBps
+        : rateCalc.downloadBps,
       rawUploadBitrateBps: isLocal ? rateCalc.uploadBps : undefined,
       totalBytesReceived,
       totalBytesSent,

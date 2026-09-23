@@ -12,6 +12,8 @@ test.describe("Tescord 多国语言 (i18n: zh-CN / en-US / ja-JP) 端到端与�
     });
 
     await page.addInitScript(() => {
+      localStorage.removeItem("tescord_access_token");
+      localStorage.removeItem("tescord_refresh_token");
       if (!localStorage.getItem("tescord_locale")) {
         localStorage.setItem("tescord_locale", "zh-CN");
       }
@@ -52,7 +54,9 @@ test.describe("Tescord 多国语言 (i18n: zh-CN / en-US / ja-JP) 端到端与�
     await expect(
       page.getByRole("heading", { name: /おかえりなさい！/i }),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: /^ログイン$/i })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /^ログイン$/i }),
+    ).toBeVisible();
 
     // 1.4 切换回 简体中文
     await langSelector.click();
@@ -80,7 +84,10 @@ test.describe("Tescord 多国语言 (i18n: zh-CN / en-US / ja-JP) 端到端与�
       if (!localStorage.getItem("tescord_locale")) {
         localStorage.setItem("tescord_locale", "zh-CN");
       }
-      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
+      localStorage.setItem(
+        "tescord_access_token",
+        localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token",
+      );
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 
@@ -133,7 +140,9 @@ test.describe("Tescord 多国语言 (i18n: zh-CN / en-US / ja-JP) 端到端与�
     // 验证界面零重载即刻变为英文
     await expect(page.getByText("App Settings")).toBeVisible();
     await expect(page.getByText("Voice & Video")).toBeVisible();
-    await expect(page.getByTestId("tab-language-btn")).toContainText("Language");
+    await expect(page.getByTestId("tab-language-btn")).toContainText(
+      "Language",
+    );
 
     // 2.5 点击切换到 日本語
     await page.getByTestId("lang-option-ja-JP").click();

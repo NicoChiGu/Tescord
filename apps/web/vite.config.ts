@@ -25,6 +25,10 @@ const proxyConfig = {
     target: "http://127.0.0.1:3001",
     changeOrigin: true,
   },
+  "/public-assets": {
+    target: "http://127.0.0.1:3001",
+    changeOrigin: true,
+  },
   "/minio": {
     target: "http://127.0.0.1:9000",
     changeOrigin: true,

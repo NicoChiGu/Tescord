@@ -51,6 +51,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const mimeType = file.type || "image/png";
 
     setIsUploading(true);
     try {
@@ -64,7 +65,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         body: JSON.stringify({
           fileName: file.name,
           fileSize: file.size,
-          mimeType: file.type || "image/png",
+          mimeType,
+          purpose: "guild-icon",
+          guildId: guild.id,
         }),
       });
 
@@ -76,7 +79,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       const uploadRes = await fetch(targetUploadUrl, {
         method: "PUT",
         headers: {
-          "Content-Type": file.type || "application/octet-stream",
+          "Content-Type": mimeType,
           ...(requiresAuth ? getAuthHeaders() : {}),
         },
         body: file,

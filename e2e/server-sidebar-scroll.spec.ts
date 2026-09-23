@@ -4,6 +4,7 @@ test.describe("服务器侧边栏超出容器时竖向滚动与滚动条隐藏�
   test("当服务器数量超出容器高度时能够平滑竖向滚动，隐藏滚动条，且底部创建/探索操作常驻吸底", async ({
     page,
   }) => {
+    await page.setViewportSize({ width: 1000, height: 480 });
     const consoleErrors: string[] = [];
     page.on("console", (msg) => {
       if (msg.type() === "error") {
@@ -72,9 +73,7 @@ test.describe("服务器侧边栏超出容器时竖向滚动与滚动条隐藏�
     });
 
     // 阻断 WebSocket 网关连接，防止网关 READY 事件推送真实数据库中的公会数据覆盖 mock 的 25 个服务器
-    await page.route("**/gateway", (route) => {
-      route.abort();
-    });
+    await page.routeWebSocket("**/gateway", (socket) => socket.close());
 
     await page.goto("/");
 
@@ -150,6 +149,23 @@ test.describe("服务器侧边栏超出容器时竖向滚动与滚动条隐藏�
   test("用户可以通过拖拽自由调整服务器排序（个人偏好），且本地持久化与页面刷新后保持最新偏好", async ({
     page,
   }) => {
+    const mockGuilds = [1, 2].map((index) => ({
+      id: `guild_sort_${index}`,
+      name: `排序测试服务器_${index}`,
+      ownerId: "usr_default_admin",
+      iconUrl: null,
+      categories: [],
+      channels: [],
+      members: [],
+    }));
+    await page.route("**/api/guilds", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockGuilds),
+      }),
+    );
+    await page.routeWebSocket("**/gateway", (socket) => socket.close());
     const consoleErrors: string[] = [];
     page.on("console", (msg) => {
       if (msg.type() === "error") {

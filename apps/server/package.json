@@ -11,6 +11,8 @@
     "db:generate": "tsx scripts/prisma.ts generate",
     "db:push": "tsx scripts/prisma.ts db push --skip-generate",
     "db:studio": "tsx scripts/prisma.ts studio",
+    "db:migrate:deploy": "tsx scripts/prisma.ts migrate deploy",
+    "db:schema:check": "tsx scripts/check-schema-parity.ts",
     "db:preflight:dm": "tsx scripts/preflight-dm-migration.ts",
     "admin:grant": "tsx scripts/grant-admin.ts",
     "admin:create": "tsx scripts/create-admin.ts"

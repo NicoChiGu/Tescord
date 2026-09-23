@@ -10,7 +10,11 @@ config({ path: rootEnvPath });
 
 // Keep a fresh clone usable for the SQLite-backed development server even
 // before the optional root .env file has been copied from .env.example.
-process.env.DATABASE_URL ??= "file:./dev.db";
+if (process.env.NODE_ENV !== "production") {
+  process.env.DATABASE_URL ??= "file:./dev.db";
+}
+process.env.DATABASE_PROVIDER ??=
+  process.env.NODE_ENV === "production" ? "postgresql" : "sqlite";
 
 const insecureProductionDefaults = new Map([
   ["JWT_SECRET", "tescord_fallback_jwt_secret_dev_2026"],
@@ -21,9 +25,98 @@ const insecureProductionDefaults = new Map([
 ]);
 
 if (process.env.NODE_ENV === "production") {
-  const invalid = Array.from(insecureProductionDefaults.entries())
-    .filter(([name, fallback]) => !process.env[name] || process.env[name] === fallback)
-    .map(([name]) => name);
+  const required = [
+    "DATABASE_URL",
+    "JWT_SECRET",
+    "LIVEKIT_API_KEY",
+    "LIVEKIT_API_SECRET",
+    "TURN_SECRET",
+    "UPLOAD_SIGNING_SECRET",
+    "MINIO_ACCESS_KEY",
+    "MINIO_SECRET_KEY",
+    "MINIO_ENDPOINT",
+    "REDIS_URL",
+    "LIVEKIT_URL",
+    "LIVEKIT_HTTP_URL",
+    "CORS_ORIGINS",
+    "SERVER_BASE_URL",
+    "TURN_HOST",
+  ];
+  const knownPlaceholders = new Set([
+    ...insecureProductionDefaults.values(),
+    "replace-with-random-secret",
+    "replace-with-random-turn-secret",
+    "replace-with-long-random-upload-secret",
+    "minioadmin",
+    "minioadminpassword",
+    "tescord_secret_password",
+    "devkey",
+    "secretsecretsecret",
+  ]);
+  const invalid = required.filter((name) => {
+    const value = process.env[name]?.trim();
+    if (
+      !value ||
+      knownPlaceholders.has(value) ||
+      /^(replace|changeme|example|devkey)/i.test(value)
+    )
+      return true;
+    if (
+      [
+        "JWT_SECRET",
+        "LIVEKIT_API_SECRET",
+        "TURN_SECRET",
+        "UPLOAD_SIGNING_SECRET",
+        "MINIO_SECRET_KEY",
+      ].includes(name)
+    ) {
+      return Buffer.byteLength(value, "utf8") < 32;
+    }
+    return false;
+  });
+  if (
+    process.env.DATABASE_PROVIDER !== "postgresql" ||
+    !/^postgres(ql)?:\/\//.test(process.env.DATABASE_URL || "")
+  )
+    invalid.push("DATABASE_PROVIDER/DATABASE_URL");
+  if (!/^https:\/\//.test(process.env.SERVER_BASE_URL || ""))
+    invalid.push("SERVER_BASE_URL");
+  try {
+    const databaseUrl = new URL(process.env.DATABASE_URL || "");
+    const password = decodeURIComponent(databaseUrl.password);
+    if (
+      Buffer.byteLength(password, "utf8") < 32 ||
+      /^(replace|changeme|example)/i.test(password)
+    )
+      invalid.push("DATABASE_URL password");
+    const redisUrl = new URL(process.env.REDIS_URL || "");
+    const redisPassword = decodeURIComponent(redisUrl.password);
+    if (
+      !/^rediss?:$/.test(redisUrl.protocol) ||
+      Buffer.byteLength(redisPassword, "utf8") < 32 ||
+      /^(replace|changeme|example)/i.test(redisPassword)
+    )
+      invalid.push("REDIS_URL password");
+  } catch {
+    invalid.push("DATABASE_URL/REDIS_URL");
+  }
+  if (!/^wss:\/\//.test(process.env.LIVEKIT_URL || ""))
+    invalid.push("LIVEKIT_URL");
+  if (!/^https?:\/\//.test(process.env.LIVEKIT_HTTP_URL || ""))
+    invalid.push("LIVEKIT_HTTP_URL");
+  const allowedOrigins = (process.env.CORS_ORIGINS || "")
+    .split(",")
+    .map((item) => item.trim());
+  if (allowedOrigins.some((origin) => !/^https:\/\/[^/]+$/.test(origin)))
+    invalid.push("CORS_ORIGINS");
+  if (/^(localhost|127\.0\.0\.1|::1)$/.test(process.env.TURN_HOST || ""))
+    invalid.push("TURN_HOST");
+  if (
+    process.env.JWT_SECRET === process.env.UPLOAD_SIGNING_SECRET ||
+    process.env.JWT_SECRET === process.env.TURN_SECRET ||
+    process.env.UPLOAD_SIGNING_SECRET === process.env.TURN_SECRET
+  )
+    invalid.push("independent signing secrets");
   if (invalid.length > 0) {
     throw new Error(
       `Production secrets are missing or still use development defaults: ${invalid.join(", ")}`,

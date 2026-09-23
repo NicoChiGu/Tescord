@@ -15,7 +15,9 @@ test.describe("Tescord 首屏与鉴权轻量无文字 Loading 加载条验收", 
     expect(htmlContent).toContain("background-color: #313338");
 
     // 2. 确保 root 内置加载条骨架中没有任何文本字符提示（轻量简洁化，不要加入文字提示）
-    const rootMatch = htmlContent.match(/<div id="root"[^>]*>([\s\S]*?)<\/div>\s*<script/);
+    const rootMatch = htmlContent.match(
+      /<div id="root"[^>]*>([\s\S]*?)<\/div>\s*<script/,
+    );
     expect(rootMatch).toBeTruthy();
     const rootInnerHtml = rootMatch![1];
     const strippedText = rootInnerHtml.replace(/<[^>]*>/g, "").trim();
@@ -25,6 +27,10 @@ test.describe("Tescord 首屏与鉴权轻量无文字 Loading 加载条验收", 
   test("动态验证：首屏渲染包含居中 Loading 进度条，随后平滑过渡至登录或主界面，控制台无未捕获异常", async ({
     page,
   }) => {
+    await page.addInitScript(() => {
+      localStorage.removeItem("tescord_access_token");
+      localStorage.removeItem("tescord_refresh_token");
+    });
     const consoleErrors: string[] = [];
     page.on("console", (msg) => {
       if (msg.type() === "error") {
@@ -52,7 +58,9 @@ test.describe("Tescord 首屏与鉴权轻量无文字 Loading 加载条验收", 
     await expect(loginHeading).toBeVisible({ timeout: 15000 });
 
     // 验证页面内已不存在原有的旋转圆圈或中文提示
-    const oldSpinnerText = page.locator("text=正在载入 Tescord 个人资料与离线数据");
+    const oldSpinnerText = page.locator(
+      "text=正在载入 Tescord 个人资料与离线数据",
+    );
     await expect(oldSpinnerText).toHaveCount(0);
 
     // 确保没有致命控制台异常

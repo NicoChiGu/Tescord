@@ -244,10 +244,7 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
           data-profile-trigger={`chat-${msg.author.id}`}
           onContextMenu={handleAuthorContextMenu}
           onClick={(e) =>
-            onOpenProfile?.(
-              msg.author,
-              e.currentTarget.getBoundingClientRect(),
-            )
+            onOpenProfile?.(msg.author, e.currentTarget.getBoundingClientRect())
           }
           className="w-10 h-10 rounded-full flex-shrink-0 cursor-pointer hover:opacity-80 transition mt-0.5"
         />
@@ -267,193 +264,193 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
             >
               {msg.author.username}
             </span>
-              {isMe && (
-                <span className="text-[10px] bg-discord-brand/20 text-discord-brand px-1 rounded font-medium">
-                  我
-                </span>
-              )}
-              <span className="text-[11px] text-discord-textMuted">
-                {formattedTime}
+            {isMe && (
+              <span className="text-[10px] bg-discord-brand/20 text-discord-brand px-1 rounded font-medium">
+                我
               </span>
-              {msg.isPinned && (
-                <span
-                  className="flex items-center space-x-0.5 text-[10px] text-yellow-500 bg-yellow-500/10 px-1 rounded border border-yellow-500/30"
-                  title="该消息已被置顶"
-                >
-                  <Pin className="w-2.5 h-2.5 rotate-45" />
-                  <span>已置顶</span>
-                </span>
-              )}
+            )}
+            <span className="text-[11px] text-discord-textMuted">
+              {formattedTime}
+            </span>
+            {msg.isPinned && (
+              <span
+                className="flex items-center space-x-0.5 text-[10px] text-yellow-500 bg-yellow-500/10 px-1 rounded border border-yellow-500/30"
+                title="该消息已被置顶"
+              >
+                <Pin className="w-2.5 h-2.5 rotate-45" />
+                <span>已置顶</span>
+              </span>
+            )}
+          </div>
+
+          {/* 消息正文 (支持 Markdown 与剧透) */}
+          {msg.content && (
+            <div className="mt-1 selectable-text">
+              <MarkdownRenderer
+                content={
+                  isMsgEncrypted
+                    ? decryptedContents[msg.id]?.text ||
+                      "🔒 [端到端双棘轮密文解密中...]"
+                    : msg.content
+                }
+                currentUsername={currentUser.username}
+                onMentionClick={(username, rect) =>
+                  onOpenProfileByName?.(username, rect)
+                }
+              />
             </div>
+          )}
 
-            {/* 消息正文 (支持 Markdown 与剧透) */}
-            {msg.content && (
-              <div className="mt-1 selectable-text">
-                <MarkdownRenderer
-                  content={
-                    isMsgEncrypted
-                      ? decryptedContents[msg.id]?.text ||
-                        "🔒 [端到端双棘轮密文解密中...]"
-                      : msg.content
-                  }
-                  currentUsername={currentUser.username}
-                  onMentionClick={(username, rect) =>
-                    onOpenProfileByName?.(username, rect)
-                  }
-                />
-              </div>
-            )}
-
-            {/* 附件展示 (图片缩略图与普通文件卡片) */}
-            {msg.attachments && msg.attachments.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {msg.attachments.map((att) => {
-                  const isImg = isImageMime(att.mimeType, att.fileName);
-                  if (isImg) {
-                    return (
-                      <ImageAttachment
-                        key={att.id}
-                        attachment={att}
-                        onPreview={(targetAtt) =>
-                          setLightboxImage({
-                            url: targetAtt.url,
-                            name: targetAtt.fileName,
-                          })
-                        }
-                      />
-                    );
-                  }
-
+          {/* 附件展示 (图片缩略图与普通文件卡片) */}
+          {msg.attachments && msg.attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {msg.attachments.map((att) => {
+                const isImg = isImageMime(att.mimeType, att.fileName);
+                if (isImg) {
                   return (
-                    <a
+                    <ImageAttachment
                       key={att.id}
-                      href={resolveServerUrl(att.url)}
-                      download={att.fileName}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center space-x-2 bg-[#2b2d31] hover:bg-[#35373c] p-2.5 rounded-lg border border-[#3f4147] max-w-xs transition group/file"
-                    >
-                      <FileText className="w-8 h-8 text-discord-brand flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-medium text-discord-textHeader truncate group-hover/file:underline">
-                          {att.fileName}
-                        </div>
-                        <div className="text-[10px] text-discord-textMuted">
-                          {(att.fileSize / 1024).toFixed(1)} KB
-                        </div>
-                      </div>
-                      <Download className="w-4 h-4 text-discord-textMuted group-hover/file:text-white transition flex-shrink-0" />
-                    </a>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Emoji Reaction 列表胶囊 */}
-            {msg.reactions && msg.reactions.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {msg.reactions.map((r) => {
-                  const isReactedByMe = r.me || false;
-                  return (
-                    <button
-                      key={r.emoji}
-                      onClick={() => {
-                        if (isReactedByMe) {
-                          onReactionRemove?.(msg.id, r.emoji);
-                        } else {
-                          onReactionAdd?.(msg.id, r.emoji);
-                        }
-                      }}
-                      className={`flex items-center space-x-1.5 px-2 py-0.5 rounded-md text-xs font-medium border transition ${
-                        isReactedByMe
-                          ? "bg-discord-brand/20 border-discord-brand text-discord-brand"
-                          : "bg-[#2b2d31] border-transparent hover:border-[#4e5058] text-discord-textNormal"
-                      }`}
-                      title={
-                        isReactedByMe
-                          ? `点击取消反应 ${r.emoji}`
-                          : `添加反应 ${r.emoji}`
+                      attachment={att}
+                      onPreview={(targetAtt) =>
+                        setLightboxImage({
+                          url: targetAtt.url,
+                          name: targetAtt.fileName,
+                        })
                       }
-                    >
-                      <span>{r.emoji}</span>
-                      <span>{r.count}</span>
-                    </button>
+                    />
                   );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
+                }
 
-        {/* 桌面端悬浮操作菜单条 (右上角浮出快捷工具栏) */}
-        <div className="absolute right-4 -top-3 hidden md:group-hover:flex items-center bg-[#313338] border border-[#2b2d31] rounded-md shadow-md overflow-hidden z-10">
-          {/* Emoji 表情快捷气泡 */}
-          <div className="relative">
-            <button
-              onClick={() =>
-                setActiveEmojiPickerMsgId(
-                  activeEmojiPickerMsgId === msg.id ? null : msg.id,
-                )
-              }
-              className="p-1.5 hover:bg-discord-hover text-discord-textMuted hover:text-discord-textHeader transition"
-              title="添加表情反应"
-            >
-              <Smile className="w-4 h-4" />
-            </button>
-            <EmojiPickerPopover
-              isOpen={activeEmojiPickerMsgId === msg.id}
-              onClose={() => setActiveEmojiPickerMsgId(null)}
-              onSelectEmoji={(emoji: string) => onReactionAdd?.(msg.id, emoji)}
-            />
-          </div>
+                return (
+                  <a
+                    key={att.id}
+                    href={resolveServerUrl(att.url)}
+                    download={att.fileName}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center space-x-2 bg-[#2b2d31] hover:bg-[#35373c] p-2.5 rounded-lg border border-[#3f4147] max-w-xs transition group/file"
+                  >
+                    <FileText className="w-8 h-8 text-discord-brand flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-xs font-medium text-discord-textHeader truncate group-hover/file:underline">
+                        {att.fileName}
+                      </div>
+                      <div className="text-[10px] text-discord-textMuted">
+                        {(att.fileSize / 1024).toFixed(1)} KB
+                      </div>
+                    </div>
+                    <Download className="w-4 h-4 text-discord-textMuted group-hover/file:text-white transition flex-shrink-0" />
+                  </a>
+                );
+              })}
+            </div>
+          )}
 
-          {/* 引用回复按钮 */}
-          <button
-            onClick={() => setReplyingTo(msg)}
-            className="p-1.5 hover:bg-discord-hover text-discord-textMuted hover:text-discord-textHeader transition"
-            title="引用回复"
-          >
-            <Reply className="w-4 h-4" />
-          </button>
-
-          {/* 置顶/取消置顶按钮 */}
-          <button
-            onClick={() => onTogglePin?.(msg.id)}
-            className={`p-1.5 hover:bg-discord-hover transition ${
-              msg.isPinned
-                ? "text-yellow-400 hover:text-yellow-300"
-                : "text-discord-textMuted hover:text-discord-textHeader"
-            }`}
-            title={msg.isPinned ? "取消置顶" : "置顶消息"}
-          >
-            <Pin className="w-4 h-4" />
-          </button>
-
-          {(isMe ||
-            currentUser.username === "admin" ||
-            currentUser.username === "Jackey") && (
-            <button
-              onClick={() => onDeleteMessage?.(msg.id)}
-              className="p-1.5 hover:bg-red-500/20 text-discord-textMuted hover:text-red-400 transition"
-              title="撤回/删除消息"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
+          {/* Emoji Reaction 列表胶囊 */}
+          {msg.reactions && msg.reactions.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mt-2">
+              {msg.reactions.map((r) => {
+                const isReactedByMe = r.me || false;
+                return (
+                  <button
+                    key={r.emoji}
+                    onClick={() => {
+                      if (isReactedByMe) {
+                        onReactionRemove?.(msg.id, r.emoji);
+                      } else {
+                        onReactionAdd?.(msg.id, r.emoji);
+                      }
+                    }}
+                    className={`flex items-center space-x-1.5 px-2 py-0.5 rounded-md text-xs font-medium border transition ${
+                      isReactedByMe
+                        ? "bg-discord-brand/20 border-discord-brand text-discord-brand"
+                        : "bg-[#2b2d31] border-transparent hover:border-[#4e5058] text-discord-textNormal"
+                    }`}
+                    title={
+                      isReactedByMe
+                        ? `点击取消反应 ${r.emoji}`
+                        : `添加反应 ${r.emoji}`
+                    }
+                  >
+                    <span>{r.emoji}</span>
+                    <span>{r.count}</span>
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
+      </div>
 
-        {/* 移动端专属：轻触快捷操作按钮 */}
-        {isMobile && (
+      {/* 桌面端悬浮操作菜单条 (右上角浮出快捷工具栏) */}
+      <div className="absolute right-4 -top-3 hidden md:group-hover:flex items-center bg-[#313338] border border-[#2b2d31] rounded-md shadow-md overflow-hidden z-10">
+        {/* Emoji 表情快捷气泡 */}
+        <div className="relative">
           <button
-            type="button"
-            onClick={() => onOpenMobileActions(msg)}
-            className="md:hidden absolute right-2 top-2 p-1.5 text-discord-textMuted/50 hover:text-white rounded-lg active:bg-[#35373c] transition"
-            title="快捷操作面板"
+            onClick={() =>
+              setActiveEmojiPickerMsgId(
+                activeEmojiPickerMsgId === msg.id ? null : msg.id,
+              )
+            }
+            className="p-1.5 hover:bg-discord-hover text-discord-textMuted hover:text-discord-textHeader transition"
+            title="添加表情反应"
           >
             <Smile className="w-4 h-4" />
           </button>
+          <EmojiPickerPopover
+            isOpen={activeEmojiPickerMsgId === msg.id}
+            onClose={() => setActiveEmojiPickerMsgId(null)}
+            onSelectEmoji={(emoji: string) => onReactionAdd?.(msg.id, emoji)}
+          />
+        </div>
+
+        {/* 引用回复按钮 */}
+        <button
+          onClick={() => setReplyingTo(msg)}
+          className="p-1.5 hover:bg-discord-hover text-discord-textMuted hover:text-discord-textHeader transition"
+          title="引用回复"
+        >
+          <Reply className="w-4 h-4" />
+        </button>
+
+        {/* 置顶/取消置顶按钮 */}
+        <button
+          onClick={() => onTogglePin?.(msg.id)}
+          className={`p-1.5 hover:bg-discord-hover transition ${
+            msg.isPinned
+              ? "text-yellow-400 hover:text-yellow-300"
+              : "text-discord-textMuted hover:text-discord-textHeader"
+          }`}
+          title={msg.isPinned ? "取消置顶" : "置顶消息"}
+        >
+          <Pin className="w-4 h-4" />
+        </button>
+
+        {(isMe ||
+          currentUser.username === "admin" ||
+          currentUser.username === "Jackey") && (
+          <button
+            onClick={() => onDeleteMessage?.(msg.id)}
+            className="p-1.5 hover:bg-red-500/20 text-discord-textMuted hover:text-red-400 transition"
+            title="撤回/删除消息"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
         )}
       </div>
+
+      {/* 移动端专属：轻触快捷操作按钮 */}
+      {isMobile && (
+        <button
+          type="button"
+          onClick={() => onOpenMobileActions(msg)}
+          className="md:hidden absolute right-2 top-2 p-1.5 text-discord-textMuted/50 hover:text-white rounded-lg active:bg-[#35373c] transition"
+          title="快捷操作面板"
+        >
+          <Smile className="w-4 h-4" />
+        </button>
+      )}
+    </div>
   );
 };
 
@@ -549,7 +546,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           (m) => m.userId === author.id || m.user?.id === author.id,
         ) || null;
       const dmRecipient = channel.recipients?.find((r) => r.id === author.id);
-      const userPresence = usePresenceStore.getState().getUserPresence(author.id);
+      const userPresence = usePresenceStore
+        .getState()
+        .getUserPresence(author.id);
       const effectiveStatus =
         userPresence?.status ||
         dmRecipient?.status ||
@@ -612,7 +611,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           m.nickname?.toLowerCase() === cleanName,
       );
       if (member && member.user) {
-        const userPresence = usePresenceStore.getState().getUserPresence(member.user.id);
+        const userPresence = usePresenceStore
+          .getState()
+          .getUserPresence(member.user.id);
         const memberRoleIds = new Set(
           member?.roleIds
             ? Array.isArray(member.roleIds)
@@ -647,8 +648,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         (m) => m.author.username.toLowerCase() === cleanName,
       )?.author;
       if (msgAuthor) {
-        const dmRecipient = channel.recipients?.find((r) => r.id === msgAuthor.id);
-        const userPresence = usePresenceStore.getState().getUserPresence(msgAuthor.id);
+        const dmRecipient = channel.recipients?.find(
+          (r) => r.id === msgAuthor.id,
+        );
+        const userPresence = usePresenceStore
+          .getState()
+          .getUserPresence(msgAuthor.id);
         const effectiveStatus =
           userPresence?.status || dmRecipient?.status || "OFFLINE";
         const effectiveCustomStatus =
@@ -749,14 +754,18 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
   // 视口未读红线动态淡出与可见性检测状态
   const [isFadingDivider, setIsFadingDivider] = useState(false);
-  const dividerVisibleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dividerVisibleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   // 文件拖拽上传状态
   const [isDraggingFile, setIsDraggingFile] = useState(false);
   const dragCounterRef = useRef<number>(0);
 
   // 已读游标与滚动恢复状态
-  const [initialUnreadSequence, setInitialUnreadSequence] = useState<number | null>(null);
+  const [initialUnreadSequence, setInitialUnreadSequence] = useState<
+    number | null
+  >(null);
   const lastReadSequenceRef = useRef<number>(0);
   const isInitialPositionedRef = useRef<boolean>(false);
   const lastMessageIdRef = useRef<string | null>(null);
@@ -792,7 +801,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
   // 计算未读红线分割条位置（采用 Frozen Unread Marker 视觉冻结机制，当前会话期间红线位置绝对静止）
   const firstUnreadMessageId = React.useMemo(() => {
-    if (initialUnreadSequence === null || initialUnreadSequence <= 0) return null;
+    if (initialUnreadSequence === null || initialUnreadSequence <= 0)
+      return null;
     const unread = displayedMessages.find(
       (m) => (m.sequence || 0) > initialUnreadSequence,
     );
@@ -830,8 +840,15 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
   const markDividerAsRead = useCallback(
     (maxSeq: number) => {
-      if (lastReadSequenceRef.current >= maxSeq && (initialUnreadSequence ?? 0) >= maxSeq) return;
-      lastReadSequenceRef.current = Math.max(lastReadSequenceRef.current, maxSeq);
+      if (
+        lastReadSequenceRef.current >= maxSeq &&
+        (initialUnreadSequence ?? 0) >= maxSeq
+      )
+        return;
+      lastReadSequenceRef.current = Math.max(
+        lastReadSequenceRef.current,
+        maxSeq,
+      );
       setIsFadingDivider(true);
       setTimeout(() => {
         setInitialUnreadSequence(lastReadSequenceRef.current);
@@ -846,7 +863,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   );
 
   const checkUnreadDividerVisibility = useCallback(() => {
-    if (!firstUnreadMessageId || isFadingDivider || !isInitialPositionedRef.current) return;
+    if (
+      !firstUnreadMessageId ||
+      isFadingDivider ||
+      !isInitialPositionedRef.current
+    )
+      return;
 
     // 若当前已处于最底部，直接核销所有未读并退出，避免在底部挂起定时器或残留红线
     if (isNearBottomRef.current) {
@@ -855,7 +877,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         dividerVisibleTimerRef.current = null;
       }
       if (displayedMessages.length > 0) {
-        const maxSeq = displayedMessages[displayedMessages.length - 1].sequence || 0;
+        const maxSeq =
+          displayedMessages[displayedMessages.length - 1].sequence || 0;
         if (maxSeq > 0) {
           markDividerAsRead(maxSeq);
         }
@@ -863,7 +886,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       return;
     }
 
-    const unreadIdx = displayedMessages.findIndex((m) => m.id === firstUnreadMessageId);
+    const unreadIdx = displayedMessages.findIndex(
+      (m) => m.id === firstUnreadMessageId,
+    );
     if (unreadIdx === -1) return;
 
     const virtualItems = rowVirtualizer.getVirtualItems();
@@ -879,7 +904,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         dividerVisibleTimerRef.current = null;
       }
       const maxSeenSeq = Math.max(
-        ...displayedMessages.slice(0, firstVisibleIdx + 1).map((m) => m.sequence || 0),
+        ...displayedMessages
+          .slice(0, firstVisibleIdx + 1)
+          .map((m) => m.sequence || 0),
       );
       markDividerAsRead(maxSeenSeq);
     }
@@ -889,7 +916,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         dividerVisibleTimerRef.current = setTimeout(() => {
           dividerVisibleTimerRef.current = null;
           const maxSeenSeq = Math.max(
-            ...displayedMessages.slice(0, lastVisibleIdx + 1).map((m) => m.sequence || 0),
+            ...displayedMessages
+              .slice(0, lastVisibleIdx + 1)
+              .map((m) => m.sequence || 0),
           );
           markDividerAsRead(maxSeenSeq);
         }, 1000);
@@ -913,7 +942,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     if (isInitialPositionedRef.current && firstUnreadMessageId) {
       checkUnreadDividerVisibility();
     }
-  }, [firstUnreadMessageId, displayedMessages.length, checkUnreadDividerVisibility]);
+  }, [
+    firstUnreadMessageId,
+    displayedMessages.length,
+    checkUnreadDividerVisibility,
+  ]);
 
   const scrollRafRef = useRef<number | null>(null);
   const handleScroll = useCallback(() => {
@@ -928,7 +961,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       const isScrollable = scrollHeight > clientHeight + 20;
       const nearBottom = isScrollable
         ? scrollHeight - scrollTop - clientHeight < 120 && scrollTop > 0
-        : (isNearBottomRef.current && scrollTop === 0);
+        : isNearBottomRef.current && scrollTop === 0;
       if (isNearBottomRef.current !== nearBottom) {
         setIsNearBottom(nearBottom);
         isNearBottomRef.current = nearBottom;
@@ -948,15 +981,26 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           clearTimeout(dividerVisibleTimerRef.current);
           dividerVisibleTimerRef.current = null;
         }
-        const maxSeq = displayedMessages[displayedMessages.length - 1].sequence || 0;
-        if (maxSeq > 0 && (lastReadSequenceRef.current < maxSeq || (initialUnreadSequence ?? 0) < maxSeq)) {
+        const maxSeq =
+          displayedMessages[displayedMessages.length - 1].sequence || 0;
+        if (
+          maxSeq > 0 &&
+          (lastReadSequenceRef.current < maxSeq ||
+            (initialUnreadSequence ?? 0) < maxSeq)
+        ) {
           markDividerAsRead(maxSeq);
         }
       }
 
       checkUnreadDividerVisibility();
     });
-  }, [channel.id, displayedMessages, initialUnreadSequence, markDividerAsRead, checkUnreadDividerVisibility]);
+  }, [
+    channel.id,
+    displayedMessages,
+    initialUnreadSequence,
+    markDividerAsRead,
+    checkUnreadDividerVisibility,
+  ]);
 
   const scrollToBottom = (smooth = true) => {
     if (scrollContainerRef.current) {
@@ -967,7 +1011,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       // 延迟二次校准，彻底防止虚拟列表动态尺寸测量撑大导致的未完全触底
       setTimeout(() => {
         if (scrollContainerRef.current) {
-          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+          scrollContainerRef.current.scrollTop =
+            scrollContainerRef.current.scrollHeight;
           setIsNearBottom(true);
           isNearBottomRef.current = true;
         }
@@ -984,7 +1029,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         clearTimeout(dividerVisibleTimerRef.current);
         dividerVisibleTimerRef.current = null;
       }
-      const maxSeq = displayedMessages[displayedMessages.length - 1].sequence || 0;
+      const maxSeq =
+        displayedMessages[displayedMessages.length - 1].sequence || 0;
       if (maxSeq > 0) {
         markDividerAsRead(maxSeq);
       }
@@ -1009,7 +1055,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     }
 
     // 优先借助虚拟列表跳转至对应索引
-    const targetIdx = displayedMessages.findIndex((m) => m.id === targetMessageId);
+    const targetIdx = displayedMessages.findIndex(
+      (m) => m.id === targetMessageId,
+    );
     if (targetIdx !== -1) {
       rowVirtualizer.scrollToIndex(targetIdx, { align: "center" });
     }
@@ -1190,9 +1238,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         const isFarFromBottom =
           meta &&
           typeof meta.scrollTop === "number" &&
-          (scrollContainerRef.current.scrollHeight - meta.scrollTop - scrollContainerRef.current.clientHeight >= 80);
+          scrollContainerRef.current.scrollHeight -
+            meta.scrollTop -
+            scrollContainerRef.current.clientHeight >=
+            80;
 
-        if (meta && (meta.isNearBottom === false || isFarFromBottom) && typeof meta.scrollTop === "number") {
+        if (
+          meta &&
+          (meta.isNearBottom === false || isFarFromBottom) &&
+          typeof meta.scrollTop === "number"
+        ) {
           scrollContainerRef.current.scrollTop = meta.scrollTop;
           rowVirtualizer.scrollToOffset(meta.scrollTop);
           currentScrollTopRef.current = meta.scrollTop;
@@ -1207,9 +1262,15 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           isNearBottomRef.current = true;
 
           // 核心优化：若初始状态即为贴底，说明用户直接处于最新消息底部，立即同步已读，杜绝红线残留
-          const maxSeq = messages.length > 0 ? messages[messages.length - 1].sequence || 0 : 0;
+          const maxSeq =
+            messages.length > 0
+              ? messages[messages.length - 1].sequence || 0
+              : 0;
           if (maxSeq > 0) {
-            lastReadSequenceRef.current = Math.max(lastReadSequenceRef.current, maxSeq);
+            lastReadSequenceRef.current = Math.max(
+              lastReadSequenceRef.current,
+              maxSeq,
+            );
             setInitialUnreadSequence(lastReadSequenceRef.current);
             messageDb.saveChannelMeta(channel.id, {
               lastReadSequence: lastReadSequenceRef.current,
@@ -1231,14 +1292,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             typeof meta.scrollTop === "number"
           ) {
             if (
-              Math.abs(scrollContainerRef.current.scrollTop - meta.scrollTop) > 5
+              Math.abs(scrollContainerRef.current.scrollTop - meta.scrollTop) >
+              5
             ) {
               scrollContainerRef.current.scrollTop = meta.scrollTop;
               rowVirtualizer.scrollToOffset(meta.scrollTop);
             }
           } else if (scrollContainerRef.current && isNearBottomRef.current) {
             // 贴底状态下的二次对齐
-            scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+            scrollContainerRef.current.scrollTop =
+              scrollContainerRef.current.scrollHeight;
             setIsNearBottom(true);
             isNearBottomRef.current = true;
           }
@@ -1246,7 +1309,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         }, 50);
       });
     });
-  }, [messages.length, displayedMessages, channel.id, onMarkChannelAsRead, checkUnreadDividerVisibility]);
+  }, [
+    messages.length,
+    displayedMessages,
+    channel.id,
+    onMarkChannelAsRead,
+    checkUnreadDividerVisibility,
+  ]);
 
   // 运行中的单条实时新消息到达：仅当自身发送或原本就在底部时平滑滚到底部
   useEffect(() => {
@@ -1258,7 +1327,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
         // 核心优化：在最底部接收实时新消息，直接同步已读游标，避免在其上方误弹出红线
         if (latestMsg.sequence) {
-          lastReadSequenceRef.current = Math.max(lastReadSequenceRef.current, latestMsg.sequence);
+          lastReadSequenceRef.current = Math.max(
+            lastReadSequenceRef.current,
+            latestMsg.sequence,
+          );
           setInitialUnreadSequence(lastReadSequenceRef.current);
           messageDb.saveChannelMeta(channel.id, {
             lastReadSequence: lastReadSequenceRef.current,
@@ -1306,7 +1378,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       for (const msg of messages) {
         const isMsgEncrypted =
           msg.isEncrypted ||
-          (channel.isE2EE && doubleRatchetManager.isEncryptedEnvelope(msg.content));
+          (channel.isE2EE &&
+            doubleRatchetManager.isEncryptedEnvelope(msg.content));
         if (isMsgEncrypted) {
           if (!processedMessageIdsRef.current.has(msg.id)) {
             processedMessageIdsRef.current.add(msg.id);
@@ -1388,6 +1461,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             fileName: file.name,
             fileSize: file.size,
             mimeType: file.type || "application/octet-stream",
+            channelId: channel.id,
           }),
         },
       );
@@ -1566,8 +1640,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           className="absolute inset-0 z-50 bg-[#2b2d31]/95 border-4 border-dashed border-discord-brand flex flex-col items-center justify-center pointer-events-none rounded-lg backdrop-blur-sm transition-all"
         >
           <UploadCloud className="w-16 h-16 text-discord-brand animate-bounce mb-3" />
-          <h3 className="text-xl font-bold text-white mb-1">拖放到此处即可上传</h3>
-          <p className="text-sm text-discord-textMuted">支持上传最大 50MB 的任意图片、音视频及文档</p>
+          <h3 className="text-xl font-bold text-white mb-1">
+            拖放到此处即可上传
+          </h3>
+          <p className="text-sm text-discord-textMuted">
+            支持上传最大 50MB 的任意图片、音视频及文档
+          </p>
         </div>
       )}
 
@@ -1642,13 +1720,21 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                         ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
                         : "border-discord-green/40 bg-discord-green/10 text-discord-green"
                   }`}
-                  title={callEncryption.fingerprint ? `对端设备指纹：${callEncryption.fingerprint}` : "正在协商设备密钥"}
+                  title={
+                    callEncryption.fingerprint
+                      ? `对端设备指纹：${callEncryption.fingerprint}`
+                      : "正在协商设备密钥"
+                  }
                   data-testid="dm-call-encryption-status"
                 >
                   <ShieldCheck className="h-3 w-3" />
-                  {callEncryption.status === "trusted" ? "设备已验证" :
-                    callEncryption.status === "tofu" ? "首次信任 · E2EE" :
-                      callEncryption.status === "failed" ? "加密失败" : "协商 E2EE"}
+                  {callEncryption.status === "trusted"
+                    ? "设备已验证"
+                    : callEncryption.status === "tofu"
+                      ? "首次信任 · E2EE"
+                      : callEncryption.status === "failed"
+                        ? "加密失败"
+                        : "协商 E2EE"}
                 </span>
               )}
               <button
@@ -1770,32 +1856,34 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       {/* 消息视口区域主容器：包含吸顶历史提示横幅与上下边缘渐变模糊遮罩 */}
       <div className="flex-1 relative min-h-0 overflow-hidden flex flex-col">
         {/* 顶部悬浮“正在查看较旧的消息”横幅 (Discord 经典 Full-width Top Banner) */}
-        {!isNearBottom && isInitialPositionedRef.current && messages.length > 0 && (
-          <div
-            onClick={() => scrollToBottom(true)}
-            className="absolute top-0 inset-x-0 z-20 animate-slide-down bg-[#2b2d31]/95 backdrop-blur-md border-b border-[#35373c] px-4 py-2 flex items-center justify-between shadow-md cursor-pointer hover:bg-[#313338] transition group"
-            title="跳到最新消息"
-            role="button"
-          >
-            <div className="flex items-center space-x-2 text-xs text-discord-textMuted">
-              <History className="w-4 h-4 text-discord-brand flex-shrink-0 group-hover:text-discord-brand-hover transition-colors" />
-              <span className="text-discord-textHeader font-medium">
-                您正在查看较旧的消息
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                scrollToBottom(true);
-              }}
-              className="flex items-center space-x-1.5 px-3 py-1 rounded bg-discord-brand hover:bg-[#4752c4] text-white text-xs font-semibold shadow transition transform active:scale-95 cursor-pointer"
+        {!isNearBottom &&
+          isInitialPositionedRef.current &&
+          messages.length > 0 && (
+            <div
+              onClick={() => scrollToBottom(true)}
+              className="absolute top-0 inset-x-0 z-20 animate-slide-down bg-[#2b2d31]/95 backdrop-blur-md border-b border-[#35373c] px-4 py-2 flex items-center justify-between shadow-md cursor-pointer hover:bg-[#313338] transition group"
+              title="跳到最新消息"
+              role="button"
             >
-              <span>跳到最新</span>
-              <ChevronDown className="w-3.5 h-3.5 transition-transform group-hover:translate-y-0.5" />
-            </button>
-          </div>
-        )}
+              <div className="flex items-center space-x-2 text-xs text-discord-textMuted">
+                <History className="w-4 h-4 text-discord-brand flex-shrink-0 group-hover:text-discord-brand-hover transition-colors" />
+                <span className="text-discord-textHeader font-medium">
+                  您正在查看较旧的消息
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  scrollToBottom(true);
+                }}
+                className="flex items-center space-x-1.5 px-3 py-1 rounded bg-discord-brand hover:bg-[#4752c4] text-white text-xs font-semibold shadow transition transform active:scale-95 cursor-pointer"
+              >
+                <span>跳到最新</span>
+                <ChevronDown className="w-3.5 h-3.5 transition-transform group-hover:translate-y-0.5" />
+              </button>
+            </div>
+          )}
 
         {/* 顶部纯色渐变遮罩 (Discord 风格纯色渐变，零 GPU 抓屏开销) */}
         <div
@@ -1852,7 +1940,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                 const msg = displayedMessages[virtualRow.index];
                 if (!msg) return null;
-                const isFirstUnread = msg.id === firstUnreadMessageId && !(isInitialPositionedRef.current && isNearBottom);
+                const isFirstUnread =
+                  msg.id === firstUnreadMessageId &&
+                  !(isInitialPositionedRef.current && isNearBottom);
 
                 return (
                   <div
@@ -2091,7 +2181,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
             <div className="py-4 space-y-3 text-xs text-discord-textMuted">
               <div className="bg-amber-500/10 border border-amber-500/30 rounded p-2.5 text-[11px] text-amber-300">
-                ⚠️ <strong>实验性功能提示 (Beta)</strong>：当前频道采用双棘轮密文信封防网络嗅探与服务端直读；基于用户设备私钥的多方动态树状握手协议正在持续演进中。
+                ⚠️ <strong>实验性功能提示 (Beta)</strong>
+                ：当前频道采用双棘轮密文信封防网络嗅探与服务端直读；基于用户设备私钥的多方动态树状握手协议正在持续演进中。
               </div>
               <p>
                 当前频道已激活{" "}

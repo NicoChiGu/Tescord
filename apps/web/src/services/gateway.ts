@@ -272,8 +272,9 @@ export class GatewayClient {
   private scheduleReconnect() {
     this.setConnectionState("reconnecting");
     setTimeout(() => {
-      if (this.token) {
-        this.connect(this.token);
+      const latestToken = useAuthStore.getState().accessToken || this.token;
+      if (latestToken) {
+        this.connect(latestToken);
       }
     }, 3000);
   }

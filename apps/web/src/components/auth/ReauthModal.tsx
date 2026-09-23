@@ -1,13 +1,25 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAuthStore } from "../../stores/useAuthStore.js";
-import { Lock, AlertCircle, ArrowRight, LogOut, ShieldAlert } from "lucide-react";
+import {
+  Lock,
+  AlertCircle,
+  ArrowRight,
+  LogOut,
+  ShieldAlert,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { flushPendingRequests } from "../../services/apiClient.js";
 import { gatewayClient } from "../../services/gateway.js";
 
 export const ReauthModal: React.FC = () => {
-  const { isReauthModalOpen, reauthReason, user, lastActiveUser, reauth, switchAccount } =
-    useAuthStore();
+  const {
+    isReauthModalOpen,
+    reauthReason,
+    user,
+    lastActiveUser,
+    reauth,
+    switchAccount,
+  } = useAuthStore();
 
   const [password, setPassword] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
@@ -46,7 +58,11 @@ export const ReauthModal: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!password) {
-      setLocalError(t("auth:error.passwordRequired", { defaultValue: "请输入密码以验证身份" }));
+      setLocalError(
+        t("auth:error.passwordRequired", {
+          defaultValue: "请输入密码以验证身份",
+        }),
+      );
       return;
     }
 
@@ -56,7 +72,6 @@ export const ReauthModal: React.FC = () => {
     try {
       await reauth(password);
       const latestToken = useAuthStore.getState().accessToken;
-      const latestUser = useAuthStore.getState().user;
 
       // 1. 批量重放挂起的 HTTP 业务请求
       if (latestToken) {
@@ -64,13 +79,18 @@ export const ReauthModal: React.FC = () => {
       }
 
       // 2. 重新恢复 WebSocket 长连接网关
-      if (latestUser?.id) {
-        gatewayClient.connect(latestUser.id);
+      if (latestToken) {
+        gatewayClient.connect(latestToken);
       }
 
       setPassword("");
     } catch (err: any) {
-      setLocalError(err.message || t("auth:error.generalFailed", { defaultValue: "验证失败，请确认密码是否正确" }));
+      setLocalError(
+        err.message ||
+          t("auth:error.generalFailed", {
+            defaultValue: "验证失败，请确认密码是否正确",
+          }),
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -126,7 +146,9 @@ export const ReauthModal: React.FC = () => {
 
           <div className="mt-3 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-center gap-1.5">
             <ShieldAlert className="w-3.5 h-3.5 flex-shrink-0" />
-            <span>{reauthReason || "登录会话已过期，请输入密码解锁以继续当前操作"}</span>
+            <span>
+              {reauthReason || "登录会话已过期，请输入密码解锁以继续当前操作"}
+            </span>
           </div>
         </div>
 
@@ -145,7 +167,8 @@ export const ReauthModal: React.FC = () => {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-gray-300 mb-1.5">
-              {t("auth:password", { defaultValue: "密码" })} <span className="text-rose-400">*</span>
+              {t("auth:password", { defaultValue: "密码" })}{" "}
+              <span className="text-rose-400">*</span>
             </label>
             <div className="relative">
               <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />

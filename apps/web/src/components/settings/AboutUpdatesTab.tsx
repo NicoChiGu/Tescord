@@ -20,7 +20,9 @@ import {
 export const AboutUpdatesTab: React.FC = () => {
   const [config, setConfig] = useState<UpdaterConfig | null>(null);
   const [isChecking, setIsChecking] = useState<boolean>(false);
-  const [checkResult, setCheckResult] = useState<UpdateCheckResult | null>(null);
+  const [checkResult, setCheckResult] = useState<UpdateCheckResult | null>(
+    null,
+  );
   const [isDownloading, setIsDownloading] = useState<boolean>(false);
   const [progress, setProgress] = useState<UpdateProgress | null>(null);
   const [isReadyToRestart, setIsReadyToRestart] = useState<boolean>(false);
@@ -40,22 +42,26 @@ export const AboutUpdatesTab: React.FC = () => {
     });
 
     // 2. 监听更新进度广播
-    const removeProgressListener = window.electronAPI?.updater?.onProgress((prog) => {
-      setProgress(prog);
-      if (prog.state === "ready") {
-        setIsDownloading(false);
-        setIsReadyToRestart(true);
-      } else if (prog.state === "error") {
-        setIsDownloading(false);
-        setErrorMessage(prog.error || "下载更新失败");
-      }
-    });
+    const removeProgressListener = window.electronAPI?.updater?.onProgress(
+      (prog) => {
+        setProgress(prog);
+        if (prog.state === "ready") {
+          setIsDownloading(false);
+          setIsReadyToRestart(true);
+        } else if (prog.state === "error") {
+          setIsDownloading(false);
+          setErrorMessage(prog.error || "下载更新失败");
+        }
+      },
+    );
 
     // 3. 监听就绪广播
-    const removeReadyListener = window.electronAPI?.updater?.onUpdateReady(() => {
-      setIsReadyToRestart(true);
-      setIsDownloading(false);
-    });
+    const removeReadyListener = window.electronAPI?.updater?.onUpdateReady(
+      () => {
+        setIsReadyToRestart(true);
+        setIsDownloading(false);
+      },
+    );
 
     return () => {
       removeProgressListener?.();
@@ -105,11 +111,16 @@ export const AboutUpdatesTab: React.FC = () => {
 
   const handleSaveProxy = async () => {
     if (!window.electronAPI?.updater) return;
-    await window.electronAPI.updater.setCustomProxy(customProxyInput.trim());
-    setProxySaveSuccess(true);
-    setTimeout(() => setProxySaveSuccess(false), 2000);
-    const updated = await window.electronAPI.updater.getConfig();
-    setConfig(updated);
+    try {
+      await window.electronAPI.updater.setCustomProxy(customProxyInput.trim());
+      setErrorMessage(null);
+      setProxySaveSuccess(true);
+      setTimeout(() => setProxySaveSuccess(false), 2000);
+      const updated = await window.electronAPI.updater.getConfig();
+      setConfig(updated);
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "代理地址无效");
+    }
   };
 
   if (!isElectron) {
@@ -121,11 +132,13 @@ export const AboutUpdatesTab: React.FC = () => {
             <span>版本与环境 (About)</span>
           </h2>
           <p className="text-xs text-discord-textMuted mt-1">
-            当前处于标准 Web 浏览器环境。客户端自动更新与 gh-proxy 加速仅在 Electron 桌面端生效。
+            当前处于标准 Web 浏览器环境。客户端自动更新与 gh-proxy 加速仅在
+            Electron 桌面端生效。
           </p>
         </div>
         <div className="rounded-xl bg-[#2b2d31] p-5 border border-white/5 text-gray-300 text-xs">
-          您可通过下载并安装 Tescord 桌面客户端享受 Discord 拟态无边框窗口、独立进程音频低延迟优化与自动静默增量更新体验。
+          您可通过下载并安装 Tescord 桌面客户端享受 Discord
+          拟态无边框窗口、独立进程音频低延迟优化与自动静默增量更新体验。
         </div>
       </div>
     );
@@ -139,7 +152,9 @@ export const AboutUpdatesTab: React.FC = () => {
           <span>客户端版本与更新 (Updates)</span>
         </h2>
         <p className="text-xs text-discord-textMuted mt-1">
-          Tescord 采用类 Discord 的双轨热更新机制，日常功能更新秒级无感生效，通过 gh-proxy 阶梯加速直连 GitHub Releases。
+          Tescord 采用类 Discord
+          的双轨热更新机制，日常功能更新秒级无感生效，通过 gh-proxy 阶梯加速直连
+          GitHub Releases。
         </p>
       </div>
 
@@ -166,7 +181,9 @@ export const AboutUpdatesTab: React.FC = () => {
             disabled={isChecking || isDownloading}
             className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold bg-[#5865f2] hover:bg-[#4752c4] disabled:opacity-50 text-white transition-all shadow-md cursor-pointer self-start sm:self-auto"
           >
-            <RefreshCw className={`w-3.5 h-3.5 ${isChecking ? "animate-spin" : ""}`} />
+            <RefreshCw
+              className={`w-3.5 h-3.5 ${isChecking ? "animate-spin" : ""}`}
+            />
             <span>{isChecking ? "正在检测更新..." : "检查更新"}</span>
           </button>
         </div>
@@ -211,7 +228,9 @@ export const AboutUpdatesTab: React.FC = () => {
           <div className="flex items-center gap-3">
             <CheckCircle2 className="w-6 h-6 text-emerald-400 shrink-0" />
             <div>
-              <div className="text-sm font-bold text-white">新版本已在本地解压就绪！</div>
+              <div className="text-sm font-bold text-white">
+                新版本已在本地解压就绪！
+              </div>
               <div className="text-xs text-gray-300 mt-0.5">
                 增量包已成功校验并生效至本地，点击按钮立即体验新特性。
               </div>
@@ -233,9 +252,13 @@ export const AboutUpdatesTab: React.FC = () => {
         <div className="rounded-2xl bg-[#2b2d31] p-5 border border-white/5 space-y-3">
           <div className="flex items-center justify-between text-xs">
             <span className="font-semibold text-white">
-              {progress.state === "extracting" ? "正在解压安装增量包..." : "正在下载增量更新..."}
+              {progress.state === "extracting"
+                ? "正在解压安装增量包..."
+                : "正在下载增量更新..."}
             </span>
-            <span className="font-bold text-[#5865f2]">{progress.percent}%</span>
+            <span className="font-bold text-[#5865f2]">
+              {progress.percent}%
+            </span>
           </div>
           <div className="w-full h-2 bg-[#1e1f22] rounded-full overflow-hidden">
             <div
@@ -277,7 +300,9 @@ export const AboutUpdatesTab: React.FC = () => {
                 <div className="flex items-center justify-between pt-2">
                   <div className="text-xs text-amber-300 flex items-center gap-1.5">
                     <AlertTriangle className="w-4 h-4 shrink-0" />
-                    <span>该版本包含原生底层改动，建议前往 Releases 下载完整安装包。</span>
+                    <span>
+                      该版本包含原生底层改动，建议前往 Releases 下载完整安装包。
+                    </span>
                   </div>
                   <a
                     href={`https://github.com/${config?.gitRepo}/releases/latest`}
@@ -322,7 +347,9 @@ export const AboutUpdatesTab: React.FC = () => {
       <div className="rounded-2xl bg-[#2b2d31] p-5 border border-white/5 space-y-4">
         <div className="flex items-center gap-2">
           <Sliders className="w-4 h-4 text-[#5865f2]" />
-          <h3 className="text-sm font-bold text-white">GitHub Releases 加速代理配置</h3>
+          <h3 className="text-sm font-bold text-white">
+            GitHub Releases 加速代理配置
+          </h3>
         </div>
         <p className="text-xs text-discord-textMuted">
           在网络受限或大陆环境下，客户端默认采用阶梯自动降级路由：优先走高速代理，失败平滑回退，保障更新绝不卡死。
@@ -335,21 +362,27 @@ export const AboutUpdatesTab: React.FC = () => {
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
               <span>第一优先级 (默认推荐)</span>
             </span>
-            <code className="text-[11px] text-gray-400 font-mono">https://v6.gh-proxy.org/</code>
+            <code className="text-[11px] text-gray-400 font-mono">
+              https://v6.gh-proxy.org/
+            </code>
           </div>
           <div className="flex items-center justify-between text-gray-300">
             <span className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-blue-400" />
               <span>第二优先级 (备用镜像)</span>
             </span>
-            <code className="text-[11px] text-gray-400 font-mono">https://gh-proxy.com/</code>
+            <code className="text-[11px] text-gray-400 font-mono">
+              https://gh-proxy.com/
+            </code>
           </div>
           <div className="flex items-center justify-between text-gray-300">
             <span className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-gray-500" />
               <span>最终兜底</span>
             </span>
-            <code className="text-[11px] text-gray-400 font-mono">GitHub 官方直连</code>
+            <code className="text-[11px] text-gray-400 font-mono">
+              GitHub 官方直连
+            </code>
           </div>
         </div>
 
@@ -375,7 +408,8 @@ export const AboutUpdatesTab: React.FC = () => {
             </button>
           </div>
           <p className="text-[11px] text-gray-500">
-            若您部署了自建 gh-proxy 或其他反向代理加速镜像，可填写于此，系统将优先走您的专用通道。
+            若您部署了自建 gh-proxy
+            或其他反向代理加速镜像，可填写于此，系统将优先走您的专用通道。
           </p>
         </div>
       </div>

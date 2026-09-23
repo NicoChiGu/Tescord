@@ -4,15 +4,17 @@
  */
 export const BUILD_CONFIG = {
   /** 是否启用了更新检测服务 (build 时未检测到仓库信息则为 false，此时不进行更新检测) */
-  IS_UPDATER_ENABLED: true,
+  IS_UPDATER_ENABLED: false,
   /** GitHub 仓库拥有者 (Owner) */
   REPO_OWNER: "labsphaela",
   /** GitHub 仓库名 (Repo) */
   REPO_NAME: "Tescord",
   /** GitHub 仓库全称 (owner/repo) */
   REPO_FULL_NAME: "labsphaela/Tescord",
+  /** Ed25519 public key in DER/SPKI base64; absent keys disable updates. */
+  UPDATE_SIGNING_PUBLIC_KEY_BASE64: "",
   /** 编译时间戳 (ISO 8601) */
-  BUILD_TIME: "2026-09-23T08:55:55.325Z",
+  BUILD_TIME: "2026-09-23T17:11:48.219Z",
   /** 默认首选 gh-proxy 加速代理 (优先使用 v6.gh-proxy.org) */
   PRIMARY_GH_PROXY: "https://v6.gh-proxy.org/",
   /** 备用 gh-proxy 加速代理 (gh-proxy.com) */

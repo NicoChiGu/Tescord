@@ -2,6 +2,11 @@ import { config } from "dotenv";
 config();
 
 async function runFullPhase2Verification() {
+  if (process.env.IS_E2E !== "true") {
+    throw new Error(
+      "This destructive legacy verification requires an isolated IS_E2E server",
+    );
+  }
   console.log(
     "🧪 开始路线图阶段二（Phase 2: 2.3, 2.4, 2.5）全量端到端功能自动化验证...",
   );
@@ -258,13 +263,18 @@ async function runFullPhase2Verification() {
 
   // 3.1 请求预签名上传 URL
   const testFileName = "tescord_screenshot_test.png";
+  const dummyImageBuffer = Buffer.from("FAKE_PNG_BINARY_CONTENT_TESCORD_2026");
   const presignRes = await fetch(`${baseUrl}/api/attachments/presigned-url`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${adminToken}`,
+    },
     body: JSON.stringify({
       fileName: testFileName,
-      fileSize: 1024,
+      fileSize: dummyImageBuffer.length,
       mimeType: "image/png",
+      channelId: newChannel.id,
     }),
   });
   if (!presignRes.ok)
@@ -277,21 +287,25 @@ async function runFullPhase2Verification() {
   });
 
   // 3.2 模拟客户端向 uploadUrl 直接 PUT 二进制数据
-  const dummyImageBuffer = Buffer.from("FAKE_PNG_BINARY_CONTENT_TESCORD_2026");
   const uploadBinaryRes = await fetch(presignData.uploadUrl, {
     method: "PUT",
-    headers: { "Content-Type": "image/png" },
+    headers: {
+      "Content-Type": "image/png",
+      Authorization: `Bearer ${adminToken}`,
+    },
     body: dummyImageBuffer,
   });
   if (!uploadBinaryRes.ok)
     throw new Error(`Upload binary failed: ${await uploadBinaryRes.text()}`);
   console.log("✅ 3.2 客户端直传数据写入成功");
 
-  // 3.3 验证直传后的静态资源可通过 fileUrl 访问
+  // 3.3 私有附件原始存储 URL 必须不可直接读取
   const verifyFetchFileRes = await fetch(presignData.fileUrl);
-  if (!verifyFetchFileRes.ok)
-    throw new Error(`Failed to fetch uploaded file: ${presignData.fileUrl}`);
-  console.log("✅ 3.3 直传文件 HTTP 静态访问自愈校验成功 (状态码 200)");
+  if (verifyFetchFileRes.ok)
+    throw new Error(
+      `Private attachment was publicly readable: ${presignData.fileUrl}`,
+    );
+  console.log("✅ 3.3 私有附件直链访问被拒绝");
 
   // 3.4 发送包含此附件的消息
   const sendAttachmentMsgRes = await fetch(
@@ -319,6 +333,8 @@ async function runFullPhase2Verification() {
   if (!attachmentMsg.attachments || attachmentMsg.attachments.length === 0) {
     throw new Error("Attachments not saved to message");
   }
+  const signedDownload = await fetch(attachmentMsg.attachments[0].url);
+  if (!signedDownload.ok) throw new Error("Signed attachment download failed");
   console.log(
     "✅ 3.4 带附件的消息持久化与查询验证通过:",
     attachmentMsg.attachments,
