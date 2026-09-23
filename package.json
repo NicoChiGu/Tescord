@@ -4,7 +4,8 @@
   "scripts": {
     "dev": "turbo run dev",
     "dev:server": "pnpm --filter @tescord/server dev",
-    "db:init": "pnpm --filter @tescord/server db:push",
+    "postinstall": "pnpm --filter @tescord/server exec tsx scripts/ensure-prisma.ts",
+    "db:init": "pnpm --filter @tescord/server db:generate && pnpm --filter @tescord/server db:push",
     "dev:web": "pnpm --filter @tescord/web dev",
     "dev:desktop": "pnpm --filter @tescord/desktop dev",
     "admin:grant": "pnpm --filter @tescord/server admin:grant",
