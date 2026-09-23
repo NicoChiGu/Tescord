@@ -6,9 +6,11 @@ import {
   Message,
   PaginatedResult,
   User,
+  UserPresence,
 } from "@tescord/types";
 import { prisma } from "../db.js";
 import { gatewayManager } from "../gateway.js";
+import { cacheStore } from "../cache.js";
 
 const clampPage = (value: number, fallback: number, max: number) =>
   Number.isSafeInteger(value) && value > 0 ? Math.min(value, max) : fallback;
@@ -96,7 +98,15 @@ export class DMService {
       where: { id: channel.id },
       include,
     });
-    const formatted = this.formatDMChannel(fresh, caller.id);
+    const [callerPresence, recipientPresence] = await Promise.all([
+      cacheStore.getUserPresence(caller.id),
+      cacheStore.getUserPresence(recipient.id),
+    ]);
+    const dmPresences = new Map<string, UserPresence>();
+    if (callerPresence) dmPresences.set(caller.id, callerPresence);
+    if (recipientPresence) dmPresences.set(recipient.id, recipientPresence);
+
+    const formatted = this.formatDMChannel(fresh, caller.id, 0, dmPresences);
     gatewayManager.sendToUser(caller.id, {
       op: GatewayOpCode.DISPATCH,
       t: GatewayEvents.DM_CHANNEL_CREATE,
@@ -137,6 +147,19 @@ export class DMService {
         ],
       }),
     ]);
+
+    // 收集所有私信参与者的用户 ID 并批量水合实时在线状态
+    const recipientUserIds = Array.from(
+      new Set(
+        rows.flatMap((row) =>
+          (row.channel?.recipients || [])
+            .map((r: any) => r.userId)
+            .filter(Boolean),
+        ),
+      ),
+    );
+    const presences = await cacheStore.batchGetPresences(recipientUserIds);
+
     const items = await Promise.all(
       rows.map(async (row) => {
         const unreadCount = await prisma.message.count({
@@ -146,7 +169,7 @@ export class DMService {
             sequence: { gt: row.lastReadSequence },
           },
         });
-        return this.formatDMChannel(row.channel, userId, unreadCount);
+        return this.formatDMChannel(row.channel, userId, unreadCount, presences);
       }),
     );
     return {
@@ -231,23 +254,51 @@ export class DMService {
     return channel.recipients.map((item) => item.userId);
   }
 
-  private publicUser(user: any): User {
+  private publicUser(
+    user: any,
+    presence?: UserPresence | null,
+    isSelf = false,
+  ): User {
+    const isOnline =
+      presence &&
+      presence.status !== "OFFLINE" &&
+      presence.status !== "INVISIBLE";
+    const effectiveStatus = isSelf
+      ? presence?.status || user.status || "ONLINE"
+      : isOnline
+        ? presence.status
+        : "OFFLINE";
+    const canShowActivity = isOnline && user.showActivity !== false;
+
     return {
       id: user.id,
       username: user.username,
       email: "",
       avatarUrl: user.avatarUrl,
-      status: user.status,
-      customStatus: user.customStatus,
+      status: effectiveStatus,
+      customStatus:
+        presence?.customStatus !== undefined
+          ? presence.customStatus
+          : user.customStatus,
+      activities: canShowActivity ? presence?.activities : undefined,
       bio: user.bio,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt?.toISOString(),
     };
   }
 
-  private formatDMChannel(channel: any, currentUserId: string, unreadCount = 0): Channel {
+  private formatDMChannel(
+    channel: any,
+    currentUserId: string,
+    unreadCount = 0,
+    presences?: Map<string, UserPresence>,
+  ): Channel {
     const recipients = (channel.recipients || []).map((item: any) =>
-      this.publicUser(item.user),
+      this.publicUser(
+        item.user,
+        presences?.get(item.user.id),
+        item.user.id === currentUserId,
+      ),
     );
     const other = recipients.find((item: User) => item.id !== currentUserId);
     const rawMessage = channel.messages?.[0];

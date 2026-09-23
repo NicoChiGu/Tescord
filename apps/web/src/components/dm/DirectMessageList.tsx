@@ -3,6 +3,7 @@ import { Channel, User, UserStatus } from "@tescord/types";
 import { Plus, X, MessageSquare, Search, Loader2 } from "lucide-react";
 import { API_BASE } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
+import { usePresenceStore } from "../../stores/usePresenceStore.js";
 
 interface DirectMessageListProps {
   channels: Channel[];
@@ -22,6 +23,7 @@ export const DirectMessageList: React.FC<DirectMessageListProps> = ({
   onChannelCreated,
 }) => {
   const { getAuthHeaders } = useAuthStore();
+  const presences = usePresenceStore((s) => s.presences);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [searchUsername, setSearchUsername] = useState("");
   const [creating, setCreating] = useState(false);
@@ -103,9 +105,14 @@ export const DirectMessageList: React.FC<DirectMessageListProps> = ({
           const otherUser = channel.recipients?.find(
             (r) => r.id !== currentUser.id,
           );
+          const realtimePresence = otherUser ? presences[otherUser.id] : undefined;
           const isSelected = selectedChannelId === channel.id;
           const displayName = otherUser ? otherUser.username : channel.name;
-          const status = otherUser?.status || "OFFLINE";
+          const status = realtimePresence?.status || otherUser?.status || "OFFLINE";
+          const customStatus =
+            realtimePresence?.customStatus !== undefined
+              ? realtimePresence.customStatus
+              : otherUser?.customStatus;
           const unread = channel.unreadCount || 0;
 
           return (
@@ -148,7 +155,7 @@ export const DirectMessageList: React.FC<DirectMessageListProps> = ({
                   <p className="text-xs text-discord-textMuted truncate">
                     {channel.lastMessage
                       ? channel.lastMessage.content
-                      : otherUser?.customStatus || "点击开始私信沟通"}
+                      : customStatus || "点击开始私信沟通"}
                   </p>
                 </div>
               </div>

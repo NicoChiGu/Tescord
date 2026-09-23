@@ -71,6 +71,11 @@ test.describe("服务器侧边栏超出容器时竖向滚动与滚动条隐藏�
       });
     });
 
+    // 阻断 WebSocket 网关连接，防止网关 READY 事件推送真实数据库中的公会数据覆盖 mock 的 25 个服务器
+    await page.route("**/gateway", (route) => {
+      route.abort();
+    });
+
     await page.goto("/");
 
     // 1. 等待服务器列表容器呈现
@@ -84,13 +89,15 @@ test.describe("服务器侧边栏超出容器时竖向滚动与滚动条隐藏�
     await expect(serverButtons).toHaveCount(25);
 
     // 3. 验证服务器列表内容高度显著大于容器自身视口高度 (证明内容溢出已生效)
-    const { scrollHeight, clientHeight } = await serverListContainer.evaluate(
-      (el) => ({
-        scrollHeight: el.scrollHeight,
-        clientHeight: el.clientHeight,
-      }),
-    );
-    expect(scrollHeight).toBeGreaterThan(clientHeight);
+    await expect(async () => {
+      const { scrollHeight, clientHeight } = await serverListContainer.evaluate(
+        (el) => ({
+          scrollHeight: el.scrollHeight,
+          clientHeight: el.clientHeight,
+        }),
+      );
+      expect(scrollHeight).toBeGreaterThan(clientHeight);
+    }).toPass({ timeout: 5000 });
 
     // 4. 验证滚动条被彻底隐藏 (no-scrollbar 类名、scrollbar-width 为 none)
     const isScrollbarHidden = await serverListContainer.evaluate((el) => {

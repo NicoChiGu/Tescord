@@ -57,8 +57,14 @@ import { MaintenanceScreen } from "./components/maintenance/MaintenanceScreen.js
 import { MaintenanceAdminBanner } from "./components/maintenance/MaintenanceAdminBanner.js";
 import { UpdateNotificationBanner } from "./components/updater/UpdateNotificationBanner.js";
 import { useMaintenanceStore } from "./stores/useMaintenanceStore.js";
+import { useChannelNavStore } from "./stores/useChannelNavStore.js";
+import {
+  resolveGuildChannel,
+  getDefaultGuildChannel,
+} from "./utils/channelNavigation.js";
 
 import { useAuthStore } from "./stores/useAuthStore.js";
+import { usePresenceStore } from "./stores/usePresenceStore.js";
 import { gatewayClient } from "./services/gateway.js";
 import { audioEngine } from "./services/audioEngine.js";
 import { livekitService, ActiveScreenShare } from "./services/livekit.js";
@@ -354,6 +360,7 @@ export const App: React.FC = () => {
   const lastActiveUserIdRef = useRef<string | null>(null);
   useEffect(() => {
     const currentId = currentUser?.id || null;
+    useChannelNavStore.getState().setUserId(currentId);
     if (lastActiveUserIdRef.current !== currentId) {
       if (lastActiveUserIdRef.current !== null) {
         // 用户身份发生变动（从 User A 变为 User B，或者从 User A 变为登出）
@@ -392,10 +399,19 @@ export const App: React.FC = () => {
           if (data.length > 0) {
             const firstGuild = data[0];
             setSelectedGuildId(firstGuild.id);
-            if (firstGuild.channels && firstGuild.channels.length > 0) {
-              setSelectedChannel(firstGuild.channels[0]);
-            } else {
-              setSelectedChannel(null);
+            const lastChannelId = useChannelNavStore
+              .getState()
+              .getLastVisitedChannel(firstGuild.id);
+            const targetChannel = resolveGuildChannel(
+              firstGuild,
+              lastChannelId,
+              true,
+            );
+            setSelectedChannel(targetChannel);
+            if (targetChannel?.guildId) {
+              useChannelNavStore
+                .getState()
+                .recordChannelVisit(targetChannel.guildId, targetChannel.id);
             }
           } else {
             setSelectedGuildId(null);
@@ -458,6 +474,22 @@ export const App: React.FC = () => {
         const data: Channel[] | { items: Channel[] } = await res.json();
         const dms = Array.isArray(data) ? data : data.items;
         setDmChannels(dms);
+
+        // 同步私信参与者在线状态至全局 usePresenceStore
+        const dmPresences: Record<string, any> = {};
+        for (const ch of dms) {
+          for (const r of ch.recipients || []) {
+            if (r.id) {
+              dmPresences[r.id] = {
+                status: r.status,
+                customStatus: r.customStatus,
+                activities: r.activities,
+              };
+            }
+          }
+        }
+        usePresenceStore.getState().batchSetPresences(dmPresences);
+
         // 调度后台预热活跃私信会话
         preheatManager.startPreheat(dms.slice(0, 3), token);
       }
@@ -488,6 +520,21 @@ export const App: React.FC = () => {
       (window as any).p2pStreamManager = p2pStreamManager;
       (window as any).useSettingsStore = useSettingsStore;
     }
+
+    // 浏览器关闭前主动断开网关，加速服务端 3.5s 防抖下线
+    const handleBeforeUnload = () => {
+      gatewayClient.disconnect();
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+
+    // 页面切回前台时，主动触发状态轻量对齐，防止息屏/休眠漏包失步
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshGuilds();
+        refreshDMChannels();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     // 监听 P2P 直连信令与拓扑调度 (区分纯语音 Mesh 与屏幕直播流)
     const unbindP2PSignal = gatewayClient.on(
@@ -520,7 +567,22 @@ export const App: React.FC = () => {
 
     // 监听网关信令事件
     const unbindReady = gatewayClient.on("READY", (data) => {
-      if (data.guilds) setGuilds(data.guilds);
+      if (data.guilds) {
+        setGuilds(data.guilds);
+        const initialPresences: Record<string, any> = {};
+        for (const guild of data.guilds) {
+          for (const member of guild.members || []) {
+            if (member.userId && member.user) {
+              initialPresences[member.userId] = {
+                status: member.user.status,
+                customStatus: member.user.customStatus,
+                activities: member.user.activities,
+              };
+            }
+          }
+        }
+        usePresenceStore.getState().batchSetPresences(initialPresences);
+      }
       if (data.voiceStates) setVoiceStates(data.voiceStates);
     });
 
@@ -528,6 +590,14 @@ export const App: React.FC = () => {
     const unbindPresenceUpdate = gatewayClient.on(
       GatewayEvents.PRESENCE_UPDATE,
       (data: PresenceUpdateEvent) => {
+        // 1. 同步注入全局唯一权威 usePresenceStore
+        usePresenceStore.getState().setPresence(data.userId, {
+          status: data.status,
+          customStatus: data.customStatus,
+          activities: data.activities,
+        });
+
+        // 2. 同步更新 guilds
         setGuilds((prev) =>
           prev.map((g) => {
             if (!g.members?.some((m) => m.userId === data.userId)) return g;
@@ -553,7 +623,30 @@ export const App: React.FC = () => {
           }),
         );
 
-        // 若为自身端的状态更新（包括跨端同步或自身隐身），同步当前用户信息
+        // 3. 同步更新 dmChannels (修复私信列表状态灯响应式丢失)
+        setDmChannels((prev) =>
+          prev.map((c) => {
+            if (!c.recipients?.some((r) => r.id === data.userId)) return c;
+            return {
+              ...c,
+              recipients: c.recipients.map((r) =>
+                r.id === data.userId
+                  ? {
+                      ...r,
+                      status: data.status,
+                      customStatus:
+                        data.customStatus !== undefined
+                          ? data.customStatus
+                          : r.customStatus,
+                      activities: data.activities,
+                    }
+                  : r,
+              ),
+            };
+          }),
+        );
+
+        // 4. 若为自身端的状态更新（包括跨端同步或自身隐身），同步当前用户信息
         if (currentUser && data.userId === currentUser.id) {
           useAuthStore.getState().setUser({
             ...currentUser,
@@ -792,19 +885,37 @@ export const App: React.FC = () => {
     const unbindChannelDelete = gatewayClient.on(
       "CHANNEL_DELETE",
       (data: { channelId: string; guildId: string }) => {
-        setGuilds((prev) =>
-          prev.map((g) =>
+        if (
+          useChannelNavStore.getState().getLastVisitedChannel(data.guildId) ===
+          data.channelId
+        ) {
+          useChannelNavStore.getState().removeGuildMemory(data.guildId);
+        }
+        setGuilds((prev) => {
+          const updated = prev.map((g) =>
             g.id === data.guildId
               ? {
                   ...g,
                   channels: g.channels.filter((c) => c.id !== data.channelId),
                 }
               : g,
-          ),
-        );
-        if (selectedChannelRef.current?.id === data.channelId) {
-          setSelectedChannel(null);
-        }
+          );
+          if (selectedChannelRef.current?.id === data.channelId) {
+            const currentG = updated.find((g) => g.id === data.guildId);
+            if (currentG && currentG.channels.length > 0) {
+              const fallback = resolveGuildChannel(currentG, null, true);
+              setSelectedChannel(fallback);
+              if (fallback?.guildId) {
+                useChannelNavStore
+                  .getState()
+                  .recordChannelVisit(fallback.guildId, fallback.id);
+              }
+            } else {
+              setSelectedChannel(null);
+            }
+          }
+          return updated;
+        });
       },
     );
 
@@ -1005,6 +1116,7 @@ export const App: React.FC = () => {
       (data: { guildId: string; userId: string }) => {
         if (currentUser && data.userId === currentUser.id) {
           // 当前用户自身离开或被移出公会：从公会列表中彻底移除
+          useChannelNavStore.getState().removeGuildMemory(data.guildId);
           setGuilds((prev) => prev.filter((g) => g.id !== data.guildId));
           if (selectedGuildIdRef.current === data.guildId) {
             setSelectedGuildId(null);
@@ -1086,6 +1198,7 @@ export const App: React.FC = () => {
     const unbindGuildDelete = gatewayClient.on(
       "GUILD_DELETE",
       (data: { guildId: string }) => {
+        useChannelNavStore.getState().removeGuildMemory(data.guildId);
         setGuilds((prev) => prev.filter((g) => g.id !== data.guildId));
         if (selectedGuildIdRef.current === data.guildId) {
           setSelectedGuildId(null);
@@ -1169,6 +1282,7 @@ export const App: React.FC = () => {
       "GUILD_BAN_ADD",
       (data: { guildId: string; ban: any }) => {
         if (data.ban?.userId === currentUser?.id) {
+          useChannelNavStore.getState().removeGuildMemory(data.guildId);
           setGuilds((prev) => prev.filter((g) => g.id !== data.guildId));
           if (selectedGuildIdRef.current === data.guildId) {
             setSelectedGuildId(null);
@@ -1494,6 +1608,8 @@ export const App: React.FC = () => {
       unbindDMCreate();
       unbindDMUpdate();
       unbindDMDelete();
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       gatewayClient.disconnect();
     };
   }, [isAuthenticated, currentUser?.id]);
@@ -1632,6 +1748,7 @@ export const App: React.FC = () => {
           if (ch) {
             setSelectedGuildId(g.id);
             setSelectedChannel(ch);
+            useChannelNavStore.getState().recordChannelVisit(g.id, ch.id);
             break;
           }
         }
@@ -1962,11 +2079,30 @@ export const App: React.FC = () => {
               : g,
           ),
         );
+        if (channel.guildId) {
+          if (
+            useChannelNavStore.getState().getLastVisitedChannel(channel.guildId) ===
+            channel.id
+          ) {
+            useChannelNavStore.getState().removeGuildMemory(channel.guildId);
+          }
+        }
         if (selectedChannel?.id === channel.id) {
           const guild = guilds.find((g) => g.id === channel.guildId);
           const remaining =
             guild?.channels.filter((c) => c.id !== channel.id) || [];
-          setSelectedChannel(remaining.length > 0 ? remaining[0] : null);
+          if (guild && remaining.length > 0) {
+            const fallbackGuild = { ...guild, channels: remaining };
+            const fallback = resolveGuildChannel(fallbackGuild, null, true);
+            setSelectedChannel(fallback);
+            if (fallback?.guildId) {
+              useChannelNavStore
+                .getState()
+                .recordChannelVisit(fallback.guildId, fallback.id);
+            }
+          } else {
+            setSelectedChannel(null);
+          }
         }
       }
     } catch (err) {
@@ -2026,6 +2162,14 @@ export const App: React.FC = () => {
   };
 
   const handleChannelDeletedFromModal = (channelId: string) => {
+    if (selectedGuildId) {
+      if (
+        useChannelNavStore.getState().getLastVisitedChannel(selectedGuildId) ===
+        channelId
+      ) {
+        useChannelNavStore.getState().removeGuildMemory(selectedGuildId);
+      }
+    }
     setGuilds((prev) =>
       prev.map((g) => ({
         ...g,
@@ -2034,7 +2178,18 @@ export const App: React.FC = () => {
     );
     if (selectedChannel?.id === channelId) {
       const remaining = currentChannels.filter((c) => c.id !== channelId);
-      setSelectedChannel(remaining.length > 0 ? remaining[0] : null);
+      if (currentGuild && remaining.length > 0) {
+        const fallbackGuild = { ...currentGuild, channels: remaining };
+        const fallback = resolveGuildChannel(fallbackGuild, null, true);
+        setSelectedChannel(fallback);
+        if (fallback?.guildId) {
+          useChannelNavStore
+            .getState()
+            .recordChannelVisit(fallback.guildId, fallback.id);
+        }
+      } else {
+        setSelectedChannel(null);
+      }
     }
   };
 
@@ -2052,12 +2207,23 @@ export const App: React.FC = () => {
         },
       });
       if (res.ok) {
+        useChannelNavStore.getState().removeGuildMemory(guild.id);
         setGuilds((prev) => prev.filter((g) => g.id !== guild.id));
         if (selectedGuildId === guild.id) {
           const remaining = guilds.filter((g) => g.id !== guild.id);
           if (remaining.length > 0) {
-            setSelectedGuildId(remaining[0].id);
-            setSelectedChannel(remaining[0].channels[0] || null);
+            const nextGuild = remaining[0];
+            setSelectedGuildId(nextGuild.id);
+            const lastChId = useChannelNavStore
+              .getState()
+              .getLastVisitedChannel(nextGuild.id);
+            const targetChannel = resolveGuildChannel(nextGuild, lastChId, true);
+            setSelectedChannel(targetChannel);
+            if (targetChannel?.guildId) {
+              useChannelNavStore
+                .getState()
+                .recordChannelVisit(targetChannel.guildId, targetChannel.id);
+            }
           } else {
             setSelectedGuildId(null);
             setSelectedChannel(null);
@@ -2321,9 +2487,15 @@ export const App: React.FC = () => {
       (selectedChannel?.id === leavingChannelId ||
         selectedChannel?.type === "VOICE")
     ) {
-      const defaultTextChannel =
-        currentChannels.find((c) => c.type === "TEXT") || null;
+      const defaultTextChannel = currentGuild
+        ? getDefaultGuildChannel(currentGuild, true)
+        : currentChannels.find((c) => c.type === "TEXT") || null;
       setSelectedChannel(defaultTextChannel);
+      if (defaultTextChannel?.guildId) {
+        useChannelNavStore
+          .getState()
+          .recordChannelVisit(defaultTextChannel.guildId, defaultTextChannel.id);
+      }
     }
   };
 
@@ -3014,8 +3186,21 @@ export const App: React.FC = () => {
             }
           } else {
             const g = guilds.find((item) => item.id === id);
-            if (g && g.channels.length > 0) {
-              setSelectedChannel(g.channels[0]);
+            if (g) {
+              const lastChannelId = useChannelNavStore
+                .getState()
+                .getLastVisitedChannel(g.id);
+              const targetChannel = resolveGuildChannel(
+                g,
+                lastChannelId,
+                true,
+              );
+              setSelectedChannel(targetChannel);
+              if (targetChannel?.guildId) {
+                useChannelNavStore
+                  .getState()
+                  .recordChannelVisit(targetChannel.guildId, targetChannel.id);
+              }
             }
           }
           if (isDrawer) {
@@ -3058,6 +3243,9 @@ export const App: React.FC = () => {
         onReclaimVoice={(ch) => handleJoinVoiceChannel(ch)}
         onSelectChannel={(ch) => {
           setSelectedChannel(ch);
+          if (ch.guildId) {
+            useChannelNavStore.getState().recordChannelVisit(ch.guildId, ch.id);
+          }
           if (ch.type === "DM" || !ch.guildId) {
             setDmChannels((prev) =>
               prev.map((dm) =>
@@ -3381,8 +3569,12 @@ export const App: React.FC = () => {
             prev.some((g) => g.id === newGuild.id) ? prev : [...prev, newGuild],
           );
           setSelectedGuildId(newGuild.id);
-          if (newGuild.channels && newGuild.channels.length > 0) {
-            setSelectedChannel(newGuild.channels[0]);
+          const targetChannel = resolveGuildChannel(newGuild, null, true);
+          setSelectedChannel(targetChannel);
+          if (targetChannel?.guildId) {
+            useChannelNavStore
+              .getState()
+              .recordChannelVisit(targetChannel.guildId, targetChannel.id);
           }
         }}
         onOpenJoinModal={() => setIsJoinGuildOpen(true)}
@@ -3402,8 +3594,24 @@ export const App: React.FC = () => {
               setGuilds(data);
               setSelectedGuildId(guildId);
               const target = data.find((g) => g.id === guildId);
-              if (target && target.channels.length > 0) {
-                setSelectedChannel(target.channels[0]);
+              if (target) {
+                const lastChId = useChannelNavStore
+                  .getState()
+                  .getLastVisitedChannel(target.id);
+                const targetChannel = resolveGuildChannel(
+                  target,
+                  lastChId,
+                  true,
+                );
+                setSelectedChannel(targetChannel);
+                if (targetChannel?.guildId) {
+                  useChannelNavStore
+                    .getState()
+                    .recordChannelVisit(
+                      targetChannel.guildId,
+                      targetChannel.id,
+                    );
+                }
               }
             })
             .catch(() => {
@@ -3445,6 +3653,11 @@ export const App: React.FC = () => {
               }),
             );
             setSelectedChannel(newChannel);
+            if (newChannel.guildId) {
+              useChannelNavStore
+                .getState()
+                .recordChannelVisit(newChannel.guildId, newChannel.id);
+            }
           }}
         />
       )}
@@ -3555,6 +3768,7 @@ export const App: React.FC = () => {
                   if (ch) {
                     setSelectedGuildId(g.id);
                     setSelectedChannel(ch);
+                    useChannelNavStore.getState().recordChannelVisit(g.id, ch.id);
                     break;
                   }
                 }
@@ -3575,12 +3789,23 @@ export const App: React.FC = () => {
           );
         }}
         onGuildDeleted={(deletedGuildId) => {
+          useChannelNavStore.getState().removeGuildMemory(deletedGuildId);
           setGuilds((prev) => prev.filter((g) => g.id !== deletedGuildId));
           if (selectedGuildId === deletedGuildId) {
             const remaining = guilds.filter((g) => g.id !== deletedGuildId);
             if (remaining.length > 0) {
-              setSelectedGuildId(remaining[0].id);
-              setSelectedChannel(remaining[0].channels[0] || null);
+              const nextGuild = remaining[0];
+              setSelectedGuildId(nextGuild.id);
+              const lastChId = useChannelNavStore
+                .getState()
+                .getLastVisitedChannel(nextGuild.id);
+              const targetChannel = resolveGuildChannel(nextGuild, lastChId, true);
+              setSelectedChannel(targetChannel);
+              if (targetChannel?.guildId) {
+                useChannelNavStore
+                  .getState()
+                  .recordChannelVisit(targetChannel.guildId, targetChannel.id);
+              }
             } else {
               setSelectedGuildId(null);
               setSelectedChannel(null);

@@ -83,11 +83,9 @@ test.describe("Tescord 五大音视频与状态同步核心能力 E2E 自动化�
 
     // 在页面环境中通过 useSettingsStore 设置多项核心音频与视频参数
     await page.evaluate(() => {
-      const store = (window as any).useSettingsStore?.getState?.() ||
-        JSON.parse(localStorage.getItem("tescord_user_settings") || "{}");
-      
-      const updatedSettings = {
-        audio: {
+      const store = (window as any).useSettingsStore;
+      if (store?.getState) {
+        store.getState().setAudioConfig({
           inputMode: "PTT",
           pushToTalkKey: "KeyV",
           pushToTalkReleaseDelay: 350,
@@ -95,19 +93,37 @@ test.describe("Tescord 五大音视频与状态同步核心能力 E2E 自动化�
           vadSensitivity: 42,
           manualGain: 160,
           highFidelityMusic: true,
-        },
-        video: {
+        });
+        store.getState().setVideoConfig({
           preferredVideoCodec: "h265",
           enableBackupCodec: false,
           customBitrate: 8000000,
-        },
-        outputVolume: 125,
-        userVolumes: {
-          "user-friend-1": 175,
-        },
-      };
-
-      localStorage.setItem("tescord_user_settings", JSON.stringify({ state: updatedSettings, version: 0 }));
+        });
+        store.getState().setOutputVolume(125);
+        store.getState().setUserVolume("user-friend-1", 175);
+      } else {
+        const updatedSettings = {
+          audio: {
+            inputMode: "PTT",
+            pushToTalkKey: "KeyV",
+            pushToTalkReleaseDelay: 350,
+            noiseSuppressionMode: "dtln",
+            vadSensitivity: 42,
+            manualGain: 160,
+            highFidelityMusic: true,
+          },
+          video: {
+            preferredVideoCodec: "h265",
+            enableBackupCodec: false,
+            customBitrate: 8000000,
+          },
+          outputVolume: 125,
+          userVolumes: {
+            "user-friend-1": 175,
+          },
+        };
+        localStorage.setItem("tescord_user_settings", JSON.stringify({ state: updatedSettings, version: 0 }));
+      }
     });
 
     // 模拟用户按下 F5 刷新页面

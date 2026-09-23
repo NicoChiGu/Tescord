@@ -16,13 +16,15 @@ import i18n from "../i18n/index.js";
 interface SettingsState extends UserSettingsDTO {
   isCloudSyncing: boolean;
   lastCloudSyncedAt: number | null;
-  mutedChannels: Record<string, ChannelMuteConfig>;
+  guildPositions: string[];
+  userNotes: Record<string, string>;
 
   // Actions
   setAudioConfig: (partial: Partial<AudioProcessingConfig>) => void;
   setVideoConfig: (partial: Partial<VideoSettingsConfig>) => void;
   setOutputVolume: (volume: number) => void;
   setUserVolume: (userId: string, volume: number) => void;
+  setUserNote: (targetUserId: string, note: string) => void;
   setLanguage: (lang: SupportedLocale) => void;
   setVoiceTransmissionMode: (mode: VoiceTransmissionMode) => void;
   setChannelMute: (channelId: string, durationMs: number | null) => void;
@@ -72,6 +74,7 @@ export const useSettingsStore = create<SettingsState>()(
       voiceTransmissionMode: "sfu",
       mutedChannels: {},
       guildPositions: [],
+      userNotes: {},
       isCloudSyncing: false,
       lastCloudSyncedAt: null,
 
@@ -107,6 +110,20 @@ export const useSettingsStore = create<SettingsState>()(
             [userId]: clamped,
           },
         }));
+        get().syncToCloud();
+      },
+
+      setUserNote: (targetUserId, note) => {
+        const trimmed = note.trim();
+        set((state) => {
+          const updated = { ...state.userNotes };
+          if (trimmed) {
+            updated[targetUserId] = trimmed;
+          } else {
+            delete updated[targetUserId];
+          }
+          return { userNotes: updated };
+        });
         get().syncToCloud();
       },
 
@@ -205,6 +222,10 @@ export const useSettingsStore = create<SettingsState>()(
               guildPositions: Array.isArray(cloudSettings.guildPositions)
                 ? cloudSettings.guildPositions
                 : state.guildPositions,
+              userNotes: {
+                ...state.userNotes,
+                ...(cloudSettings.userNotes || {}),
+              },
               lastCloudSyncedAt: Date.now(),
             }));
 
@@ -245,6 +266,7 @@ export const useSettingsStore = create<SettingsState>()(
             voiceTransmissionMode: state.voiceTransmissionMode,
             mutedChannels: state.mutedChannels,
             guildPositions: state.guildPositions,
+            userNotes: state.userNotes,
           };
 
           try {
@@ -274,7 +296,12 @@ export const useSettingsStore = create<SettingsState>()(
         voiceTransmissionMode: state.voiceTransmissionMode,
         mutedChannels: state.mutedChannels,
         guildPositions: state.guildPositions,
+        userNotes: state.userNotes,
       }),
     },
   ),
 );
+
+if (typeof window !== "undefined") {
+  (window as any).useSettingsStore = useSettingsStore;
+}

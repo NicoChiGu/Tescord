@@ -131,6 +131,9 @@ export class GatewayManager {
     switch (payload.op) {
       case GatewayOpCode.HEARTBEAT:
         conn.isAlive = true;
+        if (conn.userId) {
+          cacheStore.refreshUserPresence(conn.userId, 90).catch(() => {});
+        }
         const hbData = payload.d as HeartbeatData | undefined;
         this.send(conn.ws, {
           op: GatewayOpCode.HEARTBEAT_ACK,
@@ -213,7 +216,11 @@ export class GatewayManager {
           },
           lastActiveAt: new Date().toISOString(),
         };
-        await cacheStore.setUserPresence(user.id, presence);
+        await cacheStore.setUserPresence(
+          user.id,
+          presence,
+          90,
+        );
 
         // 获取当前用户已加入的公会数据供客户端初始化
         const guilds = await prisma.guild.findMany({
@@ -360,7 +367,11 @@ export class GatewayManager {
           },
           lastActiveAt: new Date().toISOString(),
         };
-        await cacheStore.setUserPresence(conn.userId, presence);
+        await cacheStore.setUserPresence(
+          conn.userId,
+          presence,
+          data.status === "OFFLINE" ? 86400 : 90,
+        );
 
         // 3. 向共同公会广播 PRESENCE_UPDATE
         await this.broadcastPresenceUpdate(conn.userId, presence);
@@ -793,6 +804,28 @@ export class GatewayManager {
       });
       const targetUserIds = new Set(mutualMembers.map((m) => m.userId));
       targetUserIds.add(userId);
+
+      // 2.5 获取与该用户有私信往来的所有联系人 ID (即使两人没有共同公会)
+      const userDmChannels = await prisma.channelRecipient.findMany({
+        where: {
+          userId,
+          channel: { type: "DM" },
+        },
+        select: { channelId: true },
+      });
+      if (userDmChannels.length > 0) {
+        const dmChannelIds = userDmChannels.map((c) => c.channelId);
+        const dmPeers = await prisma.channelRecipient.findMany({
+          where: {
+            channelId: { in: dmChannelIds },
+            userId: { not: userId },
+          },
+          select: { userId: true },
+        });
+        for (const peer of dmPeers) {
+          targetUserIds.add(peer.userId);
+        }
+      }
 
       // 3. 向所有相关在线设备推送
       for (const targetId of targetUserIds) {

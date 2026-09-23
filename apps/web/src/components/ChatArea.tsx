@@ -50,6 +50,7 @@ import { TypingIndicator } from "./chat/TypingIndicator.js";
 import { ImageAttachment } from "./chat/ImageAttachment.js";
 import { PinnedMessagesPopover } from "./PinnedMessagesPopover.js";
 import { useUserProfilePopoutStore } from "../stores/useUserProfilePopoutStore.js";
+import { usePresenceStore } from "../stores/usePresenceStore.js";
 import { useContextMenuStore } from "../stores/useContextMenuStore.js";
 import { useMomentumScroll } from "../hooks/useMomentumScroll.js";
 import { InputContextMenu } from "./context-menu/InputContextMenu.js";
@@ -547,13 +548,35 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         guild?.members?.find(
           (m) => m.userId === author.id || m.user?.id === author.id,
         ) || null;
-      const fullUser: User = member?.user || {
+      const dmRecipient = channel.recipients?.find((r) => r.id === author.id);
+      const userPresence = usePresenceStore.getState().getUserPresence(author.id);
+      const effectiveStatus =
+        userPresence?.status ||
+        dmRecipient?.status ||
+        member?.user?.status ||
+        "OFFLINE";
+      const effectiveCustomStatus =
+        userPresence?.customStatus !== undefined
+          ? userPresence.customStatus
+          : dmRecipient?.customStatus || member?.user?.customStatus;
+      const effectiveActivities =
+        userPresence?.activities ||
+        dmRecipient?.activities ||
+        member?.user?.activities;
+
+      const fullUser: User = {
+        ...(member?.user || dmRecipient || {}),
         id: author.id,
         username: author.username,
         avatarUrl: author.avatarUrl,
-        email: "",
-        status: "OFFLINE",
-        createdAt: new Date().toISOString(),
+        email: member?.user?.email || dmRecipient?.email || "",
+        status: effectiveStatus,
+        customStatus: effectiveCustomStatus,
+        activities: effectiveActivities,
+        createdAt:
+          member?.user?.createdAt ||
+          dmRecipient?.createdAt ||
+          new Date().toISOString(),
       };
 
       const memberRoleIds = new Set(
@@ -577,7 +600,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         triggerId: `chat-${author.id}`,
       });
     },
-    [guild, togglePopout],
+    [guild, channel.recipients, togglePopout],
   );
 
   const handleOpenProfileByName = useCallback(
@@ -589,6 +612,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           m.nickname?.toLowerCase() === cleanName,
       );
       if (member && member.user) {
+        const userPresence = usePresenceStore.getState().getUserPresence(member.user.id);
         const memberRoleIds = new Set(
           member?.roleIds
             ? Array.isArray(member.roleIds)
@@ -601,7 +625,15 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           .sort((a, b) => b.position - a.position);
 
         togglePopout({
-          user: member.user,
+          user: {
+            ...member.user,
+            status: userPresence?.status || member.user.status,
+            customStatus:
+              userPresence?.customStatus !== undefined
+                ? userPresence.customStatus
+                : member.user.customStatus,
+            activities: userPresence?.activities || member.user.activities,
+          },
           member,
           guild,
           targetRect: rect,
@@ -615,14 +647,27 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         (m) => m.author.username.toLowerCase() === cleanName,
       )?.author;
       if (msgAuthor) {
+        const dmRecipient = channel.recipients?.find((r) => r.id === msgAuthor.id);
+        const userPresence = usePresenceStore.getState().getUserPresence(msgAuthor.id);
+        const effectiveStatus =
+          userPresence?.status || dmRecipient?.status || "OFFLINE";
+        const effectiveCustomStatus =
+          userPresence?.customStatus !== undefined
+            ? userPresence.customStatus
+            : dmRecipient?.customStatus;
+        const effectiveActivities =
+          userPresence?.activities || dmRecipient?.activities;
+
         togglePopout({
           user: {
             id: msgAuthor.id,
             username: msgAuthor.username,
             avatarUrl: msgAuthor.avatarUrl,
-            email: "",
-            status: "OFFLINE",
-            createdAt: new Date().toISOString(),
+            email: dmRecipient?.email || "",
+            status: effectiveStatus,
+            customStatus: effectiveCustomStatus,
+            activities: effectiveActivities,
+            createdAt: dmRecipient?.createdAt || new Date().toISOString(),
           },
           member: null,
           guild,
@@ -633,7 +678,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         });
       }
     },
-    [guild, messages, togglePopout],
+    [guild, channel.recipients, messages, togglePopout],
   );
 
   const handleSetReplyingTo = useCallback((m: Message) => {
@@ -801,7 +846,23 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   );
 
   const checkUnreadDividerVisibility = useCallback(() => {
-    if (!firstUnreadMessageId || isFadingDivider) return;
+    if (!firstUnreadMessageId || isFadingDivider || !isInitialPositionedRef.current) return;
+
+    // 若当前已处于最底部，直接核销所有未读并退出，避免在底部挂起定时器或残留红线
+    if (isNearBottomRef.current) {
+      if (dividerVisibleTimerRef.current) {
+        clearTimeout(dividerVisibleTimerRef.current);
+        dividerVisibleTimerRef.current = null;
+      }
+      if (displayedMessages.length > 0) {
+        const maxSeq = displayedMessages[displayedMessages.length - 1].sequence || 0;
+        if (maxSeq > 0) {
+          markDividerAsRead(maxSeq);
+        }
+      }
+      return;
+    }
+
     const unreadIdx = displayedMessages.findIndex((m) => m.id === firstUnreadMessageId);
     if (unreadIdx === -1) return;
 
@@ -864,7 +925,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         scrollContainerRef.current;
       currentScrollTopRef.current = scrollTop;
       currentScrollHeightRef.current = scrollHeight;
-      const nearBottom = scrollHeight - scrollTop - clientHeight < 120;
+      const isScrollable = scrollHeight > clientHeight + 20;
+      const nearBottom = isScrollable
+        ? scrollHeight - scrollTop - clientHeight < 120 && scrollTop > 0
+        : (isNearBottomRef.current && scrollTop === 0);
       if (isNearBottomRef.current !== nearBottom) {
         setIsNearBottom(nearBottom);
         isNearBottomRef.current = nearBottom;
@@ -878,9 +942,21 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         isNearBottom: nearBottom,
       });
 
+      // 核心优化：若滚动触底，说明用户已经浏览至最新内容，立即核销未读红线并同步已读状态
+      if (nearBottom && displayedMessages.length > 0) {
+        if (dividerVisibleTimerRef.current) {
+          clearTimeout(dividerVisibleTimerRef.current);
+          dividerVisibleTimerRef.current = null;
+        }
+        const maxSeq = displayedMessages[displayedMessages.length - 1].sequence || 0;
+        if (maxSeq > 0 && (lastReadSequenceRef.current < maxSeq || (initialUnreadSequence ?? 0) < maxSeq)) {
+          markDividerAsRead(maxSeq);
+        }
+      }
+
       checkUnreadDividerVisibility();
     });
-  }, [channel.id, checkUnreadDividerVisibility]);
+  }, [channel.id, displayedMessages, initialUnreadSequence, markDividerAsRead, checkUnreadDividerVisibility]);
 
   const scrollToBottom = (smooth = true) => {
     if (scrollContainerRef.current) {
@@ -888,6 +964,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         top: scrollContainerRef.current.scrollHeight,
         behavior: smooth ? "smooth" : "auto",
       });
+      // 延迟二次校准，彻底防止虚拟列表动态尺寸测量撑大导致的未完全触底
+      setTimeout(() => {
+        if (scrollContainerRef.current) {
+          scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+          setIsNearBottom(true);
+          isNearBottomRef.current = true;
+        }
+      }, 150);
     } else {
       messagesEndRef.current?.scrollIntoView({
         behavior: smooth ? "smooth" : "auto",
@@ -895,6 +979,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     }
     setIsNearBottom(true);
     isNearBottomRef.current = true;
+    if (displayedMessages.length > 0) {
+      if (dividerVisibleTimerRef.current) {
+        clearTimeout(dividerVisibleTimerRef.current);
+        dividerVisibleTimerRef.current = null;
+      }
+      const maxSeq = displayedMessages[displayedMessages.length - 1].sequence || 0;
+      if (maxSeq > 0) {
+        markDividerAsRead(maxSeq);
+      }
+    }
   };
 
   const handleJumpToMessage = (targetMessageId: string) => {
@@ -1046,6 +1140,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       const savedLastRead = meta?.lastReadSequence || 0;
       setInitialUnreadSequence(savedLastRead);
       lastReadSequenceRef.current = savedLastRead;
+      if (meta && meta.isNearBottom === false) {
+        setIsNearBottom(false);
+        isNearBottomRef.current = false;
+      }
     });
 
     return () => {
@@ -1091,10 +1189,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
         const isFarFromBottom =
           meta &&
-          meta.scrollTop > 0 &&
+          typeof meta.scrollTop === "number" &&
           (scrollContainerRef.current.scrollHeight - meta.scrollTop - scrollContainerRef.current.clientHeight >= 80);
 
-        if (meta && (!meta.isNearBottom || isFarFromBottom) && meta.scrollTop > 0) {
+        if (meta && (meta.isNearBottom === false || isFarFromBottom) && typeof meta.scrollTop === "number") {
           scrollContainerRef.current.scrollTop = meta.scrollTop;
           rowVirtualizer.scrollToOffset(meta.scrollTop);
           currentScrollTopRef.current = meta.scrollTop;
@@ -1107,18 +1205,30 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           currentScrollTopRef.current = scrollContainerRef.current.scrollTop;
           setIsNearBottom(true);
           isNearBottomRef.current = true;
+
+          // 核心优化：若初始状态即为贴底，说明用户直接处于最新消息底部，立即同步已读，杜绝红线残留
+          const maxSeq = messages.length > 0 ? messages[messages.length - 1].sequence || 0 : 0;
+          if (maxSeq > 0) {
+            lastReadSequenceRef.current = Math.max(lastReadSequenceRef.current, maxSeq);
+            setInitialUnreadSequence(lastReadSequenceRef.current);
+            messageDb.saveChannelMeta(channel.id, {
+              lastReadSequence: lastReadSequenceRef.current,
+            });
+            onMarkChannelAsRead?.(channel.id, lastReadSequenceRef.current);
+          }
         }
 
         isInitialPositionedRef.current = true;
         lastMessageIdRef.current = messages[messages.length - 1]?.id || null;
+        checkUnreadDividerVisibility();
 
         // 延迟二次校准，解决虚拟列表子项在初次 DOM 测量高度完成后发生位移抖动
         setTimeout(() => {
           if (
             scrollContainerRef.current &&
             meta &&
-            (!meta.isNearBottom || isFarFromBottom) &&
-            meta.scrollTop > 0
+            (meta.isNearBottom === false || isFarFromBottom) &&
+            typeof meta.scrollTop === "number"
           ) {
             if (
               Math.abs(scrollContainerRef.current.scrollTop - meta.scrollTop) > 5
@@ -1126,11 +1236,17 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               scrollContainerRef.current.scrollTop = meta.scrollTop;
               rowVirtualizer.scrollToOffset(meta.scrollTop);
             }
+          } else if (scrollContainerRef.current && isNearBottomRef.current) {
+            // 贴底状态下的二次对齐
+            scrollContainerRef.current.scrollTop = scrollContainerRef.current.scrollHeight;
+            setIsNearBottom(true);
+            isNearBottomRef.current = true;
           }
+          checkUnreadDividerVisibility();
         }, 50);
       });
     });
-  }, [messages.length, displayedMessages, channel.id]);
+  }, [messages.length, displayedMessages, channel.id, onMarkChannelAsRead, checkUnreadDividerVisibility]);
 
   // 运行中的单条实时新消息到达：仅当自身发送或原本就在底部时平滑滚到底部
   useEffect(() => {
@@ -1140,9 +1256,18 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       lastMessageIdRef.current = latestMsg.id;
       if (isNearBottomRef.current) {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+        // 核心优化：在最底部接收实时新消息，直接同步已读游标，避免在其上方误弹出红线
+        if (latestMsg.sequence) {
+          lastReadSequenceRef.current = Math.max(lastReadSequenceRef.current, latestMsg.sequence);
+          setInitialUnreadSequence(lastReadSequenceRef.current);
+          messageDb.saveChannelMeta(channel.id, {
+            lastReadSequence: lastReadSequenceRef.current,
+          });
+          onMarkChannelAsRead?.(channel.id, lastReadSequenceRef.current);
+        }
       }
     }
-  }, [messages, currentUser.id]);
+  }, [messages, currentUser.id, channel.id, onMarkChannelAsRead]);
 
   // 监听全局 @提及 事件（来自右侧成员列表或用户浮层），追加至文本框并聚焦
   useEffect(() => {
@@ -1727,7 +1852,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                 const msg = displayedMessages[virtualRow.index];
                 if (!msg) return null;
-                const isFirstUnread = msg.id === firstUnreadMessageId;
+                const isFirstUnread = msg.id === firstUnreadMessageId && !(isInitialPositionedRef.current && isNearBottom);
 
                 return (
                   <div

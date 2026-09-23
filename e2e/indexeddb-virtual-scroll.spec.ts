@@ -354,11 +354,12 @@ test.describe("客户端 IndexedDB 本地秒开、虚拟视口与未读红线滚
     const scrollContainer = virtualContainer.locator("xpath=..");
     await scrollContainer.evaluate((el) => {
       el.scrollTop = el.scrollHeight;
+      el.dispatchEvent(new Event("scroll"));
     });
     await page.waitForTimeout(300);
 
-    // 核心断言 2：处于底部时，未读红线绝对不被自动销毁，依然稳定存在于 DOM
-    await expect(unreadDivider).toBeAttached();
+    // 核心断言 2：当用户处于最底下时，未读红线彻底消除并不再显示
+    await expect(unreadDivider).not.toBeVisible({ timeout: 5000 });
   });
 
   test("验证虚拟卡片绝对定位绝无重叠（Overlap-Free）：多条不同高度消息自适应排版，各卡片边界绝不叠压", async ({

@@ -180,4 +180,105 @@ test.describe("真实用户在线状态 (Online Presence / Status) 端到端全�
     });
     await expect(jackeyItem.getByText("重回战线 🚀")).toBeVisible();
   });
+
+  test("验证私信会话列表中好友状态指示灯与 PRESENCE_UPDATE 实时一致性联动", async ({
+    page,
+  }) => {
+    // 拦截私信列表接口，返回包含 Alice 的私信会话
+    await page.route("**/api/users/@me/channels", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          {
+            id: "dm_channel_alice",
+            type: "DM",
+            name: "Alice",
+            recipients: [
+              {
+                id: "usr_default_admin",
+                username: "Jackey",
+                status: "ONLINE",
+              },
+              {
+                id: "usr_alice",
+                username: "Alice",
+                status: "ONLINE",
+                customStatus: "正在钻研代码 💻",
+              },
+            ],
+            messages: [
+              {
+                id: "msg_alice_1",
+                channelId: "dm_channel_alice",
+                authorId: "usr_alice",
+                author: {
+                  id: "usr_alice",
+                  username: "Alice",
+                },
+                content: "你好呀 Jackey",
+                createdAt: new Date().toISOString(),
+              },
+            ],
+            lastMessage: {
+              id: "msg_alice_1",
+              content: "你好呀 Jackey",
+            },
+            unreadCount: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          },
+        ]),
+      });
+    });
+
+    await page.goto("/");
+
+    // 点击左侧边栏顶部的“私信与主页”按钮，切换至私信列表视图
+    const dmHomeBtn = page.getByRole("button", { name: "私信与主页" });
+    await expect(dmHomeBtn).toBeVisible({ timeout: 10000 });
+    await dmHomeBtn.click();
+
+    // 左侧呈现私信列表
+    const aliceDmItem = page.locator('[data-testid="dm-item-dm_channel_alice"]');
+    await expect(aliceDmItem).toBeVisible({ timeout: 10000 });
+
+    // 验证初始状态灯为在线绿色 (bg-discord-green)
+    await expect(aliceDmItem.locator(".bg-discord-green")).toBeVisible({
+      timeout: 5000,
+    });
+
+    // 模拟服务端广播 PRESENCE_UPDATE：将 Alice 置为 DND (请勿打扰)
+    await page.evaluate(() => {
+      const client = (window as any).__gatewayClient;
+      if (client) {
+        client.emit("PRESENCE_UPDATE", {
+          userId: "usr_alice",
+          status: "DND",
+          customStatus: "会议进行中 🔕",
+        });
+      }
+    });
+
+    // 验证私信列表中的 Alice 状态灯秒级变为红色 (bg-rose-500)
+    await expect(aliceDmItem.locator(".bg-rose-500")).toBeVisible({
+      timeout: 5000,
+    });
+
+    // 模拟服务端广播 PRESENCE_UPDATE：将 Alice 置为 OFFLINE (离线)
+    await page.evaluate(() => {
+      const client = (window as any).__gatewayClient;
+      if (client) {
+        client.emit("PRESENCE_UPDATE", {
+          userId: "usr_alice",
+          status: "OFFLINE",
+        });
+      }
+    });
+
+    // 验证私信列表中的 Alice 状态灯秒级变为离线灰色 (bg-zinc-500)
+    await expect(aliceDmItem.locator(".bg-zinc-500")).toBeVisible({
+      timeout: 5000,
+    });
+  });
 });

@@ -27,6 +27,8 @@ import {
 } from "lucide-react";
 import { resolveServerUrl } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
+import { usePresenceStore } from "../../stores/usePresenceStore.js";
+import { useSettingsStore } from "../../stores/useSettingsStore.js";
 import { gatewayClient } from "../../services/gateway.js";
 
 interface UserProfilePopoutProps {
@@ -85,6 +87,26 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
   const [isSavingStatus, setIsSavingStatus] = useState(false);
 
   const isSelf = user.id === currentUser.id;
+
+  // 用户私有备注 (Discord 规范：仅在查看他人时生效)
+  const userNotes = useSettingsStore((s) => s.userNotes);
+  const setUserNote = useSettingsStore((s) => s.setUserNote);
+  const currentUserNote = (!isSelf && userNotes ? userNotes[user.id] : "") || "";
+
+  const [isEditingNote, setIsEditingNote] = useState(false);
+  const [noteInput, setNoteInput] = useState(currentUserNote);
+  const noteInputRef = useRef<HTMLTextAreaElement>(null);
+
+  const presences = usePresenceStore((s) => s.presences);
+  const targetPresence = presences[user.id];
+  const effectiveStatus = isSelf
+    ? currentUser.status
+    : targetPresence?.status || user.status || "OFFLINE";
+  const effectiveCustomStatus = isSelf
+    ? currentUser.customStatus
+    : targetPresence?.customStatus !== undefined
+      ? targetPresence.customStatus
+      : user.customStatus;
 
   // 桌面端弹出卡片坐标与指向箭头垂直位置（自适应目标元素的左侧或右侧）
   const calculatePosition = (rect: DOMRect | null, measuredHeight?: number) => {
@@ -148,9 +170,9 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
     const measuredHeight = popoutRef.current?.offsetHeight;
     const newPos = calculatePosition(targetRect, measuredHeight);
     setPos(newPos);
-  }, [targetRect, isMobile, isRolesExpanded, isEditingStatus]);
+  }, [targetRect, isMobile, isRolesExpanded, isEditingStatus, isEditingNote]);
 
-  // 切换目标成员时，重置快捷消息输入与复制反馈状态
+  // 切换目标成员时，重置快捷消息输入、复制反馈及备注编辑状态
   useEffect(() => {
     setQuickMessage("");
     setCopied(false);
@@ -158,7 +180,9 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
     setIsRolesExpanded(false);
     setIsEditingStatus(false);
     setCustomStatusInput(currentUser.customStatus || "");
-  }, [user.id, currentUser.customStatus]);
+    setIsEditingNote(false);
+    setNoteInput(currentUserNote);
+  }, [user.id, currentUser.customStatus, currentUserNote]);
 
   // 进入状态编辑时自动聚焦输入框
   useEffect(() => {
@@ -166,6 +190,19 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
       setTimeout(() => statusInputRef.current?.focus(), 50);
     }
   }, [isEditingStatus]);
+
+  // 进入备注编辑时自动聚焦输入框并将光标移至末尾
+  useEffect(() => {
+    if (isEditingNote) {
+      setTimeout(() => {
+        if (noteInputRef.current) {
+          noteInputRef.current.focus();
+          const len = noteInputRef.current.value.length;
+          noteInputRef.current.setSelectionRange(len, len);
+        }
+      }, 50);
+    }
+  }, [isEditingNote]);
 
   // 监听点击外部 (Click Outside) 与 ESC 快捷键关闭
   useEffect(() => {
@@ -196,6 +233,9 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
         if (isEditingStatus) {
           setIsEditingStatus(false);
           setCustomStatusInput(currentUser.customStatus || "");
+        } else if (isEditingNote) {
+          setIsEditingNote(false);
+          setNoteInput(currentUserNote);
         } else if (isMoreMenuOpen) {
           setIsMoreMenuOpen(false);
         } else {
@@ -215,7 +255,22 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onClose, isEditingStatus, isMoreMenuOpen, currentUser.customStatus]);
+  }, [
+    isOpen,
+    onClose,
+    isEditingStatus,
+    isEditingNote,
+    currentUserNote,
+    isMoreMenuOpen,
+    currentUser.customStatus,
+  ]);
+
+  // 保存用户私有备注
+  const handleSaveNote = () => {
+    if (isSelf) return;
+    setUserNote(user.id, noteInput);
+    setIsEditingNote(false);
+  };
 
   // 复制用户 ID
   const handleCopyId = (e?: React.MouseEvent) => {
@@ -543,7 +598,7 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
               alt={user.username}
               className="w-[78px] h-[78px] rounded-full bg-[#1e1f22] object-cover ring-[6px] ring-[#232428] shadow-md transition-all duration-150"
             />
-            {renderStatusBadge(user.status)}
+            {renderStatusBadge(effectiveStatus)}
           </div>
 
           {/* 图1专属：头像右侧气泡式自定义状态 (带就地内联编辑) */}
@@ -611,14 +666,28 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
             >
               {member?.nickname || user.username}
             </h4>
-            <button
-              type="button"
-              className="text-[#949ba4] hover:text-white transition flex-shrink-0"
-              title="用户备注 / 复制 ID"
-              onClick={handleCopyId}
-            >
-              <FileText className="w-4 h-4" />
-            </button>
+            {!isSelf && (
+              <button
+                type="button"
+                data-testid="user-profile-note-btn"
+                className={`transition flex-shrink-0 p-0.5 rounded hover:bg-white/10 ${
+                  currentUserNote
+                    ? "text-[#5865f2] hover:text-[#7983f5]"
+                    : "text-[#949ba4] hover:text-white"
+                }`}
+                title={
+                  currentUserNote
+                    ? `备注: ${currentUserNote} (点击编辑)`
+                    : "添加备注"
+                }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsEditingNote(true);
+                }}
+              >
+                <FileText className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           {/* 用户名 + 徽章 */}
@@ -646,10 +715,10 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
           </div>
 
           {/* 图2查看他人时：若他人有 customStatus，在此处展示 */}
-          {!isSelf && user.customStatus && (
+          {!isSelf && effectiveCustomStatus && (
             <div className="mt-2 text-xs text-[#dbdee1] flex items-center gap-1.5 bg-[#111214]/60 px-2.5 py-1.5 rounded-lg border border-white/5">
               <Radio className="w-3 h-3 text-[#5865f2] flex-shrink-0 animate-pulse" />
-              <span className="truncate">{user.customStatus}</span>
+              <span className="truncate">{effectiveCustomStatus}</span>
             </div>
           )}
         </div>
@@ -776,6 +845,79 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
               )}
             </div>
           </div>
+
+          {/* 图2专属：用户私密备注 (NOTE) 区块 */}
+          {!isSelf && (
+            <div
+              data-testid="user-profile-note-section"
+              className="p-2.5 rounded-lg bg-[#111214]/60 border border-white/5 space-y-1.5 text-xs transition"
+            >
+              <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#b5bac1] flex items-center justify-between">
+                <span>备注</span>
+                {currentUserNote && !isEditingNote && (
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsEditingNote(true);
+                    }}
+                    className="text-[10px] text-[#949ba4] hover:text-white transition font-medium"
+                  >
+                    编辑
+                  </button>
+                )}
+              </div>
+
+              {isEditingNote ? (
+                <div className="space-y-1">
+                  <textarea
+                    ref={noteInputRef}
+                    data-testid="user-profile-note-textarea"
+                    value={noteInput}
+                    onChange={(e) => setNoteInput(e.target.value)}
+                    onBlur={handleSaveNote}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSaveNote();
+                      } else if (e.key === "Escape") {
+                        setIsEditingNote(false);
+                        setNoteInput(currentUserNote);
+                      }
+                    }}
+                    maxLength={256}
+                    placeholder="点击添加备注"
+                    className="w-full bg-[#1e1f22] text-xs text-[#dbdee1] placeholder-[#80848e] rounded-md p-2 border border-[#5865f2] focus:outline-none resize-none leading-relaxed shadow-inner"
+                    rows={2}
+                  />
+                  <div className="flex items-center justify-between text-[10px] text-[#80848e]">
+                    <span>按 Enter 保存，Esc 取消</span>
+                    <span>{noteInput.length}/256</span>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  data-testid="user-profile-note-display"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsEditingNote(true);
+                  }}
+                  className="cursor-pointer group/note hover:bg-white/5 p-1.5 rounded-md transition min-h-[28px] flex items-center"
+                  title="点击编辑备注"
+                >
+                  {currentUserNote ? (
+                    <div className="text-[#dbdee1] leading-relaxed whitespace-pre-wrap break-words">
+                      {currentUserNote}
+                    </div>
+                  ) : (
+                    <span className="text-[#80848e] italic group-hover/note:text-[#949ba4] transition">
+                      点击添加备注
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 5. 底部操作区 (图1：编辑个人资料大按钮；图2：傳訊息給 @用户 快捷私信输入框) */}

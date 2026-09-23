@@ -3,6 +3,7 @@ import { Guild, User, GuildMember, Role, parseRoleIds } from "@tescord/types";
 import { Crown, ShieldCheck, Gamepad2 } from "lucide-react";
 import { UserContextMenu } from "./context-menu/UserContextMenu.js";
 import { useUserProfilePopoutStore } from "../stores/useUserProfilePopoutStore.js";
+import { usePresenceStore } from "../stores/usePresenceStore.js";
 import { resolveServerUrl } from "../config.js";
 
 interface MemberListProps {
@@ -54,6 +55,7 @@ export const MemberList: React.FC<MemberListProps> = ({
 }) => {
   const { isOpen, activeTriggerId, togglePopout, closePopout } =
     useUserProfilePopoutStore();
+  const presences = usePresenceStore((s) => s.presences);
 
   // 切换服务器时自动关闭已打开的卡片
   React.useEffect(() => {
@@ -116,18 +118,35 @@ export const MemberList: React.FC<MemberListProps> = ({
         createdAt: m.joinedAt || new Date().toISOString(),
       };
 
+      const realtimePresence = presences[m.userId];
+      const memberStatus =
+        m.userId === currentUser.id
+          ? currentUser.status
+          : realtimePresence?.status || rawUser.status || "OFFLINE";
+      const customStatus =
+        m.userId === currentUser.id
+          ? currentUser.customStatus
+          : realtimePresence?.customStatus !== undefined
+            ? realtimePresence.customStatus
+            : rawUser.customStatus;
+
       return {
         id: m.userId,
         username: rawUser.username,
         nickname: m.nickname,
         avatarUrl: rawUser.avatarUrl,
-        status: rawUser.status || "ONLINE",
-        customStatus: rawUser.customStatus,
+        status: memberStatus,
+        customStatus,
         bio: rawUser.bio,
         isOwner,
         color: coloredRole?.color || null,
         highestHoistedRole: hoistedRole || null,
-        rawUser,
+        rawUser: {
+          ...rawUser,
+          status: memberStatus,
+          customStatus,
+          activities: realtimePresence?.activities || rawUser.activities,
+        },
         rawMember: m,
         roles: userRoles,
         joinedAt: m.joinedAt,
@@ -198,7 +217,7 @@ export const MemberList: React.FC<MemberListProps> = ({
     }
 
     return result;
-  }, [guild, currentUser]);
+  }, [guild, currentUser, presences]);
 
   return (
     <div

@@ -67,12 +67,16 @@ test.describe("游戏状态自动侦测与全维度展示卡个性化 (Profiles 
 
     // 1. 点击左下角用户条设置齿轮按钮打开设置模态框
     const settingsBtn = page.getByTestId("user-settings-gear-btn");
-    await expect(settingsBtn).toBeVisible({ timeout: 10000 });
-    await settingsBtn.click();
-
-    // 2. 验证设置模态框挂载
     const modal = page.getByTestId("user-settings-modal");
-    await expect(modal).toBeVisible();
+    await expect(settingsBtn).toBeVisible({ timeout: 10000 });
+
+    // 采用弹性重试机制触发点击，避免首屏初始加载与渲染水合丢弃点击事件
+    await expect(async () => {
+      if (!(await modal.isVisible())) {
+        await settingsBtn.click();
+      }
+      await expect(modal).toBeVisible({ timeout: 1000 });
+    }).toPass({ timeout: 10000 });
 
     // 3. 切换至“个人资料与展示卡 (Profiles)”选项卡
     const profileTabBtn = page.getByTestId("tab-profile-btn");

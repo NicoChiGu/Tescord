@@ -115,13 +115,13 @@ test.describe("消息滚动记忆、新消息红线消除与多类型附件上�
 
     // 确认已切换到 crypto-vault 频道
     await expect(
-      page.locator('div[data-channel-id="chn_default_text_02"]'),
+      page.locator('div[data-channel-id="chn_default_text_02"]').last(),
     ).toBeVisible({ timeout: 5000 });
 
     // 4. 切回 general 频道
     await generalChannelBtn.click();
     await expect(
-      page.locator('div[data-channel-id="chn_default_text_01"]'),
+      page.locator('div[data-channel-id="chn_default_text_01"]').last(),
     ).toBeVisible({ timeout: 5000 });
 
     // 等待位置恢复完成
@@ -185,7 +185,7 @@ test.describe("消息滚动记忆、新消息红线消除与多类型附件上�
     await generalChannelBtn.click();
 
     // A. 模拟拖拽文件进入聊天区域：验证 Discord 风格拖拽高亮蒙层展现
-    const chatContainer = page.locator('div[data-channel-id="chn_default_text_01"]');
+    const chatContainer = page.locator('div[data-channel-id="chn_default_text_01"]').last();
     await chatContainer.evaluate((node) => {
       const dt = new DataTransfer();
       dt.items.add(new File(["mock content"], "document.pdf", { type: "application/pdf" }));
@@ -241,5 +241,38 @@ test.describe("消息滚动记忆、新消息红线消除与多类型附件上�
 
     // 确认 malware.exe 绝不能进入待发送附件栏
     await expect(page.locator('text="malware.exe"')).not.toBeVisible();
+  });
+
+  test("4. 验证当用户进入频道处于最底部时，绝不呈现未读红线分割条与跳到最新浮条", async ({ page }) => {
+    await page.goto("/");
+
+    const serverBtn = page
+      .getByRole("button", { name: /Tescord 极客总部|极客/i })
+      .first();
+    await expect(serverBtn).toBeVisible({ timeout: 10000 });
+    await serverBtn.click();
+
+    // 注入 meta：即使存在未读消息 (lastReadSequence: 10)，但处于最底部 (isNearBottom: true)
+    await page.evaluate(async () => {
+      if ((window as any).__tescord_messageDb) {
+        await (window as any).__tescord_messageDb.saveChannelMeta("chn_default_text_02", {
+          lastReadSequence: 10,
+          scrollTop: 99999,
+          isNearBottom: true,
+        });
+      }
+    });
+
+    const cryptoChannelBtn = page.getByRole("button", { name: "crypto-vault" });
+    await expect(cryptoChannelBtn).toBeVisible({ timeout: 10000 });
+    await cryptoChannelBtn.click();
+
+    // 核心断言：由于用户处于最底下，绝不呈现未读红线（“以下是新消息”）
+    const unreadDivider = page.locator('[data-testid="unread-message-divider"]');
+    await expect(unreadDivider).not.toBeVisible();
+
+    // 核心断言：由于处于最底端，顶部“跳到最新消息”横幅绝不呈现
+    const floatingBanner = page.getByTitle("跳到最新消息");
+    await expect(floatingBanner).not.toBeVisible();
   });
 });

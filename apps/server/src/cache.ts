@@ -12,6 +12,7 @@ export interface ICacheStore {
   ): Promise<void>;
   getUserPresence(userId: string): Promise<UserPresence | null>;
   removeUserPresence(userId: string): Promise<void>;
+  refreshUserPresence(userId: string, ttlSeconds?: number): Promise<void>;
   batchGetPresences(userIds: string[]): Promise<Map<string, UserPresence>>;
   getAllOnlineUsers(): Promise<string[]>;
   publish(channel: string, message: string): Promise<void>;
@@ -87,6 +88,14 @@ export class MemoryCacheStore implements ICacheStore {
   async removeUserPresence(userId: string): Promise<void> {
     this.presences.delete(userId);
     await this.del(`presence:${userId}`);
+  }
+
+  async refreshUserPresence(userId: string, ttlSeconds = 90): Promise<void> {
+    const presence = this.presences.get(userId);
+    if (presence) {
+      presence.lastActiveAt = new Date().toISOString();
+      await this.set(`presence:${userId}`, JSON.stringify(presence), ttlSeconds);
+    }
   }
 
   async batchGetPresences(userIds: string[]): Promise<Map<string, UserPresence>> {
@@ -271,6 +280,17 @@ export class DualCacheStore implements ICacheStore {
       try {
         await this.redis.del(`presence:${userId}`);
         await this.redis.srem("online_users", userId);
+      } catch {
+        this.isRedisAvailable = false;
+      }
+    }
+  }
+
+  async refreshUserPresence(userId: string, ttlSeconds = 90): Promise<void> {
+    await this.memory.refreshUserPresence(userId, ttlSeconds);
+    if (this.isRedisAvailable && this.redis) {
+      try {
+        await this.redis.expire(`presence:${userId}`, ttlSeconds);
       } catch {
         this.isRedisAvailable = false;
       }

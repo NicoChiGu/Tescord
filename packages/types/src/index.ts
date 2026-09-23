@@ -902,6 +902,11 @@ export interface UserSettingsDTO {
   voiceTransmissionMode?: VoiceTransmissionMode; // 纯语音偏好模式 (默认 sfu)
   mutedChannels?: Record<string, ChannelMuteConfig>; // 频道静音配置项字典 (key 为 channelId)
   guildPositions?: string[]; // 用户个人服务器排序偏好列表 (guildId 顺序)
+  userNotes?: Record<string, string>; // 针对特定目标用户的私有备注字典 (targetUserId -> note)
+}
+
+export interface UpdateUserNoteDTO {
+  note: string;
 }
 
 export interface CameraDeviceInfo {

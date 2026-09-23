@@ -220,11 +220,13 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
         <div
           {...(canManageChannels ? sortableAttributes : {})}
           {...(canManageChannels ? listeners : {})}
+          data-channel-id={channel.id}
           className="relative group w-full flex items-center"
         >
           {isVoice ? (
             <button
               type="button"
+              data-channel-id={channel.id}
               data-testid={`channel-button-${channel.name}`}
               onClick={() => onSelectChannel(channel)}
               onDoubleClick={() => {
@@ -252,6 +254,7 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
           ) : (
             <button
               type="button"
+              data-channel-id={channel.id}
               data-testid={`channel-button-${channel.name}`}
               onClick={() => onSelectChannel(channel)}
               className={`w-full flex items-center pl-2 pr-12 py-1.5 rounded-md text-sm font-medium transition ${
@@ -499,6 +502,61 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
       return next;
     });
   };
+
+  // 滚动容器引用：用于实现频道列表定位滚动
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // 当选中的频道发生变化（例如切换服务器记忆恢复、点击频道或路由变化）时：
+  // 1. 若目标频道所处的分类当前处于折叠状态，自动自愈展开该分类并更新本地持久化；
+  // 2. 将频道列表平滑滚动到该频道位置（nearest 就近对齐，已在视野内则不晃动）
+  useEffect(() => {
+    if (!selectedChannelId || !guild) return;
+
+    const allChannels = clonedChannels || channels;
+    const targetChannel = allChannels.find((c) => c.id === selectedChannelId);
+
+    // 1. 若目标频道属于某个已被折叠的分类，自动展开
+    if (targetChannel?.parentId) {
+      setCollapsedCategories((prev) => {
+        if (prev[targetChannel.parentId!]) {
+          const next = { ...prev, [targetChannel.parentId!]: false };
+          if (storageKey) {
+            try {
+              localStorage.setItem(storageKey, JSON.stringify(next));
+            } catch {}
+          }
+          return next;
+        }
+        return prev;
+      });
+    }
+
+    // 2. 在渲染帧就绪后执行平滑就近滚动
+    let raf2: number | undefined;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => {
+        const container = scrollContainerRef.current;
+        if (!container) return;
+
+        const targetEl = container.querySelector(
+          `[data-channel-id="${selectedChannelId}"]`,
+        ) as HTMLElement | null;
+
+        if (targetEl) {
+          targetEl.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+            inline: "nearest",
+          });
+        }
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
+  }, [selectedChannelId, guild?.id, storageKey]);
 
   // 纯语音 Mesh P2P 点对点各节点独立物理延迟状态
   const [peerLatencies, setPeerLatencies] = useState<
@@ -931,7 +989,11 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
 
       {/* 频道列表与分类容器 */}
       {guild && (
-        <div className="flex-1 overflow-y-auto px-2 py-3 space-y-3">
+        <div
+          ref={scrollContainerRef}
+          data-testid="channel-list-scroll-container"
+          className="flex-1 overflow-y-auto px-2 py-3 space-y-3"
+        >
         <DndContext
           sensors={sensors}
           collisionDetection={customCollisionDetection}

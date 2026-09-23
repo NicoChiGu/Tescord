@@ -510,6 +510,10 @@ server.patch(
           ...(existingSettings.userVolumes || {}),
           ...(incomingSettings.userVolumes || {}),
         },
+        userNotes:
+          incomingSettings.userNotes !== undefined
+            ? incomingSettings.userNotes
+            : existingSettings.userNotes || {},
       };
       await prisma.user.update({
         where: { id: userId },
@@ -520,6 +524,88 @@ server.patch(
       return reply
         .status(400)
         .send({ error: err.message || "更新用户设置失败" });
+    }
+  },
+);
+
+// 获取当前用户的所有备注字典 (GET /api/users/@me/notes)
+server.get(
+  "/api/users/@me/notes",
+  { preValidation: [(server as any).authenticate] },
+  async (request: any, reply) => {
+    const userId = request.user?.sub;
+    if (!userId) {
+      return reply.status(401).send({ error: "无效用户" });
+    }
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { settings: true },
+    });
+    if (!user || !user.settings) {
+      return {};
+    }
+    try {
+      const settings = JSON.parse(user.settings);
+      return settings.userNotes || {};
+    } catch {
+      return {};
+    }
+  },
+);
+
+// 更新对某个特定用户的备注 (PUT /api/users/@me/notes/:targetUserId)
+server.put(
+  "/api/users/@me/notes/:targetUserId",
+  { preValidation: [(server as any).authenticate] },
+  async (request: any, reply) => {
+    const userId = request.user?.sub;
+    const { targetUserId } = request.params as { targetUserId: string };
+    if (!userId) {
+      return reply.status(401).send({ error: "无效用户" });
+    }
+    if (!targetUserId) {
+      return reply.status(400).send({ error: "目标用户ID缺失" });
+    }
+
+    try {
+      const { note } = (request.body as { note?: string }) || {};
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { settings: true },
+      });
+      if (!user) {
+        return reply.status(404).send({ error: "用户不存在" });
+      }
+
+      let settings: Record<string, any> = {};
+      if (user.settings) {
+        try {
+          settings = JSON.parse(user.settings);
+        } catch {}
+      }
+
+      const userNotes = { ...(settings.userNotes || {}) };
+      const trimmedNote = typeof note === "string" ? note.trim() : "";
+      if (trimmedNote) {
+        userNotes[targetUserId] = trimmedNote;
+      } else {
+        delete userNotes[targetUserId];
+      }
+
+      settings.userNotes = userNotes;
+
+      await prisma.user.update({
+        where: { id: userId },
+        data: { settings: JSON.stringify(settings) },
+      });
+
+      return reply.status(200).send({
+        success: true,
+        targetUserId,
+        note: trimmedNote,
+      });
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message || "更新用户备注失败" });
     }
   },
 );
