@@ -200,34 +200,49 @@ export const useSettingsStore = create<SettingsState>()(
 
           const cloudSettings: Partial<UserSettingsDTO> = await res.json();
           if (cloudSettings && typeof cloudSettings === "object") {
-            set((state) => ({
-              audio: { ...state.audio, ...(cloudSettings.audio || {}) },
-              video: { ...state.video, ...(cloudSettings.video || {}) },
-              outputVolume:
-                typeof cloudSettings.outputVolume === "number"
-                  ? cloudSettings.outputVolume
-                  : state.outputVolume,
-              userVolumes: {
-                ...state.userVolumes,
-                ...(cloudSettings.userVolumes || {}),
-              },
-              language: cloudSettings.language || state.language,
-              voiceTransmissionMode:
-                cloudSettings.voiceTransmissionMode ||
-                state.voiceTransmissionMode,
-              mutedChannels: {
-                ...state.mutedChannels,
-                ...(cloudSettings.mutedChannels || {}),
-              },
-              guildPositions: Array.isArray(cloudSettings.guildPositions)
-                ? cloudSettings.guildPositions
-                : state.guildPositions,
-              userNotes: {
-                ...state.userNotes,
-                ...(cloudSettings.userNotes || {}),
-              },
-              lastCloudSyncedAt: Date.now(),
-            }));
+            set((state) => {
+              const currentInput = state.audio.inputDeviceId;
+              const currentOutput = state.audio.outputDeviceId;
+              const currentCamera = state.video.cameraDeviceId;
+
+              return {
+                audio: {
+                  ...state.audio,
+                  ...(cloudSettings.audio || {}),
+                  inputDeviceId: currentInput,
+                  outputDeviceId: currentOutput,
+                },
+                video: {
+                  ...state.video,
+                  ...(cloudSettings.video || {}),
+                  cameraDeviceId: currentCamera,
+                },
+                outputVolume:
+                  typeof cloudSettings.outputVolume === "number"
+                    ? cloudSettings.outputVolume
+                    : state.outputVolume,
+                userVolumes: {
+                  ...state.userVolumes,
+                  ...(cloudSettings.userVolumes || {}),
+                },
+                language: cloudSettings.language || state.language,
+                voiceTransmissionMode:
+                  cloudSettings.voiceTransmissionMode ||
+                  state.voiceTransmissionMode,
+                mutedChannels: {
+                  ...state.mutedChannels,
+                  ...(cloudSettings.mutedChannels || {}),
+                },
+                guildPositions: Array.isArray(cloudSettings.guildPositions)
+                  ? cloudSettings.guildPositions
+                  : state.guildPositions,
+                userNotes: {
+                  ...state.userNotes,
+                  ...(cloudSettings.userNotes || {}),
+                },
+                lastCloudSyncedAt: Date.now(),
+              };
+            });
 
             // 如果云端语言和当前不同，优先尊重本地显式持久化的 tescord_locale 偏好
             const localLocale =
@@ -257,9 +272,16 @@ export const useSettingsStore = create<SettingsState>()(
           if (!isAuthenticated) return;
 
           const state = get();
+          const cleanAudio = { ...state.audio };
+          delete cleanAudio.inputDeviceId;
+          delete cleanAudio.outputDeviceId;
+
+          const cleanVideo = { ...state.video };
+          delete cleanVideo.cameraDeviceId;
+
           const payload: UserSettingsDTO = {
-            audio: state.audio,
-            video: state.video,
+            audio: cleanAudio,
+            video: cleanVideo,
             outputVolume: state.outputVolume,
             userVolumes: state.userVolumes,
             language: state.language,

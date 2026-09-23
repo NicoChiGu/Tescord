@@ -40,6 +40,9 @@ model User {
   dmRecipients  ChannelRecipient[]
   deviceKeys    DeviceKey[]
   platformAuditLogs PlatformAuditLog[] @relation("PlatformAuditActor")
+  createdRegistrationInvites RegistrationInvite[] @relation("CreatedRegistrationInvites")
+  registeredWithInviteCode   String?
+  registeredWithInvite       RegistrationInvite?  @relation("RegisteredWithInvite", fields: [registeredWithInviteCode], references: [code], onDelete: SetNull)
 }
 
 model RefreshToken {
@@ -320,3 +323,21 @@ model PlatformAuditLog {
   @@index([createdAt])
 }
 
+// 13. 全站注册邀请码。由超级管理员生成与管理。
+model RegistrationInvite {
+  code            String    @id
+  note            String?
+  createdById     String
+  createdBy       User      @relation("CreatedRegistrationInvites", fields: [createdById], references: [id], onDelete: Cascade)
+  maxUses         Int       @default(1) // 0 表示无限制
+  uses            Int       @default(0)
+  isRevoked       Boolean   @default(false)
+  expiresAt       DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  registeredUsers User[]    @relation("RegisteredWithInvite")
+
+  @@index([createdById])
+  @@index([isRevoked])
+}

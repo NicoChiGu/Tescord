@@ -66,6 +66,7 @@ export interface RegisterDTO {
   username: string;
   email: string;
   password: string;
+  inviteCode?: string;
 }
 
 export interface LoginDTO {
@@ -2676,8 +2677,42 @@ export interface SystemBroadcastDTO {
 
 export interface SystemSettingsDTO {
   allowRegistration: boolean;
+  requireInviteCode?: boolean;
   maintenanceMode?: boolean;
   systemAnnouncement?: string;
+}
+
+export interface RegistrationStatusResponse {
+  allowRegistration: boolean;
+  requireInviteCode: boolean;
+}
+
+export interface RegistrationInviteDTO {
+  code: string;
+  note?: string | null;
+  createdById: string;
+  createdByName?: string;
+  maxUses: number;
+  uses: number;
+  isRevoked: boolean;
+  expiresAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  registeredUserCount?: number;
+}
+
+export interface CreateRegistrationInviteDTO {
+  note?: string;
+  maxUses?: number;
+  expiresInDays?: number | null;
+  customCode?: string;
+}
+
+export interface RegistrationInviteListResponse {
+  invites: RegistrationInviteDTO[];
+  total: number;
+  page: number;
+  pageSize: number;
 }
 
 export interface MaintenanceUpdatePayload {

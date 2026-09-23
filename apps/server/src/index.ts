@@ -20,7 +20,9 @@ import { e2eeService } from "./services/e2ee.service.js";
 import { adminService } from "./services/admin.service.js";
 import { dmService } from "./services/dm.service.js";
 import { dmCallService } from "./services/dm-call.service.js";
+import { registrationInviteService } from "./services/registration-invite.service.js";
 import {
+  CreateRegistrationInviteDTO,
   GatewayOpCode,
   GatewayEvents,
   LoginDTO,
@@ -209,6 +211,7 @@ const publicApiPaths = new Set([
   "/api/auth/register",
   "/api/auth/login",
   "/api/auth/refresh",
+  "/api/auth/registration-status",
   "/api/discovery/guilds",
   "/api/livekit/webhook",
 ]);
@@ -288,6 +291,11 @@ server.get("/health", async () => {
 // ==========================================
 // 1. 用户与鉴权 API (Auth Routes)
 // ==========================================
+
+// 获取公开注册状态与策略
+server.get("/api/auth/registration-status", async () => {
+  return await authService.getRegistrationStatus();
+});
 
 // 注册
 server.post("/api/auth/register", async (request, reply) => {
@@ -4608,6 +4616,68 @@ server.patch(
   async (request) => {
     const body = request.body as any;
     return await adminService.updateSettings((request.user as any).sub, body);
+  },
+);
+
+// 获取注册邀请码列表 (分页/检索/状态筛选)
+server.get(
+  "/api/admin/registration-invites",
+  { preValidation: [(server as any).requireSuperAdmin] },
+  async (request) => {
+    const query = request.query as any;
+    return await registrationInviteService.listInvites({
+      page: query.page ? Number(query.page) : 1,
+      pageSize: query.pageSize ? Number(query.pageSize) : 20,
+      search: query.search,
+      status: query.status,
+    });
+  },
+);
+
+// 创建新注册邀请码
+server.post(
+  "/api/admin/registration-invites",
+  { preValidation: [(server as any).requireSuperAdmin] },
+  async (request, reply) => {
+    try {
+      const body = request.body as CreateRegistrationInviteDTO;
+      const adminId = (request.user as any).sub;
+      return await registrationInviteService.createInvite(body, adminId);
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message || "创建邀请码失败" });
+    }
+  },
+);
+
+// 作废或恢复邀请码
+server.patch(
+  "/api/admin/registration-invites/:code/revoke",
+  { preValidation: [(server as any).requireSuperAdmin] },
+  async (request, reply) => {
+    try {
+      const { code } = request.params as { code: string };
+      const body = request.body as { isRevoked?: boolean };
+      const isRevoked = body.isRevoked !== false; // 默认作废
+      const adminId = (request.user as any).sub;
+      return await registrationInviteService.setRevoked(code, isRevoked, adminId);
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message || "操作失败" });
+    }
+  },
+);
+
+// 删除邀请码
+server.delete(
+  "/api/admin/registration-invites/:code",
+  { preValidation: [(server as any).requireSuperAdmin] },
+  async (request, reply) => {
+    try {
+      const { code } = request.params as { code: string };
+      const adminId = (request.user as any).sub;
+      return await registrationInviteService.deleteInvite(code, adminId);
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message || "删除邀请码失败" });
+    }
   },
 );
 

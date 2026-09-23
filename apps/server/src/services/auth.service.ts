@@ -7,6 +7,7 @@ import {
   GatewayOpCode,
   LoginDTO,
   RegisterDTO,
+  RegistrationStatusResponse,
   UpdateProfileDTO,
   User,
   UserStatus,
@@ -14,6 +15,7 @@ import {
 import { prisma } from "../db.js";
 import { cacheStore } from "../cache.js";
 import { gatewayManager } from "../gateway.js";
+import { registrationInviteService } from "./registration-invite.service.js";
 
 export class AuthService {
   private fastify: FastifyInstance;
@@ -97,14 +99,38 @@ export class AuthService {
   }
 
   /**
-   * 用户注册 (检查唯一性、密码哈希、自动分配默认公会成员)
+   * 获取系统当前注册策略 (公开)
+   */
+  public async getRegistrationStatus(): Promise<RegistrationStatusResponse> {
+    const settings = await prisma.systemSetting.findMany({
+      where: {
+        key: { in: ["allow_registration", "require_invite_code"] },
+      },
+    });
+    const map = new Map(settings.map((s) => [s.key, s.value]));
+    return {
+      allowRegistration: map.get("allow_registration") !== "false",
+      requireInviteCode: map.get("require_invite_code") === "true",
+    };
+  }
+
+  /**
+   * 用户注册 (检查唯一性、注册策略、邀请码核销、密码哈希)
    */
   public async register(dto: RegisterDTO): Promise<AuthTokens> {
-    const allowSetting = await prisma.systemSetting.findUnique({
-      where: { key: "allow_registration" },
-    });
-    if (allowSetting && allowSetting.value === "false") {
+    const status = await this.getRegistrationStatus();
+    if (!status.allowRegistration) {
       throw new Error("当前系统已暂停新用户注册");
+    }
+
+    const inviteCode = dto.inviteCode?.trim().toUpperCase();
+    if (status.requireInviteCode && !inviteCode) {
+      throw new Error("系统已开启邀请码准入，请输入有效的注册邀请码");
+    }
+
+    if (inviteCode) {
+      // 预先校验邀请码基础有效性
+      await registrationInviteService.validateInvite(inviteCode);
     }
 
     const existing = await prisma.user.findFirst({
@@ -127,14 +153,26 @@ export class AuthService {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(dto.password, salt);
 
-    const user = await prisma.user.create({
-      data: {
-        username: dto.username,
-        email: dto.email.toLowerCase(),
-        passwordHash,
-        avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(dto.username)}`,
-        status: "ONLINE",
-      },
+    const user = await prisma.$transaction(async (tx) => {
+      if (inviteCode) {
+        // 在事务内进行严格核验并原子累加使用次数
+        await registrationInviteService.validateInvite(inviteCode, tx);
+        await tx.registrationInvite.update({
+          where: { code: inviteCode },
+          data: { uses: { increment: 1 } },
+        });
+      }
+
+      return tx.user.create({
+        data: {
+          username: dto.username,
+          email: dto.email.toLowerCase(),
+          passwordHash,
+          avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(dto.username)}`,
+          status: "ONLINE",
+          registeredWithInviteCode: inviteCode || null,
+        },
+      });
     });
 
     return this.generateAuthTokens(user);

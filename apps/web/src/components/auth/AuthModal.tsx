@@ -1,35 +1,75 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import {
   Lock,
   Mail,
   User as UserIcon,
   AlertCircle,
-  Sparkles,
   ArrowRight,
   Globe,
   ChevronDown,
+  KeyRound,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { SUPPORTED_LOCALES, SupportedLocale } from "@tescord/types";
+import {
+  SUPPORTED_LOCALES,
+  RegistrationStatusResponse,
+} from "@tescord/types";
 import { normalizeLocale } from "../../i18n/index.js";
+import { API_BASE } from "../../config.js";
+import { AuthBackground } from "./AuthBackground.js";
 
 export const AuthModal: React.FC = () => {
   const [isLogin, setIsLogin] = useState(true);
   const [username, setUsername] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [localError, setLocalError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
+
+  // 全站公开注册策略状态 (默认允许且免邀请码，随后异步自愈同步)
+  const [registrationPolicy, setRegistrationPolicy] = useState<RegistrationStatusResponse>({
+    allowRegistration: true,
+    requireInviteCode: false,
+  });
 
   const { t, i18n } = useTranslation(["auth", "common"]);
   const currentLocale = normalizeLocale(i18n.language);
   const isElectron =
     typeof window !== "undefined" && Boolean(window.electronAPI);
-  const isDev = import.meta.env.DEV;
 
   const { login, register } = useAuthStore();
+
+  // 组件挂载时获取系统注册状态，并解析 URL ?invite= 参数
+  useEffect(() => {
+    let isMounted = true;
+    fetch(`${API_BASE}/api/auth/registration-status`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: RegistrationStatusResponse | null) => {
+        if (isMounted && data) {
+          setRegistrationPolicy(data);
+        }
+      })
+      .catch(() => {});
+
+    try {
+      const search = typeof window !== "undefined" ? window.location.search : "";
+      if (search) {
+        const params = new URLSearchParams(search);
+        const code = params.get("invite");
+        if (code && isMounted) {
+          setIsLogin(false);
+          setInviteCode(code.trim().toUpperCase());
+        }
+      }
+    } catch {}
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,16 +86,24 @@ export const AuthModal: React.FC = () => {
           password,
         });
       } else {
+        if (!registrationPolicy.allowRegistration) {
+          throw new Error("当前系统已暂停新用户注册，请联系管理员");
+        }
         if (!username.trim() || !email.trim() || !password) {
           throw new Error(t("auth:error.requiredFieldsRegister"));
         }
         if (password.length < 6) {
           throw new Error(t("auth:error.passwordMinLength"));
         }
+        if (registrationPolicy.requireInviteCode && !inviteCode.trim()) {
+          throw new Error("系统已开启邀请码准入，请填写注册邀请码");
+        }
+
         await register({
           username: username.trim(),
           email: email.trim(),
           password,
+          inviteCode: inviteCode.trim().toUpperCase() || undefined,
         });
       }
     } catch (err: any) {
@@ -65,87 +113,37 @@ export const AuthModal: React.FC = () => {
     }
   };
 
-  interface PresetAccount {
-    name: string;
-    roleLabel: string;
-    email: string;
-    password: string;
-    dotColor: string;
-    tagClass: string;
-    borderHoverClass: string;
-  }
-
-  const PRESET_ACCOUNTS: PresetAccount[] = [
-    {
-      name: "Jackey",
-      roleLabel: "系统管理员",
-      email: "admin@tescord.local",
-      password: "adminpassword123",
-      dotColor: "bg-emerald-400",
-      tagClass: "text-emerald-400 bg-emerald-500/10 border-emerald-500/20",
-      borderHoverClass: "hover:border-emerald-500/40 hover:bg-emerald-500/5",
-    },
-    {
-      name: "Alice",
-      roleLabel: "纯净测试 A",
-      email: "alice@tescord.local",
-      password: "alicepassword123",
-      dotColor: "bg-sky-400",
-      tagClass: "text-sky-400 bg-sky-500/10 border-sky-500/20",
-      borderHoverClass: "hover:border-sky-500/40 hover:bg-sky-500/5",
-    },
-    {
-      name: "Bob",
-      roleLabel: "纯净测试 B",
-      email: "bob@tescord.local",
-      password: "bobpassword123",
-      dotColor: "bg-purple-400",
-      tagClass: "text-purple-400 bg-purple-500/10 border-purple-500/20",
-      borderHoverClass: "hover:border-purple-500/40 hover:bg-purple-500/5",
-    },
-  ];
-
-  const handleFillAccount = (acc: PresetAccount) => {
-    setIsLogin(true);
-    setEmail(acc.email);
-    setPassword(acc.password);
-    setLocalError(null);
-  };
-
   const content = (
     <div
       className={
         isElectron
           ? "relative w-full h-full bg-[#313338] px-6 py-5 flex flex-col justify-between overflow-y-auto select-none"
-          : "relative w-full max-w-md overflow-hidden rounded-2xl bg-[#313338] p-8 shadow-2xl border border-white/5"
+          : "relative z-10 w-full max-w-md overflow-hidden rounded-2xl bg-[#313338]/95 p-8 shadow-[0_20px_60px_rgba(0,0,0,0.65)] border border-white/10 backdrop-blur-md"
       }
     >
-      {/* 右上角快捷语言切换下拉器 */}
-      <div className="absolute top-4 right-4 z-10">
+      <div>
+        {/* 顶部语言切换器 */}
+        <div className="flex justify-end mb-2">
           <div className="relative">
             <button
               type="button"
-              data-testid="auth-language-selector"
               onClick={() => setIsLangMenuOpen(!isLangMenuOpen)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#2b2d31]/80 hover:bg-[#2b2d31] text-gray-300 hover:text-white border border-white/5 text-xs transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors border border-white/5"
             >
-              <Globe className="w-3.5 h-3.5 text-[#5865f2]" />
+              <Globe className="w-3.5 h-3.5" />
               <span>
-                {SUPPORTED_LOCALES.find((o) => o.code === currentLocale)
-                  ?.nativeName || "语言"}
+                {SUPPORTED_LOCALES.find((l) => l.code === currentLocale)?.nativeName ||
+                  "Language"}
               </span>
               <ChevronDown className="w-3 h-3 text-gray-400" />
             </button>
+
             {isLangMenuOpen && (
-              <div
-                data-testid="auth-lang-menu"
-                className="absolute right-0 mt-1 w-36 rounded-xl bg-[#2b2d31] border border-white/10 shadow-xl py-1 z-20 animate-in fade-in zoom-in-95 duration-100"
-              >
+              <div className="absolute right-0 top-full mt-1 w-36 py-1 bg-[#2b2d31] rounded-lg shadow-xl border border-white/10 z-50 animate-in fade-in zoom-in-95 duration-100">
                 {SUPPORTED_LOCALES.map((option) => (
                   <button
                     key={option.code}
                     type="button"
-                    data-testid={`auth-lang-${option.code}`}
                     onClick={async () => {
                       await i18n.changeLanguage(option.code);
                       setIsLangMenuOpen(false);
@@ -180,6 +178,14 @@ export const AuthModal: React.FC = () => {
           </p>
         </div>
 
+        {/* 注册暂停提示横幅 */}
+        {!isLogin && !registrationPolicy.allowRegistration && (
+          <div className="mb-4 flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/30 p-3 text-sm text-amber-300">
+            <AlertCircle className="w-4 h-4 flex-shrink-0 text-amber-400" />
+            <span>当前系统已暂停新用户注册，请联系超级管理员</span>
+          </div>
+        )}
+
         {/* 错误提示框 */}
         {localError && (
           <div className="mb-4 flex items-center gap-2 rounded-lg bg-rose-500/10 border border-rose-500/30 p-3 text-sm text-rose-400">
@@ -199,6 +205,7 @@ export const AuthModal: React.FC = () => {
                 <UserIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <input
                   type="text"
+                  data-testid="auth-username-input"
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
@@ -250,10 +257,46 @@ export const AuthModal: React.FC = () => {
             </div>
           </div>
 
+          {/* 注册模式下的邀请码输入项 */}
+          {!isLogin && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-xs font-bold uppercase tracking-wider text-gray-300">
+                  邀请码{" "}
+                  {registrationPolicy.requireInviteCode && (
+                    <span className="text-rose-400">*</span>
+                  )}
+                </label>
+                <span className="text-[11px] text-gray-400">
+                  {registrationPolicy.requireInviteCode ? "必填准入" : "选填"}
+                </span>
+              </div>
+              <div className="relative">
+                <KeyRound className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  data-testid="auth-invite-code-input"
+                  required={registrationPolicy.requireInviteCode}
+                  value={inviteCode}
+                  onChange={(e) => setInviteCode(e.target.value.toUpperCase())}
+                  placeholder={
+                    registrationPolicy.requireInviteCode
+                      ? "请输入注册邀请码"
+                      : "如有邀请码可在此填写 (选填)"
+                  }
+                  className="w-full rounded-lg bg-[#1e1f22] pl-10 pr-4 py-2.5 text-sm text-white uppercase placeholder-gray-500 font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-[#5865f2] transition-all"
+                />
+              </div>
+            </div>
+          )}
+
           <button
             type="submit"
             data-testid="auth-submit-btn"
-            disabled={isSubmitting}
+            disabled={
+              isSubmitting ||
+              (!isLogin && !registrationPolicy.allowRegistration)
+            }
             className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#5865f2] hover:bg-[#4752c4] active:scale-[0.98] py-2.5 text-sm font-semibold text-white shadow-md shadow-[#5865f2]/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-2"
           >
             {isSubmitting ? (
@@ -269,51 +312,15 @@ export const AuthModal: React.FC = () => {
           </button>
         </form>
 
-        {/* 底部切换模式与快速测试账号 */}
+        {/* 底部模式切换 */}
         <div className="mt-6 pt-4 border-t border-white/5 flex flex-col gap-3.5">
-          {/* 快速填入测试账号面板 (仅在开发环境下展示，生产环境自动隐藏) */}
-          {isDev && (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between text-xs text-gray-400">
-                <span className="flex items-center gap-1.5 font-medium text-gray-300">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  {t("auth:quickPresetLogin")}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-3 gap-2">
-                {PRESET_ACCOUNTS.map((acc) => (
-                  <button
-                    key={acc.email}
-                    type="button"
-                    onClick={() => handleFillAccount(acc)}
-                    title={`一键填入 ${acc.name} (${acc.email})`}
-                    className={`flex flex-col items-center justify-center py-2 px-1.5 rounded-xl bg-[#2b2d31]/80 border border-white/5 ${acc.borderHoverClass} transition-all duration-150 active:scale-[0.97] group`}
-                  >
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <span className={`w-2 h-2 rounded-full ${acc.dotColor}`} />
-                      <span className="text-xs font-semibold text-white group-hover:text-white transition-colors">
-                        {acc.name}
-                      </span>
-                    </div>
-                    <span
-                      className={`text-[10px] px-1.5 py-0.5 rounded border leading-none ${acc.tagClass}`}
-                    >
-                      {acc.roleLabel}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 模式切换 */}
-          <div className="flex items-center justify-between text-xs text-gray-400 pt-1 border-t border-white/5">
+          <div className="flex items-center justify-between text-xs text-gray-400">
             <span>
               {isLogin ? t("auth:needAccount") : t("auth:alreadyHaveAccount")}
             </span>
             <button
               type="button"
+              data-testid="auth-switch-mode-btn"
               onClick={() => {
                 setIsLogin(!isLogin);
                 setLocalError(null);
@@ -324,6 +331,7 @@ export const AuthModal: React.FC = () => {
             </button>
           </div>
         </div>
+      </div>
     </div>
   );
 
@@ -336,7 +344,8 @@ export const AuthModal: React.FC = () => {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-hidden animate-in fade-in duration-200">
+      <AuthBackground />
       {content}
     </div>
   );

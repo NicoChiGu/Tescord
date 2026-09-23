@@ -33,6 +33,7 @@ import {
 import { resolveLiveKitUrl } from "../config";
 import { audioMixer } from "./audioMixer.js";
 import { audioEngine } from "./audioEngine.js";
+import { soundManager } from "./soundManager.js";
 import { useSettingsStore } from "../stores/useSettingsStore.js";
 import { bitrateCalculator } from "./stats/BitrateCalculator.js";
 
@@ -329,6 +330,14 @@ export class LiveKitService {
   private onActiveAudioInputChangedCallbacks: Set<(deviceId: string) => void> =
     new Set();
 
+  // 扬声器/耳机音频输出设备状态
+  public selectedAudioOutputDeviceId: string =
+    typeof localStorage !== "undefined"
+      ? localStorage.getItem("tescord_selected_audio_output_id") || "default"
+      : "default";
+  private onActiveAudioOutputChangedCallbacks: Set<(deviceId: string) => void> =
+    new Set();
+
   constructor() {
     // 读取持久化的用户音量与全局输出音量
     try {
@@ -494,6 +503,18 @@ export class LiveKitService {
       // 串联: masterCompressor -> masterGainNode -> destination
       this.masterCompressor.connect(this.masterGainNode);
       this.masterGainNode.connect(this.playbackAudioContext.destination);
+
+      if (
+        this.selectedAudioOutputDeviceId &&
+        this.selectedAudioOutputDeviceId !== "default" &&
+        typeof (this.playbackAudioContext as any).setSinkId === "function"
+      ) {
+        (this.playbackAudioContext as any)
+          .setSinkId(this.selectedAudioOutputDeviceId)
+          .catch((e: any) =>
+            console.warn("[LiveKit] AudioContext setSinkId failed:", e),
+          );
+      }
     }
 
     if (this.playbackAudioContext.state === "suspended") {
@@ -902,6 +923,21 @@ export class LiveKitService {
   ) {
     const identity = participant.identity;
     const audioElement = track.attach() as HTMLAudioElement;
+
+    // 路由远端音频输出设备
+    const outputId = this.getAudioOutputDeviceId();
+    if (
+      outputId &&
+      outputId !== "default" &&
+      typeof (audioElement as any).setSinkId === "function"
+    ) {
+      (audioElement as any).setSinkId(outputId).catch((err: any) => {
+        console.warn(
+          `[LiveKit] Failed to setSinkId on audio element for ${identity}:`,
+          err,
+        );
+      });
+    }
 
     // 优先读取本地持久化的音量记忆
     const persistentVol = this.userVolumeCache.get(identity) ?? 100;
@@ -1494,6 +1530,81 @@ export class LiveKitService {
     if (stream && this.room && this.isConnected) {
       await this.publishMicrophoneStream(stream, this.currentAudioBitrate);
     }
+    return true;
+  }
+
+  getAudioOutputDeviceId(): string {
+    return this.selectedAudioOutputDeviceId || "default";
+  }
+
+  onActiveAudioOutputChange(callback: (deviceId: string) => void): () => void {
+    this.onActiveAudioOutputChangedCallbacks.add(callback);
+    callback(this.getAudioOutputDeviceId());
+    return () => {
+      this.onActiveAudioOutputChangedCallbacks.delete(callback);
+    };
+  }
+
+  private notifyActiveAudioOutputChanged() {
+    const activeId = this.getAudioOutputDeviceId();
+    this.onActiveAudioOutputChangedCallbacks.forEach((cb) => {
+      try {
+        cb(activeId);
+      } catch (err) {
+        console.warn("Active audio output callback error:", err);
+      }
+    });
+  }
+
+  async switchAudioOutputDevice(deviceId: string): Promise<boolean> {
+    this.selectedAudioOutputDeviceId = deviceId;
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem("tescord_selected_audio_output_id", deviceId);
+    }
+    this.notifyActiveAudioOutputChanged();
+
+    const targetSink = deviceId === "default" ? "" : deviceId;
+
+    // 1. 设置 Web Audio PlaybackContext 的 sinkId
+    if (
+      this.playbackAudioContext &&
+      typeof (this.playbackAudioContext as any).setSinkId === "function"
+    ) {
+      try {
+        await (this.playbackAudioContext as any).setSinkId(targetSink);
+      } catch (e) {
+        console.warn("[LiveKit] Failed to setSinkId on playbackAudioContext:", e);
+      }
+    }
+
+    // 2. 遍历所有附加的远端音频元素并设置 sinkId
+    for (const ctrl of this.participantAudioMap.values()) {
+      for (const trackEntry of ctrl.tracks.values()) {
+        if (
+          trackEntry.element &&
+          typeof (trackEntry.element as any).setSinkId === "function"
+        ) {
+          try {
+            await (trackEntry.element as any).setSinkId(targetSink);
+          } catch (e) {
+            console.warn("[LiveKit] Failed to setSinkId on audioElement:", e);
+          }
+        }
+      }
+    }
+
+    // 3. 同步 LiveKit room 的 active device（若支持）
+    if (this.room && typeof (this.room as any).switchActiveDevice === "function") {
+      try {
+        await (this.room as any).switchActiveDevice("audiooutput", targetSink);
+      } catch (e) {
+        console.warn("[LiveKit] room.switchActiveDevice audiooutput failed:", e);
+      }
+    }
+
+    // 4. 同步提示音管理器
+    await soundManager.setSinkId(deviceId);
+
     return true;
   }
 

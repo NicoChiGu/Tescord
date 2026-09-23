@@ -252,6 +252,7 @@ export class AdminService {
     const map = new Map(settings.map((setting) => [setting.key, setting.value]));
     return {
       allowRegistration: map.get("allow_registration") !== "false",
+      requireInviteCode: map.get("require_invite_code") === "true",
       maintenanceMode: map.get("maintenance_mode") === "true",
       systemAnnouncement: map.get("system_announcement") || "",
     };
@@ -265,6 +266,7 @@ export class AdminService {
     await prisma.$transaction(async (tx) => {
       const entries: Array<[string, string | boolean | undefined]> = [
         ["allow_registration", dto.allowRegistration],
+        ["require_invite_code", dto.requireInviteCode],
         ["maintenance_mode", dto.maintenanceMode],
         ["system_announcement", dto.systemAnnouncement?.slice(0, 2000)],
       ];

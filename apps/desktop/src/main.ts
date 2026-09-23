@@ -15,6 +15,7 @@ import {
   IpcMainInvokeEvent,
 } from "electron";
 import path from "path";
+import fs from "fs";
 import http from "http";
 import https from "https";
 import {
@@ -86,7 +87,49 @@ let currentUserStatus: UserStatus = "ONLINE";
 let currentLocale: SupportedLocale = "zh-CN";
 
 let currentWindowMode: DesktopWindowMode = "auth";
-let savedMainBounds: DesktopWindowBounds | null = null;
+
+function getWindowStatePath(): string {
+  try {
+    return path.join(app.getPath("userData"), "window-bounds.json");
+  } catch {
+    return "";
+  }
+}
+
+function loadPersistedWindowBounds(): DesktopWindowBounds | null {
+  try {
+    const p = getWindowStatePath();
+    if (p && fs.existsSync(p)) {
+      const data = JSON.parse(fs.readFileSync(p, "utf-8"));
+      if (
+        data &&
+        typeof data.width === "number" &&
+        typeof data.height === "number" &&
+        data.width >= 600 &&
+        data.height >= 500
+      ) {
+        return data;
+      }
+    }
+  } catch (err) {
+    console.warn("[Desktop] 读取本地窗口大小记忆失败:", err);
+  }
+  return null;
+}
+
+function savePersistedWindowBounds(bounds: DesktopWindowBounds | null): void {
+  if (!bounds) return;
+  try {
+    const p = getWindowStatePath();
+    if (p) {
+      fs.writeFileSync(p, JSON.stringify(bounds), "utf-8");
+    }
+  } catch (err) {
+    console.warn("[Desktop] 持久化保存窗口大小记忆失败:", err);
+  }
+}
+
+let savedMainBounds: DesktopWindowBounds | null = loadPersistedWindowBounds();
 let isSwitchingWindowMode = false;
 
 const AUTH_WINDOW_CONFIG = {
@@ -110,18 +153,34 @@ function animateWindowBounds(
   return new Promise((resolve) => {
     if (!win || win.isDestroyed()) return resolve();
     if (!win.isVisible()) {
-      win.setBounds(target);
+      try {
+        win.setBounds(target);
+      } catch {}
       return resolve();
     }
 
     const steps = 10;
     const interval = Math.max(12, Math.floor(durationMs / steps));
     let step = 0;
+    let resolved = false;
+
+    const finish = () => {
+      if (resolved) return;
+      resolved = true;
+      clearInterval(timer);
+      clearTimeout(safetyTimer);
+      if (win && !win.isDestroyed()) {
+        try {
+          win.setBounds(target);
+        } catch {}
+      }
+      resolve();
+    };
 
     const timer = setInterval(() => {
       if (!win || win.isDestroyed()) {
-        clearInterval(timer);
-        return resolve();
+        finish();
+        return;
       }
       step++;
       const progress = step / steps;
@@ -139,19 +198,29 @@ function animateWindowBounds(
       } catch {}
 
       if (step >= steps) {
-        clearInterval(timer);
-        try {
-          win.setBounds(target);
-        } catch {}
-        resolve();
+        finish();
       }
     }, interval);
+
+    // 兜底超时计时器，防止因任何操作系统异常导致 Promise 未能 resolve
+    const safetyTimer = setTimeout(finish, durationMs + 120);
   });
 }
 
 async function applyWindowMode(targetMode: DesktopWindowMode): Promise<void> {
-  if (!mainWindow || mainWindow.isDestroyed() || isSwitchingWindowMode) return;
-  if (currentWindowMode === targetMode && mainWindow.isVisible()) return;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (currentWindowMode === targetMode && mainWindow.isVisible() && !isSwitchingWindowMode) return;
+
+  // 防抖并发等待：若当前已有窗口切换在进行中，等待其完成或最多等待 350ms
+  if (isSwitchingWindowMode) {
+    let waitCount = 0;
+    while (isSwitchingWindowMode && waitCount < 7) {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      waitCount++;
+    }
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (currentWindowMode === targetMode && mainWindow.isVisible()) return;
+  }
 
   isSwitchingWindowMode = true;
   currentWindowMode = targetMode;
@@ -165,6 +234,7 @@ async function applyWindowMode(targetMode: DesktopWindowMode): Promise<void> {
           height: MAIN_WINDOW_CONFIG.height,
           isMaximized: true,
         };
+        savePersistedWindowBounds(savedMainBounds);
         mainWindow.unmaximize();
       } else {
         const bounds = mainWindow.getBounds();
@@ -176,6 +246,7 @@ async function applyWindowMode(targetMode: DesktopWindowMode): Promise<void> {
             height: bounds.height,
             isMaximized: false,
           };
+          savePersistedWindowBounds(savedMainBounds);
         }
       }
 
@@ -222,12 +293,9 @@ async function applyWindowMode(targetMode: DesktopWindowMode): Promise<void> {
       mainWindow.setMaximizable(false);
     } else {
       // targetMode === "main"
-      // 1. 解除小窗口限制
+      // 1. 解除小窗口限制：先设置松弛的最小尺寸 (300, 300)，确保在 Windows 上动画从 480 放大时不会因 minWidth=940 导致 Win32 限制报错
       mainWindow.setMaximumSize(10000, 10000);
-      mainWindow.setMinimumSize(
-        MAIN_WINDOW_CONFIG.minWidth,
-        MAIN_WINDOW_CONFIG.minHeight,
-      );
+      mainWindow.setMinimumSize(300, 300);
       mainWindow.setResizable(true);
       mainWindow.setMaximizable(true);
 
@@ -241,6 +309,11 @@ async function applyWindowMode(targetMode: DesktopWindowMode): Promise<void> {
         height: number;
       };
       let shouldMaximize = false;
+
+      // 若内存中没有 savedMainBounds，尝试从磁盘读取持久化配置
+      if (!savedMainBounds) {
+        savedMainBounds = loadPersistedWindowBounds();
+      }
 
       if (savedMainBounds) {
         if (savedMainBounds.isMaximized) {
@@ -298,6 +371,14 @@ async function applyWindowMode(targetMode: DesktopWindowMode): Promise<void> {
       } else {
         await animateWindowBounds(mainWindow, startBounds, targetBounds, 180);
       }
+
+      // 动画完成后，正式设置主窗口的最小尺寸限制，并确保开启可拉伸与最大化
+      mainWindow.setMinimumSize(
+        MAIN_WINDOW_CONFIG.minWidth,
+        MAIN_WINDOW_CONFIG.minHeight,
+      );
+      mainWindow.setResizable(true);
+      mainWindow.setMaximizable(true);
 
       if (shouldMaximize) {
         mainWindow.maximize();
@@ -516,6 +597,7 @@ function createWindow(targetEntryPath?: string) {
   mainWindow.on("maximize", () => {
     if (currentWindowMode === "main" && savedMainBounds) {
       savedMainBounds.isMaximized = true;
+      savePersistedWindowBounds(savedMainBounds);
     }
     mainWindow?.webContents.send("window-maximized-change", true);
   });
@@ -523,6 +605,7 @@ function createWindow(targetEntryPath?: string) {
   mainWindow.on("unmaximize", () => {
     if (currentWindowMode === "main" && savedMainBounds) {
       savedMainBounds.isMaximized = false;
+      savePersistedWindowBounds(savedMainBounds);
     }
     mainWindow?.webContents.send("window-maximized-change", false);
   });
@@ -542,6 +625,7 @@ function createWindow(targetEntryPath?: string) {
           height: b.height,
           isMaximized: false,
         };
+        savePersistedWindowBounds(savedMainBounds);
       }
     }
   });
@@ -561,6 +645,7 @@ function createWindow(targetEntryPath?: string) {
           height: b.height,
           isMaximized: false,
         };
+        savePersistedWindowBounds(savedMainBounds);
       }
     }
   });

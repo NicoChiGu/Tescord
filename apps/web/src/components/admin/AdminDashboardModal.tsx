@@ -5,6 +5,7 @@ import {
   AdminGuildItem,
   SystemSettingsDTO,
   SystemRole,
+  RegistrationInviteDTO,
 } from "@tescord/types";
 import {
   ShieldAlert,
@@ -28,6 +29,11 @@ import {
   RefreshCw,
   ShieldCheck,
   UserCheck,
+  Ticket,
+  Plus,
+  Copy,
+  Check,
+  Calendar,
 } from "lucide-react";
 import { API_BASE } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
@@ -39,7 +45,7 @@ interface AdminDashboardModalProps {
   onClose: () => void;
 }
 
-type TabType = "OVERVIEW" | "USERS" | "GUILDS" | "SYSTEM";
+type TabType = "OVERVIEW" | "USERS" | "GUILDS" | "INVITES" | "SYSTEM";
 
 export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   isOpen,
@@ -73,6 +79,17 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   const [broadcastSeverity, setBroadcastSeverity] = useState<
     "INFO" | "WARNING" | "CRITICAL"
   >("INFO");
+
+  // 5. 注册邀请码管理数据
+  const [invites, setInvites] = useState<RegistrationInviteDTO[]>([]);
+  const [inviteSearch, setInviteSearch] = useState("");
+  const [isCreateInviteModalOpen, setIsCreateInviteModalOpen] = useState(false);
+  const [newInviteNote, setNewInviteNote] = useState("");
+  const [newInviteMaxUses, setNewInviteMaxUses] = useState(1);
+  const [newInviteExpiresInDays, setNewInviteExpiresInDays] = useState<number | null>(7);
+  const [newInviteCustomCode, setNewInviteCustomCode] = useState("");
+  const [isCreatingInvite, setIsCreatingInvite] = useState(false);
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -110,6 +127,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
         if (!res.ok) throw new Error("加载公会列表失败");
         const data = await res.json();
         setGuilds(Array.isArray(data) ? data : data.items || []);
+      } else if (tab === "INVITES") {
+        const url = inviteSearch
+          ? `${API_BASE}/api/admin/registration-invites?search=${encodeURIComponent(inviteSearch)}`
+          : `${API_BASE}/api/admin/registration-invites`;
+        const res = await fetch(url, { headers });
+        if (!res.ok) throw new Error("加载邀请码列表失败");
+        const data = await res.json();
+        setInvites(data.invites || []);
       } else if (tab === "SYSTEM") {
         const res = await fetch(`${API_BASE}/api/admin/settings`, { headers });
         if (!res.ok) throw new Error("加载系统设置失败");
@@ -284,6 +309,114 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
     }
   };
 
+  // 邀请码操作：创建新邀请码
+  const handleCreateInvite = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsCreatingInvite(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/registration-invites`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          note: newInviteNote.trim() || undefined,
+          maxUses: Number(newInviteMaxUses) >= 0 ? Number(newInviteMaxUses) : 1,
+          expiresInDays: newInviteExpiresInDays,
+          customCode: newInviteCustomCode.trim() || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "创建邀请码失败");
+      showSuccess(`成功生成邀请码：${data.code}`);
+      setIsCreateInviteModalOpen(false);
+      setNewInviteNote("");
+      setNewInviteCustomCode("");
+      loadTabData("INVITES");
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setIsCreatingInvite(false);
+    }
+  };
+
+  // 邀请码操作：作废/恢复
+  const handleToggleRevokeInvite = async (invite: RegistrationInviteDTO) => {
+    const actionText = invite.isRevoked ? "恢复激活" : "作废";
+    const confirmed = await dialog.confirm({
+      title: `${actionText}注册邀请码`,
+      description: `确定要${actionText}邀请码 “${invite.code}” 吗？${
+        !invite.isRevoked
+          ? "作废后，该邀请码将无法被用于新用户注册。"
+          : "恢复后，该邀请码在有效期与次数范围内可继续被用于注册。"
+      }`,
+      variant: invite.isRevoked ? "warning" : "danger",
+      confirmText: `确认${actionText}`,
+    });
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/registration-invites/${encodeURIComponent(invite.code)}/revoke`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
+          },
+          body: JSON.stringify({ isRevoked: !invite.isRevoked }),
+        },
+      );
+      if (!res.ok) throw new Error("操作失败");
+      showSuccess(`邀请码 ${invite.code} 已${actionText}`);
+      loadTabData("INVITES");
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  // 邀请码操作：物理删除
+  const handleDeleteInvite = async (invite: RegistrationInviteDTO) => {
+    const confirmed = await dialog.confirm({
+      title: "高危确认：删除注册邀请码",
+      description: `确定要彻底删除邀请码 “${invite.code}” 吗？此操作不可逆。`,
+      variant: "danger",
+      requireSecurityCode: true,
+      confirmText: "确认删除",
+    });
+    if (!confirmed) return;
+
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/admin/registration-invites/${encodeURIComponent(invite.code)}`,
+        {
+          method: "DELETE",
+          headers: getAuthHeaders(),
+        },
+      );
+      if (!res.ok) throw new Error("删除失败");
+      showSuccess(`邀请码 ${invite.code} 已彻底删除`);
+      loadTabData("INVITES");
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  // 邀请码操作：一键复制邀请链接
+  const handleCopyInviteLink = (code: string) => {
+    const origin =
+      typeof window !== "undefined" && window.location.origin
+        ? window.location.origin
+        : "";
+    const inviteLink = `${origin}/?invite=${encodeURIComponent(code)}`;
+    navigator.clipboard.writeText(inviteLink).then(() => {
+      setCopiedCode(code);
+      showSuccess(`已复制注册链接: ${inviteLink}`);
+      setTimeout(() => setCopiedCode(null), 2500);
+    });
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -347,6 +480,19 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             </button>
 
             <button
+              onClick={() => setActiveTab("INVITES")}
+              data-testid="admin-tab-invites"
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition font-medium ${
+                activeTab === "INVITES"
+                  ? "bg-[#3f4147] text-white"
+                  : "text-discord-textMuted hover:bg-[#35373c] hover:text-white"
+              }`}
+            >
+              <Ticket className="w-4 h-4 text-emerald-400" />
+              <span>注册邀请码</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab("SYSTEM")}
               data-testid="admin-tab-system"
               className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition font-medium ${
@@ -380,6 +526,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               {activeTab === "OVERVIEW" && "系统运行状态看板"}
               {activeTab === "USERS" && "全局注册用户治理与审查"}
               {activeTab === "GUILDS" && "全平台服务器审查与解散"}
+              {activeTab === "INVITES" && "全站注册邀请码与准入发放"}
               {activeTab === "SYSTEM" && "全网在线广播与系统维护设置"}
             </h3>
             <button
@@ -734,7 +881,175 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               </div>
             )}
 
-            {/* TAB 4: SYSTEM BROADCAST & SETTINGS */}
+            {/* TAB 4: REGISTRATION INVITES */}
+            {activeTab === "INVITES" && (
+              <div className="space-y-4">
+                {/* 顶栏控制：搜索与生成按钮 */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                  <div className="flex items-center space-x-3 bg-[#1e1f22] px-3 py-2 rounded-lg border border-[#3f4147] flex-1 max-w-md">
+                    <Search className="w-4 h-4 text-discord-textMuted" />
+                    <input
+                      type="text"
+                      placeholder="搜索邀请码或备注..."
+                      value={inviteSearch}
+                      onChange={(e) => setInviteSearch(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && loadTabData("INVITES")}
+                      className="bg-transparent text-white text-sm outline-none flex-1 placeholder:text-discord-textMuted"
+                    />
+                    <button
+                      onClick={() => loadTabData("INVITES")}
+                      className="px-3 py-1 bg-discord-brand hover:bg-[#4752c4] text-white text-xs font-semibold rounded transition"
+                    >
+                      搜索
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => setIsCreateInviteModalOpen(true)}
+                    data-testid="create-invite-btn"
+                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition flex items-center justify-center space-x-1.5 shadow-lg shadow-emerald-600/20"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>生成新邀请码</span>
+                  </button>
+                </div>
+
+                {/* 邀请码列表 */}
+                <div className="space-y-2">
+                  {invites.map((inv) => {
+                    const isExpired =
+                      inv.expiresAt && new Date(inv.expiresAt) < new Date();
+                    const isExhausted =
+                      inv.maxUses > 0 && inv.uses >= inv.maxUses;
+                    let statusLabel = "有效可用";
+                    let statusClass =
+                      "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
+                    if (inv.isRevoked) {
+                      statusLabel = "已作废";
+                      statusClass =
+                        "bg-rose-500/10 text-rose-400 border-rose-500/20";
+                    } else if (isExpired) {
+                      statusLabel = "已过期";
+                      statusClass =
+                        "bg-zinc-500/10 text-zinc-400 border-zinc-500/20";
+                    } else if (isExhausted) {
+                      statusLabel = "已用尽";
+                      statusClass =
+                        "bg-amber-500/10 text-amber-400 border-amber-500/20";
+                    }
+
+                    return (
+                      <div
+                        key={inv.code}
+                        className="bg-[#2b2d31] p-3.5 rounded-lg border border-[#3f4147] flex flex-col md:flex-row md:items-center justify-between gap-3 hover:border-discord-brand/40 transition"
+                      >
+                        <div className="flex items-start space-x-3">
+                          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 flex-shrink-0 mt-0.5">
+                            <Ticket className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <div className="flex items-center space-x-2.5">
+                              <span className="font-mono font-bold text-white text-base tracking-wider">
+                                {inv.code}
+                              </span>
+                              <span
+                                className={`text-[10px] font-semibold px-2 py-0.5 rounded border ${statusClass}`}
+                              >
+                                {statusLabel}
+                              </span>
+                              {inv.note && (
+                                <span className="text-xs text-gray-300 font-medium px-2 py-0.5 bg-[#1e1f22] rounded">
+                                  {inv.note}
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-xs text-discord-textMuted mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+                              <span>
+                                使用进度:{" "}
+                                <b className="text-white">
+                                  {inv.uses} /{" "}
+                                  {inv.maxUses === 0 ? "∞ (无限制)" : inv.maxUses}
+                                </b>
+                              </span>
+                              <span>
+                                到期时间:{" "}
+                                <b className="text-white">
+                                  {inv.expiresAt
+                                    ? new Date(inv.expiresAt).toLocaleString()
+                                    : "永久有效"}
+                                </b>
+                              </span>
+                              {inv.createdByName && (
+                                <span>
+                                  创建者: <b>{inv.createdByName}</b>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 按钮操作栏 */}
+                        <div className="flex items-center space-x-2 self-end md:self-center">
+                          <button
+                            onClick={() => handleCopyInviteLink(inv.code)}
+                            title="复制带邀请码的专属注册直达链接"
+                            className="px-2.5 py-1.5 bg-[#3f4147] hover:bg-discord-brand text-white text-xs font-medium rounded transition flex items-center space-x-1"
+                          >
+                            {copiedCode === inv.code ? (
+                              <>
+                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                <span className="text-emerald-400 font-bold">
+                                  已复制链接
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3.5 h-3.5" />
+                                <span>复制注册链接</span>
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            onClick={() => handleToggleRevokeInvite(inv)}
+                            className={`px-2.5 py-1.5 text-xs font-medium rounded transition ${
+                              inv.isRevoked
+                                ? "bg-amber-500/20 text-amber-400 hover:bg-amber-600 hover:text-white"
+                                : "bg-rose-500/20 text-rose-400 hover:bg-rose-600 hover:text-white"
+                            }`}
+                          >
+                            {inv.isRevoked ? "恢复有效" : "立即作废"}
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteInvite(inv)}
+                            title="彻底删除邀请码"
+                            className="p-1.5 text-discord-textMuted hover:text-rose-400 hover:bg-[#3f4147] rounded transition"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {invites.length === 0 && !loading && (
+                    <div className="py-16 text-center text-discord-textMuted text-sm flex flex-col items-center justify-center space-y-2">
+                      <Ticket className="w-8 h-8 opacity-40" />
+                      <p>暂无任何注册邀请码记录</p>
+                      <button
+                        onClick={() => setIsCreateInviteModalOpen(true)}
+                        className="text-xs text-[#5865f2] hover:underline"
+                      >
+                        立即生成一枚新邀请码
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* TAB 5: SYSTEM BROADCAST & SETTINGS */}
             {activeTab === "SYSTEM" && (
               <div className="space-y-6">
                 {/* 发送置顶广播 */}
@@ -820,6 +1135,27 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
                   <div className="flex items-center justify-between py-2 border-b border-[#3f4147]">
                     <div>
+                      <p className="font-semibold text-white text-sm">强制邀请码准入 (Invite-Only)</p>
+                      <p className="text-xs text-discord-textMuted">
+                        开启后，新用户必须填入有效的注册邀请码方可完成注册；关闭后，允许开放免邀请码自由注册
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!settings.requireInviteCode}
+                        disabled={!settings.allowRegistration}
+                        onChange={(e) =>
+                          setSettings({ ...settings, requireInviteCode: e.target.checked })
+                        }
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-zinc-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-discord-brand"></div>
+                    </label>
+                  </div>
+
+                  <div className="flex items-center justify-between py-2 border-b border-[#3f4147]">
+                    <div>
                       <p className="font-semibold text-white text-sm">维护模式</p>
                       <p className="text-xs text-discord-textMuted">普通用户将停止业务和通话连接，超级管理员仍可治理系统。</p>
                     </div>
@@ -847,6 +1183,128 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
           </div>
         </main>
       </div>
+
+      {/* 生成邀请码模态弹窗 */}
+      {isCreateInviteModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="w-full max-w-md bg-[#313338] rounded-xl border border-[#3f4147] p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between border-b border-[#3f4147] pb-3">
+              <div className="flex items-center space-x-2">
+                <Ticket className="w-5 h-5 text-emerald-400" />
+                <h4 className="font-bold text-white text-base">生成注册邀请码</h4>
+              </div>
+              <button
+                onClick={() => setIsCreateInviteModalOpen(false)}
+                className="text-discord-textMuted hover:text-white p-1 rounded transition"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateInvite} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-gray-300 block mb-1">
+                  用途备注 (选填)
+                </label>
+                <input
+                  type="text"
+                  placeholder="例如: 2026 第一期内部测试邀请"
+                  value={newInviteNote}
+                  onChange={(e) => setNewInviteNote(e.target.value)}
+                  className="w-full bg-[#1e1f22] p-2.5 rounded-lg border border-[#3f4147] text-white text-sm outline-none focus:border-discord-brand transition"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-300 block mb-1">
+                  最大可用次数
+                </label>
+                <div className="grid grid-cols-4 gap-2 mb-2">
+                  {[1, 5, 10, 0].map((count) => (
+                    <button
+                      key={count}
+                      type="button"
+                      onClick={() => setNewInviteMaxUses(count)}
+                      className={`py-1.5 text-xs font-semibold rounded-lg border transition ${
+                        newInviteMaxUses === count
+                          ? "bg-discord-brand text-white border-discord-brand"
+                          : "bg-[#1e1f22] text-gray-300 border-[#3f4147] hover:bg-[#2b2d31]"
+                      }`}
+                    >
+                      {count === 0 ? "无限制" : `${count} 次`}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="number"
+                  min={0}
+                  value={newInviteMaxUses}
+                  onChange={(e) => setNewInviteMaxUses(Number(e.target.value))}
+                  placeholder="自定义可用次数 (0 表示无限制)"
+                  className="w-full bg-[#1e1f22] p-2 rounded-lg border border-[#3f4147] text-white text-xs outline-none focus:border-discord-brand transition"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-300 block mb-1">
+                  有效期限
+                </label>
+                <div className="grid grid-cols-4 gap-2">
+                  {[
+                    { label: "1 天", days: 1 },
+                    { label: "7 天", days: 7 },
+                    { label: "30 天", days: 30 },
+                    { label: "永久有效", days: null },
+                  ].map((item) => (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => setNewInviteExpiresInDays(item.days)}
+                      className={`py-1.5 text-xs font-semibold rounded-lg border transition ${
+                        newInviteExpiresInDays === item.days
+                          ? "bg-discord-brand text-white border-discord-brand"
+                          : "bg-[#1e1f22] text-gray-300 border-[#3f4147] hover:bg-[#2b2d31]"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-semibold text-gray-300 block mb-1">
+                  自定义邀请码 (选填，留空自动生成)
+                </label>
+                <input
+                  type="text"
+                  placeholder="留空则系统自动随机生成"
+                  value={newInviteCustomCode}
+                  onChange={(e) => setNewInviteCustomCode(e.target.value.toUpperCase())}
+                  className="w-full bg-[#1e1f22] p-2.5 rounded-lg border border-[#3f4147] text-white text-sm uppercase font-mono tracking-wider outline-none focus:border-discord-brand transition"
+                />
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-[#3f4147]">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateInviteModalOpen(false)}
+                  className="px-4 py-2 text-xs text-gray-300 hover:text-white transition"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  disabled={isCreatingInvite}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition disabled:opacity-50"
+                >
+                  {isCreatingInvite ? "正在生成..." : "确认生成"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

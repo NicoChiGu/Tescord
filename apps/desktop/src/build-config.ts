@@ -14,7 +14,7 @@ export const BUILD_CONFIG = {
   /** Ed25519 public key in DER/SPKI base64; absent keys disable updates. */
   UPDATE_SIGNING_PUBLIC_KEY_BASE64: "",
   /** 编译时间戳 (ISO 8601) */
-  BUILD_TIME: "2026-09-23T17:11:48.219Z",
+  BUILD_TIME: "2026-09-23T18:43:19.145Z",
   /** 默认首选 gh-proxy 加速代理 (优先使用 v6.gh-proxy.org) */
   PRIMARY_GH_PROXY: "https://v6.gh-proxy.org/",
   /** 备用 gh-proxy 加速代理 (gh-proxy.com) */

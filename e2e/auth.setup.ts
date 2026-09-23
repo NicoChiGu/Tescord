@@ -18,9 +18,18 @@ setup(
       accessToken: string;
       refreshToken: string;
     };
-    const normalResponse = await request.post("/api/auth/login", {
+    let normalResponse = await request.post("/api/auth/login", {
       data: { emailOrUsername: "Alice", password: "alicepassword123" },
     });
+    if (!normalResponse.ok()) {
+      normalResponse = await request.post("/api/auth/register", {
+        data: {
+          username: "Alice",
+          email: "alice@tescord.local",
+          password: "alicepassword123",
+        },
+      });
+    }
     expect(normalResponse.ok()).toBeTruthy();
     const normal = (await normalResponse.json()) as {
       accessToken: string;

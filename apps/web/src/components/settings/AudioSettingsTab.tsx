@@ -354,6 +354,9 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
     const newCfg = { ...config, outputDeviceId: deviceId };
     setConfig(newCfg);
     audioEngine.updateConfig({ outputDeviceId: deviceId });
+    await livekitService.switchAudioOutputDevice(deviceId).catch((err) => {
+      console.warn("切换输出设备失败:", err);
+    });
 
     if (testAudioRef.current && (testAudioRef.current as any).setSinkId) {
       try {

@@ -230,6 +230,21 @@ class SoundEffectManager {
       console.warn("[SoundManager] Failed to synthesize sound effect:", err);
     }
   }
+
+  /**
+   * 路由提示音输出设备 (setSinkId)
+   */
+  public async setSinkId(deviceId: string): Promise<void> {
+    const ctx = this.getAudioContext();
+    if (ctx && typeof (ctx as any).setSinkId === "function") {
+      try {
+        await (ctx as any).setSinkId(deviceId === "default" ? "" : deviceId);
+      } catch (err) {
+        console.warn("[SoundManager] setSinkId failed:", err);
+      }
+    }
+  }
 }
 
 export const soundManager = new SoundEffectManager();
+

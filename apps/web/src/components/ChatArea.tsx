@@ -92,6 +92,7 @@ interface ChatAreaProps {
     fingerprint?: string;
   };
   onMarkChannelAsRead?: (channelId: string, sequence: number) => void;
+  onReloadLatestMessages?: () => Promise<void> | void;
 }
 
 interface ChatMessageItemProps {
@@ -515,6 +516,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onStartDM,
   callEncryption,
   onMarkChannelAsRead,
+  onReloadLatestMessages,
 }) => {
   const { t } = useTranslation(["chat", "common"]);
   const { isMobile, isDesktop } = useViewport();
@@ -1080,6 +1082,29 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     }, 60);
   };
 
+  const [isJumping, setIsJumping] = useState(false);
+
+  // 智能跳转：若有未读消息优先跳转至未读消息分界；若无未读则请求拉取最新并贴底
+  const handleSmartJumpToLatestOrUnread = async () => {
+    if (isJumping) return;
+    setIsJumping(true);
+    try {
+      if (firstUnreadMessageId) {
+        if (searchQuery.trim()) {
+          setSearchQuery("");
+        }
+        handleJumpToMessage(firstUnreadMessageId);
+      } else {
+        if (onReloadLatestMessages) {
+          await onReloadLatestMessages();
+        }
+        scrollToBottom(true);
+      }
+    } finally {
+      setIsJumping(false);
+    }
+  };
+
   // 打字指示器状态管理 (userId -> { username, timer })
   const [typingUsersMap, setTypingUsersMap] = useState<
     Map<string, { username: string; timer: any }>
@@ -1235,18 +1260,19 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       requestAnimationFrame(() => {
         if (!scrollContainerRef.current) return;
 
+        const isValidSavedScrollTop =
+          meta && typeof meta.scrollTop === "number" && meta.scrollTop > 20;
+
         const isFarFromBottom =
-          meta &&
-          typeof meta.scrollTop === "number" &&
+          isValidSavedScrollTop &&
           scrollContainerRef.current.scrollHeight -
             meta.scrollTop -
             scrollContainerRef.current.clientHeight >=
             80;
 
         if (
-          meta &&
-          (meta.isNearBottom === false || isFarFromBottom) &&
-          typeof meta.scrollTop === "number"
+          isValidSavedScrollTop &&
+          (meta.isNearBottom === false || isFarFromBottom)
         ) {
           scrollContainerRef.current.scrollTop = meta.scrollTop;
           rowVirtualizer.scrollToOffset(meta.scrollTop);
@@ -1287,9 +1313,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         setTimeout(() => {
           if (
             scrollContainerRef.current &&
-            meta &&
-            (meta.isNearBottom === false || isFarFromBottom) &&
-            typeof meta.scrollTop === "number"
+            isValidSavedScrollTop &&
+            (meta.isNearBottom === false || isFarFromBottom)
           ) {
             if (
               Math.abs(scrollContainerRef.current.scrollTop - meta.scrollTop) >
@@ -1855,31 +1880,51 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
       {/* 消息视口区域主容器：包含吸顶历史提示横幅与上下边缘渐变模糊遮罩 */}
       <div className="flex-1 relative min-h-0 overflow-hidden flex flex-col">
-        {/* 顶部悬浮“正在查看较旧的消息”横幅 (Discord 经典 Full-width Top Banner) */}
+        {/* 顶部悬浮“正在查看较旧的消息” / “您有未读消息”横幅 (Discord 经典 Full-width Top Banner) */}
         {!isNearBottom &&
           isInitialPositionedRef.current &&
           messages.length > 0 && (
             <div
-              onClick={() => scrollToBottom(true)}
-              className="absolute top-0 inset-x-0 z-20 animate-slide-down bg-[#2b2d31]/95 backdrop-blur-md border-b border-[#35373c] px-4 py-2 flex items-center justify-between shadow-md cursor-pointer hover:bg-[#313338] transition group"
-              title="跳到最新消息"
+              onClick={() => void handleSmartJumpToLatestOrUnread()}
+              className={`absolute top-0 inset-x-0 z-20 animate-slide-down backdrop-blur-md border-b px-4 py-2 flex items-center justify-between shadow-md cursor-pointer transition group ${
+                firstUnreadMessageId
+                  ? "bg-[#2b2d31]/95 border-red-500/30 hover:bg-[#313338]"
+                  : "bg-[#2b2d31]/95 border-[#35373c] hover:bg-[#313338]"
+              }`}
+              title={firstUnreadMessageId ? "跳转至未读消息" : "跳到最新消息"}
               role="button"
             >
               <div className="flex items-center space-x-2 text-xs text-discord-textMuted">
-                <History className="w-4 h-4 text-discord-brand flex-shrink-0 group-hover:text-discord-brand-hover transition-colors" />
-                <span className="text-discord-textHeader font-medium">
-                  您正在查看较旧的消息
+                {firstUnreadMessageId ? (
+                  <Bell className="w-4 h-4 text-red-400 flex-shrink-0 animate-pulse" />
+                ) : (
+                  <History className="w-4 h-4 text-discord-brand flex-shrink-0 group-hover:text-discord-brand-hover transition-colors" />
+                )}
+                <span
+                  className={`font-medium ${
+                    firstUnreadMessageId
+                      ? "text-red-400 font-semibold"
+                      : "text-discord-textHeader"
+                  }`}
+                >
+                  {firstUnreadMessageId
+                    ? "您有未读消息"
+                    : "您正在查看较旧的消息"}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  scrollToBottom(true);
+                  void handleSmartJumpToLatestOrUnread();
                 }}
-                className="flex items-center space-x-1.5 px-3 py-1 rounded bg-discord-brand hover:bg-[#4752c4] text-white text-xs font-semibold shadow transition transform active:scale-95 cursor-pointer"
+                className={`flex items-center space-x-1.5 px-3 py-1 rounded text-white text-xs font-semibold shadow transition transform active:scale-95 cursor-pointer ${
+                  firstUnreadMessageId
+                    ? "bg-red-500 hover:bg-red-600"
+                    : "bg-discord-brand hover:bg-[#4752c4]"
+                }`}
               >
-                <span>跳到最新</span>
+                <span>{firstUnreadMessageId ? "跳转至未读" : "跳到最新"}</span>
                 <ChevronDown className="w-3.5 h-3.5 transition-transform group-hover:translate-y-0.5" />
               </button>
             </div>

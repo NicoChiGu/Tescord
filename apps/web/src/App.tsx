@@ -2022,6 +2022,33 @@ export const App: React.FC = () => {
     };
   }, [selectedChannel?.id]);
 
+  // 重新拉取当前频道的最新 100 条消息（当用户在历史位置断层且点击跳到最新时触发）
+  const handleReloadLatestMessages = useCallback(async () => {
+    if (!selectedChannel || selectedChannel.type === "VOICE") return;
+    const currentReqChannelId = selectedChannel.id;
+    const token = localStorage.getItem("tescord_access_token");
+    try {
+      const res = await fetch(
+        `${API_BASE}/api/channels/${currentReqChannelId}/messages?limit=100`,
+        {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        },
+      );
+      if (!res.ok) return;
+      const data = (await res.json()) as Message[];
+      if (data && data.length > 0) {
+        await messageDb.saveMessages(currentReqChannelId, data);
+      }
+      if (selectedChannelRef.current?.id === currentReqChannelId) {
+        setMessages(data);
+      }
+    } catch (err) {
+      console.error("Failed to reload latest messages:", err);
+    }
+  }, [selectedChannel?.id]);
+
   const currentGuild = guilds.find((g) => g.id === selectedGuildId) || null;
   const currentChannels = currentGuild ? currentGuild.channels : [];
 
@@ -2598,22 +2625,38 @@ export const App: React.FC = () => {
     setActiveDMCall(null);
     setCallEncryption({ status: "idle" });
 
-    // 退出语音频道视角：自动平滑切换回当前公会的第一个/默认文字频道
+    // 退出语音频道视角：优先平滑切换回进入语音前最后浏览的文字频道，若无记录才回退至默认文字频道
     if (
       selectedGuildId &&
       (selectedChannel?.id === leavingChannelId ||
         selectedChannel?.type === "VOICE")
     ) {
-      const defaultTextChannel = currentGuild
-        ? getDefaultGuildChannel(currentGuild, true)
-        : currentChannels.find((c) => c.type === "TEXT") || null;
-      setSelectedChannel(defaultTextChannel);
-      if (defaultTextChannel?.guildId) {
+      const lastVisitedTextId = useChannelNavStore
+        .getState()
+        .getLastVisitedTextChannel(selectedGuildId);
+      const targetTextChannel =
+        (lastVisitedTextId
+          ? currentChannels.find(
+              (c) => c.id === lastVisitedTextId && c.type === "TEXT",
+            )
+          : null) ||
+        (currentGuild
+          ? getDefaultGuildChannel(currentGuild, true)
+          : currentChannels.find((c) => c.type === "TEXT") || null);
+
+      setSelectedChannel(targetTextChannel);
+      if (targetTextChannel?.guildId) {
         useChannelNavStore
           .getState()
           .recordChannelVisit(
-            defaultTextChannel.guildId,
-            defaultTextChannel.id,
+            targetTextChannel.guildId,
+            targetTextChannel.id,
+          );
+        useChannelNavStore
+          .getState()
+          .recordTextChannelVisit(
+            targetTextChannel.guildId,
+            targetTextChannel.id,
           );
       }
     }
@@ -2903,7 +2946,7 @@ export const App: React.FC = () => {
     audioEngine.setMute(nextMuted);
     // 播放麦克风开/关提示音
     soundManager.play(nextMuted ? "MUTE" : "UNMUTE");
-    if (selectedGuildId) {
+    if (selectedGuildId && activeVoiceChannelId) {
       gatewayClient.updateVoiceState(selectedGuildId, activeVoiceChannelId, {
         selfMute: nextMuted,
         selfDeaf: isDeafened,
@@ -2924,7 +2967,7 @@ export const App: React.FC = () => {
       setIsMuted(true);
       audioEngine.setMute(true);
     }
-    if (selectedGuildId) {
+    if (selectedGuildId && activeVoiceChannelId) {
       gatewayClient.updateVoiceState(selectedGuildId, activeVoiceChannelId, {
         selfMute: nextDeafened ? true : isMuted,
         selfDeaf: nextDeafened,
@@ -3365,6 +3408,11 @@ export const App: React.FC = () => {
           setSelectedChannel(ch);
           if (ch.guildId) {
             useChannelNavStore.getState().recordChannelVisit(ch.guildId, ch.id);
+            if (ch.type === "TEXT") {
+              useChannelNavStore
+                .getState()
+                .recordTextChannelVisit(ch.guildId, ch.id);
+            }
           }
           if (ch.type === "DM" || !ch.guildId) {
             setDmChannels((prev) =>
@@ -3551,6 +3599,7 @@ export const App: React.FC = () => {
                 : undefined
             }
             onMarkChannelAsRead={handleSyncChannelReadProgress}
+            onReloadLatestMessages={handleReloadLatestMessages}
           />
         ) : guilds.length === 0 ? (
           <EmptyGuildsWelcome
