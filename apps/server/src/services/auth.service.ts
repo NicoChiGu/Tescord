@@ -11,6 +11,7 @@ import {
   UpdateProfileDTO,
   User,
   UserStatus,
+  CheckEmailResponse,
 } from "@tescord/types";
 import { prisma } from "../db.js";
 import { cacheStore } from "../cache.js";
@@ -22,6 +23,23 @@ export class AuthService {
 
   constructor(fastify: FastifyInstance) {
     this.fastify = fastify;
+  }
+
+  /**
+   * 检查邮箱（或已有用户名）是否已在系统中注册
+   */
+  public async checkEmail(email: string): Promise<CheckEmailResponse> {
+    const input = email.trim();
+    const existing = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: input.toLowerCase() },
+          { username: input },
+        ],
+      },
+      select: { id: true },
+    });
+    return { exists: Boolean(existing) };
   }
 
   /**
@@ -133,16 +151,48 @@ export class AuthService {
       await registrationInviteService.validateInvite(inviteCode);
     }
 
-    const existing = await prisma.user.findFirst({
-      where: {
-        OR: [{ email: dto.email.toLowerCase() }, { username: dto.username }],
-      },
-    });
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(dto.email.trim())) {
+      throw new Error("请输入有效的邮箱地址");
+    }
 
-    if (existing) {
-      if (existing.email.toLowerCase() === dto.email.toLowerCase()) {
-        throw new Error("该邮箱已被注册");
+    // 确定唯一用户名逻辑：若提供昵称则生成类似 Discord 风格的「昵称#随机5位数字」(如 Nick#43142)
+    let finalUsername = dto.username?.trim();
+    if (dto.nickname && dto.nickname.trim()) {
+      const baseName = dto.nickname.trim();
+      let candidate = "";
+      for (let attempt = 0; attempt < 15; attempt++) {
+        const tag = Math.floor(10000 + Math.random() * 90000);
+        candidate = `${baseName}#${tag}`;
+        const exists = await prisma.user.findFirst({
+          where: { username: candidate },
+          select: { id: true },
+        });
+        if (!exists) {
+          finalUsername = candidate;
+          break;
+        }
       }
+      if (!finalUsername) {
+        finalUsername = `${baseName}#${Date.now().toString().slice(-5)}`;
+      }
+    } else if (!finalUsername) {
+      const baseName = dto.email.split("@")[0].trim() || "User";
+      const tag = Math.floor(10000 + Math.random() * 90000);
+      finalUsername = `${baseName}#${tag}`;
+    }
+
+    const existingEmail = await prisma.user.findFirst({
+      where: { email: dto.email.toLowerCase().trim() },
+    });
+    if (existingEmail) {
+      throw new Error("该邮箱已被注册");
+    }
+
+    const existingUsername = await prisma.user.findFirst({
+      where: { username: finalUsername },
+    });
+    if (existingUsername) {
       throw new Error("该用户名已被占用");
     }
 
@@ -165,10 +215,10 @@ export class AuthService {
 
       return tx.user.create({
         data: {
-          username: dto.username,
-          email: dto.email.toLowerCase(),
+          username: finalUsername,
+          email: dto.email.toLowerCase().trim(),
           passwordHash,
-          avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(dto.username)}`,
+          avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(finalUsername)}`,
           status: "ONLINE",
           registeredWithInviteCode: inviteCode || null,
         },

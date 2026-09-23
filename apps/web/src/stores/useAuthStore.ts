@@ -125,7 +125,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   login: async (dto: LoginDTO) => {
-    set({ isLoading: true, error: null });
+    set({ error: null });
     try {
       const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
@@ -155,13 +155,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
       syncDesktopWindowMode("main");
     } catch (err: any) {
-      set({ error: err.message, isLoading: false });
+      set({ error: err.message });
       throw err;
     }
   },
 
   register: async (dto: RegisterDTO) => {
-    set({ isLoading: true, error: null });
+    set({ error: null });
     try {
       const res = await fetch(`${API_BASE}/api/auth/register`, {
         method: "POST",
@@ -191,7 +191,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       });
       syncDesktopWindowMode("main");
     } catch (err: any) {
-      set({ error: err.message, isLoading: false });
+      set({ error: err.message });
       throw err;
     }
   },

@@ -62,8 +62,17 @@ export interface AuthResponse {
   refreshToken: string;
 }
 
+export interface CheckEmailDTO {
+  email: string;
+}
+
+export interface CheckEmailResponse {
+  exists: boolean;
+}
+
 export interface RegisterDTO {
-  username: string;
+  username?: string;
+  nickname?: string;
   email: string;
   password: string;
   inviteCode?: string;

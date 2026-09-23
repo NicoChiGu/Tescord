@@ -28,6 +28,7 @@ import {
   LoginDTO,
   Message,
   RegisterDTO,
+  CheckEmailDTO,
   UpdateProfileDTO,
   CreateGuildDTO,
   UpdateGuildDTO,
@@ -212,6 +213,7 @@ const publicApiPaths = new Set([
   "/api/auth/login",
   "/api/auth/refresh",
   "/api/auth/registration-status",
+  "/api/auth/check-email",
   "/api/discovery/guilds",
   "/api/livekit/webhook",
 ]);
@@ -297,12 +299,30 @@ server.get("/api/auth/registration-status", async () => {
   return await authService.getRegistrationStatus();
 });
 
+// 检查邮箱是否存在
+server.post("/api/auth/check-email", async (request, reply) => {
+  try {
+    const body = request.body as CheckEmailDTO;
+    if (!body?.email || typeof body.email !== "string" || !body.email.trim()) {
+      return reply.status(400).send({ error: "请提供有效的邮箱地址" });
+    }
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(body.email.trim())) {
+      return reply.status(400).send({ error: "请输入有效的邮箱地址" });
+    }
+    const result = await authService.checkEmail(body.email);
+    return result;
+  } catch (err: any) {
+    return reply.status(400).send({ error: err.message || "检测邮箱失败" });
+  }
+});
+
 // 注册
 server.post("/api/auth/register", async (request, reply) => {
   try {
     const body = request.body as RegisterDTO;
-    if (!body?.email || !body?.password || !body?.username) {
-      return reply.status(400).send({ error: "请完整填写用户名、邮箱和密码" });
+    if (!body?.email || !body?.password || (!body?.username && !body?.nickname)) {
+      return reply.status(400).send({ error: "请完整填写昵称/用户名、邮箱和密码" });
     }
     const result = await authService.register(body);
     return {

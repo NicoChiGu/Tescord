@@ -16,6 +16,19 @@ export default {
           "0%": { transform: "translateX(-100%)" },
           "100%": { transform: "translateX(250%)" },
         },
+        shake: {
+          "0%, 100%": { transform: "translateX(0)" },
+          "15%, 45%, 75%": { transform: "translateX(-6px)" },
+          "30%, 60%, 90%": { transform: "translateX(6px)" },
+        },
+        "auth-step-in": {
+          "0%": { opacity: "0", transform: "translateY(8px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        "auth-field-in": {
+          "0%": { opacity: "0", transform: "translateY(-8px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
       },
       animation: {
         "context-menu-in":
@@ -24,6 +37,9 @@ export default {
           "context-menu-out 85ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
         "indeterminate-bar":
           "indeterminate-bar 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite",
+        shake: "shake 0.45s ease-in-out",
+        "auth-step": "auth-step-in 240ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
+        "auth-field": "auth-field-in 240ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
       },
       colors: {
         discord: {

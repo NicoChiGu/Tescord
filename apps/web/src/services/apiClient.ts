@@ -78,11 +78,13 @@ export async function apiFetch(
 ): Promise<Response> {
   const urlStr = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
 
-  // 1. 若为鉴权接口本身（登录、注册、刷新），直接放行原生请求，防止循环拦截
+  // 1. 若为鉴权接口本身（登录、注册、刷新、邮箱检查、注册状态），直接放行原生请求，防止循环拦截
   const isAuthEndpoint =
     urlStr.includes("/api/auth/login") ||
     urlStr.includes("/api/auth/register") ||
-    urlStr.includes("/api/auth/refresh");
+    urlStr.includes("/api/auth/refresh") ||
+    urlStr.includes("/api/auth/check-email") ||
+    urlStr.includes("/api/auth/registration-status");
 
   if (isAuthEndpoint) {
     return originalFetch(input, init);

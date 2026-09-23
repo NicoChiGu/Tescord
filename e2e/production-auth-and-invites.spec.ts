@@ -56,15 +56,16 @@ test.describe("生产环境化治理与全站注册邀请码端到端验收", ()
 
     await page.goto("/");
 
-    // 使用系统内置的超级管理员账号直接通过真实表单登录
+    // 使用系统内置的超级管理员账号直接通过真实表单登录 (先验证账号邮箱，再输入密码)
     const emailInput = page.getByTestId("auth-email-input");
+    const submitBtn = page.getByTestId("auth-submit-btn");
     await expect(emailInput).toBeVisible({ timeout: 10000 });
-    await emailInput.fill("Jackey");
+    await emailInput.fill("admin@tescord.local");
+    await submitBtn.click();
 
     const passwordInput = page.getByTestId("auth-password-input");
+    await expect(passwordInput).toBeVisible({ timeout: 10000 });
     await passwordInput.fill("adminpassword123");
-
-    const submitBtn = page.getByTestId("auth-submit-btn");
     await submitBtn.click();
 
     // 验证成功进入主界面，超管控制台金色盾牌按钮呈现
@@ -87,19 +88,22 @@ test.describe("生产环境化治理与全站注册邀请码端到端验收", ()
     await createBtn.click();
 
     // 在弹窗中输入自定义邀请码并提交
+    const customCode = `VIP-${Date.now().toString().slice(-6)}`;
     const customCodeInput = page.getByPlaceholder("留空则系统自动随机生成");
     await expect(customCodeInput).toBeVisible();
-    await customCodeInput.fill("VIP-CUSTOM-2026");
+    await customCodeInput.fill(customCode);
 
+    const note = `E2E备注-${customCode}`;
     const noteInput = page.getByPlaceholder("例如: 2026 第一期内部测试邀请");
-    await noteInput.fill("E2E生成的专属邀请码");
+    await noteInput.fill(note);
 
     const confirmCreateBtn = page.getByRole("button", { name: "确认生成" });
     await confirmCreateBtn.click();
 
     // 验证列表刷新展示了新生成的邀请码
-    await expect(page.getByText("VIP-CUSTOM-2026")).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText("E2E生成的专属邀请码")).toBeVisible();
+    await expect(page.getByText(customCode)).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText(note)).toBeVisible();
+    await expect(confirmCreateBtn).toBeHidden({ timeout: 5000 });
 
     // 切换到「广播与维护」Tab 验证邀请码准入开关呈现
     const systemTab = page.getByTestId("admin-tab-system");
