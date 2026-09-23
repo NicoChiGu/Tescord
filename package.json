@@ -18,6 +18,9 @@
     "test:security-media": "pnpm --filter @tescord/server exec tsx ../../scripts/verify-media-crypto.ts",
     "test:updater": "node ./scripts/test-updater-service.mjs",
     "test:e2e:ui": "playwright test --ui",
+    "tunnel:up": "docker compose -f docker/docker-compose.yml -f docker/docker-compose-tunnel.yml --env-file docker/.env.tunnel up -d",
+    "tunnel:down": "docker compose -f docker/docker-compose.yml -f docker/docker-compose-tunnel.yml down",
+    "tunnel:logs": "docker compose -f docker/docker-compose-tunnel.yml logs -f cloudflared",
     "lint": "turbo run lint",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
   },

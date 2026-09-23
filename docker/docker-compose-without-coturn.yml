@@ -58,6 +58,17 @@ services:
       - "7881:7881"         # WebRTC TCP
       - "7882:7882/udp"     # LiveKit 内置 TURN 端口
       - "50000-50100:50000-50100/udp" # WebRTC ICE UDP 媒体端口
+      
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: tescord-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    # 允许容器访问宿主机服务 (Web 前端 3000、Fastify 后端 3001)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"  
 
   # # 5. Coturn NAT 穿透中继
   # coturn:

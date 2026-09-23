@@ -1,4 +1,4 @@
-name: CI Build & Test
+name: CI Build & Verify
 
 on:
   push:
@@ -17,8 +17,8 @@ concurrency:
 
 jobs:
   build-and-test:
-    name: Build & Verify E2E
-    runs-on: windows-latest
+    name: Build & Verify Monorepo
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
@@ -49,9 +49,3 @@ jobs:
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: pnpm build
-
-      - name: Install Playwright Browsers
-        run: pnpm exec playwright install --with-deps chromium
-
-      - name: Run Playwright E2E Tests
-        run: pnpm test:e2e

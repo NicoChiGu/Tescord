@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  # Cloudflare Zero Trust (Access) Tunnel Connector
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: tescord-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    # 允许容器访问宿主机服务 (Web 前端 3000、Fastify 后端 3001)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    # 进阶用法 (本地配置文件模式):
+    # 若不使用 Cloudflare Dashboard 远程管理的 Token，而是使用本地 config.yml 与 credentials.json，
+    # 可注释上方的 command/environment，并启用以下配置：
+    # command: tunnel --config /etc/cloudflared/config.yml run
+    # volumes:
+    #   - ./cloudflared:/etc/cloudflared:ro
