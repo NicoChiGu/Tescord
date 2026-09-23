@@ -1,6 +1,27 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("用户资料卡片重排版与图1/图2交互差异化验收 (UserProfilePopout Redesign)", () => {
+  test.beforeEach(async ({ request }) => {
+    try {
+      const loginRes = await request.post("/api/auth/login", {
+        data: {
+          emailOrUsername: "alice@tescord.local",
+          password: "alicepassword123",
+        },
+      });
+      if (loginRes.ok()) {
+        const { accessToken } = (await loginRes.json()) as {
+          accessToken: string;
+        };
+        await request.post("/api/guilds/gld_default_01/join", {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+      }
+    } catch {
+      // 容错处理
+    }
+  });
+
   test("图1（自身卡片：气泡状态与编辑个人资料）与图2（他人卡片：快捷私信与共同服务器）完整交互链路验证", async ({
     page,
   }) => {

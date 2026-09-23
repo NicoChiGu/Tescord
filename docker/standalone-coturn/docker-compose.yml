@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  coturn:
+    image: coturn/coturn:latest
+    container_name: tescord-standalone-coturn
+    restart: unless-stopped
+    # 推荐模式 (Linux 生产推荐):
+    # network_mode: host
+    # 使用 host 模式可直接复用宿主机网卡，消除 Docker iptables NAT 转发开销并保证公网 IP 正确反射。
+    # 若使用 host 模式，请注释掉下方的 ports 配置，并在 turnserver.conf 中配置 external-ip。
+    network_mode: host
+
+    # 备用模式 (Bridge 端口映射模式，在 macOS/Windows 测试或非 host 环境下使用):
+    # 若需启用 Bridge 模式，请注释掉上方的 network_mode: host，并取消下方 ports 的注释：
+    # ports:
+    #   - "3478:3478"
+    #   - "3478:3478/udp"
+    #   - "5349:5349"
+    #   - "5349:5349/udp"
+    #   - "49152-49252:49152-49252/udp"
+
+    command:
+      - "-c"
+      - "/etc/turnserver.conf"
+      - "--static-auth-secret=${TURN_SECRET:-tescord-standalone-turn-secret-change-me}"
+      - "--realm=${TURN_REALM:-tescord.local}"
+    volumes:
+      - ./turnserver.conf:/etc/turnserver.conf:ro
+      - coturn_logs:/var/log
+
+volumes:
+  coturn_logs:

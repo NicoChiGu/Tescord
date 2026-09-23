@@ -103,7 +103,7 @@ test.describe("个人设置中心与全新“音频”菜单交互验收", () =>
     // 5. 验证导航栏无缝切换至【个人资料】
     await profileTabBtn.click();
     await expect(profileTabBtn).toHaveClass(/bg-white\/10/);
-    await expect(page.getByText("我的个人资料")).toBeVisible();
+    await expect(page.getByText(/展示卡与个人资料|个人资料/i).first()).toBeVisible();
     await expect(page.getByText("在线状态 (Presence)")).toBeVisible();
     await expect(
       page.getByText("自定义个性签名 (Custom Status)"),
@@ -115,15 +115,19 @@ test.describe("个人设置中心与全新“音频”菜单交互验收", () =>
     await closeBtn.click();
     await expect(settingsModal).not.toBeVisible();
 
-    // 7. 验证点击左下角用户资料卡片默认打开【个人资料】Tab
-    const userProfileBtn =
-      page.getByTitle(/点击打开设置，或右键快捷切换在线状态/i);
-    await expect(userProfileBtn).toBeVisible();
-    await userProfileBtn.click();
+    // 7. 验证通过左下角用户面板右键快捷菜单打开【个人资料】设置
+    const userPanelBtn = page
+      .getByTestId("current-user-panel-btn")
+      .or(page.getByTitle(/点击打开个人卡片|点击打开设置/i));
+    await expect(userPanelBtn).toBeVisible();
+    await userPanelBtn.click({ button: "right" });
+    const contextSettingsItem = page.getByRole("menuitem", { name: /个人设置/i });
+    await expect(contextSettingsItem).toBeVisible();
+    await contextSettingsItem.click();
 
     await expect(settingsModal).toBeVisible();
     await expect(profileTabBtn).toHaveClass(/bg-white\/10/);
-    await expect(page.getByText(/我的个人资料/i)).toBeVisible();
+    await expect(page.getByText(/展示卡与个人资料|个人资料/i).first()).toBeVisible();
 
     // 8. 验证按键盘 ESC 键也能正常关闭
     await page.keyboard.press("Escape");

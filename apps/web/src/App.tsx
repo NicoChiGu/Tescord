@@ -1977,6 +1977,13 @@ export const App: React.FC = () => {
   // 业务：上报与同步频道已读进度
   const handleSyncChannelReadProgress = useCallback(
     (channelId: string, sequence: number) => {
+      // 只有当前处于 DM 私信频道时才上报服务端已读游标
+      const isDM =
+        selectedChannelRef.current?.id === channelId &&
+        selectedChannelRef.current?.type === "DM";
+      if (!isDM) {
+        return;
+      }
       setDmChannels((prev) =>
         prev.map((dm) =>
           dm.id === channelId ? { ...dm, unreadCount: 0 } : dm,

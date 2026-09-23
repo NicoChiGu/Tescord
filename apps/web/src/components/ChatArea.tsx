@@ -1099,7 +1099,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       requestAnimationFrame(() => {
         if (!scrollContainerRef.current) return;
 
-        if (meta && !meta.isNearBottom && meta.scrollTop > 0) {
+        const isFarFromBottom =
+          meta &&
+          meta.scrollTop > 0 &&
+          (scrollContainerRef.current.scrollHeight - meta.scrollTop - scrollContainerRef.current.clientHeight >= 80);
+
+        if (meta && (!meta.isNearBottom || isFarFromBottom) && meta.scrollTop > 0) {
           scrollContainerRef.current.scrollTop = meta.scrollTop;
           rowVirtualizer.scrollToOffset(meta.scrollTop);
           currentScrollTopRef.current = meta.scrollTop;
@@ -1122,7 +1127,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           if (
             scrollContainerRef.current &&
             meta &&
-            !meta.isNearBottom &&
+            (!meta.isNearBottom || isFarFromBottom) &&
             meta.scrollTop > 0
           ) {
             if (
@@ -1143,8 +1148,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     const latestMsg = messages[messages.length - 1];
     if (latestMsg && latestMsg.id !== lastMessageIdRef.current) {
       lastMessageIdRef.current = latestMsg.id;
-      const isMyMessage = latestMsg.authorId === currentUser.id;
-      if (isNearBottomRef.current || isMyMessage) {
+      if (isNearBottomRef.current) {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }
     }
