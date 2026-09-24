@@ -39,6 +39,30 @@ import modalsJa from "./locales/ja-JP/modals.json";
 import adminJa from "./locales/ja-JP/admin.json";
 import errorsJa from "./locales/ja-JP/errors.json";
 
+// 导入 zh-TW (繁體中文 - 台灣) 语言资源
+import commonZhTW from "./locales/zh-TW/common.json";
+import authZhTW from "./locales/zh-TW/auth.json";
+import settingsZhTW from "./locales/zh-TW/settings.json";
+import chatZhTW from "./locales/zh-TW/chat.json";
+import voiceZhTW from "./locales/zh-TW/voice.json";
+import serverZhTW from "./locales/zh-TW/server.json";
+import contextMenuZhTW from "./locales/zh-TW/contextMenu.json";
+import modalsZhTW from "./locales/zh-TW/modals.json";
+import adminZhTW from "./locales/zh-TW/admin.json";
+import errorsZhTW from "./locales/zh-TW/errors.json";
+
+// 导入 zh-HK (繁體中文 - 香港) 语言资源
+import commonZhHK from "./locales/zh-HK/common.json";
+import authZhHK from "./locales/zh-HK/auth.json";
+import settingsZhHK from "./locales/zh-HK/settings.json";
+import chatZhHK from "./locales/zh-HK/chat.json";
+import voiceZhHK from "./locales/zh-HK/voice.json";
+import serverZhHK from "./locales/zh-HK/server.json";
+import contextMenuZhHK from "./locales/zh-HK/contextMenu.json";
+import modalsZhHK from "./locales/zh-HK/modals.json";
+import adminZhHK from "./locales/zh-HK/admin.json";
+import errorsZhHK from "./locales/zh-HK/errors.json";
+
 export const defaultNS = "common";
 export const resources = {
   "zh-CN": {
@@ -52,6 +76,30 @@ export const resources = {
     modals: modalsZh,
     admin: adminZh,
     errors: errorsZh,
+  },
+  "zh-TW": {
+    common: commonZhTW,
+    auth: authZhTW,
+    settings: settingsZhTW,
+    chat: chatZhTW,
+    voice: voiceZhTW,
+    server: serverZhTW,
+    contextMenu: contextMenuZhTW,
+    modals: modalsZhTW,
+    admin: adminZhTW,
+    errors: errorsZhTW,
+  },
+  "zh-HK": {
+    common: commonZhHK,
+    auth: authZhHK,
+    settings: settingsZhHK,
+    chat: chatZhHK,
+    voice: voiceZhHK,
+    server: serverZhHK,
+    contextMenu: contextMenuZhHK,
+    modals: modalsZhHK,
+    admin: adminZhHK,
+    errors: errorsZhHK,
   },
   "en-US": {
     common: commonEn,
@@ -87,6 +135,21 @@ export function normalizeLocale(rawLocale?: string | null): SupportedLocale {
   const lower = rawLocale.toLowerCase();
   if (lower.startsWith("ja")) return "ja-JP";
   if (lower.startsWith("en")) return "en-US";
+  if (
+    lower.startsWith("zh-hk") ||
+    lower.startsWith("zh-mo") ||
+    lower.includes("hk") ||
+    lower.includes("mo")
+  ) {
+    return "zh-HK";
+  }
+  if (
+    lower.startsWith("zh-tw") ||
+    lower.includes("tw") ||
+    lower.includes("hant")
+  ) {
+    return "zh-TW";
+  }
   if (lower.startsWith("zh")) return "zh-CN";
   return "zh-CN";
 }
@@ -95,7 +158,14 @@ export function normalizeLocale(rawLocale?: string | null): SupportedLocale {
 const getInitialLanguage = (): SupportedLocale => {
   if (typeof window !== "undefined") {
     const saved = localStorage.getItem("tescord_locale");
-    if (saved && (saved === "zh-CN" || saved === "en-US" || saved === "ja-JP")) {
+    if (
+      saved &&
+      (saved === "zh-CN" ||
+        saved === "zh-TW" ||
+        saved === "zh-HK" ||
+        saved === "en-US" ||
+        saved === "ja-JP")
+    ) {
       return saved as SupportedLocale;
     }
     const navLang = navigator.language || (navigator as any).userLanguage;

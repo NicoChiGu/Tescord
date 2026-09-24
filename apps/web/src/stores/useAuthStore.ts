@@ -37,8 +37,13 @@ interface AuthState {
 }
 
 const syncDesktopWindowMode = (mode: "auth" | "main") => {
-  if (typeof window !== "undefined" && window.electronAPI?.setWindowMode) {
-    window.electronAPI.setWindowMode(mode).catch(() => {});
+  if (typeof window !== "undefined" && window.electronAPI) {
+    if (mode === "main") {
+      window.electronAPI.notifyAuthSuccess?.().catch(() => {});
+    } else {
+      window.electronAPI.notifyLogout?.().catch(() => {});
+    }
+    window.electronAPI.setWindowMode?.(mode).catch(() => {});
   }
 };
 

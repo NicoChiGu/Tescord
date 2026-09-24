@@ -672,12 +672,12 @@ export class AudioEngine {
 
     // 桌面端 Electron 全局系统级快捷键接入
     if (typeof window !== "undefined" && window.electronAPI) {
-      window.electronAPI.onGlobalPTTDown(() => {
+      window.electronAPI.onGlobalPTTDown?.(() => {
         if (this.config.inputMode === "PTT" || this.config.pushToTalk) {
           this.setPTTActive(true);
         }
       });
-      window.electronAPI.onGlobalPTTUp(() => {
+      window.electronAPI.onGlobalPTTUp?.(() => {
         if (this.config.inputMode === "PTT" || this.config.pushToTalk) {
           const delay = this.config.pushToTalkReleaseDelay || 200;
           setTimeout(() => this.setPTTActive(false), delay);

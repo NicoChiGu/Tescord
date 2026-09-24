@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("Tescord 多国语言 (i18n: zh-CN / en-US / ja-JP) 端到端与热切换验收", () => {
-  test("1. 未登录状态下通过右上角快捷选择器自由切换 中/英/日 语言", async ({
+test.describe("Tescord 多国语言 (i18n: zh-CN / zh-TW / zh-HK / en-US / ja-JP) 端到端与热切换验收", () => {
+  test("1. 未登录状态下通过右上角快捷选择器自由切换 中/繁台/繁港/英/日 语言", async ({
     page,
   }) => {
     const consoleErrors: string[] = [];
@@ -58,7 +58,29 @@ test.describe("Tescord 多国语言 (i18n: zh-CN / en-US / ja-JP) 端到端与�
       page.getByRole("button", { name: /^次へ$/i }),
     ).toBeVisible();
 
-    // 1.4 切换回 简体中文
+    // 1.4 切换至 繁體中文（台灣）
+    await langSelector.click();
+    const twOption = page.getByTestId("auth-lang-zh-TW");
+    await expect(twOption).toBeVisible();
+    await twOption.click();
+
+    await expect(
+      page.getByRole("heading", { name: /歡迎使用 Tescord/i }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /^繼續$/i })).toBeVisible();
+
+    // 1.5 切换至 繁體中文（香港）
+    await langSelector.click();
+    const hkOption = page.getByTestId("auth-lang-zh-HK");
+    await expect(hkOption).toBeVisible();
+    await hkOption.click();
+
+    await expect(
+      page.getByRole("heading", { name: /歡迎使用 Tescord/i }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /^繼續$/i })).toBeVisible();
+
+    // 1.6 切换回 简体中文
     await langSelector.click();
     const zhOption = page.getByTestId("auth-lang-zh-CN");
     await expect(zhOption).toBeVisible();
@@ -131,10 +153,22 @@ test.describe("Tescord 多国语言 (i18n: zh-CN / en-US / ja-JP) 端到端与�
     const langList = page.getByTestId("language-options-list");
     await expect(langList).toBeVisible();
     await expect(page.getByTestId("lang-option-zh-CN")).toBeVisible();
+    await expect(page.getByTestId("lang-option-zh-TW")).toBeVisible();
+    await expect(page.getByTestId("lang-option-zh-HK")).toBeVisible();
     await expect(page.getByTestId("lang-option-en-US")).toBeVisible();
     await expect(page.getByTestId("lang-option-ja-JP")).toBeVisible();
 
-    // 2.4 点击切换到 English (US)
+    // 2.4 点击切换到 繁體中文（台灣）
+    await page.getByTestId("lang-option-zh-TW").click();
+    await expect(page.getByText("應用程式設定")).toBeVisible();
+    await expect(page.getByText("語音與視訊")).toBeVisible();
+
+    // 2.5 点击切换到 繁體中文（香港）
+    await page.getByTestId("lang-option-zh-HK").click();
+    await expect(page.getByText("應用程式設定")).toBeVisible();
+    await expect(page.getByText("語音與視像")).toBeVisible();
+
+    // 2.6 点击切换到 English (US)
     await page.getByTestId("lang-option-en-US").click();
 
     // 验证界面零重载即刻变为英文
@@ -144,7 +178,7 @@ test.describe("Tescord 多国语言 (i18n: zh-CN / en-US / ja-JP) 端到端与�
       "Language",
     );
 
-    // 2.5 点击切换到 日本語
+    // 2.7 点击切换到 日本語
     await page.getByTestId("lang-option-ja-JP").click();
 
     // 验证界面零重载即刻变为日文
@@ -152,7 +186,7 @@ test.describe("Tescord 多国语言 (i18n: zh-CN / en-US / ja-JP) 端到端与�
     await expect(page.getByText("音声・ビデオ")).toBeVisible();
     await expect(page.getByTestId("tab-language-btn")).toContainText("言語");
 
-    // 2.6 验证 localStorage 持久化
+    // 2.8 验证 localStorage 持久化
     const savedLocale = await page.evaluate(() =>
       localStorage.getItem("tescord_locale"),
     );

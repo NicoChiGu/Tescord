@@ -1,0 +1,122 @@
+{
+  "sendToChannel": "發送到 #{{name}}",
+  "sendToChannelPlaceholder": "發送訊息到 #{{name}}",
+  "uploadFile": "上傳檔案或圖片 (支援 MinIO 直傳)",
+  "selectEmoji": "選擇常用 Emoji",
+  "replyingTo": "正在回覆 {{name}}",
+  "cancelReply": "取消回覆",
+  "edited": "(已編輯)",
+  "pinned": "置頂訊息",
+  "pinMessage": "置頂訊息",
+  "unpinMessage": "取消置頂",
+  "reply": "回覆",
+  "deleteMessage": "刪除訊息",
+  "copyText": "複製文字",
+  "copyLink": "複製訊息連結",
+  "e2eeEncrypted": "端對端加密訊息 (E2EE)",
+  "e2eeDecrypted": "已解密",
+  "historyDivider": "以下是新訊息",
+  "noMessages": "尚無訊息，來打個招呼吧！",
+  "typing": "{{users}} 正在輸入...",
+  "typingOne": "{{user}} 正在輸入...",
+  "typingTwo": "{{user1}} 和 {{user2}} 正在輸入...",
+  "typingMany": "數人正在輸入...",
+  "searchMessages": "密文搜尋...",
+  "memberList": "成員名單",
+  "pinnedMessages": "置頂訊息列表",
+  "dragDropUpload": "拖曳檔案到此處即可上傳",
+  "uploading": "正在上傳附件...",
+  "deleteConfirmTitle": "刪除訊息",
+  "deleteConfirmDesc": "確定要刪除這條訊息嗎？此操作無法復原。",
+  "pinnedList": {
+    "title": "已置頂的訊息",
+    "emptyTitle": "還沒有已置頂的訊息",
+    "emptyDesc": "懸停在 #{{channel}} 中的任何重要訊息上，點擊右鍵或操作列中的「置頂訊息」即可將其固定在此處。",
+    "jump": "跳轉",
+    "jumpTooltip": "在聊天視埠中定位此訊息",
+    "unpin": "取消置頂"
+  },
+  "friends": {
+    "title": "好友",
+    "tabs": {
+      "online": "線上",
+      "all": "全部",
+      "pending": "待處理",
+      "addFriend": "新增好友"
+    },
+    "add": {
+      "title": "新增好友",
+      "desc": "你可以透過好友的完整使用者唯一識別碼進行搜尋和新增（例如：{{example}}，不可只輸入名稱或數字標籤）。",
+      "placeholder": "你可以輸入例如 Nick#12312",
+      "submit": "發送好友申請",
+      "emptyTitle": "結識新夥伴",
+      "emptyDesc": "成為好友後，你們將不受伺服器限制，隨時隨地發起 1v1 即時私訊、語音通話和視訊通話。"
+    },
+    "errors": {
+      "inputEmpty": "請輸入對方的使用者識別碼",
+      "missingTag": "缺少數字標籤！請輸入完整的使用者識別碼，例如：使用者名稱#12345",
+      "missingUsername": "缺少使用者名稱！請輸入完整的使用者識別碼，例如：使用者名稱#12345",
+      "invalidFormat": "識別碼格式不正確，標籤必須為 5 位數字，例如：Nick#12345",
+      "sendFailed": "發送申請失敗，請稍後重試",
+      "acceptFailed": "接受申請失敗",
+      "actionFailed": "操作失敗"
+    },
+    "success": {
+      "mutualFriend": "太棒了！你與 {{name}} 互相發送了申請，已直接成為好友！",
+      "requestSent": "好友申請已成功發送給 {{name}}！"
+    },
+    "list": {
+      "searchPlaceholder": "搜尋好友...",
+      "onlineCount": "線上 — {{count}}",
+      "allCount": "全部好友 — {{count}}",
+      "pendingCount": "待處理 — {{count}}",
+      "incomingCount": "收到的申請 — {{count}}",
+      "outgoingCount": "發出的申請 — {{count}}",
+      "emptyOnline": "目前沒有好友線上",
+      "emptyAll": "暫無好友，快去「新增好友」結交新夥伴吧！",
+      "emptyPending": "沒有待處理的好友申請",
+      "incomingRequest": "發來了好友申請",
+      "waitingAccept": "等待對方同意"
+    },
+    "actions": {
+      "sendMessage": "發送訊息",
+      "voiceCall": "語音通話",
+      "moreOptions": "更多選項",
+      "removeFriend": "刪除好友",
+      "acceptRequest": "接受申請",
+      "rejectRequest": "拒絕申請",
+      "cancelRequest": "取消申請"
+    }
+  },
+  "dm": {
+    "title": "私訊列表",
+    "createDM": "發起私訊",
+    "friendsTab": "好友",
+    "sectionHeader": "直接訊息",
+    "clickToChat": "點擊開始私訊溝通",
+    "closeDM": "關閉私訊",
+    "emptyActiveTitle": "暫無活躍私訊會話",
+    "emptyActiveDesc": "點擊右上角 + 或在伺服器成員列表中右鍵發起私訊",
+    "createModal": {
+      "title": "發起新的私訊會話",
+      "inputLabel": "輸入對方使用者名稱 (需同屬同一伺服器)",
+      "placeholder": "使用者名稱，例如: Jackey",
+      "cancel": "取消",
+      "submit": "建立私訊",
+      "errorFailed": "發起私訊會話失敗",
+      "errorServerRequired": "無法發起私訊，需雙方同屬同一伺服器"
+    },
+    "incomingCall": {
+      "ariaLabel": "{{username}} 的來電",
+      "callingVoice": "正在向您發起語音通話...",
+      "callingVideo": "正在向您發起視訊通話...",
+      "deviceFingerprint": "裝置指紋：{{fingerprint}}",
+      "e2eeTrusted": "已驗證裝置 · E2EE",
+      "e2eeTofu": "首次信任裝置 · E2EE",
+      "e2eeFailed": "裝置驗證失敗",
+      "e2eeNegotiating": "正在驗證裝置金鑰",
+      "acceptTooltip": "接聽通話（Alt+A）",
+      "rejectTooltip": "拒絕通話（Alt+R）"
+    }
+  }
+}

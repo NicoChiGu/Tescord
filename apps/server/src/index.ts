@@ -1205,8 +1205,16 @@ server.post("/api/guilds", async (request, reply) => {
     (request.headers["accept-language"] as string) ||
     "zh-CN";
   let defaultLocale: SupportedLocale = "zh-CN";
-  if (rawLocale.toLowerCase().startsWith("ja")) defaultLocale = "ja-JP";
-  else if (rawLocale.toLowerCase().startsWith("en")) defaultLocale = "en-US";
+  const lowerLocale = rawLocale.toLowerCase();
+  if (lowerLocale.startsWith("ja")) {
+    defaultLocale = "ja-JP";
+  } else if (lowerLocale.startsWith("en")) {
+    defaultLocale = "en-US";
+  } else if (lowerLocale.startsWith("zh-hk") || lowerLocale.startsWith("zh-mo") || lowerLocale.includes("hk") || lowerLocale.includes("mo")) {
+    defaultLocale = "zh-HK";
+  } else if (lowerLocale.startsWith("zh-tw") || lowerLocale.includes("tw") || lowerLocale.includes("hant")) {
+    defaultLocale = "zh-TW";
+  }
 
   const defaultI18nLabels = {
     "zh-CN": {
@@ -1215,6 +1223,20 @@ server.post("/api/guilds", async (request, reply) => {
       textChannel: "常规",
       textTopic: "日常聊天交流",
       voiceChannel: "日常闲聊",
+    },
+    "zh-TW": {
+      textCat: "文字頻道",
+      voiceCat: "語音頻道",
+      textChannel: "一般",
+      textTopic: "日常聊天交流",
+      voiceChannel: "日常閒聊",
+    },
+    "zh-HK": {
+      textCat: "文字頻道",
+      voiceCat: "語音頻道",
+      textChannel: "一般",
+      textTopic: "日常聊天交流",
+      voiceChannel: "日常閒聊",
     },
     "en-US": {
       textCat: "Text Channels",

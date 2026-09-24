@@ -1602,6 +1602,18 @@ export interface AutoLaunchSettings {
 }
 
 export type DesktopWindowMode = "auth" | "main";
+export type DesktopWindowType = "auth" | "main";
+
+export interface DesktopAuthSuccessPayload {
+  userId?: string;
+  username?: string;
+}
+
+export interface DesktopAuthSessionState {
+  hasSession: boolean;
+  lastUserId?: string;
+  lastUsername?: string;
+}
 
 export interface DesktopWindowBounds {
   x?: number;
@@ -2646,7 +2658,7 @@ export class ClientSideFtsEngine {
 // ==========================================
 // 19. 多语言与国际化契约 (i18n Localization)
 // ==========================================
-export type SupportedLocale = "zh-CN" | "en-US" | "ja-JP";
+export type SupportedLocale = "zh-CN" | "en-US" | "ja-JP" | "zh-TW" | "zh-HK";
 
 export interface LocaleOption {
   code: SupportedLocale;
@@ -2661,6 +2673,18 @@ export const SUPPORTED_LOCALES: LocaleOption[] = [
     label: "简体中文",
     englishName: "Simplified Chinese",
     nativeName: "简体中文",
+  },
+  {
+    code: "zh-TW",
+    label: "繁體中文（台灣）",
+    englishName: "Traditional Chinese (Taiwan)",
+    nativeName: "繁體中文（台灣）",
+  },
+  {
+    code: "zh-HK",
+    label: "繁體中文（香港）",
+    englishName: "Traditional Chinese (Hong Kong)",
+    nativeName: "繁體中文（香港）",
   },
   {
     code: "en-US",

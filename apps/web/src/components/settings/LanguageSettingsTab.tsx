@@ -56,10 +56,14 @@ export const LanguageSettingsTab: React.FC = () => {
                     }`}
                   >
                     {option.code === "zh-CN"
-                      ? "中"
-                      : option.code === "ja-JP"
-                        ? "あ"
-                        : "EN"}
+                      ? "简"
+                      : option.code === "zh-TW"
+                        ? "繁"
+                        : option.code === "zh-HK"
+                          ? "港"
+                          : option.code === "ja-JP"
+                            ? "あ"
+                            : "EN"}
                   </div>
                   <div className="min-w-0">
                     <div className="text-sm font-bold text-white flex items-center gap-2 truncate">

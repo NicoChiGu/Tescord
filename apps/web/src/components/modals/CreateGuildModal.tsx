@@ -23,7 +23,7 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
   const { user } = useAuthStore();
   const [guildName, setGuildName] = useState(() =>
     user
-      ? t("modals:createGuild.defaultName", { username: user.username })
+      ? t("modals:createGuild.defaultName", { username: user.displayName })
       : t("modals:createGuild.defaultFallbackName", "我的极客服务器"),
   );
   const [iconSeed, setIconSeed] = useState(() =>

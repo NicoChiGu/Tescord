@@ -4,7 +4,11 @@ import { useTranslation } from "react-i18next";
 import { useGatewayStatus } from "../hooks/useGatewayStatus.js";
 import { useAuthStore } from "../stores/useAuthStore.js";
 
-export const TitleBar: React.FC = () => {
+interface TitleBarProps {
+  forceMode?: "auth" | "main";
+}
+
+export const TitleBar: React.FC<TitleBarProps> = ({ forceMode }) => {
   // 智能环境检测：非 Electron 桌面客户端 (如纯 Web 浏览器访问) 彻底隐藏，不占用任何高度
   if (typeof window === "undefined" || !window.electronAPI) {
     return null;
@@ -15,15 +19,19 @@ export const TitleBar: React.FC = () => {
 
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [windowMode, setWindowMode] = useState<"auth" | "main">(
-    isAuthenticated ? "main" : "auth",
+    forceMode || (isAuthenticated ? "main" : "auth"),
   );
   const [isMaximized, setIsMaximized] = useState(false);
   const { connectionState, ping } = useGatewayStatus();
   const { t } = useTranslation("common");
 
   useEffect(() => {
+    if (forceMode) {
+      setWindowMode(forceMode);
+      return;
+    }
     setWindowMode(isAuthenticated ? "main" : "auth");
-  }, [isAuthenticated]);
+  }, [isAuthenticated, forceMode]);
 
   useEffect(() => {
     let unsubscribeMax: (() => void) | undefined;

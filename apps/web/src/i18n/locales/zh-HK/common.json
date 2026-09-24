@@ -1,0 +1,128 @@
+{
+  "save": "儲存",
+  "cancel": "取消",
+  "confirm": "確定",
+  "delete": "刪除",
+  "close": "關閉",
+  "edit": "編輯",
+  "copy": "複製",
+  "copied": "已複製",
+  "retry": "重試",
+  "back": "返回",
+  "next": "下一步",
+  "continue": "繼續",
+  "search": "搜尋",
+  "loading": "載入中...",
+  "refresh": "重新整理",
+  "enabled": "已開啟",
+  "disabled": "已關閉",
+  "status": {
+    "online": "線上",
+    "idle": "閒置",
+    "dnd": "請勿打擾",
+    "invisible": "隱形",
+    "offline": "離線",
+    "onlineDesc": "正常接收通知與訊息",
+    "idleDesc": "離開座位或暫未操作",
+    "dndDesc": "不會收到任何桌面彈窗與聲音通知",
+    "invisibleDesc": "對外顯示為離線，但可正常使用所有功能"
+  },
+  "titleBar": {
+    "gatewayConnected": "WebSocket 閘道連線狀態: 已連接",
+    "gatewayDisconnected": "WebSocket 閘道連線狀態: 未連接",
+    "gatewayLatency": "延遲",
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "向下還原",
+    "close": "關閉"
+  },
+  "gateway": {
+    "connected": "已連接",
+    "connecting": "正在連接到伺服器...",
+    "disconnected": "與伺服器已中斷連線",
+    "reconnecting": "網絡連線已中斷，正在嘗試重新連接...",
+    "latency": "延遲",
+    "reconnect": "立即重試",
+    "reconnectTooltip": "立即重連"
+  },
+  "user": {
+    "mute": "靜音咪高峰",
+    "unmute": "取消咪高峰靜音",
+    "deafen": "耳機靜音 (拒聽)",
+    "undeafen": "取消耳機靜音",
+    "userSettings": "用戶設定",
+    "copyUserId": "複製用戶 ID",
+    "viewProfile": "查看個人資料"
+  },
+  "dialog": {
+    "confirm": "確定",
+    "cancel": "取消",
+    "securityCode": "安全驗證碼",
+    "securityCodePrompt": "請輸入上方顯示的 4 位安全驗證碼以繼續：",
+    "securityCodeMismatch": "安全驗證碼輸入不正確",
+    "dangerWarning": "此操作具有破壞性且無法復原！"
+  },
+  "sidebar": {
+    "home": "私信與主頁",
+    "admin": "系統管理控制台 (超級管理員)",
+    "addServer": "新增伺服器",
+    "explore": "探索公開伺服器",
+    "network": "網絡質素"
+  },
+  "memberList": {
+    "online": "線上",
+    "offline": "離線",
+    "owner": "伺服器擁有者",
+    "bot": "機械人",
+    "invisibleSelf": "隱形 (僅自己可見)",
+    "defaultBio": "正在體驗 Tescord 🚀"
+  },
+  "profilePopout": {
+    "sendDM": "發送私信給 @{{name}}",
+    "addNote": "新增備註",
+    "clickToAddNote": "點擊新增備註",
+    "notePlaceholder": "點擊新增備註...",
+    "mutualServers": "共同所在的伺服器",
+    "roles": "身分組",
+    "registered": "註冊時間",
+    "customStatus": "自訂狀態"
+  },
+  "emptyWelcome": {
+    "title": "歡迎來到 Tescord",
+    "subtitle": "純粹離線自治、高保真實時音視像與極客團隊的即時通訊工作空間",
+    "exploreTitle": "探索公開社群",
+    "exploreDesc": "加入各種各樣的公開伺服器，結識新朋友並暢聊技術",
+    "createTitle": "建立你的第一個伺服器",
+    "createDesc": "為你自己的團隊、好友圈或遊戲戰隊搭建專屬私密空間",
+    "exploreBtn": "立即探索社群 →",
+    "createBtn": "立即建立伺服器 →"
+  },
+  "maintenance": {
+    "adminBadge": "[運維模式進行中]",
+    "adminDesc": "普通用戶已阻斷並展示全螢幕維護頁，當前僅超級管理員可操作與調試。",
+    "announcement": "公告：",
+    "settings": "運維設定",
+    "disableBtn": "一鍵解除維護",
+    "badge": "維護模式已開啟",
+    "title": "系統正在維護升級",
+    "desc": "為了給您帶來更穩定優質的服務，管理員正在進行系統維護或升級演練，普通業務已暫時掛起。",
+    "adminAnnouncement": "管理員公告",
+    "startTime": "開啟時間：{{time}}",
+    "realtimeTip": "實時長連接通道已建立，維護結束後將自動秒級恢復",
+    "checking": "正在檢查服務狀態...",
+    "checkBtn": "檢查系統狀態",
+    "restoring": "維護已結束，正在恢復系統...",
+    "stillMaintenance": "系統仍在維護中，請稍候",
+    "networkChecking": "網絡連線檢測中，將在服務恢復後自動連接",
+    "currentAccount": "當前帳號：",
+    "guest": "訪客",
+    "switchAccount": "登出 / 切換帳號"
+  },
+  "updater": {
+    "readyTitle": "新版本 v{{version}} 已就緒",
+    "readyDesc": "免安裝增量更新已在背景下載完畢，點擊重啟即可秒級載入新特性！",
+    "restartNow": "立即重啟",
+    "nextTime": "下次啟動生效",
+    "dismiss": "關閉提醒"
+  }
+}

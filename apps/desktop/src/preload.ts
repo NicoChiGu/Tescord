@@ -3,10 +3,17 @@ import {
   DesktopNotificationPayload,
   UserStatus,
   DesktopWindowMode,
+  DesktopAuthSuccessPayload,
 } from "@tescord/types";
 
 contextBridge.exposeInMainWorld("electronAPI", {
   platform: process.platform,
+
+  // 认证与双窗口状态联动
+  notifyAuthSuccess: (payload?: DesktopAuthSuccessPayload) =>
+    ipcRenderer.invoke("auth-success", payload),
+  notifyLogout: () => ipcRenderer.invoke("auth-logout"),
+  getWindowType: () => ipcRenderer.invoke("window-get-type"),
 
   // 屏幕与窗口采集
   getDesktopSources: () => ipcRenderer.invoke("get-desktop-sources"),

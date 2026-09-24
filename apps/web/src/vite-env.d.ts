@@ -32,6 +32,11 @@ interface ElectronAPI {
   onWindowMaximizedChange: (
     callback: (isMaximized: boolean) => void,
   ) => () => void;
+  notifyAuthSuccess?: (
+    payload?: import("@tescord/types").DesktopAuthSuccessPayload,
+  ) => Promise<boolean>;
+  notifyLogout?: () => Promise<boolean>;
+  getWindowType?: () => Promise<import("@tescord/types").DesktopWindowType>;
   setWindowMode?: (
     mode: import("@tescord/types").DesktopWindowMode,
   ) => Promise<{ success: boolean; mode: import("@tescord/types").DesktopWindowMode }>;
