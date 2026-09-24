@@ -22,18 +22,16 @@ test.describe("Tescord Web 端到端冒烟与核心交互验收", () => {
 
     // 验证未登录时弹出的登录认证引导
     const loginHeading = page.getByRole("heading", {
-      name: /欢迎回到 Tescord|登录/i,
+      name: /欢迎使用 Tescord|欢迎回到 Tescord|登录/i,
     });
     await expect(loginHeading).toBeVisible({ timeout: 10000 });
 
-    const loginButton = page.getByRole("button", { name: /登\s*录/i });
-    await expect(loginButton).toBeVisible();
+    const continueButton = page.getByRole("button", { name: /继\s*续|登\s*录/i });
+    await expect(continueButton).toBeVisible();
 
-    // 验证输入表单正常挂载
-    const emailInput = page.locator('input[type="text"]');
-    const passwordInput = page.locator('input[type="password"]');
+    // 验证邮箱输入表单正常挂载
+    const emailInput = page.locator('input[type="email"], input[type="text"]').first();
     await expect(emailInput).toBeVisible();
-    await expect(passwordInput).toBeVisible();
 
     // 生产构建环境下，验证快捷预设账号已被彻底隐藏/剔除，确保生产安全
     const quickAccountBtn = page

@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import { X, Sparkles, Server } from "lucide-react";
 import { Guild } from "@tescord/types";
+import { useTranslation } from "react-i18next";
 import { API_BASE } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
+import { getErrorMessage } from "../../i18n/index.js";
 
 interface CreateGuildModalProps {
   isOpen: boolean;
@@ -17,9 +19,12 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
   onGuildCreated,
   onOpenJoinModal,
 }) => {
+  const { t, i18n } = useTranslation(["modals", "common", "admin", "errors"]);
   const { user } = useAuthStore();
-  const [guildName, setGuildName] = useState(
-    user ? `${user.username} 的私密小窝` : "我的极客服务器",
+  const [guildName, setGuildName] = useState(() =>
+    user
+      ? t("modals:createGuild.defaultName", { username: user.username })
+      : t("modals:createGuild.defaultFallbackName", "我的极客服务器"),
   );
   const [iconSeed, setIconSeed] = useState(() =>
     Math.random().toString(36).substring(7),
@@ -51,19 +56,20 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
           name: guildName.trim(),
           iconUrl,
           isPublic,
+          locale: i18n.language,
         }),
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "创建服务器失败");
+        throw new Error(getErrorMessage(data) || t("modals:createGuild.failed"));
       }
 
       const createdGuild: Guild = await res.json();
       onGuildCreated(createdGuild);
       onClose();
     } catch (err: any) {
-      setError(err.message || "网络连接异常");
+      setError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
     } finally {
       setIsSubmitting(false);
     }
@@ -77,14 +83,15 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
           <button
             onClick={onClose}
             className="absolute right-4 top-4 text-discord-textMuted hover:text-discord-textHeader transition"
+            title={t("common:close")}
           >
             <X className="w-5 h-5" />
           </button>
           <h2 className="text-2xl font-bold text-discord-textHeader">
-            创建你的专属服务器
+            {t("modals:createGuild.title")}
           </h2>
           <p className="text-xs text-discord-textMuted mt-1">
-            服务器是您与同伴相聚、畅聊音视频并沉淀知识的极客空间。
+            {t("modals:createGuild.subtitle")}
           </p>
         </div>
 
@@ -110,27 +117,28 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
                   setIconSeed(Math.random().toString(36).substring(7))
                 }
                 className="absolute -bottom-1 -right-1 bg-discord-brand hover:bg-discord-brand/80 text-white p-1.5 rounded-full shadow-lg transition"
-                title="换一个图标"
+                title={t("modals:createGuild.randomIcon")}
               >
                 <Sparkles className="w-3.5 h-3.5" />
               </button>
             </div>
             <span className="text-[11px] text-discord-textMuted">
-              点击右下角星星随机换图标
+              {t("modals:createGuild.randomIconTip")}
             </span>
           </div>
 
           {/* 服务器名称 */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted mb-2">
-              服务器名称 <span className="text-red-400">*</span>
+              {t("modals:createGuild.nameLabel")}{" "}
+              <span className="text-red-400">*</span>
             </label>
             <input
               type="text"
               required
               value={guildName}
               onChange={(e) => setGuildName(e.target.value)}
-              placeholder="输入服务器名称..."
+              placeholder={t("modals:createGuild.namePlaceholder")}
               className="w-full bg-[#1e1f22] text-discord-textHeader px-3 py-2.5 rounded text-sm focus:outline-none focus:ring-2 focus:ring-discord-brand transition border border-transparent focus:border-discord-brand"
             />
           </div>
@@ -138,8 +146,12 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
           {/* 是否公开 */}
           <div className="flex items-center justify-between p-3 rounded-lg bg-[#1e1f22] border border-white/5">
             <div className="space-y-0.5">
-              <div className="text-xs font-bold text-discord-textHeader">在探索中心公开此服务器</div>
-              <p className="text-[11px] text-discord-textMuted">允许其他人在公共社区大厅发现并直接加入</p>
+              <div className="text-xs font-bold text-discord-textHeader">
+                {t("modals:createGuild.isPublicTitle")}
+              </div>
+              <p className="text-[11px] text-discord-textMuted">
+                {t("modals:createGuild.isPublicDesc")}
+              </p>
             </div>
             <input
               type="checkbox"
@@ -160,7 +172,7 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
               }}
               className="text-xs text-discord-brand hover:underline font-medium"
             >
-              已经有邀请链接？点击加入
+              {t("modals:createGuild.haveInvite")}
             </button>
 
             <button
@@ -169,7 +181,11 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
               className="bg-discord-brand hover:bg-discord-brandHover text-white px-5 py-2.5 rounded font-medium text-sm transition shadow-md disabled:opacity-50 flex items-center space-x-1.5"
             >
               <Server className="w-4 h-4" />
-              <span>{isSubmitting ? "创建中..." : "立即创建"}</span>
+              <span>
+                {isSubmitting
+                  ? t("modals:createGuild.submitting")
+                  : t("modals:createGuild.submit")}
+              </span>
             </button>
           </div>
         </form>

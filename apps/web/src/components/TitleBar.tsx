@@ -118,14 +118,14 @@ export const TitleBar: React.FC = () => {
             <div
               data-testid="titlebar-ping-badge"
               className="flex items-center gap-1.5 px-2 text-[10px] font-mono text-[#949ba4]"
-              title={`WebSocket 网关连接状态: ${
+              title={`${t("common:titleBar.gatewayConnected", "WebSocket 网关连接状态")}: ${
                 connectionState === "connected"
-                  ? `已连接 (延迟: ${ping !== null ? `${ping}ms` : "测量中..."})`
+                  ? `${t("common:gateway.connected", "已连接")} (${t("common:gateway.latency", "延迟")}: ${ping !== null ? `${ping}ms` : "..."})`
                   : connectionState === "reconnecting"
-                    ? "正在尝试重新连接..."
+                    ? t("common:gateway.reconnecting", "正在尝试重新连接...")
                     : connectionState === "connecting"
-                      ? "正在连接..."
-                      : "已断开连接"
+                      ? t("common:gateway.connecting", "正在连接...")
+                      : t("common:gateway.disconnected", "已断开连接")
               }`}
             >
               <span
@@ -142,8 +142,8 @@ export const TitleBar: React.FC = () => {
                 {connectionState === "connected"
                   ? ping !== null
                     ? `${ping}ms`
-                    : "已连接"
-                  : "重连中"}
+                    : t("common:gateway.connected", "已连接")
+                  : t("common:gateway.reconnecting", "重连中")}
               </span>
             </div>
           )}

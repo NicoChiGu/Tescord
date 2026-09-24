@@ -1,0 +1,48 @@
+{
+  "INTERNAL_ERROR": "系统内部错误，请稍后重试",
+  "INVALID_PARAMS": "请求参数不合法，请检查输入",
+  "NOT_FOUND": "请求的资源未找到",
+  "UNAUTHORIZED": "身份验证已过期或无效，请重新登录",
+  "FORBIDDEN": "权限不足，无法执行该操作",
+  "RATE_LIMITED": "操作过于频繁，请稍后再试",
+
+  "AUTH_INVALID_CREDENTIALS": "用户名/邮箱或密码错误",
+  "AUTH_TOKEN_EXPIRED": "登录凭证已失效，请重新登录",
+  "AUTH_USER_NOT_FOUND": "未找到该用户账户",
+  "AUTH_USER_EXISTS": "该用户名或邮箱已被注册",
+  "AUTH_PASSWORD_TOO_WEAK": "密码强度不足，请使用更复杂的密码",
+  "AUTH_ACCOUNT_DISABLED": "该账户已被停用或封禁",
+  "AUTH_REAUTH_REQUIRED": "为确保安全，请输入当前密码进行安全重鉴权",
+
+  "GUILD_NOT_FOUND": "未找到指定的服务器",
+  "GUILD_NAME_REQUIRED": "服务器名称不能为空",
+  "GUILD_PERMISSION_DENIED": "缺少管理当前服务器的权限",
+  "GUILD_INVITE_INVALID": "邀请链接无效或已被撤销",
+  "GUILD_INVITE_EXPIRED": "邀请链接已过期",
+  "GUILD_ALREADY_MEMBER": "您已是该服务器的成员",
+  "GUILD_CANNOT_LEAVE_OWNER": "服务器所有者无法直接退出，请先转让所有权或解散服务器",
+  "GUILD_ROLE_NOT_FOUND": "未找到指定的身份组",
+  "GUILD_ROLE_CANNOT_DELETE_DEFAULT": "无法删除系统默认的 @everyone 身份组",
+  "GUILD_ROLE_HIERARCHY_TOO_LOW": "您的身份组层级低于目标身份组，无法进行此操作",
+
+  "CHANNEL_NOT_FOUND": "未找到指定的频道",
+  "CHANNEL_NAME_REQUIRED": "频道名称不能为空",
+  "CATEGORY_NOT_FOUND": "未找到指定的分组分类",
+  "CATEGORY_NAME_REQUIRED": "分类名称不能为空",
+
+  "MESSAGE_NOT_FOUND": "消息未找到或已被删除",
+  "MESSAGE_EMPTY": "无法发送空消息",
+  "FILE_TOO_LARGE": "文件体积超出服务器允许的最大限制",
+  "FILE_TYPE_UNSUPPORTED": "不支持该文件格式上传",
+  "UPLOAD_FAILED": "文件上传失败，请检查网络后重试",
+
+  "VOICE_ROOM_FULL": "该语音频道人数已达上限",
+  "VOICE_JOIN_FAILED": "加入语音频道失败，请检查媒体连接与权限",
+  "VOICE_PERMISSION_DENIED": "缺少进入或在语音频道讲话的权限",
+
+  "ADMIN_REQUIRED": "需要超级管理员权限方可执行此操作",
+  "ADMIN_CANNOT_BAN_SELF": "无法封禁或停用当前登录的管理员账户",
+
+  "NETWORK_ERROR": "网络连接异常，请检查您的网络设置",
+  "UNKNOWN_ERROR": "发生未知错误，请重试"
+}

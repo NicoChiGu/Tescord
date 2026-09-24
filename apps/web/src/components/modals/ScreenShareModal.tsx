@@ -37,10 +37,10 @@ import {
   MAX_CUSTOM_BITRATE,
   StreamTransmissionMode,
 } from "@tescord/types";
+import { useTranslation } from "react-i18next";
 import {
   detectSupportedVideoCodecs,
   detectSupportedVideoCodecsAsync,
-  livekitService,
 } from "../../services/livekit.js";
 import {
   NATDetector,
@@ -65,6 +65,7 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
   onClose,
   onStartShare,
 }) => {
+  const { t } = useTranslation(["modals", "common", "admin", "errors"]);
   const [activeTab, setActiveTab] = useState<"screens" | "windows">("screens");
   const [sources, setSources] = useState<DesktopSource[]>([]);
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
@@ -199,12 +200,13 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
           <div className="flex items-center space-x-2">
             <Monitor className="w-5 h-5 text-discord-brand" />
             <h3 className="font-bold text-lg text-discord-textHeader">
-              屏幕与应用直播分享 (LiveKit Simulcast)
+              {t("modals:screenShare.title")}
             </h3>
           </div>
           <button
             onClick={onClose}
             className="p-1 text-discord-textMuted hover:text-white rounded-lg transition"
+            title={t("common:close")}
           >
             <X className="w-5 h-5" />
           </button>
@@ -228,7 +230,9 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
                   }`}
                 >
                   <Monitor className="w-4 h-4" />
-                  <span>全屏幕 ({screens.length})</span>
+                  <span>
+                    {t("modals:screenShare.tabsScreen")} ({screens.length})
+                  </span>
                 </button>
                 <button
                   onClick={() => {
@@ -242,7 +246,9 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
                   }`}
                 >
                   <Layout className="w-4 h-4" />
-                  <span>应用程序窗口 ({windows.length})</span>
+                  <span>
+                    {t("modals:screenShare.tabsWindow")} ({windows.length})
+                  </span>
                 </button>
               </div>
 
@@ -250,11 +256,11 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
               {isLoadingSources ? (
                 <div className="h-44 flex items-center justify-center text-discord-textMuted">
                   <div className="w-6 h-6 border-2 border-discord-brand border-t-transparent rounded-full animate-spin mr-2" />
-                  <span>正在扫描本地显示屏与窗口...</span>
+                  <span>{t("modals:screenShare.scanningSources")}</span>
                 </div>
               ) : displaySources.length === 0 ? (
                 <div className="h-44 flex items-center justify-center text-discord-textMuted text-sm">
-                  暂未检测到活动的应用程序窗口
+                  {t("modals:screenShare.noWindowsDetected")}
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3 max-h-48 overflow-y-auto custom-scrollbar p-1">
@@ -302,9 +308,10 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
             <div className="bg-[#2b2d31] p-4 rounded-xl border border-[#383a40] flex items-start space-x-3 text-xs text-discord-textMuted">
               <AlertCircle className="w-5 h-5 text-discord-brand flex-shrink-0 mt-0.5" />
               <div>
-                <div className="font-bold text-white mb-1">浏览器直连模式</div>
-                点击“开始直播”后，浏览器将弹出系统原生的屏幕/窗口选择向导。在
-                Tescord Electron 桌面端可获得更低延迟和游戏独占伴音混音体验。
+                <div className="font-bold text-white mb-1">
+                  {t("modals:screenShare.browserDirectMode")}
+                </div>
+                {t("modals:screenShare.browserDirectDesc")}
               </div>
             </div>
           )}
@@ -314,17 +321,19 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-discord-textMuted uppercase flex items-center gap-1.5">
                 <Layers className="w-3.5 h-3.5 text-discord-brand" />
-                <span>直播画质与帧率 (16:9 自适应)</span>
+                <span>{t("modals:screenShare.qualityTitle")}</span>
               </label>
               <span className="text-[11px] text-discord-brand bg-discord-brand/10 px-2 py-0.5 rounded font-mono font-medium border border-discord-brand/20">
-                当前屏幕最高支持: {maxAllowedResolution.toUpperCase()}
+                {t("modals:screenShare.maxSupported", {
+                  res: maxAllowedResolution.toUpperCase(),
+                })}
               </span>
             </div>
 
             {/* 1. 分辨率选择栏 (480p / 720p / 1080p / 1440p / 4k) */}
             <div className="space-y-1.5">
               <div className="text-[11px] font-semibold text-discord-textMuted flex items-center justify-between">
-                <span>分辨率 (Resolution)</span>
+                <span>{t("modals:screenShare.resolution")}</span>
                 <span className="text-[10px] text-gray-400">
                   {currentPresetInfo.width} × {currentPresetInfo.height} (16:9)
                 </span>
@@ -346,7 +355,7 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
                       title={
                         isAllowed
                           ? `${opt.label} - ${opt.width}x${opt.height}\n${opt.description}`
-                          : `超出当前屏幕物理尺寸限制 (最高支持 ${maxAllowedResolution.toUpperCase()})`
+                          : `${t("modals:screenShare.exceedsScreen")} (${maxAllowedResolution.toUpperCase()})`
                       }
                       className={`py-2 px-1 rounded-lg border text-center transition flex flex-col items-center justify-center relative ${
                         isSelected
@@ -360,7 +369,7 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
                         {opt.id.toUpperCase()}
                       </span>
                       <span className="text-[9px] opacity-75">
-                        {!isAllowed ? "超出屏幕" : `${opt.height}P`}
+                        {!isAllowed ? t("modals:screenShare.exceedsScreen") : `${opt.height}P`}
                       </span>
                     </button>
                   );
@@ -371,9 +380,11 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
             {/* 2. 帧率选择栏 (15fps / 30fps / 60fps) */}
             <div className="space-y-1.5">
               <div className="text-[11px] font-semibold text-discord-textMuted flex items-center justify-between">
-                <span>帧率 (Frame Rate)</span>
+                <span>{t("modals:screenShare.frameRate")}</span>
                 <span className="text-[10px] text-gray-400">
-                  推荐码率: {(recommendedBitrate / 1_000_000).toFixed(1)} Mbps
+                  {t("modals:screenShare.recommendedBitrate", {
+                    mbps: (recommendedBitrate / 1_000_000).toFixed(1),
+                  })}
                 </span>
               </div>
               <div className="grid grid-cols-3 gap-2">
@@ -397,7 +408,7 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
                       <span className="text-xs font-medium">{fps} FPS</span>
                       {fps === 60 && (
                         <span className="text-[9px] bg-discord-brand-hover px-1 py-0.2 rounded text-white font-normal">
-                          高刷
+                          {t("modals:screenShare.highFps")}
                         </span>
                       )}
                     </button>
@@ -412,7 +423,7 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-discord-textMuted uppercase flex items-center gap-1.5">
                 <Film className="w-3.5 h-3.5 text-discord-brand" />
-                <span>视频编码格式 (Video Codec)</span>
+                <span>{t("modals:screenShare.codecTitle")}</span>
               </label>
               <button
                 type="button"
@@ -422,7 +433,9 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
               >
                 <Sliders className="w-3 h-3" />
                 <span>
-                  {isAdvancedBitrateOpen ? "收起码率微调" : "自定义码率 (高级)"}
+                  {isAdvancedBitrateOpen
+                    ? t("modals:screenShare.collapseBitrate")
+                    : t("modals:screenShare.customBitrate")}
                 </span>
                 {isAdvancedBitrateOpen ? (
                   <ChevronUp className="w-3 h-3" />
@@ -445,8 +458,12 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
                     : "bg-[#2b2d31] border-[#383a40] text-discord-textMuted hover:border-[#474950] hover:text-white"
                 }`}
               >
-                <span className="text-xs font-medium">自动</span>
-                <span className="text-[9px] opacity-80">跟随偏好</span>
+                <span className="text-xs font-medium">
+                  {t("modals:screenShare.autoCodec")}
+                </span>
+                <span className="text-[9px] opacity-80">
+                  {t("modals:screenShare.followPreference")}
+                </span>
               </button>
 
               {supportedCodecs.map((item) => {
@@ -472,10 +489,10 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
                     </span>
                     <span className="text-[9px] opacity-80 truncate max-w-[65px]">
                       {item.isHardwareAccelerated
-                        ? "硬加速"
+                        ? t("modals:screenShare.hwAccelerated")
                         : isAvailable
-                          ? "可用"
-                          : "不支持"}
+                          ? t("modals:screenShare.available")
+                          : t("modals:screenShare.unsupported")}
                     </span>
                   </button>
                 );
@@ -488,7 +505,7 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-discord-textMuted flex items-center gap-1.5 font-medium">
                     <Gauge className="w-3.5 h-3.5 text-discord-brand" />
-                    <span>目标推流码率</span>
+                    <span>{t("modals:screenShare.targetBitrate")}</span>
                   </span>
                   <div className="flex items-center gap-2">
                     <span
@@ -497,7 +514,7 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
                     >
                       {customBitrate
                         ? `${Math.round(customBitrate / 1000)} kbps`
-                        : `${Math.round(recommendedBitrate / 1000)} kbps (推荐)`}
+                        : `${Math.round(recommendedBitrate / 1000)} kbps`}
                     </span>
                     {customBitrate && (
                       <button
@@ -506,7 +523,7 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
                         className="text-[11px] text-gray-400 hover:text-white flex items-center gap-0.5 cursor-pointer"
                       >
                         <RotateCcw className="w-3 h-3" />
-                        <span>重置推荐</span>
+                        <span>{t("modals:screenShare.resetRecommended")}</span>
                       </button>
                     )}
                   </div>
@@ -538,11 +555,13 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
             <div className="flex items-center justify-between">
               <div className="text-xs font-bold text-white flex items-center space-x-1.5">
                 <Radio className="w-4 h-4 text-discord-brand" />
-                <span>传输分发模式</span>
+                <span>{t("modals:screenShare.transmissionMode")}</span>
               </div>
               {natInfo && (
                 <div className="flex items-center gap-1.5 text-[10px]">
-                  <span className="text-gray-400">本机网络:</span>
+                  <span className="text-gray-400">
+                    {t("modals:screenShare.localNetwork")}
+                  </span>
                   <span
                     className={`px-1.5 py-0.5 rounded font-mono ${
                       natInfo.hasIPv6 || natInfo.natType === "FullCone"
@@ -551,8 +570,8 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
                     }`}
                   >
                     {natInfo.hasIPv6
-                      ? "IPv6 Direct (穿透极佳)"
-                      : `${natInfo.natType} (打洞支持)`}
+                      ? "IPv6 Direct (Fast)"
+                      : `${natInfo.natType}`}
                   </span>
                 </div>
               )}
@@ -572,14 +591,14 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
                 <div className="flex items-center justify-between font-semibold">
                   <div className="flex items-center gap-1.5">
                     <Server className="w-3.5 h-3.5 text-discord-brand" />
-                    <span>服务器中继 (LiveKit SFU)</span>
+                    <span>{t("modals:screenShare.sfuModeTitle")}</span>
                   </div>
                   <span className="text-[10px] bg-discord-brand/20 text-discord-brand px-1.5 py-0.2 rounded">
-                    推荐
+                    {t("modals:screenShare.recommendedBadge")}
                   </span>
                 </div>
                 <div className="text-[11px] text-gray-400 mt-1 leading-snug">
-                  由中央媒体服务器智能分发，支持百人同屏、画质自适应，不占主播上行
+                  {t("modals:screenShare.sfuModeDesc")}
                 </div>
               </button>
 
@@ -600,14 +619,14 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
                 <div className="flex items-center justify-between font-semibold">
                   <div className="flex items-center gap-1.5">
                     <Share2 className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>P2P 点对点打洞 (直连)</span>
+                    <span>{t("modals:screenShare.p2pModeTitle")}</span>
                   </div>
                   <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-1.5 py-0.2 rounded">
-                    零服务器流量
+                    {t("modals:screenShare.zeroServerTraffic")}
                   </span>
                 </div>
                 <div className="text-[11px] text-gray-400 mt-1 leading-snug">
-                  观众与主播建立点对点直连或接力，免除服务器带宽压力，超低物理延迟
+                  {t("modals:screenShare.p2pModeDesc")}
                 </div>
               </button>
             </div>
@@ -616,7 +635,7 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
             {transmissionMode !== "sfu" && (
               <div className="flex items-center gap-4 pt-1 border-t border-[#383a40]/60 text-xs">
                 <span className="text-[11px] text-gray-400 font-medium">
-                  P2P 拓扑策略:
+                  {t("modals:screenShare.p2pStrategy")}
                 </span>
                 <label className="flex items-center gap-1.5 cursor-pointer text-gray-300 hover:text-white">
                   <input
@@ -627,7 +646,7 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
                     onChange={() => setTransmissionMode("p2p_direct")}
                     className="accent-emerald-400"
                   />
-                  <span>主播全承担 (Mesh 直连，零接力延迟)</span>
+                  <span>{t("modals:screenShare.p2pMesh")}</span>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer text-gray-300 hover:text-white">
                   <input
@@ -638,7 +657,7 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
                     onChange={() => setTransmissionMode("p2p_relay")}
                     className="accent-emerald-400"
                   />
-                  <span>智能接力转发 (Tree 观众中继分发)</span>
+                  <span>{t("modals:screenShare.p2pTree")}</span>
                 </label>
               </div>
             )}
@@ -654,21 +673,17 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
               )}
               <div>
                 <div className="text-xs font-bold text-white flex items-center space-x-1.5">
-                  <span>分享系统伴音 / 游戏音频</span>
+                  <span>{t("modals:screenShare.shareAudioTitle")}</span>
                   <span className="text-[10px] text-discord-green bg-discord-green/15 px-1.5 py-0.2 rounded font-normal">
-                    立体声混音直通
+                    {t("modals:screenShare.stereoPassthrough")}
                   </span>
                 </div>
                 <div className="text-[11px] text-discord-textMuted">
-                  将电脑正在播放的游戏声音与麦克风声音在客户端混合广播
+                  {t("modals:screenShare.audioMixDesc")}
                 </div>
                 {!isElectron && (
                   <div className="text-[10px] text-amber-400/90 mt-1 flex items-center gap-1">
-                    <span>
-                      💡
-                      提示：若声卡独占或窗口不支持伴音，将自动降级为纯画面；推荐分享屏幕或
-                      Chrome 标签页以捕获声音。
-                    </span>
+                    <span>{t("modals:screenShare.browserAudioTip")}</span>
                   </div>
                 )}
               </div>
@@ -691,7 +706,7 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
         <div className="px-6 py-4 border-t border-[#2b2d31] flex justify-between items-center bg-[#2b2d31]/50">
           <div className="text-xs text-discord-textMuted flex items-center space-x-1">
             <Sparkles className="w-3.5 h-3.5 text-discord-brand" />
-            <span>超低延迟 WebRTC 媒体引擎</span>
+            <span>{t("modals:screenShare.webrtcEngine")}</span>
           </div>
 
           <div className="flex space-x-3">
@@ -699,7 +714,7 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 rounded-xl text-sm font-semibold text-discord-textMuted hover:text-white transition"
             >
-              取消
+              {t("common:cancel")}
             </button>
             <button
               data-testid="start-screen-share-confirm-btn"
@@ -707,7 +722,7 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
               className="px-6 py-2 rounded-xl text-sm font-semibold bg-discord-brand hover:bg-discord-brand-hover text-white transition shadow-lg flex items-center space-x-1.5"
             >
               <Monitor className="w-4 h-4" />
-              <span>开始直播</span>
+              <span>{t("modals:screenShare.startShare")}</span>
             </button>
           </div>
         </div>

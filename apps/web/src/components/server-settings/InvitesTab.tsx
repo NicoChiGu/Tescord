@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Guild, Invite } from "@tescord/types";
 import { Link, Copy, Check, Trash2, Plus, Clock, Users } from "lucide-react";
 import { API_BASE, resolveServerUrl } from "../../config.js";
@@ -11,6 +12,7 @@ interface InvitesTabProps {
 }
 
 export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
+  const { t } = useTranslation(["server", "common", "errors"]);
   const { token } = useAuthStore();
   const [invites, setInvites] = useState<Invite[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -51,10 +53,10 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
 
   const handleDeleteInvite = async (code: string) => {
     const confirmed = await dialog.confirm({
-      title: "作废邀请码",
+      title: t("server:invites.revoke"),
       description: "确定要作废该邀请码吗？作废后使用该链接的新用户将无法加入服务器。",
       variant: "warning",
-      confirmText: "确认作废",
+      confirmText: t("server:invites.revoke"),
     });
     if (!confirmed) return;
 
@@ -67,7 +69,7 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
       });
       if (res.ok) {
         setInvites((prev) => prev.filter((i) => i.code !== code));
-        toast.success("邀请码已作废");
+        toast.success(t("server:invites.revoke"));
       } else {
         toast.error("作废邀请码失败");
       }
@@ -95,7 +97,7 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
         setInvites((prev) => [created, ...prev]);
         setIsCreating(false);
         handleCopyLink(created.code);
-        toast.success("邀请码已生成并复制到剪贴板");
+        toast.success(t("server:invites.copied"));
       } else {
         const err = await res.json().catch(() => ({}));
         toast.error(err.error || "创建邀请码失败");
@@ -110,7 +112,7 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-white mb-1">
-            邀请码管理 ({invites.length})
+            {t("server:invites.title")} ({invites.length})
           </h2>
           <p className="text-xs text-gray-400">
             查看当前活跃的邀请链接、使用次数，或者随时作废指定邀请码。
@@ -122,18 +124,18 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
           className="flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-[#5865f2] hover:bg-[#4752c4] text-white text-xs font-semibold shadow transition-colors self-start sm:self-center"
         >
           <Plus className="w-4 h-4" />
-          <span>创建新邀请链接</span>
+          <span>{t("server:invites.createBtn")}</span>
         </button>
       </div>
 
       {/* 创建表单面板 */}
       {isCreating && (
         <div className="rounded-xl bg-[#1e1f22] p-5 border border-white/10 space-y-4 animate-in slide-in-from-top-2">
-          <h3 className="text-sm font-bold text-white">配置新邀请链接</h3>
+          <h3 className="text-sm font-bold text-white">{t("server:invites.configTitle")}</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-gray-300 mb-1.5">
-                有效期限制
+                {t("server:invites.expireLimit")}
               </label>
               <select
                 value={newExpireHours}
@@ -142,31 +144,31 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
                 }
                 className="w-full bg-[#2b2d31] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#5865f2]"
               >
-                <option value={1}>1 小时</option>
-                <option value={6}>6 小时</option>
-                <option value={12}>12 小时</option>
-                <option value={24}>1 天 (24 小时)</option>
-                <option value={168}>7 天</option>
-                <option value={0}>永久有效</option>
+                <option value={1}>{t("server:invites.expire1h")}</option>
+                <option value={6}>{t("server:invites.expire6h")}</option>
+                <option value={12}>{t("server:invites.expire12h")}</option>
+                <option value={24}>{t("server:invites.expire24h")}</option>
+                <option value={168}>{t("server:invites.expire7d")}</option>
+                <option value={0}>{t("server:invites.expireNever")}</option>
               </select>
             </div>
 
             <div>
               <label className="block text-xs font-bold text-gray-300 mb-1.5">
-                最大使用人数
+                {t("server:invites.maxUsesLimit")}
               </label>
               <select
                 value={newMaxUses}
                 onChange={(e) => setNewMaxUses(parseInt(e.target.value, 10))}
                 className="w-full bg-[#2b2d31] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#5865f2]"
               >
-                <option value={0}>无限制</option>
-                <option value={1}>1 次使用</option>
-                <option value={5}>5 次使用</option>
-                <option value={10}>10 次使用</option>
-                <option value={25}>25 次使用</option>
-                <option value={50}>50 次使用</option>
-                <option value={100}>100 次使用</option>
+                <option value={0}>{t("server:invites.unlimitedUses")}</option>
+                <option value={1}>{t("server:invites.usesCount", { count: 1 })}</option>
+                <option value={5}>{t("server:invites.usesCount", { count: 5 })}</option>
+                <option value={10}>{t("server:invites.usesCount", { count: 10 })}</option>
+                <option value={25}>{t("server:invites.usesCount", { count: 25 })}</option>
+                <option value={50}>{t("server:invites.usesCount", { count: 50 })}</option>
+                <option value={100}>{t("server:invites.usesCount", { count: 100 })}</option>
               </select>
             </div>
           </div>
@@ -176,7 +178,7 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
               onClick={() => setIsCreating(false)}
               className="px-3 py-1.5 rounded-lg text-xs font-medium text-gray-300 hover:text-white"
             >
-              取消
+              {t("common:cancel")}
             </button>
             <button
               onClick={handleCreateInvite}
@@ -231,12 +233,12 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
                         {isCopied ? (
                           <>
                             <Check className="w-3.5 h-3.5" />
-                            <span>已复制链接</span>
+                            <span>{t("server:invites.copied")}</span>
                           </>
                         ) : (
                           <>
                             <Copy className="w-3.5 h-3.5" />
-                            <span>复制</span>
+                            <span>{t("server:invites.copy")}</span>
                           </>
                         )}
                       </button>
@@ -245,20 +247,20 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
                     <div className="flex items-center gap-4 text-xs text-gray-400 mt-1.5 flex-wrap">
                       <span className="flex items-center gap-1">
                         <Users className="w-3.5 h-3.5 text-gray-500" />
-                        使用次数：{inv.uses} /{" "}
-                        {inv.maxUses && inv.maxUses > 0 ? inv.maxUses : "无限"}
+                        {t("server:invites.table.uses")}：{inv.uses} /{" "}
+                        {inv.maxUses && inv.maxUses > 0 ? inv.maxUses : t("server:invites.permanent")}
                       </span>
 
                       <span className="flex items-center gap-1">
                         <Clock className="w-3.5 h-3.5 text-gray-500" />
-                        有效期：
+                        {t("server:invites.table.expires")}：
                         {inv.expiresAt
                           ? new Date(inv.expiresAt).toLocaleString()
-                          : "永久有效"}
+                          : t("server:invites.permanent")}
                       </span>
 
                       {inv.inviter && (
-                        <span>邀请人：{inv.inviter.username}</span>
+                        <span>{t("server:invites.table.creator")}：{inv.inviter.username}</span>
                       )}
                     </div>
                   </div>
@@ -266,7 +268,7 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
 
                 <button
                   onClick={() => handleDeleteInvite(inv.code)}
-                  title="作废该邀请码"
+                  title={t("server:invites.revoke")}
                   className="p-2 rounded-lg text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors self-start sm:self-center"
                 >
                   <Trash2 className="w-4 h-4" />

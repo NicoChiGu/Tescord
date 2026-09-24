@@ -8,7 +8,9 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { Channel, Guild } from "@tescord/types";
+import { useTranslation } from "react-i18next";
 import { API_BASE } from "../../config.js";
+import { getErrorMessage } from "../../i18n/index.js";
 
 interface EditChannelModalProps {
   isOpen: boolean;
@@ -27,6 +29,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
   onChannelUpdated,
   onChannelDeleted,
 }) => {
+  const { t } = useTranslation(["modals", "common", "admin", "errors"]);
   const [name, setName] = useState("");
   const [topic, setTopic] = useState("");
   const [parentId, setParentId] = useState<string | null>(null);
@@ -61,7 +64,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setError("频道名称不能为空");
+      setError(t("errors:CHANNEL_NAME_REQUIRED"));
       return;
     }
 
@@ -85,14 +88,14 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "更新频道失败");
+        throw new Error(getErrorMessage(data) || t("common:saveFailed", "更新频道失败"));
       }
 
       const updatedChannel: Channel = await res.json();
       onChannelUpdated?.(updatedChannel);
       onClose();
     } catch (err: any) {
-      setError(err.message || "网络连接异常");
+      setError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
     } finally {
       setIsSubmitting(false);
     }
@@ -118,13 +121,13 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "删除频道失败");
+        throw new Error(getErrorMessage(data) || t("common:deleteFailed", "删除频道失败"));
       }
 
       onChannelDeleted?.(channel.id);
       onClose();
     } catch (err: any) {
-      setError(err.message || "网络连接异常");
+      setError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
     } finally {
       setIsDeleting(false);
     }
@@ -154,18 +157,18 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
                 <Hash className="w-5 h-5 text-gray-400" />
               )}
               <h2 className="text-lg font-bold text-discord-textHeader">
-                编辑频道设置
+                {t("modals:editChannel.title")}
               </h2>
             </div>
             <p className="text-xs text-discord-textMuted mt-1">
-              配置 #{channel.name} 频道的名称、简介与安全属性
+              {t("modals:editChannel.subtitle", { name: channel.name })}
             </p>
           </div>
           <button
             data-testid="close-edit-channel-btn"
             onClick={onClose}
             className="text-discord-textMuted hover:text-discord-textHeader p-1 rounded-md hover:bg-white/5 transition"
-            title="关闭 (ESC)"
+            title={t("common:close")}
           >
             <X className="w-5 h-5" />
           </button>
@@ -186,7 +189,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
           {/* 频道名称 */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted mb-2">
-              频道名称
+              {t("modals:editChannel.nameLabel")}
             </label>
             <div className="relative flex items-center">
               <span className="absolute left-3 text-gray-400 select-none">
@@ -201,7 +204,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
                 data-testid="edit-channel-name-input"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="例如：general, 唠嗑茶水间"
+                placeholder={t("modals:editChannel.namePlaceholder")}
                 className="w-full bg-[#1e1f22] text-discord-textNormal border border-black/50 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-discord-brand transition placeholder-gray-500"
                 maxLength={100}
                 required
@@ -213,7 +216,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted">
-                频道话题 (Topic)
+                {t("modals:editChannel.topicLabel")}
               </label>
               <span className="text-[11px] text-discord-textMuted">
                 {topic.length} / 1024
@@ -223,7 +226,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
               data-testid="edit-channel-topic-input"
               value={topic}
               onChange={(e) => setTopic(e.target.value)}
-              placeholder="告诉大家这个频道可以讨论哪些话题，或者设置一些规则..."
+              placeholder={t("modals:editChannel.topicPlaceholder")}
               rows={3}
               maxLength={1024}
               className="w-full bg-[#1e1f22] text-discord-textNormal border border-black/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-discord-brand transition placeholder-gray-500 resize-none"
@@ -233,7 +236,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
           {/* 所属分类 */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted mb-2">
-              所属分类
+              {t("modals:createChannel.categoryLabel")}
             </label>
             <select
               value={parentId || ""}
@@ -241,7 +244,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
               className="w-full bg-[#1e1f22] text-discord-textNormal border border-black/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-discord-brand transition cursor-pointer"
               data-testid="edit-channel-category-select"
             >
-              <option value="">(无分类 / 顶部未分组)</option>
+              <option value="">{t("modals:createChannel.noCategory")}</option>
               {guild?.categories?.map((cat) => (
                 <option key={cat.id} value={cat.id}>
                   📁 {cat.name}
@@ -253,23 +256,29 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
           {/* 频道属性信息卡片 */}
           <div className="bg-[#2b2d31] p-3.5 rounded-lg border border-[#383a40] space-y-2.5">
             <div className="text-[11px] font-bold uppercase tracking-wider text-gray-400">
-              频道属性
+              {t("modals:editChannel.attributes")}
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-400">频道类型</span>
+              <span className="text-gray-400">{t("modals:createChannel.typeLabel")}</span>
               <span className="font-medium text-gray-200">
-                {isVoice ? "语音与实时媒体频道" : "纯文本与富媒体频道"}
+                {isVoice
+                  ? t("modals:editChannel.voiceTypeDesc")
+                  : t("modals:editChannel.textTypeDesc")}
               </span>
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-400">端到端加密防护 (E2EE)</span>
+              <span className="text-gray-400">{t("modals:createChannel.e2ee")}</span>
               {channel.isE2EE ? (
                 <div className="flex items-center gap-1.5 text-discord-green bg-[#23a55a18] px-2 py-0.5 rounded border border-discord-green/30">
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span className="font-semibold text-[11px]">已激活</span>
+                  <span className="font-semibold text-[11px]">
+                    {t("modals:editChannel.e2eeActive")}
+                  </span>
                 </div>
               ) : (
-                <span className="text-gray-500 text-[11px]">未开启</span>
+                <span className="text-gray-500 text-[11px]">
+                  {t("modals:editChannel.e2eeInactive")}
+                </span>
               )}
             </div>
           </div>
@@ -278,9 +287,11 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
           <div className="pt-2 border-t border-[#3f4147]">
             <div className="bg-red-500/5 border border-red-500/20 rounded-lg p-3.5 flex items-center justify-between">
               <div>
-                <h4 className="text-xs font-bold text-red-400">删除频道</h4>
+                <h4 className="text-xs font-bold text-red-400">
+                  {t("modals:editChannel.deleteChannel")}
+                </h4>
                 <p className="text-[11px] text-gray-400 mt-0.5">
-                  删除后该频道内的所有聊天与媒体记录将被永久清除。
+                  {t("modals:editChannel.deleteWarning")}
                 </p>
               </div>
               <button
@@ -295,7 +306,11 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
                 }`}
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>{confirmDelete ? "确认永久删除" : "删除频道"}</span>
+                <span>
+                  {confirmDelete
+                    ? t("modals:editChannel.confirmDelete")
+                    : t("modals:editChannel.deleteChannel")}
+                </span>
               </button>
             </div>
           </div>
@@ -309,7 +324,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
             disabled={isSubmitting || isDeleting}
             className="text-xs text-white hover:underline px-3 py-2 font-medium transition"
           >
-            取消
+            {t("common:cancel")}
           </button>
           <button
             type="button"
@@ -321,10 +336,10 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
             {isSubmitting ? (
               <>
                 <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>保存中...</span>
+                <span>{t("modals:editChannel.saving")}</span>
               </>
             ) : (
-              <span>保存更改</span>
+              <span>{t("modals:editChannel.save")}</span>
             )}
           </button>
         </div>

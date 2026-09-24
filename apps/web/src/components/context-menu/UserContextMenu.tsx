@@ -60,13 +60,14 @@ interface UserContextMenuProps {
 
 const STATUS_CONFIG: Record<
   Exclude<UserStatus, "OFFLINE">,
-  { label: string; color: string }
+  { labelKey: string; defaultLabel: string; color: string }
 > = {
-  ONLINE: { label: "在线", color: "bg-emerald-500" },
-  IDLE: { label: "离开", color: "bg-amber-500" },
-  DND: { label: "请勿打扰", color: "bg-rose-500" },
+  ONLINE: { labelKey: "common:status.online", defaultLabel: "在线", color: "bg-emerald-500" },
+  IDLE: { labelKey: "common:status.idle", defaultLabel: "离开", color: "bg-amber-500" },
+  DND: { labelKey: "common:status.dnd", defaultLabel: "请勿打扰", color: "bg-rose-500" },
   INVISIBLE: {
-    label: "隐身",
+    labelKey: "common:status.invisible",
+    defaultLabel: "隐身",
     color: "border-2 border-gray-400 bg-transparent",
   },
 };
@@ -87,7 +88,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
   onKickMember,
   onBanMember,
 }) => {
-  const { t } = useTranslation("contextMenu");
+  const { t } = useTranslation(["contextMenu", "common", "settings", "voice"]);
   const { user: currentUser, updateProfile } = useAuthStore();
   const { canKickMembers, canBanMembers } = usePermissions(guild);
   const [copiedId, setCopiedId] = useState(false);
@@ -190,7 +191,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
                   <span
                     className={`w-2 h-2 rounded-full mr-1.5 ${STATUS_CONFIG[statusKey].color}`}
                   />
-                  <span>{STATUS_CONFIG[statusKey].label}</span>
+                  <span>{t(STATUS_CONFIG[statusKey].labelKey, STATUS_CONFIG[statusKey].defaultLabel)}</span>
                 </ContextMenuRadioItem>
               ))}
             </ContextMenuRadioGroup>
@@ -204,7 +205,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
               >
                 <div className="flex items-center space-x-2">
                   <Settings className="w-4 h-4 text-discord-textMuted" />
-                  <span>个人设置</span>
+                  <span>{t("common:user.userSettings", "个人设置")}</span>
                 </div>
               </ContextMenuItem>
             )}
@@ -216,7 +217,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
               >
                 <div className="flex items-center space-x-2">
                   <Headphones className="w-4 h-4 text-discord-textMuted" />
-                  <span>语音与视频设置</span>
+                  <span>{t("settings:voiceAndVideo", "语音与视频设置")}</span>
                 </div>
               </ContextMenuItem>
             )}
@@ -230,7 +231,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
                 ) : (
                   <Copy className="w-4 h-4 text-discord-textMuted" />
                 )}
-                <span>{copiedId ? "已复制我的 ID" : "复制我的 ID"}</span>
+                <span>{copiedId ? t("common:copied", "已复制") : t("common:user.copyUserId", "复制用户 ID")}</span>
               </div>
             </ContextMenuItem>
           </>
@@ -248,7 +249,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
               >
                 <div className="flex items-center space-x-2">
                   <UserIcon className="w-4 h-4 text-discord-textMuted" />
-                  <span>个人资料</span>
+                  <span>{t("common:user.viewProfile", "个人资料")}</span>
                 </div>
               </ContextMenuItem>
             )}
@@ -260,7 +261,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
               >
                 <div className="flex items-center space-x-2">
                   <MessageSquare className="w-4 h-4 text-discord-textMuted" />
-                  <span>发送私信</span>
+                  <span>{t("contextMenu:sendMessage", "发送私信")}</span>
                 </div>
               </ContextMenuItem>
             )}
@@ -272,7 +273,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
               >
                 <div className="flex items-center space-x-2">
                   <AtSign className="w-4 h-4 text-discord-textMuted" />
-                  <span>@提及该用户</span>
+                  <span>{t("contextMenu:mentionUser", "@提及该用户")}</span>
                 </div>
               </ContextMenuItem>
             )}
@@ -285,7 +286,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
               >
                 <div className="flex items-center space-x-2">
                   <Info className="w-4 h-4 text-discord-brand" />
-                  <span>媒体属性与详细统计 (Stats)</span>
+                  <span>{t("voice:statsHUD", "媒体属性与详细统计 (Stats)")}</span>
                 </div>
               </ContextMenuItem>
             )}
@@ -298,7 +299,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
               >
                 <div className="flex items-center space-x-2">
                   <ScreenShareOff className="w-4 h-4 text-discord-danger group-hover:text-white" />
-                  <span>停止直播</span>
+                  <span>{t("voice:stopScreenShare", "停止直播")}</span>
                 </div>
               </ContextMenuItem>
             )}
@@ -372,7 +373,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
               >
                 <div className="flex items-center space-x-2">
                   <UserX className="w-4 h-4" />
-                  <span>踢出服务器</span>
+                  <span>{t("contextMenu:kickUser", "踢出服务器")}</span>
                 </div>
               </ContextMenuItem>
             )}
@@ -386,7 +387,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
               >
                 <div className="flex items-center space-x-2">
                   <ShieldAlert className="w-4 h-4" />
-                  <span>封禁成员</span>
+                  <span>{t("contextMenu:banUser", "封禁成员")}</span>
                 </div>
               </ContextMenuItem>
             )}
@@ -400,7 +401,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
                 ) : (
                   <Copy className="w-4 h-4 text-discord-textMuted" />
                 )}
-                <span>{copiedId ? "已复制用户 ID" : "复制用户 ID"}</span>
+                <span>{copiedId ? t("common:copied", "已复制") : t("common:user.copyUserId", "复制用户 ID")}</span>
               </div>
             </ContextMenuItem>
           </>

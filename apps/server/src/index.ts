@@ -10,6 +10,7 @@ import { createHmac, randomBytes } from "crypto";
 import { config } from "dotenv";
 import { prisma, seedInitialData } from "./db.js";
 import { AuthService } from "./services/auth.service.js";
+import { RelationshipService } from "./services/relationship.service.js";
 import { gatewayManager } from "./gateway.js";
 import { cacheStore } from "./cache.js";
 import { generateLiveKitToken, getWebhookReceiver } from "./livekit.js";
@@ -57,9 +58,25 @@ import {
   CreateDMDTO,
   MarkDMReadDTO,
   RegisterDeviceKeyDTO,
+  ErrorCode,
+  SupportedLocale,
 } from "@tescord/types";
 
 config();
+
+export function sendApiError(
+  reply: FastifyReply,
+  status: number,
+  code: ErrorCode | string,
+  message: string,
+  details?: Record<string, any>
+) {
+  return reply.status(status).send({
+    code,
+    error: message,
+    ...(details ? { details } : {}),
+  });
+}
 
 const server = fastify({
   logger: process.env.NODE_ENV === "development",
@@ -170,8 +187,9 @@ gatewayManager.setTokenVerifier(async (token) =>
 // 5. 注册 WebSocket 插件
 await server.register(websocket);
 
-// 6. 注册鉴权服务
+// 6. 注册鉴权服务与好友服务
 const authService = new AuthService(server);
+const relationshipService = new RelationshipService(server, authService);
 
 // 辅助函数：从请求提取用户 ID
 async function getUserIdFromRequest(
@@ -634,6 +652,101 @@ server.put(
 );
 
 // ==========================================
+// 1.3 好友关系与好友申请 API (Relationships & Friends)
+// ==========================================
+
+// 获取当前用户的所有关系 (好友、待处理申请、屏蔽)
+server.get(
+  "/api/users/@me/relationships",
+  { preValidation: [(server as any).authenticate] },
+  async (request: any, reply) => {
+    const userId = request.user?.sub;
+    if (!userId) {
+      return reply.status(401).send({ error: "无效用户" });
+    }
+    try {
+      return await relationshipService.getRelationships(userId);
+    } catch (err: any) {
+      return reply
+        .status(400)
+        .send({ error: err.message || "获取好友列表失败" });
+    }
+  },
+);
+
+// 发送好友申请 (Body: { identifier: string })
+server.post(
+  "/api/users/@me/relationships",
+  { preValidation: [(server as any).authenticate] },
+  async (request: any, reply) => {
+    const userId = request.user?.sub;
+    if (!userId) {
+      return reply.status(401).send({ error: "无效用户" });
+    }
+    try {
+      const { identifier } = (request.body as { identifier?: string }) || {};
+      if (!identifier || typeof identifier !== "string") {
+        return reply
+          .status(400)
+          .send({ error: "请输入完整的用户标识，例如 用户名#12345" });
+      }
+      const relationship = await relationshipService.sendFriendRequest(
+        userId,
+        identifier,
+      );
+      return reply.status(201).send(relationship);
+    } catch (err: any) {
+      const status = err.message.includes("找不到") ? 404 : 400;
+      return reply
+        .status(status)
+        .send({ error: err.message || "发送好友申请失败" });
+    }
+  },
+);
+
+// 接受好友申请 (PUT /api/users/@me/relationships/:targetUserId)
+server.put(
+  "/api/users/@me/relationships/:targetUserId",
+  { preValidation: [(server as any).authenticate] },
+  async (request: any, reply) => {
+    const userId = request.user?.sub;
+    const { targetUserId } = request.params as { targetUserId: string };
+    if (!userId) {
+      return reply.status(401).send({ error: "无效用户" });
+    }
+    try {
+      const relationship = await relationshipService.acceptFriendRequest(
+        userId,
+        targetUserId,
+      );
+      return relationship;
+    } catch (err: any) {
+      return reply
+        .status(400)
+        .send({ error: err.message || "接受好友申请失败" });
+    }
+  },
+);
+
+// 解除好友 / 拒绝申请 / 取消申请 (DELETE /api/users/@me/relationships/:targetUserId)
+server.delete(
+  "/api/users/@me/relationships/:targetUserId",
+  { preValidation: [(server as any).authenticate] },
+  async (request: any, reply) => {
+    const userId = request.user?.sub;
+    const { targetUserId } = request.params as { targetUserId: string };
+    if (!userId) {
+      return reply.status(401).send({ error: "无效用户" });
+    }
+    try {
+      return await relationshipService.removeRelationship(userId, targetUserId);
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message || "操作失败" });
+    }
+  },
+);
+
+// ==========================================
 // 2. 公会与频道 API (Guilds & Channels)
 // ==========================================
 
@@ -1078,13 +1191,46 @@ server.post("/api/guilds", async (request, reply) => {
     ? await prisma.user.findUnique({ where: { id: userId } })
     : null;
   if (!owner) {
-    return reply.status(401).send({ error: "创建服务器需要有效用户身份" });
+    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "创建服务器需要有效用户身份");
   }
 
   const { name, iconUrl } = (request.body || {}) as CreateGuildDTO;
   if (!name || !name.trim()) {
-    return reply.status(400).send({ error: "服务器名称不能为空" });
+    return sendApiError(reply, 400, ErrorCode.GUILD_NAME_REQUIRED, "服务器名称不能为空");
   }
+
+  // 根据客户端 locale 或 Accept-Language 决定默认频道与分类文案
+  const rawLocale =
+    (request.body as any)?.locale ||
+    (request.headers["accept-language"] as string) ||
+    "zh-CN";
+  let defaultLocale: SupportedLocale = "zh-CN";
+  if (rawLocale.toLowerCase().startsWith("ja")) defaultLocale = "ja-JP";
+  else if (rawLocale.toLowerCase().startsWith("en")) defaultLocale = "en-US";
+
+  const defaultI18nLabels = {
+    "zh-CN": {
+      textCat: "文字频道",
+      voiceCat: "语音频道",
+      textChannel: "常规",
+      textTopic: "日常聊天交流",
+      voiceChannel: "日常闲聊",
+    },
+    "en-US": {
+      textCat: "Text Channels",
+      voiceCat: "Voice Channels",
+      textChannel: "general",
+      textTopic: "General chat and discussion",
+      voiceChannel: "Lounge",
+    },
+    "ja-JP": {
+      textCat: "テキストチャンネル",
+      voiceCat: "ボイスチャンネル",
+      textChannel: "一般",
+      textTopic: "日常のチャット",
+      voiceChannel: "雑談",
+    },
+  }[defaultLocale];
 
   const defaultPerms =
     PermissionFlags.VIEW_CHANNEL |
@@ -1133,7 +1279,7 @@ server.post("/api/guilds", async (request, reply) => {
   const textCat = await prisma.channelCategory.create({
     data: {
       guildId: guild.id,
-      name: "文字频道",
+      name: defaultI18nLabels.textCat,
       position: 0,
     },
   });
@@ -1141,7 +1287,7 @@ server.post("/api/guilds", async (request, reply) => {
   const voiceCat = await prisma.channelCategory.create({
     data: {
       guildId: guild.id,
-      name: "语音频道",
+      name: defaultI18nLabels.voiceCat,
       position: 1,
     },
   });
@@ -1150,9 +1296,9 @@ server.post("/api/guilds", async (request, reply) => {
     data: {
       guildId: guild.id,
       parentId: textCat.id,
-      name: "常规",
+      name: defaultI18nLabels.textChannel,
       type: "TEXT",
-      topic: "日常聊天交流",
+      topic: defaultI18nLabels.textTopic,
       position: 0,
     },
   });
@@ -1161,7 +1307,7 @@ server.post("/api/guilds", async (request, reply) => {
     data: {
       guildId: guild.id,
       parentId: voiceCat.id,
-      name: "日常闲聊",
+      name: defaultI18nLabels.voiceChannel,
       type: "VOICE",
       position: 1,
     },

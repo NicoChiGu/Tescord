@@ -6,6 +6,7 @@ import {
   NetworkStats,
   Guild,
   VoiceConnectionStatus,
+  NoiseSuppressionMode,
 } from "@tescord/types";
 import { livekitService, ActiveScreenShare } from "../services/livekit.js";
 import { audioEngine } from "../services/audioEngine.js";
@@ -26,6 +27,8 @@ import {
   ScreenShare,
   PhoneOff,
   Sparkles,
+  Radio,
+  Zap,
   Maximize2,
   Minimize2,
   ShieldCheck,
@@ -123,7 +126,7 @@ interface ParticipantCardProps {
   currentUser: User;
   isTheaterMode: boolean;
   isNoiseSuppressionEnabled: boolean;
-  noiseSuppressionMode: "off" | "rnnoise" | "dtln";
+  noiseSuppressionMode: "off" | "rnnoise" | "dtln" | "dfn3";
   isSpotlight?: boolean;
   selectedQuality?: "high" | "medium" | "low" | "auto";
   onQualitySelect?: (q: "high" | "medium" | "low" | "auto") => void;
@@ -775,7 +778,7 @@ interface VoiceRoomAreaProps {
   isSpeaking: boolean;
   activeSpeakers?: string[];
   isNoiseSuppressionEnabled: boolean;
-  noiseSuppressionMode?: "off" | "rnnoise" | "dtln";
+  noiseSuppressionMode?: "off" | "rnnoise" | "dtln" | "dfn3";
   isScreenSharing: boolean;
   isVideoEnabled?: boolean;
   onToggleMute: () => void;
@@ -783,6 +786,7 @@ interface VoiceRoomAreaProps {
   onStopScreenShare?: () => void;
   onToggleVideo?: () => void;
   onToggleNoiseSuppression: () => void;
+  onSelectNoiseSuppressionMode?: (mode: "off" | "rnnoise" | "dtln" | "dfn3") => void;
   onLeave: () => void;
   onJoin?: () => void;
   onCancelJoin?: () => void;
@@ -809,6 +813,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
   onStopScreenShare,
   onToggleVideo,
   onToggleNoiseSuppression,
+  onSelectNoiseSuppressionMode,
   onLeave,
   onJoin,
   onCancelJoin,
@@ -840,6 +845,9 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
     livekitService.getCameraDeviceId() || "default",
   );
   const cameraMenuRef = useRef<HTMLDivElement | null>(null);
+
+  const [isNoiseMenuOpen, setIsNoiseMenuOpen] = useState(false);
+  const noiseMenuRef = useRef<HTMLDivElement | null>(null);
 
   // 获取并监听系统摄像头与麦克风设备变动与当前激活设备
   useEffect(() => {
@@ -873,7 +881,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
 
   // 快捷菜单点击外部关闭
   useEffect(() => {
-    if (!isCameraMenuOpen && !isMicMenuOpen) return;
+    if (!isCameraMenuOpen && !isMicMenuOpen && !isNoiseMenuOpen) return;
     const handleClickOutside = (e: MouseEvent) => {
       if (
         cameraMenuRef.current &&
@@ -887,10 +895,16 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
       ) {
         setIsMicMenuOpen(false);
       }
+      if (
+        noiseMenuRef.current &&
+        !noiseMenuRef.current.contains(e.target as Node)
+      ) {
+        setIsNoiseMenuOpen(false);
+      }
     };
     window.addEventListener("click", handleClickOutside);
     return () => window.removeEventListener("click", handleClickOutside);
-  }, [isCameraMenuOpen, isMicMenuOpen]);
+  }, [isCameraMenuOpen, isMicMenuOpen, isNoiseMenuOpen]);
 
   const handleSelectCamera = async (deviceId: string) => {
     setActiveCameraId(deviceId);
@@ -902,6 +916,16 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
     setActiveMicId(deviceId);
     await livekitService.switchAudioInputDevice(deviceId);
     setIsMicMenuOpen(false);
+  };
+
+  const handleSelectNoiseMode = (mode: "off" | "rnnoise" | "dtln" | "dfn3") => {
+    setIsNoiseMenuOpen(false);
+    if (onSelectNoiseSuppressionMode) {
+      onSelectNoiseSuppressionMode(mode);
+    } else {
+      audioEngine.setNoiseSuppressionMode(mode);
+      onToggleNoiseSuppression();
+    }
   };
   const [pinnedUserId, setPinnedUserId] = useState<string | null>(null);
   const [statsUserId, setStatsUserId] = useState<string | null>(null);
@@ -1851,27 +1875,139 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
               );
             })()}
 
-            {/* AI 降噪切换 (支持 RNNoise / DTLN 深度消键盘音 / 关闭) */}
-            <button
-              data-testid="voice-sparkles-btn"
-              onClick={onToggleNoiseSuppression}
-              className={`p-2.5 sm:p-3.5 rounded-full transition shadow-lg flex items-center space-x-1.5 ${
-                isNoiseSuppressionEnabled
-                  ? noiseSuppressionMode === "dtln"
-                    ? "bg-discord-green/30 text-discord-green border border-discord-green ring-1 ring-discord-green/40 hover:bg-discord-green/40"
-                    : "bg-discord-green/20 text-discord-green border border-discord-green/40 hover:bg-discord-green/30"
-                  : "bg-[#2b2d31] text-discord-textMuted hover:bg-discord-hover"
-              }`}
-              title={
-                noiseSuppressionMode === "dtln"
-                  ? "DTLN 深度净化降噪已开启 (专攻消除机械键盘敲击音)"
-                  : isNoiseSuppressionEnabled
-                    ? "RNNoise AI 智能降噪已开启"
-                    : "AI 降噪已关闭"
-              }
-            >
-              <Sparkles className="w-5 h-5" />
-            </button>
+            {/* AI 降噪切换 (弹出浮层支持 4 档精准点选：RNNoise / DTLN / DFNv3 / 关闭直通) */}
+            <div className="relative" ref={noiseMenuRef}>
+              <button
+                data-testid="voice-sparkles-btn"
+                onClick={() => setIsNoiseMenuOpen((prev) => !prev)}
+                className={`p-2.5 sm:p-3.5 rounded-full transition shadow-lg flex items-center space-x-1.5 ${
+                  isNoiseSuppressionEnabled
+                    ? noiseSuppressionMode === "dfn3"
+                      ? "bg-purple-500/30 text-purple-300 border border-purple-500 ring-1 ring-purple-500/40 hover:bg-purple-500/40"
+                      : noiseSuppressionMode === "dtln"
+                        ? "bg-discord-green/30 text-discord-green border border-discord-green ring-1 ring-discord-green/40 hover:bg-discord-green/40"
+                        : "bg-discord-green/20 text-discord-green border border-discord-green/40 hover:bg-discord-green/30"
+                    : "bg-[#2b2d31] text-discord-textMuted hover:bg-discord-hover"
+                }`}
+                title={
+                  noiseSuppressionMode === "dfn3"
+                    ? "DFNv3 旗舰全频降噪已开启 (48kHz 复数滤波)"
+                    : noiseSuppressionMode === "dtln"
+                      ? "DTLN 深度净化降噪已开启 (专攻消除机械键盘敲击音)"
+                      : isNoiseSuppressionEnabled
+                        ? "RNNoise AI 智能降噪已开启"
+                        : "AI 降噪已关闭"
+                }
+              >
+                <Sparkles className="w-5 h-5" />
+              </button>
+
+              {isNoiseMenuOpen && (
+                <div
+                  data-testid="voice-noise-menu"
+                  className="absolute bottom-full mb-3 left-1/2 -translate-x-1/2 w-64 bg-[#2b2d31] border border-[#383a40] rounded-xl shadow-2xl p-2 z-50 animate-fadeIn space-y-1"
+                >
+                  <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-discord-brand" />
+                    <span>选择 AI 智能降噪引擎</span>
+                  </div>
+
+                  <div className="space-y-0.5 mt-1">
+                    {/* 选项 1: RNNoise */}
+                    <button
+                      type="button"
+                      data-testid="noise-option-rnnoise"
+                      onClick={() => handleSelectNoiseMode("rnnoise")}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+                        isNoiseSuppressionEnabled && noiseSuppressionMode === "rnnoise"
+                          ? "bg-discord-brand/20 text-white font-semibold"
+                          : "text-gray-300 hover:bg-white/5 hover:text-white"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-3.5 h-3.5 text-discord-brand" />
+                        <div className="text-left">
+                          <div className="text-xs">RNNoise 标准轻量</div>
+                          <div className="text-[10px] text-discord-textMuted">平稳风噪底噪 (推荐)</div>
+                        </div>
+                      </div>
+                      {isNoiseSuppressionEnabled && noiseSuppressionMode === "rnnoise" && (
+                        <Check className="w-3.5 h-3.5 text-discord-brand shrink-0" />
+                      )}
+                    </button>
+
+                    {/* 选项 2: DTLN */}
+                    <button
+                      type="button"
+                      data-testid="noise-option-dtln"
+                      onClick={() => handleSelectNoiseMode("dtln")}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+                        isNoiseSuppressionEnabled && noiseSuppressionMode === "dtln"
+                          ? "bg-discord-green/20 text-white font-semibold"
+                          : "text-gray-300 hover:bg-white/5 hover:text-white"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Zap className="w-3.5 h-3.5 text-discord-green" />
+                        <div className="text-left">
+                          <div className="text-xs">DTLN 深度净化</div>
+                          <div className="text-[10px] text-discord-textMuted">专攻消机械键盘音</div>
+                        </div>
+                      </div>
+                      {isNoiseSuppressionEnabled && noiseSuppressionMode === "dtln" && (
+                        <Check className="w-3.5 h-3.5 text-discord-green shrink-0" />
+                      )}
+                    </button>
+
+                    {/* 选项 3: DFNv3 */}
+                    <button
+                      type="button"
+                      data-testid="noise-option-dfn3"
+                      onClick={() => handleSelectNoiseMode("dfn3")}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+                        isNoiseSuppressionEnabled && noiseSuppressionMode === "dfn3"
+                          ? "bg-purple-500/20 text-white font-semibold"
+                          : "text-gray-300 hover:bg-white/5 hover:text-white"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Radio className="w-3.5 h-3.5 text-purple-400" />
+                        <div className="text-left">
+                          <div className="text-xs">DFNv3 旗舰声学</div>
+                          <div className="text-[10px] text-discord-textMuted">48kHz 全频复数滤波</div>
+                        </div>
+                      </div>
+                      {isNoiseSuppressionEnabled && noiseSuppressionMode === "dfn3" && (
+                        <Check className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                      )}
+                    </button>
+
+                    {/* 选项 4: 关闭直通 */}
+                    <button
+                      type="button"
+                      data-testid="noise-option-off"
+                      onClick={() => handleSelectNoiseMode("off")}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+                        !isNoiseSuppressionEnabled || noiseSuppressionMode === "off"
+                          ? "bg-rose-500/20 text-white font-semibold"
+                          : "text-gray-300 hover:bg-white/5 hover:text-white"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <VolumeX className="w-3.5 h-3.5 text-rose-400" />
+                        <div className="text-left">
+                          <div className="text-xs">直通原声 (未降噪)</div>
+                          <div className="text-[10px] text-discord-textMuted">关闭算法降噪</div>
+                        </div>
+                      </div>
+                      {(!isNoiseSuppressionEnabled || noiseSuppressionMode === "off") && (
+                        <Check className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* 挂断退出 */}
             <button

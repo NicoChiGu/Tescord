@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Guild } from "@tescord/types";
 import {
   ContextMenu,
@@ -39,6 +40,7 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
   onLeaveGuild,
   onMarkAsRead,
 }) => {
+  const { t } = useTranslation(["contextMenu", "server", "common"]);
   const { isOwner, canManageChannels, canManageGuild, canCreateInvite } =
     usePermissions(guild);
   const [copiedId, setCopiedId] = useState(false);
@@ -91,7 +93,7 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
               ) : (
                 <UserPlus className="w-4 h-4" />
               )}
-              <span>{copiedInvite ? "邀请码已复制" : "邀请其他人"}</span>
+              <span>{copiedInvite ? t("server:invites.copied") : t("contextMenu:server.invite")}</span>
             </div>
           </ContextMenuItem>
         )}
@@ -102,7 +104,7 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
         >
           <div className="flex items-center space-x-2">
             <CheckCircle2 className="w-4 h-4 text-discord-textMuted" />
-            <span>标记为已读</span>
+            <span>{t("contextMenu:channel.markAsRead")}</span>
           </div>
         </ContextMenuItem>
 
@@ -116,7 +118,7 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
             >
               <div className="flex items-center space-x-2">
                 <PlusCircle className="w-4 h-4 text-discord-textMuted" />
-                <span>创建频道</span>
+                <span>{t("contextMenu:server.createChannel")}</span>
               </div>
             </ContextMenuItem>
 
@@ -127,7 +129,7 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
             >
               <div className="flex items-center space-x-2">
                 <FolderPlus className="w-4 h-4 text-discord-textMuted" />
-                <span>创建分类</span>
+                <span>{t("contextMenu:server.createCategory")}</span>
               </div>
             </ContextMenuItem>
           </>
@@ -140,7 +142,7 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
           >
             <div className="flex items-center space-x-2">
               <Settings className="w-4 h-4 text-discord-textMuted" />
-              <span>服务器设置</span>
+              <span>{t("contextMenu:server.settings")}</span>
             </div>
           </ContextMenuItem>
         )}
@@ -155,7 +157,7 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
             >
               <div className="flex items-center space-x-2">
                 <LogOut className="w-4 h-4" />
-                <span>退出服务器</span>
+                <span>{t("contextMenu:server.leave")}</span>
               </div>
             </ContextMenuItem>
             <ContextMenuSeparator />
@@ -169,7 +171,7 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
             ) : (
               <Copy className="w-4 h-4 text-discord-textMuted" />
             )}
-            <span>{copiedId ? "已复制服务器 ID" : "复制服务器 ID"}</span>
+            <span>{copiedId ? t("common:copied") : t("contextMenu:copyGuildId")}</span>
           </div>
         </ContextMenuItem>
       </ContextMenuContent>

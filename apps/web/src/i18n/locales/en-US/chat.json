@@ -1,24 +1,122 @@
 {
-  "sendToChannel": "Message #{{name}}",
+  "sendToChannel": "Send to #{{name}}",
   "sendToChannelPlaceholder": "Message #{{name}}",
-  "uploadFile": "Upload file or image (MinIO direct upload)",
+  "uploadFile": "Upload file or image (MinIO direct upload supported)",
   "selectEmoji": "Select Emoji",
   "replyingTo": "Replying to {{name}}",
   "cancelReply": "Cancel Reply",
   "edited": "(edited)",
-  "pinned": "Pinned",
+  "pinned": "Pinned Message",
   "pinMessage": "Pin Message",
   "unpinMessage": "Unpin Message",
   "reply": "Reply",
   "deleteMessage": "Delete Message",
   "copyText": "Copy Text",
   "copyLink": "Copy Message Link",
-  "e2eeEncrypted": "End-to-End Encrypted (E2EE)",
+  "e2eeEncrypted": "End-to-End Encrypted Message (E2EE)",
   "e2eeDecrypted": "Decrypted",
-  "historyDivider": "NEW MESSAGES",
-  "noMessages": "No messages here yet. Say hello!",
+  "historyDivider": "NEW MESSAGES BELOW",
+  "noMessages": "No messages yet. Say hello!",
   "typing": "{{users}} is typing...",
+  "typingOne": "{{user}} is typing...",
+  "typingTwo": "{{user1}} and {{user2}} are typing...",
+  "typingMany": "Several people are typing...",
   "searchMessages": "Search encrypted messages...",
   "memberList": "Member List",
-  "pinnedMessages": "Pinned Messages"
+  "pinnedMessages": "Pinned Messages",
+  "dragDropUpload": "Drop files here to upload",
+  "uploading": "Uploading attachment...",
+  "deleteConfirmTitle": "Delete Message",
+  "deleteConfirmDesc": "Are you sure you want to delete this message? This cannot be undone.",
+  "pinnedList": {
+    "title": "Pinned Messages",
+    "emptyTitle": "No pinned messages yet",
+    "emptyDesc": "Hover over any message in #{{channel}} and right-click or use the action menu to pin it here.",
+    "jump": "Jump",
+    "jumpTooltip": "Jump to this message in chat",
+    "unpin": "Unpin"
+  },
+  "friends": {
+    "title": "Friends",
+    "tabs": {
+      "online": "Online",
+      "all": "All",
+      "pending": "Pending",
+      "addFriend": "Add Friend"
+    },
+    "add": {
+      "title": "Add Friend",
+      "desc": "You can add friends with their unique user tag (e.g. {{example}}, cannot be just name or tag numbers).",
+      "placeholder": "You can enter e.g. Nick#12312",
+      "submit": "Send Friend Request",
+      "emptyTitle": "Meet New Friends",
+      "emptyDesc": "Once you become friends, you can start 1-on-1 direct messages, voice calls, and video chats anytime, without server limits."
+    },
+    "errors": {
+      "inputEmpty": "Please enter the user's tag",
+      "missingTag": "Missing number tag! Please enter the full user tag, e.g. username#12345",
+      "missingUsername": "Missing username! Please enter the full user tag, e.g. username#12345",
+      "invalidFormat": "Invalid user tag format. The tag must be 5 digits, e.g. Nick#12345",
+      "sendFailed": "Failed to send friend request. Please try again later.",
+      "acceptFailed": "Failed to accept request",
+      "actionFailed": "Action failed"
+    },
+    "success": {
+      "mutualFriend": "Awesome! You and {{name}} sent requests to each other and are now friends!",
+      "requestSent": "Friend request successfully sent to {{name}}!"
+    },
+    "list": {
+      "searchPlaceholder": "Search friends...",
+      "onlineCount": "ONLINE — {{count}}",
+      "allCount": "ALL FRIENDS — {{count}}",
+      "pendingCount": "PENDING — {{count}}",
+      "incomingCount": "INCOMING — {{count}}",
+      "outgoingCount": "OUTGOING — {{count}}",
+      "emptyOnline": "No friends are currently online",
+      "emptyAll": "No friends yet. Go to 'Add Friend' to connect with others!",
+      "emptyPending": "No pending friend requests",
+      "incomingRequest": "Sent you a friend request",
+      "waitingAccept": "Waiting for approval"
+    },
+    "actions": {
+      "sendMessage": "Message",
+      "voiceCall": "Voice Call",
+      "moreOptions": "More Options",
+      "removeFriend": "Remove Friend",
+      "acceptRequest": "Accept Request",
+      "rejectRequest": "Reject Request",
+      "cancelRequest": "Cancel Request"
+    }
+  },
+  "dm": {
+    "title": "Direct Messages",
+    "createDM": "Start DM",
+    "friendsTab": "Friends",
+    "sectionHeader": "DIRECT MESSAGES",
+    "clickToChat": "Click to start chatting",
+    "closeDM": "Close DM",
+    "emptyActiveTitle": "No active direct messages",
+    "emptyActiveDesc": "Click + in the top right or right-click a server member to start a DM",
+    "createModal": {
+      "title": "Start a Direct Message",
+      "inputLabel": "Enter recipient's username (must share a server)",
+      "placeholder": "Username, e.g. Jackey",
+      "cancel": "Cancel",
+      "submit": "Start DM",
+      "errorFailed": "Failed to start direct message",
+      "errorServerRequired": "Cannot start DM. Both users must share a server."
+    },
+    "incomingCall": {
+      "ariaLabel": "Incoming call from {{username}}",
+      "callingVoice": "is inviting you to a voice call...",
+      "callingVideo": "is inviting you to a video call...",
+      "deviceFingerprint": "Device fingerprint: {{fingerprint}}",
+      "e2eeTrusted": "Verified Device · E2EE",
+      "e2eeTofu": "First-Trust Device · E2EE",
+      "e2eeFailed": "Device verification failed",
+      "e2eeNegotiating": "Verifying device keys...",
+      "acceptTooltip": "Accept Call (Alt+A)",
+      "rejectTooltip": "Decline Call (Alt+R)"
+    }
+  }
 }

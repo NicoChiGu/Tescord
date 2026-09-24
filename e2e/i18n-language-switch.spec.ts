@@ -24,7 +24,7 @@ test.describe("Tescord 多国语言 (i18n: zh-CN / en-US / ja-JP) 端到端与�
 
     // 默认回退语言应为简体中文
     const loginHeading = page.getByRole("heading", {
-      name: /欢迎回到 Tescord！/i,
+      name: /欢迎使用 Tescord/i,
     });
     await expect(loginHeading).toBeVisible({ timeout: 10000 });
 
@@ -40,9 +40,9 @@ test.describe("Tescord 多国语言 (i18n: zh-CN / en-US / ja-JP) 端到端与�
 
     // 验证标题与提交按钮立即变更为英文
     await expect(
-      page.getByRole("heading", { name: /Welcome back to Tescord!/i }),
+      page.getByRole("heading", { name: /Welcome to Tescord/i }),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: /^Log In$/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Continue$/i })).toBeVisible();
 
     // 1.3 切换至 日本語
     await langSelector.click();
@@ -52,10 +52,10 @@ test.describe("Tescord 多国语言 (i18n: zh-CN / en-US / ja-JP) 端到端与�
 
     // 验证标题与提交按钮立即变更为日文
     await expect(
-      page.getByRole("heading", { name: /おかえりなさい！/i }),
+      page.getByRole("heading", { name: /Tescord へようこそ/i }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: /^ログイン$/i }),
+      page.getByRole("button", { name: /^次へ$/i }),
     ).toBeVisible();
 
     // 1.4 切换回 简体中文
@@ -65,9 +65,9 @@ test.describe("Tescord 多国语言 (i18n: zh-CN / en-US / ja-JP) 端到端与�
     await zhOption.click();
 
     await expect(
-      page.getByRole("heading", { name: /欢迎回到 Tescord！/i }),
+      page.getByRole("heading", { name: /欢迎使用 Tescord/i }),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: /^登 录$/i })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^继续$/i })).toBeVisible();
 
     // 确保没有控制台未捕获错误
     const criticalErrors = consoleErrors.filter(
@@ -163,5 +163,19 @@ test.describe("Tescord 多国语言 (i18n: zh-CN / en-US / ja-JP) 端到端与�
     await expect(gearBtn).toBeVisible({ timeout: 10000 });
     await gearBtn.click();
     await expect(page.getByTestId("tab-language-btn")).toContainText("言語");
+
+    // 2.8 切换至音频设置面板，验证其子项文案完全呈现为日文
+    await page.getByTestId("tab-audio-btn").click();
+    await expect(page.getByText("デバイス設定")).toBeVisible();
+    await expect(page.getByText("入力デバイス (マイク)")).toBeVisible();
+    await expect(page.getByText("出力デバイス (ヘッドフォン/スピーカー)")).toBeVisible();
+
+    // 2.9 关闭设置弹窗，验证主界面好友与私信组件在日文下的完整呈现
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("user-settings-modal")).not.toBeVisible();
+    await expect(page.getByRole("button", { name: "フレンドに追加" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "オンライン", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "保留中" })).toBeVisible();
   });
 });
+

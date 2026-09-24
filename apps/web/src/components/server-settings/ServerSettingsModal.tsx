@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Guild, Role } from "@tescord/types";
 import {
   X,
@@ -30,7 +31,7 @@ interface ServerSettingsModalProps {
 }
 
 type TabType =
-  "overview" | "roles" | "members" | "invites" | "bans" | "audit-log";
+  | "overview" | "roles" | "members" | "invites" | "bans" | "audit-log";
 
 export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
   isOpen,
@@ -39,6 +40,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
   onGuildUpdated,
   onGuildDeleted,
 }) => {
+  const { t } = useTranslation(["server", "contextMenu", "common", "errors"]);
   const { user: currentUser, token } = useAuthStore();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -341,7 +343,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                 {guild.name}
               </h3>
               <span className="text-[10px] uppercase font-extrabold tracking-wider text-gray-400">
-                服务器管理设置
+                {t("server:serverSettings")}
               </span>
             </div>
 
@@ -349,7 +351,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
               {/* 分组 1：服务器设置 */}
               <div className="space-y-1">
                 <div className="text-[11px] font-bold uppercase tracking-wider text-gray-400 px-2 py-1">
-                  服务器设置
+                  {t("server:groups.serverSettings")}
                 </div>
                 <button
                   onClick={() => setActiveTab("overview")}
@@ -360,7 +362,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                   }`}
                 >
                   <Sliders className="w-4 h-4" />
-                  <span>概览设置</span>
+                  <span>{t("server:nav.overview")}</span>
                 </button>
                 <button
                   onClick={() => setActiveTab("roles")}
@@ -371,14 +373,14 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                   }`}
                 >
                   <Shield className="w-4 h-4" />
-                  <span>身份组与权限</span>
+                  <span>{t("server:nav.roles")}</span>
                 </button>
               </div>
 
               {/* 分组 2：用户管理 */}
               <div className="space-y-1">
                 <div className="text-[11px] font-bold uppercase tracking-wider text-gray-400 px-2 py-1">
-                  用户管理
+                  {t("server:groups.userManagement")}
                 </div>
                 <button
                   onClick={() => setActiveTab("members")}
@@ -389,7 +391,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                   }`}
                 >
                   <Users className="w-4 h-4" />
-                  <span>成员列表</span>
+                  <span>{t("server:nav.members")}</span>
                 </button>
                 <button
                   onClick={() => setActiveTab("invites")}
@@ -400,7 +402,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                   }`}
                 >
                   <Link className="w-4 h-4" />
-                  <span>专属邀请</span>
+                  <span>{t("server:nav.invites")}</span>
                 </button>
                 <button
                   onClick={() => setActiveTab("bans")}
@@ -411,14 +413,14 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                   }`}
                 >
                   <Ban className="w-4 h-4" />
-                  <span>封禁黑名单</span>
+                  <span>{t("server:nav.bans")}</span>
                 </button>
               </div>
 
               {/* 分组 3：审查与日志 */}
               <div className="space-y-1">
                 <div className="text-[11px] font-bold uppercase tracking-wider text-gray-400 px-2 py-1">
-                  审查
+                  {t("server:groups.security")}
                 </div>
                 <button
                   onClick={() => setActiveTab("audit-log")}
@@ -429,7 +431,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                   }`}
                 >
                   <FileText className="w-4 h-4" />
-                  <span>审计日志</span>
+                  <span>{t("server:nav.auditLog")}</span>
                 </button>
               </div>
             </div>
@@ -443,7 +445,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                 className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-semibold text-rose-400 hover:bg-rose-500/10 hover:text-rose-300 transition-colors"
               >
                 <Trash2 className="w-4 h-4" />
-                <span>删除服务器</span>
+                <span>{t("server:nav.deleteServer")}</span>
               </button>
             </div>
           )}
@@ -457,7 +459,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
               data-testid="close-server-settings-btn"
               onClick={onClose}
               className="w-9 h-9 rounded-full border-2 border-white/20 hover:border-white flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-              title="关闭设置 (ESC)"
+              title={`${t("common:close")} (ESC)`}
             >
               <X className="w-5 h-5" />
             </button>

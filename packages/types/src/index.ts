@@ -31,6 +31,8 @@ export interface Activity {
 export interface User {
   id: string;
   username: string;
+  displayName?: string | null;
+  discriminator?: string;
   email: string;
   avatarUrl?: string | null;
   status: UserStatus;
@@ -89,6 +91,7 @@ export interface RefreshTokenDTO {
 
 export interface UpdateProfileDTO {
   username?: string;
+  displayName?: string | null;
   avatarUrl?: string | null;
   customStatus?: string | null;
   bio?: string | null;
@@ -97,6 +100,26 @@ export interface UpdateProfileDTO {
   bannerColor?: string | null;
   themeColor?: string | null;
   showActivity?: boolean;
+}
+
+export type RelationshipType =
+  | "FRIEND"
+  | "PENDING_INCOMING"
+  | "PENDING_OUTGOING"
+  | "BLOCKED";
+
+export interface Relationship {
+  id: string;
+  userId: string;
+  targetUserId: string;
+  type: RelationshipType;
+  createdAt: string;
+  updatedAt: string;
+  targetUser?: User;
+}
+
+export interface SendFriendRequestDTO {
+  identifier: string;
 }
 
 // 2. 位掩码权限体系与角色 (Bitwise Permissions & Roles)
@@ -722,7 +745,7 @@ export interface LiveKitTokenResponse {
 
 // 7. 音频设置与降噪配置
 export type AudioInputMode = "VAD" | "PTT";
-export type NoiseSuppressionMode = "off" | "rnnoise" | "dtln";
+export type NoiseSuppressionMode = "off" | "rnnoise" | "dtln" | "dfn3";
 
 export type SoundEffectType =
   | "MUTE"
@@ -736,7 +759,7 @@ export type SoundEffectType =
 
 export interface AudioProcessingConfig {
   noiseSuppression: boolean; // RNNoise AI 神经网络降噪 (兼容旧布尔配置)
-  noiseSuppressionMode?: NoiseSuppressionMode; // 全新多引擎降噪模式：'off' | 'rnnoise' | 'dtln' (默认 'rnnoise')
+  noiseSuppressionMode?: NoiseSuppressionMode; // 全新多引擎降噪模式：'off' | 'rnnoise' | 'dtln' | 'dfn3' (默认 'rnnoise', dfn3 为 DFNv3 旗舰全频高保真)
   echoCancellation: boolean; // 回声消除 (AEC)
   autoGainControl: boolean; // 自动增益 (AGC)
   highFidelityMusic: boolean; // 48kHz 高保真立体声直通
@@ -877,15 +900,16 @@ export interface ChannelMuteConfig {
 export interface MuteDurationOption {
   label: string;
   durationMs: number | null;
+  i18nKey: string;
 }
 
 export const CHANNEL_MUTE_DURATION_OPTIONS: MuteDurationOption[] = [
-  { label: "15 分钟", durationMs: 15 * 60 * 1000 },
-  { label: "1 小时", durationMs: 60 * 60 * 1000 },
-  { label: "3 小时", durationMs: 3 * 60 * 60 * 1000 },
-  { label: "8 小时", durationMs: 8 * 60 * 60 * 1000 },
-  { label: "24 小时", durationMs: 24 * 60 * 60 * 1000 },
-  { label: "直到重新开启", durationMs: null },
+  { label: "15 分钟", durationMs: 15 * 60 * 1000, i18nKey: "contextMenu:channel.mute15m" },
+  { label: "1 小时", durationMs: 60 * 60 * 1000, i18nKey: "contextMenu:channel.mute1h" },
+  { label: "3 小时", durationMs: 3 * 60 * 60 * 1000, i18nKey: "contextMenu:channel.mute3h" },
+  { label: "8 小时", durationMs: 8 * 60 * 60 * 1000, i18nKey: "contextMenu:channel.mute8h" },
+  { label: "24 小时", durationMs: 24 * 60 * 60 * 1000, i18nKey: "contextMenu:channel.mute24h" },
+  { label: "直到重新开启", durationMs: null, i18nKey: "contextMenu:channel.muteUntilTurnedOn" },
 ];
 
 /**
@@ -1000,6 +1024,33 @@ export function calculateTripleSNRReduction(
   };
 }
 
+export interface QuadTrackSNRResult {
+  rawRms: number;
+  rnnoiseRms: number;
+  dtlnRms: number;
+  dfn3Rms: number;
+  rnnoiseDbReduction: number;
+  dtlnDbReduction: number;
+  dfn3DbReduction: number;
+}
+
+export function calculateQuadSNRReduction(
+  rawRms: number,
+  rnnoiseRms: number,
+  dtlnRms: number,
+  dfn3Rms: number,
+): QuadTrackSNRResult {
+  return {
+    rawRms,
+    rnnoiseRms,
+    dtlnRms,
+    dfn3Rms,
+    rnnoiseDbReduction: calculateSNRReduction(rawRms, rnnoiseRms),
+    dtlnDbReduction: calculateSNRReduction(rawRms, dtlnRms),
+    dfn3DbReduction: calculateSNRReduction(rawRms, dfn3Rms),
+  };
+}
+
 // 8. 对象存储直传契约 (MinIO / S3)
 export interface PresignedUploadRequest {
   fileName: string;
@@ -1071,6 +1122,10 @@ export const GatewayEvents = {
   CALL_REJECT: "CALL_REJECT",
   CALL_END: "CALL_END",
   CALL_STATE_UPDATE: "CALL_STATE_UPDATE",
+  // 好友关系与申请信令
+  RELATIONSHIP_ADD: "RELATIONSHIP_ADD",
+  RELATIONSHIP_REMOVE: "RELATIONSHIP_REMOVE",
+  RELATIONSHIP_UPDATE: "RELATIONSHIP_UPDATE",
   ACCOUNT_SESSION_REVOKED: "ACCOUNT_SESSION_REVOKED",
   AUTH_SESSION_EXPIRED: "AUTH_SESSION_EXPIRED",
   MAINTENANCE_UPDATE: "MAINTENANCE_UPDATE",
@@ -2620,6 +2675,74 @@ export const SUPPORTED_LOCALES: LocaleOption[] = [
     nativeName: "日本語",
   },
 ];
+
+export enum ErrorCode {
+  // 通用错误
+  INTERNAL_ERROR = "INTERNAL_ERROR",
+  INVALID_PARAMS = "INVALID_PARAMS",
+  NOT_FOUND = "NOT_FOUND",
+  UNAUTHORIZED = "UNAUTHORIZED",
+  FORBIDDEN = "FORBIDDEN",
+  RATE_LIMITED = "RATE_LIMITED",
+
+  // 认证与用户
+  AUTH_INVALID_CREDENTIALS = "AUTH_INVALID_CREDENTIALS",
+  AUTH_TOKEN_EXPIRED = "AUTH_TOKEN_EXPIRED",
+  AUTH_USER_NOT_FOUND = "AUTH_USER_NOT_FOUND",
+  AUTH_USER_EXISTS = "AUTH_USER_EXISTS",
+  AUTH_PASSWORD_TOO_WEAK = "AUTH_PASSWORD_TOO_WEAK",
+  AUTH_ACCOUNT_DISABLED = "AUTH_ACCOUNT_DISABLED",
+  AUTH_REAUTH_REQUIRED = "AUTH_REAUTH_REQUIRED",
+
+  // 服务器 (Guild)
+  GUILD_NOT_FOUND = "GUILD_NOT_FOUND",
+  GUILD_NAME_REQUIRED = "GUILD_NAME_REQUIRED",
+  GUILD_PERMISSION_DENIED = "GUILD_PERMISSION_DENIED",
+  GUILD_INVITE_INVALID = "GUILD_INVITE_INVALID",
+  GUILD_INVITE_EXPIRED = "GUILD_INVITE_EXPIRED",
+  GUILD_ALREADY_MEMBER = "GUILD_ALREADY_MEMBER",
+  GUILD_CANNOT_LEAVE_OWNER = "GUILD_CANNOT_LEAVE_OWNER",
+  GUILD_ROLE_NOT_FOUND = "GUILD_ROLE_NOT_FOUND",
+  GUILD_ROLE_CANNOT_DELETE_DEFAULT = "GUILD_ROLE_CANNOT_DELETE_DEFAULT",
+  GUILD_ROLE_HIERARCHY_TOO_LOW = "GUILD_ROLE_HIERARCHY_TOO_LOW",
+
+  // 频道与分类
+  CHANNEL_NOT_FOUND = "CHANNEL_NOT_FOUND",
+  CHANNEL_NAME_REQUIRED = "CHANNEL_NAME_REQUIRED",
+  CATEGORY_NOT_FOUND = "CATEGORY_NOT_FOUND",
+  CATEGORY_NAME_REQUIRED = "CATEGORY_NAME_REQUIRED",
+
+  // 消息与文件
+  MESSAGE_NOT_FOUND = "MESSAGE_NOT_FOUND",
+  MESSAGE_EMPTY = "MESSAGE_EMPTY",
+  FILE_TOO_LARGE = "FILE_TOO_LARGE",
+  FILE_TYPE_UNSUPPORTED = "FILE_TYPE_UNSUPPORTED",
+  UPLOAD_FAILED = "UPLOAD_FAILED",
+
+  // 语音与媒体
+  VOICE_ROOM_FULL = "VOICE_ROOM_FULL",
+  VOICE_JOIN_FAILED = "VOICE_JOIN_FAILED",
+  VOICE_PERMISSION_DENIED = "VOICE_PERMISSION_DENIED",
+
+  // 管理后台
+  ADMIN_REQUIRED = "ADMIN_REQUIRED",
+  ADMIN_CANNOT_BAN_SELF = "ADMIN_CANNOT_BAN_SELF",
+}
+
+export interface ApiErrorResponse {
+  code?: ErrorCode | string;
+  error: string;
+  details?: Record<string, any>;
+}
+
+export interface CreateGuildRequest {
+  name: string;
+  iconUrl?: string | null;
+  description?: string | null;
+  isPublic?: boolean;
+  locale?: SupportedLocale;
+}
+
 
 // ==========================================
 // 20. 超级管理员与全平台治理契约 (Super Admin)

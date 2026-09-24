@@ -17,7 +17,6 @@ import {
   Cpu,
   Search,
   CheckCircle2,
-  XCircle,
   Ban,
   KeyRound,
   Trash2,
@@ -27,18 +26,17 @@ import {
   Loader2,
   AlertTriangle,
   RefreshCw,
-  ShieldCheck,
-  UserCheck,
   Ticket,
   Plus,
   Copy,
   Check,
-  Calendar,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { API_BASE } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { useMaintenanceStore } from "../../stores/useMaintenanceStore.js";
 import { dialog } from "../../stores/useDialogStore.js";
+import { getErrorMessage } from "../../i18n/index.js";
 
 interface AdminDashboardModalProps {
   isOpen: boolean;
@@ -51,6 +49,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { t } = useTranslation(["admin", "common", "modals", "errors"]);
   const { getAuthHeaders } = useAuthStore();
   const [activeTab, setActiveTab] = useState<TabType>("OVERVIEW");
   const [loading, setLoading] = useState(false);
@@ -109,14 +108,20 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
       const headers = getAuthHeaders();
       if (tab === "OVERVIEW") {
         const res = await fetch(`${API_BASE}/api/admin/overview`, { headers });
-        if (!res.ok) throw new Error("加载系统概览指标失败");
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(getErrorMessage(data) || t("admin:overview.loadFailed"));
+        }
         setStats(await res.json());
       } else if (tab === "USERS") {
         const url = userSearch
           ? `${API_BASE}/api/admin/users?search=${encodeURIComponent(userSearch)}`
           : `${API_BASE}/api/admin/users`;
         const res = await fetch(url, { headers });
-        if (!res.ok) throw new Error("加载用户列表失败");
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(getErrorMessage(data) || t("admin:users.loadFailed"));
+        }
         const data = await res.json();
         setUsers(Array.isArray(data) ? data : data.items || []);
       } else if (tab === "GUILDS") {
@@ -124,7 +129,10 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
           ? `${API_BASE}/api/admin/guilds?search=${encodeURIComponent(guildSearch)}`
           : `${API_BASE}/api/admin/guilds`;
         const res = await fetch(url, { headers });
-        if (!res.ok) throw new Error("加载公会列表失败");
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(getErrorMessage(data) || t("admin:guilds.loadFailed"));
+        }
         const data = await res.json();
         setGuilds(Array.isArray(data) ? data : data.items || []);
       } else if (tab === "INVITES") {
@@ -132,58 +140,77 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
           ? `${API_BASE}/api/admin/registration-invites?search=${encodeURIComponent(inviteSearch)}`
           : `${API_BASE}/api/admin/registration-invites`;
         const res = await fetch(url, { headers });
-        if (!res.ok) throw new Error("加载邀请码列表失败");
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(getErrorMessage(data) || t("admin:invites.loadFailed"));
+        }
         const data = await res.json();
         setInvites(data.invites || []);
       } else if (tab === "SYSTEM") {
         const res = await fetch(`${API_BASE}/api/admin/settings`, { headers });
-        if (!res.ok) throw new Error("加载系统设置失败");
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(getErrorMessage(data) || t("admin:system.loadFailed"));
+        }
         setSettings(await res.json());
       }
     } catch (err: any) {
-      setError(err.message || "请求失败");
+      setError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
     } finally {
       setLoading(false);
     }
   };
 
   // 用户操作：封禁/解封
-  const handleToggleBan = async (user: AdminUserItem) => {
-    const actionText = user.isBanned ? "解封" : "封禁";
+  const handleToggleBan = async (targetUser: AdminUserItem) => {
+    const actionText = targetUser.isBanned
+      ? t("admin:users.unbanBtn")
+      : t("admin:users.banBtn");
+    const consequence = !targetUser.isBanned
+      ? t("admin:users.confirmBanConsequence")
+      : t("admin:users.confirmUnbanConsequence");
     const confirmed = await dialog.confirm({
-      title: `${actionText}用户账号`,
-      description: `确定要${actionText}用户 “${user.username}” (${user.email}) 吗？${
-        !user.isBanned
-          ? "封禁后该用户将立即断开连接且无法登录。"
-          : "解封后该用户将恢复正常登录权限。"
-      }`,
-      variant: user.isBanned ? "warning" : "danger",
+      title: t("admin:users.confirmBanTitle", { action: actionText }),
+      description: t("admin:users.confirmBanDesc", {
+        action: actionText,
+        username: targetUser.username,
+        email: targetUser.email,
+        consequence,
+      }),
+      variant: targetUser.isBanned ? "warning" : "danger",
       requireSecurityCode: true,
-      confirmText: `确认${actionText}`,
+      confirmText: t("admin:users.confirmBanBtn", { action: actionText }),
     });
     if (!confirmed) return;
 
     try {
-      const res = await fetch(`${API_BASE}/api/admin/users/${user.id}`, {
+      const res = await fetch(`${API_BASE}/api/admin/users/${targetUser.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
           ...getAuthHeaders(),
         },
-        body: JSON.stringify({ isBanned: !user.isBanned }),
+        body: JSON.stringify({ isBanned: !targetUser.isBanned }),
       });
-      if (!res.ok) throw new Error("操作失败");
-      showSuccess(user.isBanned ? "账号已解封" : "账号已被封禁");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(getErrorMessage(data) || t("common:saveFailed", "操作失败"));
+      }
+      showSuccess(
+        targetUser.isBanned
+          ? t("admin:users.actionUnbanned")
+          : t("admin:users.actionBanned"),
+      );
       loadTabData("USERS");
     } catch (err: any) {
-      setError(err.message);
+      setError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
     }
   };
 
   // 用户操作：修改角色
-  const handleChangeRole = async (user: AdminUserItem, newRole: SystemRole) => {
+  const handleChangeRole = async (targetUser: AdminUserItem, newRole: SystemRole) => {
     try {
-      const res = await fetch(`${API_BASE}/api/admin/users/${user.id}`, {
+      const res = await fetch(`${API_BASE}/api/admin/users/${targetUser.id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -191,11 +218,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
         },
         body: JSON.stringify({ role: newRole }),
       });
-      if (!res.ok) throw new Error("更新角色失败");
-      showSuccess(`已将用户角色调整为 ${newRole}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(getErrorMessage(data) || t("common:saveFailed", "更新角色失败"));
+      }
+      showSuccess(t("admin:users.roleUpdated", { role: newRole }));
       loadTabData("USERS");
     } catch (err: any) {
-      setError(err.message);
+      setError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
     }
   };
 
@@ -203,11 +233,13 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   const handleResetPassword = async (userId: string) => {
     const targetUser = users.find((u) => u.id === userId);
     const confirmed = await dialog.confirm({
-      title: "高危确认：重置用户密码",
-      description: `确定要重置用户 “${targetUser?.username || userId}” 的登录密码吗？操作后该用户的全部旧会话将被强制撤销并生成临时密码。`,
+      title: t("admin:users.resetPwdConfirmTitle"),
+      description: t("admin:users.resetPwdConfirmDesc", {
+        username: targetUser?.username || userId,
+      }),
       variant: "danger",
       requireSecurityCode: true,
-      confirmText: "重置密码",
+      confirmText: t("admin:users.resetPwdBtn"),
     });
     if (!confirmed) return;
 
@@ -220,23 +252,29 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
         },
         body: JSON.stringify({ resetPassword: true }),
       });
-      if (!res.ok) throw new Error("重置密码失败");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(getErrorMessage(data) || t("admin:users.resetPwdFailed"));
+      }
       const result = await res.json();
       setTemporaryPassword(result.temporaryPassword || null);
-      showSuccess("临时密码已生成，旧会话已撤销");
+      showSuccess(t("admin:users.resetPwdSuccess"));
     } catch (err: any) {
-      setError(err.message);
+      setError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
     }
   };
 
   // 公会操作：强制解散
   const handleForceDeleteGuild = async (guildId: string, guildName: string) => {
     const confirmed = await dialog.confirm({
-      title: "高危确认：强制解散服务器",
-      description: `确定要强制解散并删除服务器 “${guildName}” 吗？此操作具有毁灭性且无法撤销，该服务器下的所有频道与聊天记录将被永久清除！`,
+      title: t("admin:guilds.disbandConfirmTitle"),
+      description: t("admin:guilds.disbandConfirmDesc", {
+        name: guildName,
+        id: guildId,
+      }),
       variant: "danger",
       requireSecurityCode: true,
-      confirmText: "强制解散",
+      confirmText: t("admin:guilds.forceDisband"),
     });
     if (!confirmed) return;
 
@@ -246,11 +284,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
         headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({ nameConfirmation: guildName }),
       });
-      if (!res.ok) throw new Error("强制解散服务器失败");
-      showSuccess("违规服务器已强制解散并清理");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(getErrorMessage(data) || t("admin:guilds.disbandFailed"));
+      }
+      showSuccess(t("admin:guilds.disbandSuccess"));
       loadTabData("GUILDS");
     } catch (err: any) {
-      setError(err.message);
+      setError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
     }
   };
 
@@ -258,7 +299,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   const handleSendBroadcast = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!broadcastTitle.trim() || !broadcastContent.trim()) {
-      setError("请完整填写广播标题与内容");
+      setError(t("admin:system.fillBroadcastError"));
       return;
     }
     try {
@@ -274,12 +315,15 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
           severity: broadcastSeverity,
         }),
       });
-      if (!res.ok) throw new Error("发送广播失败");
-      showSuccess("系统广播已成功推送给全平台所有在线用户！");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(getErrorMessage(data) || t("admin:system.broadcastFailed"));
+      }
+      showSuccess(t("admin:system.broadcastPushed"));
       setBroadcastTitle("");
       setBroadcastContent("");
     } catch (err: any) {
-      setError(err.message);
+      setError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
     }
   };
 
@@ -294,7 +338,10 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
         },
         body: JSON.stringify(settings),
       });
-      if (!res.ok) throw new Error("保存系统设置失败");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(getErrorMessage(data) || t("admin:system.settingsFailed"));
+      }
       if (settings.maintenanceMode) {
         useMaintenanceStore.getState().setMaintenance({
           enabled: true,
@@ -303,9 +350,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
       } else {
         useMaintenanceStore.getState().clearMaintenance();
       }
-      showSuccess("系统维护设置已保存生效！");
+      showSuccess(t("admin:system.settingsSaved"));
     } catch (err: any) {
-      setError(err.message);
+      setError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
     }
   };
 
@@ -328,14 +375,16 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
         }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "创建邀请码失败");
-      showSuccess(`成功生成邀请码：${data.code}`);
+      if (!res.ok) {
+        throw new Error(getErrorMessage(data) || t("admin:invites.createFailed"));
+      }
+      showSuccess(t("admin:invites.createSuccess", { code: data.code }));
       setIsCreateInviteModalOpen(false);
       setNewInviteNote("");
       setNewInviteCustomCode("");
       loadTabData("INVITES");
     } catch (err: any) {
-      setError(err.message);
+      setError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
     } finally {
       setIsCreatingInvite(false);
     }
@@ -343,16 +392,21 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
   // 邀请码操作：作废/恢复
   const handleToggleRevokeInvite = async (invite: RegistrationInviteDTO) => {
-    const actionText = invite.isRevoked ? "恢复激活" : "作废";
+    const actionText = invite.isRevoked
+      ? t("admin:invites.restoreValid")
+      : t("admin:invites.revokeNow");
+    const consequence = !invite.isRevoked
+      ? t("admin:invites.revokeConsequence")
+      : t("admin:invites.restoreConsequence");
     const confirmed = await dialog.confirm({
-      title: `${actionText}注册邀请码`,
-      description: `确定要${actionText}邀请码 “${invite.code}” 吗？${
-        !invite.isRevoked
-          ? "作废后，该邀请码将无法被用于新用户注册。"
-          : "恢复后，该邀请码在有效期与次数范围内可继续被用于注册。"
-      }`,
+      title: t("admin:invites.toggleRevokeTitle", { action: actionText }),
+      description: t("admin:invites.toggleRevokeDesc", {
+        action: actionText,
+        code: invite.code,
+        consequence,
+      }),
       variant: invite.isRevoked ? "warning" : "danger",
-      confirmText: `确认${actionText}`,
+      confirmText: t("admin:users.confirmBanBtn", { action: actionText }),
     });
     if (!confirmed) return;
 
@@ -368,22 +422,25 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
           body: JSON.stringify({ isRevoked: !invite.isRevoked }),
         },
       );
-      if (!res.ok) throw new Error("操作失败");
-      showSuccess(`邀请码 ${invite.code} 已${actionText}`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(getErrorMessage(data) || t("common:saveFailed", "操作失败"));
+      }
+      showSuccess(t("admin:invites.actionSuccess", { code: invite.code, action: actionText }));
       loadTabData("INVITES");
     } catch (err: any) {
-      setError(err.message);
+      setError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
     }
   };
 
   // 邀请码操作：物理删除
   const handleDeleteInvite = async (invite: RegistrationInviteDTO) => {
     const confirmed = await dialog.confirm({
-      title: "高危确认：删除注册邀请码",
-      description: `确定要彻底删除邀请码 “${invite.code}” 吗？此操作不可逆。`,
+      title: t("admin:invites.deleteInviteTitle"),
+      description: t("admin:invites.deleteInviteDesc", { code: invite.code }),
       variant: "danger",
       requireSecurityCode: true,
-      confirmText: "确认删除",
+      confirmText: t("common:delete"),
     });
     if (!confirmed) return;
 
@@ -395,11 +452,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
           headers: getAuthHeaders(),
         },
       );
-      if (!res.ok) throw new Error("删除失败");
-      showSuccess(`邀请码 ${invite.code} 已彻底删除`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(getErrorMessage(data) || t("common:deleteFailed", "删除失败"));
+      }
+      showSuccess(t("admin:invites.deleteSuccess", { code: invite.code }));
       loadTabData("INVITES");
     } catch (err: any) {
-      setError(err.message);
+      setError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
     }
   };
 
@@ -412,7 +472,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
     const inviteLink = `${origin}/?invite=${encodeURIComponent(code)}`;
     navigator.clipboard.writeText(inviteLink).then(() => {
       setCopiedCode(code);
-      showSuccess(`已复制注册链接: ${inviteLink}`);
+      showSuccess(t("admin:invites.copySuccess", { link: inviteLink }));
       setTimeout(() => setCopiedCode(null), 2500);
     });
   };
@@ -431,10 +491,10 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             <ShieldAlert className="w-6 h-6 text-amber-400" />
             <div>
               <h2 className="font-bold text-white text-sm">
-                超级管理员系统控制台
+                {t("admin:header.superAdminTitle")}
               </h2>
               <span className="text-[10px] text-discord-textMuted tracking-wider font-mono">
-                SUPER_ADMIN
+                {t("admin:header.superAdminBadge")}
               </span>
             </div>
           </div>
@@ -450,7 +510,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               }`}
             >
               <Activity className="w-4 h-4 text-emerald-400" />
-              <span>运行概览</span>
+              <span>{t("admin:nav.overview")}</span>
             </button>
 
             <button
@@ -463,7 +523,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               }`}
             >
               <Users className="w-4 h-4 text-blue-400" />
-              <span>全平台用户</span>
+              <span>{t("admin:nav.users")}</span>
             </button>
 
             <button
@@ -476,7 +536,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               }`}
             >
               <Server className="w-4 h-4 text-purple-400" />
-              <span>公会监管</span>
+              <span>{t("admin:nav.guilds")}</span>
             </button>
 
             <button
@@ -489,7 +549,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               }`}
             >
               <Ticket className="w-4 h-4 text-emerald-400" />
-              <span>注册邀请码</span>
+              <span>{t("admin:nav.invites")}</span>
             </button>
 
             <button
@@ -502,7 +562,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               }`}
             >
               <Sliders className="w-4 h-4 text-amber-400" />
-              <span>广播与维护</span>
+              <span>{t("admin:nav.system")}</span>
             </button>
           </nav>
 
@@ -514,7 +574,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             <RefreshCw
               className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`}
             />
-            <span>刷新数据</span>
+            <span>{t("admin:header.refreshData")}</span>
           </button>
         </aside>
 
@@ -523,17 +583,17 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
           {/* 顶栏 */}
           <div className="h-14 border-b border-[#232428] px-6 flex items-center justify-between">
             <h3 className="font-bold text-lg text-white">
-              {activeTab === "OVERVIEW" && "系统运行状态看板"}
-              {activeTab === "USERS" && "全局注册用户治理与审查"}
-              {activeTab === "GUILDS" && "全平台服务器审查与解散"}
-              {activeTab === "INVITES" && "全站注册邀请码与准入发放"}
-              {activeTab === "SYSTEM" && "全网在线广播与系统维护设置"}
+              {activeTab === "OVERVIEW" && t("admin:header.tabOverviewTitle")}
+              {activeTab === "USERS" && t("admin:header.tabUsersTitle")}
+              {activeTab === "GUILDS" && t("admin:header.tabGuildsTitle")}
+              {activeTab === "INVITES" && t("admin:header.tabInvitesTitle")}
+              {activeTab === "SYSTEM" && t("admin:header.tabSystemTitle")}
             </h3>
             <button
               onClick={onClose}
               data-testid="close-admin-modal-btn"
               className="p-1.5 rounded-full hover:bg-[#3f4147] text-discord-textMuted hover:text-white transition"
-              title="按 ESC 或点击关闭"
+              title={t("common:close")}
             >
               <X className="w-5 h-5" />
             </button>
@@ -547,7 +607,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                 <span>{error}</span>
               </span>
               <button onClick={() => setError(null)} className="hover:underline">
-                关闭
+                {t("common:close")}
               </button>
             </div>
           )}
@@ -564,7 +624,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             {loading && !stats && users.length === 0 && (
               <div className="h-full flex items-center justify-center text-discord-textMuted space-x-2">
                 <Loader2 className="w-5 h-5 animate-spin" />
-                <span>加载后台数据中...</span>
+                <span>{t("admin:header.loadingData")}</span>
               </div>
             )}
 
@@ -578,7 +638,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       <Users className="w-6 h-6" />
                     </div>
                     <div>
-                      <p className="text-xs text-discord-textMuted">全平台注册用户</p>
+                      <p className="text-xs text-discord-textMuted">
+                        {t("admin:overview.totalUsers")}
+                      </p>
                       <p className="text-2xl font-black text-white">
                         {stats.totalUsers}
                       </p>
@@ -591,7 +653,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       <Activity className="w-6 h-6" />
                     </div>
                     <div>
-                      <p className="text-xs text-discord-textMuted">网关实时在线</p>
+                      <p className="text-xs text-discord-textMuted">
+                        {t("admin:overview.onlineUsers")}
+                      </p>
                       <p className="text-2xl font-black text-white">
                         {stats.onlineUsers}
                       </p>
@@ -604,7 +668,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       <Server className="w-6 h-6" />
                     </div>
                     <div>
-                      <p className="text-xs text-discord-textMuted">公会 / 服务器总数</p>
+                      <p className="text-xs text-discord-textMuted">
+                        {t("admin:overview.totalGuilds")}
+                      </p>
                       <p className="text-2xl font-black text-white">
                         {stats.totalGuilds}
                       </p>
@@ -617,7 +683,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       <MessageSquare className="w-6 h-6" />
                     </div>
                     <div>
-                      <p className="text-xs text-discord-textMuted">全站消息总流水</p>
+                      <p className="text-xs text-discord-textMuted">
+                        {t("admin:overview.totalMessages")}
+                      </p>
                       <p className="text-2xl font-black text-white">
                         {stats.totalMessages}
                       </p>
@@ -630,7 +698,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       <Clock className="w-6 h-6" />
                     </div>
                     <div>
-                      <p className="text-xs text-discord-textMuted">服务运行时长</p>
+                      <p className="text-xs text-discord-textMuted">
+                        {t("admin:overview.uptime")}
+                      </p>
                       <p className="text-lg font-bold text-white">
                         {Math.floor(stats.uptimeSeconds / 3600)}h{" "}
                         {Math.floor((stats.uptimeSeconds % 3600) / 60)}m{" "}
@@ -645,9 +715,12 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       <Cpu className="w-6 h-6" />
                     </div>
                     <div>
-                      <p className="text-xs text-discord-textMuted">堆内存消耗</p>
+                      <p className="text-xs text-discord-textMuted">
+                        {t("admin:overview.memory")}
+                      </p>
                       <p className="text-2xl font-black text-white">
-                        {stats.memoryUsageMb} <span className="text-sm font-normal text-discord-textMuted">MB</span>
+                        {stats.memoryUsageMb}{" "}
+                        <span className="text-sm font-normal text-discord-textMuted">MB</span>
                       </p>
                     </div>
                   </div>
@@ -662,7 +735,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                   <Search className="w-4 h-4 text-discord-textMuted" />
                   <input
                     type="text"
-                    placeholder="按用户名或邮箱模糊检索..."
+                    placeholder={t("admin:users.searchPlaceholder")}
                     value={userSearch}
                     onChange={(e) => setUserSearch(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && loadTabData("USERS")}
@@ -672,7 +745,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     onClick={() => loadTabData("USERS")}
                     className="px-3 py-1 bg-discord-brand hover:bg-[#4752c4] text-white text-xs font-semibold rounded transition"
                   >
-                    搜索
+                    {t("admin:users.searchBtn")}
                   </button>
                 </div>
 
@@ -701,12 +774,12 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                             </span>
                             {u.role === "SUPER_ADMIN" && (
                               <span className="bg-rose-500/20 text-rose-400 text-[10px] font-bold px-1.5 py-0.5 rounded border border-rose-500/30">
-                                超级管理员
+                                {t("admin:users.superAdminRole")}
                               </span>
                             )}
                             {u.isBanned && (
                               <span className="bg-red-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">
-                                已封禁
+                                {t("admin:users.bannedBadge")}
                               </span>
                             )}
                           </div>
@@ -715,8 +788,12 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       </div>
 
                       <div className="text-xs text-discord-textMuted space-x-3">
-                        <span>加入公会: <b>{u.guildCount}</b></span>
-                        <span>发送消息: <b>{u.messageCount}</b></span>
+                        <span>
+                          {t("admin:users.guildCount")} <b>{u.guildCount}</b>
+                        </span>
+                        <span>
+                          {t("admin:users.messageCount")} <b>{u.messageCount}</b>
+                        </span>
                       </div>
 
                       <div className="flex items-center space-x-2">
@@ -725,17 +802,17 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           <button
                             onClick={() => handleChangeRole(u, "SUPER_ADMIN")}
                             className="px-2 py-1 bg-[#3f4147] hover:bg-amber-600 text-white text-xs rounded transition"
-                            title="提升为超级管理员"
+                            title={t("admin:users.actions.promoteAdmin")}
                           >
-                            升为超管
+                            {t("admin:users.promoteToAdmin")}
                           </button>
                         ) : (
                           <button
                             onClick={() => handleChangeRole(u, "USER")}
                             className="px-2 py-1 bg-[#3f4147] hover:bg-zinc-700 text-discord-textMuted hover:text-white text-xs rounded transition"
-                            title="撤销管理员身份"
+                            title={t("admin:users.actions.demoteUser")}
                           >
-                            降为普通用户
+                            {t("admin:users.demoteToUser")}
                           </button>
                         )}
 
@@ -745,7 +822,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           className="px-2 py-1 bg-[#3f4147] hover:bg-discord-brand text-white text-xs rounded transition flex items-center space-x-1"
                         >
                           <KeyRound className="w-3.5 h-3.5" />
-                          <span>重置密码</span>
+                          <span>{t("admin:users.resetPwdBtn")}</span>
                         </button>
 
                         {/* 封禁/解封 */}
@@ -758,7 +835,11 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           }`}
                         >
                           <Ban className="w-3.5 h-3.5" />
-                          <span>{u.isBanned ? "解封" : "封禁"}</span>
+                          <span>
+                            {u.isBanned
+                              ? t("admin:users.unbanBtn")
+                              : t("admin:users.banBtn")}
+                          </span>
                         </button>
                       </div>
                     </div>
@@ -766,7 +847,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
                   {users.length === 0 && !loading && (
                     <div className="py-12 text-center text-discord-textMuted text-sm">
-                      未找到符合条件的用户
+                      {t("admin:users.noUsers")}
                     </div>
                   )}
                 </div>
@@ -775,17 +856,21 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                 {resetPwdUserId && (
                   <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4">
                     <div className="bg-[#313338] p-6 rounded-xl border border-[#3f4147] max-w-sm w-full space-y-4 shadow-2xl">
-                      <h4 className="font-bold text-white text-base">重置用户登录密码</h4>
+                      <h4 className="font-bold text-white text-base">
+                        {t("admin:users.resetDialogTitle")}
+                      </h4>
                       {temporaryPassword ? (
                         <div className="space-y-2">
-                          <p className="text-xs text-amber-300">该临时密码仅显示一次，请安全交给用户。用户登录后必须立即修改。</p>
+                          <p className="text-xs text-amber-300">
+                            {t("admin:users.resetDialogTip")}
+                          </p>
                           <code className="block select-text break-all bg-[#1e1f22] p-3 rounded border border-amber-500/30 text-amber-200 text-sm">
                             {temporaryPassword}
                           </code>
                         </div>
                       ) : (
                         <p className="text-sm text-discord-textMuted">
-                          系统将生成随机临时密码，并立即撤销该用户的全部旧会话。
+                          {t("admin:users.resetDialogDesc")}
                         </p>
                       )}
                       <div className="flex justify-end space-x-2">
@@ -796,14 +881,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           }}
                           className="px-4 py-1.5 text-xs text-discord-textMuted hover:text-white"
                         >
-                          取消
+                          {t("common:cancel")}
                         </button>
                         {!temporaryPassword && (
                           <button
                             onClick={() => handleResetPassword(resetPwdUserId)}
                             className="px-4 py-1.5 bg-discord-brand hover:bg-[#4752c4] text-white text-xs font-semibold rounded"
                           >
-                            生成并重置
+                            {t("admin:users.generateAndReset")}
                           </button>
                         )}
                       </div>
@@ -820,7 +905,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                   <Search className="w-4 h-4 text-discord-textMuted" />
                   <input
                     type="text"
-                    placeholder="按服务器名称搜索..."
+                    placeholder={t("admin:guilds.searchPlaceholder")}
                     value={guildSearch}
                     onChange={(e) => setGuildSearch(e.target.value)}
                     onKeyDown={(e) => e.key === "Enter" && loadTabData("GUILDS")}
@@ -830,7 +915,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     onClick={() => loadTabData("GUILDS")}
                     className="px-3 py-1 bg-discord-brand hover:bg-[#4752c4] text-white text-xs font-semibold rounded transition"
                   >
-                    搜索
+                    {t("admin:guilds.searchBtn")}
                   </button>
                 </div>
 
@@ -855,7 +940,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         <div>
                           <p className="font-semibold text-white text-sm">{g.name}</p>
                           <p className="text-xs text-discord-textMuted">
-                            所有者: <b>{g.ownerName}</b> | 成员数: <b>{g.memberCount}</b> | 频道数: <b>{g.channelCount}</b>
+                            {t("admin:guilds.owner")} <b>{g.ownerName}</b> | {t("admin:guilds.memberCount")} <b>{g.memberCount}</b> | {t("admin:guilds.channelCount")} <b>{g.channelCount}</b>
                           </p>
                         </div>
                       </div>
@@ -866,7 +951,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           className="px-3 py-1 bg-rose-600/20 text-rose-400 hover:bg-rose-600 hover:text-white text-xs font-semibold rounded transition flex items-center space-x-1"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          <span>强制解散</span>
+                          <span>{t("admin:guilds.forceDisband")}</span>
                         </button>
                       </div>
                     </div>
@@ -874,7 +959,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
                   {guilds.length === 0 && !loading && (
                     <div className="py-12 text-center text-discord-textMuted text-sm">
-                      未发现相关服务器
+                      {t("admin:guilds.noGuilds")}
                     </div>
                   )}
                 </div>
@@ -890,7 +975,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     <Search className="w-4 h-4 text-discord-textMuted" />
                     <input
                       type="text"
-                      placeholder="搜索邀请码或备注..."
+                      placeholder={t("admin:invites.searchPlaceholder")}
                       value={inviteSearch}
                       onChange={(e) => setInviteSearch(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && loadTabData("INVITES")}
@@ -900,7 +985,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       onClick={() => loadTabData("INVITES")}
                       className="px-3 py-1 bg-discord-brand hover:bg-[#4752c4] text-white text-xs font-semibold rounded transition"
                     >
-                      搜索
+                      {t("admin:invites.searchBtn")}
                     </button>
                   </div>
 
@@ -910,7 +995,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition flex items-center justify-center space-x-1.5 shadow-lg shadow-emerald-600/20"
                   >
                     <Plus className="w-4 h-4" />
-                    <span>生成新邀请码</span>
+                    <span>{t("admin:invites.createBtn")}</span>
                   </button>
                 </div>
 
@@ -921,19 +1006,19 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       inv.expiresAt && new Date(inv.expiresAt) < new Date();
                     const isExhausted =
                       inv.maxUses > 0 && inv.uses >= inv.maxUses;
-                    let statusLabel = "有效可用";
+                    let statusLabel = t("admin:invites.statusValid");
                     let statusClass =
                       "bg-emerald-500/10 text-emerald-400 border-emerald-500/20";
                     if (inv.isRevoked) {
-                      statusLabel = "已作废";
+                      statusLabel = t("admin:invites.statusRevoked");
                       statusClass =
                         "bg-rose-500/10 text-rose-400 border-rose-500/20";
                     } else if (isExpired) {
-                      statusLabel = "已过期";
+                      statusLabel = t("admin:invites.statusExpired");
                       statusClass =
                         "bg-zinc-500/10 text-zinc-400 border-zinc-500/20";
                     } else if (isExhausted) {
-                      statusLabel = "已用尽";
+                      statusLabel = t("admin:invites.statusExhausted");
                       statusClass =
                         "bg-amber-500/10 text-amber-400 border-amber-500/20";
                     }
@@ -965,23 +1050,23 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                             </div>
                             <div className="text-xs text-discord-textMuted mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
                               <span>
-                                使用进度:{" "}
+                                {t("admin:invites.usageProgress")}{" "}
                                 <b className="text-white">
                                   {inv.uses} /{" "}
-                                  {inv.maxUses === 0 ? "∞ (无限制)" : inv.maxUses}
+                                  {inv.maxUses === 0 ? t("admin:invites.unlimited") : inv.maxUses}
                                 </b>
                               </span>
                               <span>
-                                到期时间:{" "}
+                                {t("admin:invites.expiresAt")}{" "}
                                 <b className="text-white">
                                   {inv.expiresAt
                                     ? new Date(inv.expiresAt).toLocaleString()
-                                    : "永久有效"}
+                                    : t("admin:invites.neverExpires")}
                                 </b>
                               </span>
                               {inv.createdByName && (
                                 <span>
-                                  创建者: <b>{inv.createdByName}</b>
+                                  {t("admin:invites.creator")} <b>{inv.createdByName}</b>
                                 </span>
                               )}
                             </div>
@@ -992,20 +1077,20 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         <div className="flex items-center space-x-2 self-end md:self-center">
                           <button
                             onClick={() => handleCopyInviteLink(inv.code)}
-                            title="复制带邀请码的专属注册直达链接"
+                            title={t("admin:invites.copyLink")}
                             className="px-2.5 py-1.5 bg-[#3f4147] hover:bg-discord-brand text-white text-xs font-medium rounded transition flex items-center space-x-1"
                           >
                             {copiedCode === inv.code ? (
                               <>
                                 <Check className="w-3.5 h-3.5 text-emerald-400" />
                                 <span className="text-emerald-400 font-bold">
-                                  已复制链接
+                                  {t("admin:invites.copiedLink")}
                                 </span>
                               </>
                             ) : (
                               <>
                                 <Copy className="w-3.5 h-3.5" />
-                                <span>复制注册链接</span>
+                                <span>{t("admin:invites.copyLink")}</span>
                               </>
                             )}
                           </button>
@@ -1018,12 +1103,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                 : "bg-rose-500/20 text-rose-400 hover:bg-rose-600 hover:text-white"
                             }`}
                           >
-                            {inv.isRevoked ? "恢复有效" : "立即作废"}
+                            {inv.isRevoked
+                              ? t("admin:invites.restoreValid")
+                              : t("admin:invites.revokeNow")}
                           </button>
 
                           <button
                             onClick={() => handleDeleteInvite(inv)}
-                            title="彻底删除邀请码"
+                            title={t("admin:invites.deleteTitle")}
                             className="p-1.5 text-discord-textMuted hover:text-rose-400 hover:bg-[#3f4147] rounded transition"
                           >
                             <Trash2 className="w-4 h-4" />
@@ -1036,12 +1123,12 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                   {invites.length === 0 && !loading && (
                     <div className="py-16 text-center text-discord-textMuted text-sm flex flex-col items-center justify-center space-y-2">
                       <Ticket className="w-8 h-8 opacity-40" />
-                      <p>暂无任何注册邀请码记录</p>
+                      <p>{t("admin:invites.noInvites")}</p>
                       <button
                         onClick={() => setIsCreateInviteModalOpen(true)}
                         className="text-xs text-[#5865f2] hover:underline"
                       >
-                        立即生成一枚新邀请码
+                        {t("admin:invites.generateNewPrompt")}
                       </button>
                     </div>
                   )}
@@ -1056,15 +1143,19 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                 <div className="bg-[#2b2d31] p-5 rounded-xl border border-[#3f4147] space-y-4">
                   <div className="flex items-center space-x-2">
                     <Megaphone className="w-5 h-5 text-amber-400" />
-                    <h4 className="font-bold text-white text-sm">向全平台在线用户推送置顶广播</h4>
+                    <h4 className="font-bold text-white text-sm">
+                      {t("admin:system.broadcastSectionTitle")}
+                    </h4>
                   </div>
 
                   <form onSubmit={handleSendBroadcast} className="space-y-3">
                     <div>
-                      <label className="text-xs text-discord-textMuted block mb-1">广播标题</label>
+                      <label className="text-xs text-discord-textMuted block mb-1">
+                        {t("admin:system.broadcastTitleLabel")}
+                      </label>
                       <input
                         type="text"
-                        placeholder="例如: 平台维护通知"
+                        placeholder={t("admin:system.broadcastTitlePlaceholder")}
                         value={broadcastTitle}
                         onChange={(e) => setBroadcastTitle(e.target.value)}
                         className="w-full bg-[#1e1f22] p-2 rounded border border-[#3f4147] text-white text-sm outline-none"
@@ -1073,24 +1164,28 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
-                        <label className="text-xs text-discord-textMuted block mb-1">通知等级</label>
+                        <label className="text-xs text-discord-textMuted block mb-1">
+                          {t("admin:system.broadcastSeverityLevel")}
+                        </label>
                         <select
                           value={broadcastSeverity}
                           onChange={(e: any) => setBroadcastSeverity(e.target.value)}
                           className="w-full bg-[#1e1f22] p-2 rounded border border-[#3f4147] text-white text-sm outline-none"
                         >
-                          <option value="INFO">普通信息 (INFO)</option>
-                          <option value="WARNING">警告预警 (WARNING)</option>
-                          <option value="CRITICAL">严重通知 (CRITICAL)</option>
+                          <option value="INFO">{t("admin:system.severityInfo")}</option>
+                          <option value="WARNING">{t("admin:system.severityWarning")}</option>
+                          <option value="CRITICAL">{t("admin:system.severityCritical")}</option>
                         </select>
                       </div>
                     </div>
 
                     <div>
-                      <label className="text-xs text-discord-textMuted block mb-1">广播详情内容</label>
+                      <label className="text-xs text-discord-textMuted block mb-1">
+                        {t("admin:system.broadcastContentLabel")}
+                      </label>
                       <textarea
                         rows={3}
-                        placeholder="输入全网推送通知详情..."
+                        placeholder={t("admin:system.broadcastContentPlaceholder")}
                         value={broadcastContent}
                         onChange={(e) => setBroadcastContent(e.target.value)}
                         className="w-full bg-[#1e1f22] p-2 rounded border border-[#3f4147] text-white text-sm outline-none resize-none"
@@ -1101,7 +1196,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       type="submit"
                       className="px-4 py-2 bg-discord-brand hover:bg-[#4752c4] text-white text-xs font-semibold rounded transition"
                     >
-                      即刻下发全局广播
+                      {t("admin:system.sendBroadcastBtn")}
                     </button>
                   </form>
                 </div>
@@ -1110,14 +1205,18 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                 <div className="bg-[#2b2d31] p-5 rounded-xl border border-[#3f4147] space-y-4">
                   <div className="flex items-center space-x-2">
                     <Sliders className="w-5 h-5 text-blue-400" />
-                    <h4 className="font-bold text-white text-sm">系统访问与注册控制</h4>
+                    <h4 className="font-bold text-white text-sm">
+                      {t("admin:system.accessControlTitle")}
+                    </h4>
                   </div>
 
                   <div className="flex items-center justify-between py-2 border-b border-[#3f4147]">
                     <div>
-                      <p className="font-semibold text-white text-sm">开放新用户注册</p>
+                      <p className="font-semibold text-white text-sm">
+                        {t("admin:system.allowRegTitle")}
+                      </p>
                       <p className="text-xs text-discord-textMuted">
-                        关闭后，外部访客将无法注册新账号，仅允许已有账号登录
+                        {t("admin:system.allowRegDesc")}
                       </p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
@@ -1135,9 +1234,11 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
                   <div className="flex items-center justify-between py-2 border-b border-[#3f4147]">
                     <div>
-                      <p className="font-semibold text-white text-sm">强制邀请码准入 (Invite-Only)</p>
+                      <p className="font-semibold text-white text-sm">
+                        {t("admin:system.requireInviteTitle")}
+                      </p>
                       <p className="text-xs text-discord-textMuted">
-                        开启后，新用户必须填入有效的注册邀请码方可完成注册；关闭后，允许开放免邀请码自由注册
+                        {t("admin:system.requireInviteDesc")}
                       </p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
@@ -1156,18 +1257,39 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
                   <div className="flex items-center justify-between py-2 border-b border-[#3f4147]">
                     <div>
-                      <p className="font-semibold text-white text-sm">维护模式</p>
-                      <p className="text-xs text-discord-textMuted">普通用户将停止业务和通话连接，超级管理员仍可治理系统。</p>
+                      <p className="font-semibold text-white text-sm">
+                        {t("admin:system.maintenanceModeTitle")}
+                      </p>
+                      <p className="text-xs text-discord-textMuted">
+                        {t("admin:system.maintenanceModeDesc")}
+                      </p>
                     </div>
                     <label className="relative inline-flex items-center cursor-pointer">
-                      <input type="checkbox" checked={!!settings.maintenanceMode} onChange={(e) => setSettings({ ...settings, maintenanceMode: e.target.checked })} className="sr-only peer" />
+                      <input
+                        type="checkbox"
+                        checked={!!settings.maintenanceMode}
+                        onChange={(e) =>
+                          setSettings({ ...settings, maintenanceMode: e.target.checked })
+                        }
+                        className="sr-only peer"
+                      />
                       <div className="w-11 h-6 bg-zinc-700 rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-600" />
                     </label>
                   </div>
 
                   <div>
-                    <label className="text-xs text-discord-textMuted block mb-1">维护提示</label>
-                    <textarea rows={2} value={settings.systemAnnouncement || ""} onChange={(e) => setSettings({ ...settings, systemAnnouncement: e.target.value })} className="w-full bg-[#1e1f22] p-2 rounded border border-[#3f4147] text-white text-sm outline-none resize-none" placeholder="向普通用户说明维护原因和预计恢复时间" />
+                    <label className="text-xs text-discord-textMuted block mb-1">
+                      {t("admin:system.maintenanceNoticeLabel")}
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={settings.systemAnnouncement || ""}
+                      onChange={(e) =>
+                        setSettings({ ...settings, systemAnnouncement: e.target.value })
+                      }
+                      className="w-full bg-[#1e1f22] p-2 rounded border border-[#3f4147] text-white text-sm outline-none resize-none"
+                      placeholder={t("admin:system.maintenanceNoticePlaceholder")}
+                    />
                   </div>
 
                   <button
@@ -1175,7 +1297,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     onClick={handleSaveSettings}
                     className="px-4 py-2 bg-discord-green hover:bg-[#23a55a] text-white text-xs font-semibold rounded transition"
                   >
-                    保存系统设置
+                    {t("admin:system.saveSettingsBtn")}
                   </button>
                 </div>
               </div>
@@ -1191,11 +1313,14 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             <div className="flex items-center justify-between border-b border-[#3f4147] pb-3">
               <div className="flex items-center space-x-2">
                 <Ticket className="w-5 h-5 text-emerald-400" />
-                <h4 className="font-bold text-white text-base">生成注册邀请码</h4>
+                <h4 className="font-bold text-white text-base">
+                  {t("admin:invites.modal.title")}
+                </h4>
               </div>
               <button
                 onClick={() => setIsCreateInviteModalOpen(false)}
                 className="text-discord-textMuted hover:text-white p-1 rounded transition"
+                title={t("common:close")}
               >
                 <X className="w-5 h-5" />
               </button>
@@ -1204,11 +1329,11 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             <form onSubmit={handleCreateInvite} className="space-y-4">
               <div>
                 <label className="text-xs font-semibold text-gray-300 block mb-1">
-                  用途备注 (选填)
+                  {t("admin:invites.modal.noteLabel")}
                 </label>
                 <input
                   type="text"
-                  placeholder="例如: 2026 第一期内部测试邀请"
+                  placeholder={t("admin:invites.modal.notePlaceholder")}
                   value={newInviteNote}
                   onChange={(e) => setNewInviteNote(e.target.value)}
                   className="w-full bg-[#1e1f22] p-2.5 rounded-lg border border-[#3f4147] text-white text-sm outline-none focus:border-discord-brand transition"
@@ -1217,7 +1342,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
               <div>
                 <label className="text-xs font-semibold text-gray-300 block mb-1">
-                  最大可用次数
+                  {t("admin:invites.modal.maxUsesLabel")}
                 </label>
                 <div className="grid grid-cols-4 gap-2 mb-2">
                   {[1, 5, 10, 0].map((count) => (
@@ -1231,7 +1356,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           : "bg-[#1e1f22] text-gray-300 border-[#3f4147] hover:bg-[#2b2d31]"
                       }`}
                     >
-                      {count === 0 ? "无限制" : `${count} 次`}
+                      {count === 0
+                        ? t("admin:invites.unlimitedUses")
+                        : t("admin:invites.usesCount", { count })}
                     </button>
                   ))}
                 </div>
@@ -1240,21 +1367,21 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                   min={0}
                   value={newInviteMaxUses}
                   onChange={(e) => setNewInviteMaxUses(Number(e.target.value))}
-                  placeholder="自定义可用次数 (0 表示无限制)"
+                  placeholder={t("admin:invites.customUsesPlaceholder")}
                   className="w-full bg-[#1e1f22] p-2 rounded-lg border border-[#3f4147] text-white text-xs outline-none focus:border-discord-brand transition"
                 />
               </div>
 
               <div>
                 <label className="text-xs font-semibold text-gray-300 block mb-1">
-                  有效期限
+                  {t("admin:invites.modal.expiresLabel")}
                 </label>
                 <div className="grid grid-cols-4 gap-2">
                   {[
-                    { label: "1 天", days: 1 },
-                    { label: "7 天", days: 7 },
-                    { label: "30 天", days: 30 },
-                    { label: "永久有效", days: null },
+                    { label: t("admin:invites.days1"), days: 1 },
+                    { label: t("admin:invites.modal.days7"), days: 7 },
+                    { label: t("admin:invites.modal.days30"), days: 30 },
+                    { label: t("admin:invites.modal.permanent"), days: null },
                   ].map((item) => (
                     <button
                       key={item.label}
@@ -1274,11 +1401,11 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
               <div>
                 <label className="text-xs font-semibold text-gray-300 block mb-1">
-                  自定义邀请码 (选填，留空自动生成)
+                  {t("admin:invites.modal.customCodeLabel")}
                 </label>
                 <input
                   type="text"
-                  placeholder="留空则系统自动随机生成"
+                  placeholder={t("admin:invites.modal.customCodePlaceholder")}
                   value={newInviteCustomCode}
                   onChange={(e) => setNewInviteCustomCode(e.target.value.toUpperCase())}
                   className="w-full bg-[#1e1f22] p-2.5 rounded-lg border border-[#3f4147] text-white text-sm uppercase font-mono tracking-wider outline-none focus:border-discord-brand transition"
@@ -1291,14 +1418,16 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                   onClick={() => setIsCreateInviteModalOpen(false)}
                   className="px-4 py-2 text-xs text-gray-300 hover:text-white transition"
                 >
-                  取消
+                  {t("common:cancel")}
                 </button>
                 <button
                   type="submit"
                   disabled={isCreatingInvite}
                   className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition disabled:opacity-50"
                 >
-                  {isCreatingInvite ? "正在生成..." : "确认生成"}
+                  {isCreatingInvite
+                    ? t("admin:invites.modal.submitting")
+                    : t("admin:invites.submitCreate")}
                 </button>
               </div>
             </form>

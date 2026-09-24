@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from "react";
 import { X, Trash2, AlertTriangle, FolderEdit } from "lucide-react";
 import { ChannelCategory } from "@tescord/types";
+import { useTranslation } from "react-i18next";
 import { API_BASE } from "../../config.js";
+import { getErrorMessage } from "../../i18n/index.js";
 
 interface EditCategoryModalProps {
   isOpen: boolean;
@@ -18,6 +20,7 @@ export const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
   onCategoryUpdated,
   onCategoryDeleted,
 }) => {
+  const { t } = useTranslation(["modals", "common", "admin", "errors"]);
   const [name, setName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -47,7 +50,7 @@ export const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setError("分类名称不能为空");
+      setError(t("errors:CATEGORY_NAME_REQUIRED"));
       return;
     }
 
@@ -69,14 +72,14 @@ export const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "更新分类失败");
+        throw new Error(getErrorMessage(data) || t("common:saveFailed", "更新分类失败"));
       }
 
       const updatedCategory: ChannelCategory = await res.json();
       onCategoryUpdated?.(updatedCategory);
       onClose();
     } catch (err: any) {
-      setError(err.message || "网络连接异常");
+      setError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
     } finally {
       setIsSubmitting(false);
     }
@@ -102,13 +105,13 @@ export const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "删除分类失败");
+        throw new Error(getErrorMessage(data) || t("common:deleteFailed", "删除分类失败"));
       }
 
       onCategoryDeleted?.(category.id);
       onClose();
     } catch (err: any) {
-      setError(err.message || "删除分类失败");
+      setError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
       setIsDeleting(false);
     }
   };
@@ -121,17 +124,18 @@ export const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
           <button
             onClick={onClose}
             className="absolute right-4 top-4 text-discord-textMuted hover:text-discord-textHeader transition"
+            title={t("common:close")}
           >
             <X className="w-5 h-5" />
           </button>
           <div className="flex items-center space-x-2">
             <FolderEdit className="w-5 h-5 text-discord-blurple" />
             <h2 className="text-xl font-bold text-discord-textHeader">
-              编辑分类
+              {t("modals:editCategory.title")}
             </h2>
           </div>
           <p className="text-xs text-discord-textMuted mt-1">
-            修改分类名称或进行维护管理。
+            {t("modals:editCategory.subtitle")}
           </p>
         </div>
 
@@ -146,14 +150,15 @@ export const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
           {/* 分类名称 */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted mb-2">
-              分类名称 <span className="text-red-500">*</span>
+              {t("modals:editCategory.nameLabel")}{" "}
+              <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               autoFocus
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="输入分类名称"
+              placeholder={t("modals:editCategory.namePlaceholder")}
               maxLength={30}
               className="w-full bg-[#1e1f22] text-discord-textNormal px-3 py-2.5 rounded text-sm focus:outline-none focus:ring-2 focus:ring-discord-blurple border border-transparent focus:border-transparent transition"
               data-testid="edit-category-name-input"
@@ -167,10 +172,10 @@ export const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
                 <div>
                   <h4 className="text-xs font-bold text-red-400 flex items-center gap-1.5">
                     <AlertTriangle className="w-3.5 h-3.5" />
-                    删除该分类
+                    {t("modals:editCategory.deleteCategory")}
                   </h4>
                   <p className="text-[11px] text-discord-textMuted mt-1 leading-relaxed">
-                    分类下的所有频道将被自动保留并移至未分类区域，不会丢失任何聊天数据。
+                    {t("modals:editCategory.deleteWarning")}
                   </p>
                 </div>
               </div>
@@ -188,10 +193,10 @@ export const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
                 >
                   <Trash2 className="w-3 h-3" />
                   {isDeleting
-                    ? "正在删除..."
+                    ? t("modals:editCategory.deleting")
                     : confirmDelete
-                    ? "确认永久删除分类？"
-                    : "删除分类"}
+                    ? t("modals:editCategory.confirmDelete")
+                    : t("modals:editCategory.deleteCategory")}
                 </button>
               </div>
             </div>
@@ -204,7 +209,7 @@ export const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 text-sm text-discord-textHeader hover:underline transition"
             >
-              取消
+              {t("common:cancel")}
             </button>
             <button
               type="submit"
@@ -212,7 +217,9 @@ export const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
               className="px-5 py-2 text-sm font-medium bg-discord-blurple hover:bg-discord-blurpleHover text-white rounded transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
               data-testid="save-category-btn"
             >
-              {isSubmitting ? "保存中..." : "保存修改"}
+              {isSubmitting
+                ? t("modals:editCategory.saving")
+                : t("modals:editCategory.save")}
             </button>
           </div>
         </form>

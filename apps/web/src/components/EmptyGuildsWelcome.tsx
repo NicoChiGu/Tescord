@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import {
   Compass,
   Plus,
@@ -17,6 +18,8 @@ export const EmptyGuildsWelcome: React.FC<EmptyGuildsWelcomeProps> = ({
   onOpenDiscovery,
   onOpenCreateGuild,
 }) => {
+  const { t } = useTranslation("common");
+
   return (
     <div
       data-testid="empty-guilds-welcome"
@@ -28,10 +31,10 @@ export const EmptyGuildsWelcome: React.FC<EmptyGuildsWelcomeProps> = ({
           <Sparkles className="w-10 h-10" />
         </div>
         <h1 className="text-3xl md:text-4xl font-extrabold text-discord-textHeader tracking-tight">
-          欢迎来到 Tescord
+          {t("common:emptyWelcome.title", "欢迎来到 Tescord")}
         </h1>
         <p className="text-sm md:text-base text-discord-textMuted max-w-lg mx-auto leading-relaxed">
-          纯粹离线自治、高保真实时音视频与端到端加密的私密协作空间。您目前尚未加入任何服务器，请选择下方的开始方式：
+          {t("common:emptyWelcome.subtitle", "纯粹离线自治、高保真实时音视频与极客团队的即时通讯工作空间")}
         </p>
       </div>
 
@@ -48,16 +51,16 @@ export const EmptyGuildsWelcome: React.FC<EmptyGuildsWelcomeProps> = ({
               <Compass className="w-6 h-6" />
             </div>
             <h2 className="text-lg font-bold text-discord-textHeader group-hover:text-white">
-              探索公开社区
+              {t("common:emptyWelcome.exploreTitle", "探索公开社区")}
             </h2>
             <p className="text-xs text-discord-textMuted leading-relaxed">
-              浏览平台现存的公开服务器大厅，发现并一键直达技术交流、开源讨论与极客闲聊空间。
+              {t("common:emptyWelcome.exploreDesc", "加入各种各样的公开服务器，结识新朋友并畅聊技术")}
             </p>
           </div>
 
           <div className="mt-6 flex items-center justify-between pt-4 border-t border-white/5">
             <span className="text-xs font-semibold text-emerald-400 group-hover:underline">
-              前往探索大厅 &rarr;
+              {t("common:emptyWelcome.exploreBtn", "立即探索社区 →")}
             </span>
             <div className="flex gap-1.5 text-gray-500">
               <Headphones className="w-4 h-4" />
@@ -77,35 +80,19 @@ export const EmptyGuildsWelcome: React.FC<EmptyGuildsWelcomeProps> = ({
               <Plus className="w-6 h-6" />
             </div>
             <h2 className="text-lg font-bold text-discord-textHeader group-hover:text-white">
-              创建我的服务器
+              {t("common:emptyWelcome.createTitle", "创建你的第一个服务器")}
             </h2>
             <p className="text-xs text-discord-textMuted leading-relaxed">
-              为您的好友、团队或项目自定义频道结构、角色体系与私密权限，随时开启超低延迟连麦。
+              {t("common:emptyWelcome.createDesc", "为你自己的团队、好友圈或游戏战队搭建专属私密空间")}
             </p>
           </div>
 
           <div className="mt-6 flex items-center justify-between pt-4 border-t border-white/5">
             <span className="text-xs font-semibold text-discord-brand group-hover:underline">
-              立即创建服务器 &rarr;
+              {t("common:emptyWelcome.createBtn", "立即创建服务器 →")}
             </span>
             <ShieldCheck className="w-4 h-4 text-gray-500" />
           </div>
-        </div>
-      </div>
-
-      {/* 底部特性提示 */}
-      <div className="mt-12 flex flex-wrap items-center justify-center gap-6 text-[11px] text-gray-500 max-w-lg text-center">
-        <div className="flex items-center gap-1.5">
-          <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" />
-          <span>本地数据自治</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Headphones className="w-3.5 h-3.5 text-blue-500" />
-          <span>RNNoise 神经网络降噪</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <MessageSquare className="w-3.5 h-3.5 text-purple-500" />
-          <span>端到端加密保障</span>
         </div>
       </div>
     </div>

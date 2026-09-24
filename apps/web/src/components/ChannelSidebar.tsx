@@ -82,6 +82,8 @@ interface ChannelSidebarProps {
   guild: Guild | null;
   channels: Channel[];
   dmChannels?: Channel[];
+  isFriendsActive?: boolean;
+  onSelectFriends?: () => void;
   onCloseDMChannel?: (channelId: string) => void;
   onDMChannelCreated?: (channel: Channel) => void;
   selectedChannelId: string;
@@ -141,7 +143,7 @@ interface SortableChannelItemProps {
   isSpeaking: boolean;
   activeSpeakers: string[];
   peerLatencies: Map<string, PeerLatencyReport>;
-  t: (key: string) => string;
+  t: (key: string, options?: any) => string;
   onSelectChannel: (channel: Channel) => void;
   onJoinVoiceChannel: (channel: Channel) => void;
   onEditChannel?: (channel: Channel) => void;
@@ -233,7 +235,7 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
                 onSelectChannel(channel);
                 if (!isConnected) onJoinVoiceChannel(channel);
               }}
-              title="单击预览房间，双击加入语音通话"
+              title={t("voice:previewAndJoin")}
               className={`w-full flex items-center pl-2 pr-16 py-1.5 rounded-md text-sm font-medium transition ${
                 isConnected
                   ? "bg-[#23a55a1a] text-discord-green font-semibold"
@@ -282,7 +284,7 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
             {isChannelMuted && (
               <span
                 className="flex items-center text-discord-textMuted"
-                title="该频道已被静音"
+                title={t("voice:channelMuted")}
               >
                 <BellOff
                   className="w-3.5 h-3.5 text-discord-textMuted flex-shrink-0"
@@ -306,7 +308,7 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
                   onEditChannel(channel);
                 }}
                 className="pointer-events-auto opacity-0 group-hover:opacity-100 hover:text-white text-discord-textMuted p-0.5 rounded transition"
-                title="编辑频道"
+                title={t("contextMenu:channel.editChannel")}
               >
                 <Settings className="w-3.5 h-3.5" />
               </button>
@@ -325,7 +327,7 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
                 : activeSpeakers.includes(p.userId);
             const targetUserObj = p.user || {
               id: p.userId,
-              username: "用户",
+              username: t("common:memberList.defaultUser") || "User",
               avatarUrl: null,
               status: undefined,
             };
@@ -382,7 +384,7 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
                   )}
                   {p.streaming && (
                     <span className="text-[9px] bg-discord-brand text-white px-1 rounded font-bold">
-                      直播中
+                      {t("voice:liveStreaming")}
                     </span>
                   )}
                 </div>
@@ -399,6 +401,8 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   guild,
   channels,
   dmChannels,
+  isFriendsActive,
+  onSelectFriends,
   onCloseDMChannel,
   onDMChannelCreated,
   selectedChannelId,
@@ -446,7 +450,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   onKickMember,
   onBanMember,
 }) => {
-  const { t } = useTranslation(["voice", "common"]);
+  const { t } = useTranslation(["voice", "common", "contextMenu"]);
   const [copiedInvite, setCopiedInvite] = useState<string | null>(null);
   const networkStats = useNetworkStats();
   const { ping: gatewayPing } = useGatewayStatus();
@@ -919,6 +923,8 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
           channels={dmChannels || []}
           selectedChannelId={selectedChannelId}
           currentUser={currentUser}
+          isFriendsActive={isFriendsActive}
+          onSelectFriends={onSelectFriends}
           onSelectChannel={onSelectChannel}
           onCloseChannel={(id) => onCloseDMChannel?.(id)}
           onChannelCreated={onDMChannelCreated}
@@ -947,7 +953,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                     onOpenCreateCategory();
                   }}
                   className="p-1 rounded hover:bg-[#3f4147] text-discord-textMuted hover:text-white transition"
-                  title="创建分类"
+                  title={t("contextMenu:server.createCategory")}
                 >
                   <FolderPlus className="w-4 h-4" />
                 </button>
@@ -961,7 +967,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                     onOpenCreateChannel();
                   }}
                   className="p-1 rounded hover:bg-[#3f4147] text-discord-textMuted hover:text-white transition"
-                  title="创建频道"
+                  title={t("contextMenu:server.createChannel")}
                 >
                   <Plus className="w-4 h-4" />
                 </button>
@@ -970,7 +976,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                 <button
                   onClick={handleCreateInvite}
                   className="p-1 rounded hover:bg-[#3f4147] text-discord-textMuted hover:text-white transition flex items-center space-x-1"
-                  title="生成并复制邀请码"
+                  title={t("contextMenu:server.invite")}
                 >
                   {copiedInvite ? (
                     <span className="flex items-center text-xs text-discord-green space-x-0.5">
@@ -1254,7 +1260,9 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
               onClick={onLeaveVoiceChannel}
               className="p-1.5 text-discord-textMuted hover:text-discord-danger hover:bg-[#35373c] rounded transition flex-shrink-0"
               title={
-                voiceConnectionStatus === "connecting" ? "取消连接" : "断开连接"
+                voiceConnectionStatus === "connecting"
+                  ? t("voice:cancelVoiceConnecting")
+                  : t("voice:disconnect")
               }
             >
               <PhoneOff className="w-4 h-4" />
@@ -1277,14 +1285,14 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                   ? "bg-discord-green text-white hover:bg-discord-green/90 shadow-sm"
                   : "bg-discord-sidebar hover:bg-discord-hover text-discord-textNormal"
               }`}
-              title={isVideoEnabled ? "关闭摄像头" : "开启摄像头"}
+              title={isVideoEnabled ? t("voice:turnOffCamera") : t("voice:turnOnCamera")}
             >
               {isVideoEnabled ? (
                 <VideoOff className="w-3.5 h-3.5" />
               ) : (
                 <Video className="w-3.5 h-3.5" />
               )}
-              <span>{isVideoEnabled ? "关视频" : "开视频"}</span>
+              <span>{isVideoEnabled ? t("voice:disableVideo") : t("voice:enableVideo")}</span>
             </button>
             <button
               onClick={() => {
@@ -1305,14 +1313,14 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                   ? "bg-discord-brand text-white hover:bg-discord-brand-hover shadow-sm"
                   : "bg-discord-sidebar hover:bg-discord-hover text-discord-textNormal"
               }`}
-              title={isScreenSharing ? "停止直播" : "直播分享"}
+              title={isScreenSharing ? t("voice:stopScreenShare") : t("voice:screenShare")}
             >
               {isScreenSharing ? (
                 <ScreenShareOff className="w-3.5 h-3.5" />
               ) : (
                 <ScreenShare className="w-3.5 h-3.5" />
               )}
-              <span>{isScreenSharing ? "停止直播" : "直播分享"}</span>
+              <span>{isScreenSharing ? t("voice:stopScreenShare") : t("voice:screenShare")}</span>
             </button>
           </div>
         </div>
@@ -1328,8 +1336,9 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
             <div className="flex items-center space-x-1.5 text-amber-400 text-xs font-semibold">
               <PhoneOff className="w-3.5 h-3.5 flex-shrink-0" />
               <span>
-                语音已转移至【{voiceTransferNotice.targetPlatform || "其他设备"}
-                】
+                {t("voice:voiceTransferred", {
+                  target: voiceTransferNotice.targetPlatform || "Device",
+                })}
               </span>
             </div>
             {onDismissVoiceTransferNotice && (
@@ -1338,18 +1347,18 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                 data-testid="dismiss-transfer-notice-btn"
                 onClick={onDismissVoiceTransferNotice}
                 className="text-discord-textMuted hover:text-white p-0.5 rounded transition cursor-pointer"
-                title="忽略提示"
+                title={t("voice:ignoreNotice")}
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
           <div className="text-[11px] text-discord-textMuted leading-tight">
-            当前账号已在另一端连接频道
+            {t("voice:otherDeviceVoiceNotice")}
             {voiceTransferNotice.previousChannel
               ? ` #${voiceTransferNotice.previousChannel.name}`
               : ""}
-            。
+            .
           </div>
           {voiceTransferNotice.previousChannel && onReclaimVoice && (
             <button
@@ -1360,7 +1369,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
               }
               className="w-full py-1 px-2 text-xs bg-discord-brand hover:bg-discord-brandHover text-white rounded font-medium flex items-center justify-center space-x-1 transition shadow-sm cursor-pointer"
             >
-              <span>在此设备重新连接</span>
+              <span>{t("voice:joinOnThisDevice")}</span>
             </button>
           )}
         </div>
@@ -1380,7 +1389,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
             data-testid="current-user-panel-btn"
             onClick={handleToggleUserCard}
             className="flex items-center space-x-2 overflow-hidden mr-1 p-1 -ml-1 rounded hover:bg-discord-hover transition text-left group min-w-0 cursor-pointer"
-            title="点击打开个人卡片，或右键快捷切换在线状态"
+            title={t("voice:openProfileTooltip")}
           >
             <div className="relative flex-shrink-0">
               <img
@@ -1424,7 +1433,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                   <span
                     data-testid="gateway-ping-badge"
                     className="font-mono text-[9px] text-[#23a55a] opacity-80"
-                    title={`WebSocket 信令网关延迟: ${gatewayPing}ms`}
+                    title={t("voice:wsLatencyTooltip", { ping: gatewayPing })}
                   >
                     • {gatewayPing}ms
                   </span>
@@ -1511,6 +1520,7 @@ const SortableCategorySection: React.FC<SortableCategorySectionProps> = ({
   onDeleteCategory,
   children,
 }) => {
+  const { t } = useTranslation(["contextMenu", "voice"]);
   const {
     attributes: { role: _role, tabIndex: _tabIndex, ...sortableAttributes },
     listeners,
@@ -1569,8 +1579,8 @@ const SortableCategorySection: React.FC<SortableCategorySectionProps> = ({
                 onOpenCreateChannel();
               }}
               className="p-0.5 opacity-70 hover:opacity-100 hover:text-discord-textHeader transition text-discord-textMuted"
-              title="创建频道"
-              aria-label={`在【${category.name}】中创建频道`}
+              title={t("contextMenu:server.createChannel")}
+              aria-label={t("voice:createChannelInCategory", { name: category.name })}
             >
               <Plus className="w-3.5 h-3.5" />
             </button>

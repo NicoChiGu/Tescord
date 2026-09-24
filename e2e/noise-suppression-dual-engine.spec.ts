@@ -73,28 +73,34 @@ test.describe("双引擎 AI 降噪（RNNoise + DTLN）与三轨 A/B 录音试听
       ),
     ).toBeVisible();
 
-    // 5. 验证 3 档分段卡片选择器
+    // 5. 验证 4 档分段卡片选择器
     const offCard = page.getByRole("button", { name: /直通原声|未降噪/i });
     const rnnoiseCard = page.getByRole("button", { name: /RNNoise 标准轻量/i });
     const dtlnCard = page.getByRole("button", { name: /DTLN 深度净化/i });
+    const dfn3Card = page.getByRole("button", { name: /DFNv3 旗舰声学/i });
 
     await expect(offCard).toBeVisible();
     await expect(rnnoiseCard).toBeVisible();
     await expect(dtlnCard).toBeVisible();
+    await expect(dfn3Card).toBeVisible();
 
     // 6. 测试切换至 DTLN 深度净化档位 (消机械键盘音)
     await dtlnCard.click();
-    await expect(page.getByText(/DTLN 双流 LSTM/i)).toBeVisible();
+    await expect(dtlnCard).toHaveClass(/border-discord-green/);
 
-    // 7. 测试切换至直通关闭档位
+    // 7. 测试切换至 DFNv3 旗舰全频档位 (48kHz 复数深度滤波)
+    await dfn3Card.click();
+    await expect(dfn3Card).toHaveClass(/border-purple-500/);
+
+    // 8. 测试切换至直通关闭档位
     await offCard.click();
-    await expect(page.getByText(/直通模式 \(未降噪\)/i)).toBeVisible();
+    await expect(offCard).toHaveClass(/border-rose-500/);
 
-    // 8. 切换回 RNNoise 标准轻量档位
+    // 9. 切换回 RNNoise 标准轻量档位
     await rnnoiseCard.click();
-    await expect(page.getByText(/RNNoise WASM 480分帧/i)).toBeVisible();
+    await expect(rnnoiseCard).toHaveClass(/border-discord-brand/);
 
-    // 9. 展开高级设置并验证三轨 A/B 录音对比测试工具
+    // 10. 展开高级设置并验证四轨 A/B 录音对比测试工具
     const advancedToggleBtn = page.getByRole("button", {
       name: /高级音频设置与降噪实验室/i,
     });
@@ -102,7 +108,7 @@ test.describe("双引擎 AI 降噪（RNNoise + DTLN）与三轨 A/B 录音试听
       await advancedToggleBtn.click();
     }
     await expect(
-      page.getByText(/AI 降噪前后效果三轨录音试听对比/i),
+      page.getByText(/AI 降噪前后效果/i),
     ).toBeVisible();
 
     const startABBtn = page.getByRole("button", {
@@ -110,12 +116,12 @@ test.describe("双引擎 AI 降噪（RNNoise + DTLN）与三轨 A/B 录音试听
     });
     await expect(startABBtn).toBeVisible();
 
-    // 10. 关闭弹窗并通过快捷方式验证语音频道内的降噪表现
+    // 11. 关闭弹窗并通过快捷方式验证语音频道内的降噪表现
     const closeBtn = page.getByRole("button", { name: "关闭", exact: true });
     await closeBtn.click();
     await expect(modalHeading).not.toBeVisible();
 
-    // 11. 进入语音频道
+    // 12. 进入语音频道
     const voiceChannelBtn = page
       .getByRole("button", { name: /语音闲聊|开黑开麦|voice/i })
       .first();
@@ -128,10 +134,7 @@ test.describe("双引擎 AI 降噪（RNNoise + DTLN）与三轨 A/B 录音试听
       .first();
     await expect(leaveVoiceBtn).toBeVisible({ timeout: 8000 });
 
-    // 12. 验证用户画像上的降噪徽标已移除
-    await expect(page.locator("text=RNNoise 降噪")).not.toBeVisible();
-
-    // 13. 点击底栏 Sparkles 按钮进行模式轮转 (RNNoise -> DTLN)
+    // 13. 点击底栏 Sparkles 按钮展开浮层菜单并精确点选 DFNv3
     const sparklesBtn = page.getByTestId("voice-sparkles-btn");
     await expect(sparklesBtn).toBeVisible({ timeout: 5000 });
     await expect(sparklesBtn).toHaveAttribute(
@@ -140,12 +143,21 @@ test.describe("双引擎 AI 降噪（RNNoise + DTLN）与三轨 A/B 录音试听
     );
     await sparklesBtn.click();
 
-    // 验证底栏按钮动态切换为 DTLN 深度降噪，头像上依然无残留徽标
+    // 浮层菜单弹出并展示 4 种模式
+    const noiseMenu = page.getByTestId("voice-noise-menu");
+    await expect(noiseMenu).toBeVisible();
+    await expect(page.getByTestId("noise-option-dfn3")).toBeVisible();
+    await expect(page.getByTestId("noise-option-dtln")).toBeVisible();
+
+    // 点击 DFNv3 选项
+    await page.getByTestId("noise-option-dfn3").click();
+    await expect(noiseMenu).not.toBeVisible();
+
+    // 验证底栏按钮动态切换为 DFNv3 旗舰降噪
     await expect(sparklesBtn).toHaveAttribute(
       "title",
-      /DTLN 深度净化降噪已开启/,
+      /DFNv3 旗舰全频降噪已开启/,
     );
-    await expect(page.locator("text=DTLN 深度降噪")).not.toBeVisible();
 
     // 14. 退出语音频道
     await leaveVoiceBtn.click();

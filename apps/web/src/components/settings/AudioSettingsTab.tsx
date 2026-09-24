@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
-import { audioEngine, TripleABTestResult } from "../../services/audioEngine.js";
+import { useTranslation } from "react-i18next";
+import { audioEngine, TripleABTestResult, QuadABTestResult } from "../../services/audioEngine.js";
 import {
   NoiseSuppressionMode,
   VideoCodecType,
@@ -55,6 +56,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
   isInCall = false,
   initialSubSection,
 }) => {
+  const { t } = useTranslation(["settings", "common"]);
   const [config, setConfig] = useState(audioEngine.config);
   const [currentVolume, setCurrentVolume] = useState(0);
 
@@ -96,7 +98,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
   // A/B 降噪录音对比小工具状态
   const [isABTesting, setIsABTesting] = useState(false);
   const [abCountdown, setABCountdown] = useState(5);
-  const [abResult, setABResult] = useState<TripleABTestResult | null>(null);
+  const [abResult, setABResult] = useState<QuadABTestResult | TripleABTestResult | null>(null);
   const [abError, setABError] = useState<string | null>(null);
 
   // 视频编解码器与硬件加速配置状态
@@ -183,7 +185,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
         setSelectedCameraId(cameras[0].deviceId);
       }
     } catch (err) {
-      console.warn("枚举音频与视频硬件设备失败:", err);
+      console.warn("Failed to enumerate audio and video devices:", err);
     }
   };
 
@@ -256,8 +258,8 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
           .catch((e) => console.warn("video play:", e));
       }
     } catch (err: any) {
-      console.warn("启动摄像头测试失败:", err);
-      setVideoError(err?.message || "无法访问摄像头，请检查系统权限或设备占用");
+      console.warn("Failed to start camera test:", err);
+      setVideoError(err?.message || t("settings:audioVideo.cameraAccessError"));
       stopVideoTest();
     }
   };
@@ -298,7 +300,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
     const wasAlreadyRunning = audioEngine.isMicrophoneActive();
     if (!wasAlreadyRunning) {
       audioEngine.initMicrophone().catch((err) => {
-        console.warn("AudioSettingsTab: 临时激活麦克风电平测试失败:", err);
+        console.warn("AudioSettingsTab: Failed to temporarily init microphone level test:", err);
       });
     }
 
@@ -345,7 +347,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
     const newCfg = { ...config, inputDeviceId: deviceId };
     setConfig(newCfg);
     await livekitService.switchAudioInputDevice(deviceId).catch((err) => {
-      console.warn("切换输入设备失败:", err);
+      console.warn("Failed to switch audio input device:", err);
     });
   };
 
@@ -355,14 +357,14 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
     setConfig(newCfg);
     audioEngine.updateConfig({ outputDeviceId: deviceId });
     await livekitService.switchAudioOutputDevice(deviceId).catch((err) => {
-      console.warn("切换输出设备失败:", err);
+      console.warn("Failed to switch audio output device:", err);
     });
 
     if (testAudioRef.current && (testAudioRef.current as any).setSinkId) {
       try {
         await (testAudioRef.current as any).setSinkId(deviceId);
       } catch (err) {
-        console.warn("设置音频输出设备失败:", err);
+        console.warn("Failed to set audio output device (sinkId):", err);
       }
     }
   };
@@ -409,7 +411,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
         audioCtx.close().catch(() => {});
       }, 850);
     } catch (err) {
-      console.warn("播放测试声音异常:", err);
+      console.warn("Exception during test sound playback:", err);
       setIsPlayingTestSound(false);
     }
   };
@@ -483,7 +485,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
       setABResult(result);
     } catch (err: any) {
       console.error("A/B test failed:", err);
-      setABError(err?.message || "录音对比测试失败，请检查麦克风权限与设备");
+      setABError(err?.message || t("settings:audioVideo.abErrorMsg"));
     } finally {
       setIsABTesting(false);
     }
@@ -495,17 +497,17 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
       <div>
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
           <Volume2 className="w-6 h-6 text-discord-brand" />
-          <span>语音与视频设置 (RNNoise 智能降噪控制中心)</span>
+          <span>{t("settings:audioVideo.title")}</span>
         </h2>
         <p className="text-xs text-discord-textMuted mt-1">
-          配置您的输入/输出音频硬件设备、麦克风灵敏度、智能神经网络降噪以及摄像头画面。
+          {t("settings:audioVideo.subtitle")}
         </p>
       </div>
 
       {/* 模块 1：设备选择与音量调节 (日常最核心使用) */}
       <section className="space-y-4">
         <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-          设备设置
+          {t("settings:audioVideo.deviceSettings")}
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-[#2b2d31] p-5 rounded-2xl border border-white/5 shadow-sm">
@@ -514,14 +516,14 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
                 <Mic className="w-4 h-4 text-discord-brand" />
-                <span>输入设备 (麦克风)</span>
+                <span>{t("settings:audioVideo.inputDeviceLabel")}</span>
               </label>
               <button
                 type="button"
                 onClick={refreshDevices}
                 className="text-[11px] text-discord-brand hover:underline"
               >
-                刷新列表
+                {t("settings:audioVideo.refreshList")}
               </button>
             </div>
 
@@ -531,11 +533,11 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               className="w-full bg-[#1e1f22] border border-[#3f4147] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-discord-brand transition cursor-pointer"
             >
               {inputDevices.length === 0 && (
-                <option value="default">默认系统麦克风</option>
+                <option value="default">{t("settings:audioVideo.defaultInputDevice")}</option>
               )}
               {inputDevices.map((d, index) => (
                 <option key={d.deviceId || index} value={d.deviceId}>
-                  {d.label || `麦克风设备 ${index + 1}`}
+                  {d.label || t("settings:audioVideo.inputDeviceIndex", { index: index + 1 })}
                 </option>
               ))}
             </select>
@@ -543,7 +545,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             {/* 输入音量/增益 */}
             <div className="space-y-1.5 pt-1">
               <div className="flex items-center justify-between text-xs text-gray-400">
-                <span>输入音量</span>
+                <span>{t("settings:audioVideo.inputVolume")}</span>
                 <span className="font-mono text-white">
                   {config.manualGain ?? 100}%
                 </span>
@@ -564,7 +566,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             <div className="flex items-center justify-between">
               <label className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
                 <Headphones className="w-4 h-4 text-discord-brand" />
-                <span>输出设备 (耳机/扬声器)</span>
+                <span>{t("settings:audioVideo.outputDeviceLabel")}</span>
               </label>
               <button
                 type="button"
@@ -578,12 +580,12 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                 {isPlayingTestSound ? (
                   <>
                     <Square className="w-3 h-3" />
-                    <span>响铃中...</span>
+                    <span>{t("settings:audioVideo.ringing")}</span>
                   </>
                 ) : (
                   <>
                     <Play className="w-3 h-3" />
-                    <span>试听声音</span>
+                    <span>{t("settings:audioVideo.testSound")}</span>
                   </>
                 )}
               </button>
@@ -595,11 +597,11 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               className="w-full bg-[#1e1f22] border border-[#3f4147] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-discord-brand transition cursor-pointer"
             >
               {outputDevices.length === 0 && (
-                <option value="default">默认系统扬声器</option>
+                <option value="default">{t("settings:audioVideo.defaultOutputDevice")}</option>
               )}
               {outputDevices.map((d, index) => (
                 <option key={d.deviceId || index} value={d.deviceId}>
-                  {d.label || `音频输出设备 ${index + 1}`}
+                  {d.label || t("settings:audioVideo.outputDeviceIndex", { index: index + 1 })}
                 </option>
               ))}
             </select>
@@ -607,7 +609,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             {/* 输出音量 */}
             <div className="space-y-1.5 pt-1">
               <div className="flex items-center justify-between text-xs text-gray-400">
-                <span>输出音量</span>
+                <span>{t("settings:audioVideo.outputVolume")}</span>
                 <span className="font-mono text-white">{outputVolume}%</span>
               </div>
               <input
@@ -630,7 +632,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
       {/* 模块 2：输入模式与麦克风测试 */}
       <section className="space-y-4">
         <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-          输入模式与麦克风测试
+          {t("settings:audioVideo.inputModeTitle")}
         </h3>
 
         {/* 模式双选卡片 */}
@@ -649,10 +651,10 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             </div>
             <div>
               <div className="font-bold text-sm text-white mb-0.5">
-                语音感应 (VAD)
+                {t("settings:audioVideo.vadTitle")}
               </div>
               <p className="text-xs text-discord-textMuted leading-relaxed">
-                无需按键，当检测到您说话时自动开麦；低于设定门限时自动静音断流。
+                {t("settings:audioVideo.vadDesc")}
               </p>
             </div>
           </button>
@@ -671,10 +673,10 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             </div>
             <div>
               <div className="font-bold text-sm text-white mb-0.5">
-                按键说话 (PTT)
+                {t("settings:audioVideo.pttTitle")}
               </div>
               <p className="text-xs text-discord-textMuted leading-relaxed">
-                按住快捷键说话，松开即闭麦。适合嘈杂游戏场景或公共网络环境。
+                {t("settings:audioVideo.pttDesc")}
               </p>
             </div>
           </button>
@@ -687,14 +689,14 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             <div className="flex items-center justify-between">
               <div>
                 <span className="text-xs font-bold text-white">
-                  麦克风灵敏度电平检测
+                  {t("settings:audioVideo.vadSensitivity")}
                 </span>
                 <p className="text-[11px] text-discord-textMuted mt-0.5">
-                  对着麦克风正常说话，绿色电平超过门限线时系统将开麦发言。
+                  {t("settings:audioVideo.vadSensitivityDesc")}
                 </p>
               </div>
               <span className="text-xs font-mono font-bold text-discord-green bg-discord-green/10 px-2 py-0.5 rounded">
-                门限: {config.vadSensitivity}%
+                {t("settings:audioVideo.vadThreshold")}: {config.vadSensitivity}%
               </span>
             </div>
 
@@ -708,7 +710,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               <div
                 className="absolute top-0 bottom-0 w-1 bg-rose-500 z-10 shadow"
                 style={{ left: `${config.vadSensitivity}%` }}
-                title={`门限设定值: ${config.vadSensitivity}%`}
+                title={t("settings:audioVideo.vadThresholdTooltip", { value: config.vadSensitivity })}
               />
             </div>
 
@@ -725,9 +727,9 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                 className="w-full h-1.5 bg-[#1e1f22] rounded-lg appearance-none cursor-pointer accent-discord-brand"
               />
               <div className="flex justify-between text-[10px] text-discord-textMuted">
-                <span>0% (极度灵敏)</span>
-                <span>50% (适中)</span>
-                <span>100% (仅大声说话)</span>
+                <span>{t("settings:audioVideo.vadSensitivityExtreme")}</span>
+                <span>{t("settings:audioVideo.vadSensitivityMedium")}</span>
+                <span>{t("settings:audioVideo.vadSensitivityLoud")}</span>
               </div>
             </div>
           </div>
@@ -736,7 +738,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
           <div className="bg-[#2b2d31] p-5 rounded-2xl border border-white/5 space-y-4 animate-fadeIn">
             <div>
               <label className="text-xs font-bold text-gray-300 mb-2 block">
-                设置开麦快捷键
+                {t("settings:audioVideo.pttKeybindTitle")}
               </label>
               <div className="flex flex-wrap items-center gap-3">
                 <button
@@ -749,11 +751,11 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                   }`}
                 >
                   {isRecordingKeybind
-                    ? "请在键盘上按下目标按键..."
-                    : `快捷键：[ ${config.pushToTalkKey || "Space"} ]`}
+                    ? t("settings:audioVideo.pttRecording")
+                    : t("settings:audioVideo.pttKeybindCurrent", { key: config.pushToTalkKey || "Space" })}
                 </button>
                 <span className="text-xs text-discord-textMuted">
-                  点击左侧按钮后，直接轻敲键盘上的任意按键即可完成绑定（支持空格、Ctrl、Caps等）。
+                  {t("settings:audioVideo.pttKeybindTip")}
                 </span>
               </div>
             </div>
@@ -763,7 +765,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               <div className="flex justify-between items-center text-xs text-gray-400">
                 <span className="flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5" />
-                  <span>按键释放缓冲延迟</span>
+                  <span>{t("settings:audioVideo.pttReleaseDelayLabel")}</span>
                 </span>
                 <span className="text-white font-mono font-bold">
                   {config.pushToTalkReleaseDelay || 200} ms
@@ -781,7 +783,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                 className="w-full h-1.5 bg-[#1e1f22] rounded-lg appearance-none cursor-pointer accent-discord-brand"
               />
               <p className="text-[11px] text-discord-textMuted">
-                松开按键后麦克风继续保持开启的微秒数，有效防止讲完一句话结尾被生硬掐断。
+                {t("settings:audioVideo.pttReleaseDelayDesc")}
               </p>
             </div>
           </div>
@@ -792,16 +794,15 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
       <section className="space-y-4">
         <div>
           <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
-            AI 智能降噪 (RNNoise 神经网络深度降噪)
+            {t("settings:audioVideo.noiseSuppressionTitle")}
           </h3>
           <p className="text-xs text-discord-textMuted mt-1">
-            采用前沿神经网络模型在您本地声卡流水线中直接消除噪音，不上传任何音频，100%
-            离线保护隐私。
+            {t("settings:audioVideo.noiseSuppressionSubtitle")}
           </p>
         </div>
 
-        {/* 3 档卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* 4 档卡片 */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {/* 卡片 1: RNNoise 标准降噪 (推荐) */}
           <button
             type="button"
@@ -817,19 +818,18 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-white flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4 text-discord-brand" />
-                  <span>RNNoise 标准轻量</span>
+                  <span>{t("settings:audioVideo.rnnoiseTitle")}</span>
                 </span>
                 <span className="text-[9px] bg-discord-brand/20 text-discord-brand px-1.5 py-0.5 rounded font-bold">
-                  推荐
+                  {t("settings:audioVideo.badgeRecommended")}
                 </span>
               </div>
               <p className="text-[11px] text-discord-textMuted leading-relaxed">
-                RNNoise WASM 480分帧神经网络。极低 CPU
-                消耗，强力消除空调、电风扇、电脑主机风噪等恒定环境杂音。
+                {t("settings:audioVideo.rnnoiseDescDetailed")}
               </p>
             </div>
             <div className="mt-3 text-[10px] text-gray-400 font-medium">
-              适合绝大部分日常开黑与会议
+              {t("settings:audioVideo.rnnoiseSuitable")}
             </div>
           </button>
 
@@ -847,23 +847,51 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-white flex items-center gap-1.5">
                   <Zap className="w-4 h-4 text-discord-green" />
-                  <span>DTLN 深度净化</span>
+                  <span>{t("settings:audioVideo.dtlnTitle")}</span>
                 </span>
                 <span className="text-[9px] bg-discord-green/20 text-discord-green px-1.5 py-0.5 rounded font-bold">
-                  消键盘音
+                  {t("settings:audioVideo.badgeKeyboard")}
                 </span>
               </div>
               <p className="text-[11px] text-discord-textMuted leading-relaxed">
-                DTLN 双流 LSTM
-                深度网络。专门识别并削减机械键盘青轴打字声、敲桌子及不规则突发杂音。
+                {t("settings:audioVideo.dtlnDescDetailed")}
               </p>
             </div>
             <div className="mt-3 text-[10px] text-gray-400 font-medium">
-              适合重度打字员与激战玩家
+              {t("settings:audioVideo.dtlnSuitable")}
             </div>
           </button>
 
-          {/* 卡片 3: 关闭降噪 */}
+          {/* 卡片 3: DFNv3 旗舰声学全频高保真 */}
+          <button
+            type="button"
+            onClick={() => handleNoiseModeChange("dfn3")}
+            className={`p-4 rounded-xl border flex flex-col justify-between text-left transition relative ${
+              config.noiseSuppressionMode === "dfn3" && config.noiseSuppression
+                ? "border-purple-500 bg-purple-500/10 text-white ring-1 ring-purple-500/40 shadow-sm"
+                : "border-white/5 bg-[#2b2d31] text-gray-300 hover:bg-[#35373c]"
+            }`}
+          >
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <Radio className="w-4 h-4 text-purple-400" />
+                  <span>{t("settings:audioVideo.dfn3Title")}</span>
+                </span>
+                <span className="text-[9px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-bold">
+                  {t("settings:audioVideo.badgeFullBand")}
+                </span>
+              </div>
+              <p className="text-[11px] text-discord-textMuted leading-relaxed">
+                {t("settings:audioVideo.dfn3DescDetailed")}
+              </p>
+            </div>
+            <div className="mt-3 text-[10px] text-gray-400 font-medium">
+              {t("settings:audioVideo.dfn3Suitable")}
+            </div>
+          </button>
+
+          {/* 卡片 4: 关闭降噪 */}
           <button
             type="button"
             onClick={() => handleNoiseModeChange("off")}
@@ -877,16 +905,15 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-bold text-white flex items-center gap-1.5">
                   <VolumeX className="w-4 h-4 text-rose-400" />
-                  <span>直通原声 (未降噪)</span>
+                  <span>{t("settings:audioVideo.noiseOffTitle")}</span>
                 </span>
               </div>
               <p className="text-[11px] text-discord-textMuted leading-relaxed">
-                直通模式
-                (未降噪)，不执行任何软件算法降噪，麦克风声音原汁原味直通传输。
+                {t("settings:audioVideo.noiseOffDesc")}
               </p>
             </div>
             <div className="mt-3 text-[10px] text-gray-400 font-medium">
-              适合自带专业硬件降噪的独立外置声卡
+              {t("settings:audioVideo.noiseOffSuitable")}
             </div>
           </button>
         </div>
@@ -898,10 +925,10 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
           <div>
             <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
               <Video className="w-4 h-4 text-discord-brand" />
-              <span>视频设置 (Video Settings)</span>
+              <span>{t("settings:audioVideo.videoSectionTitle")}</span>
             </h3>
             <p className="text-xs text-discord-textMuted mt-1">
-              选择并在本地测试您的视频采集设备，确保视频通话时视角与光线处于最佳状态。
+              {t("settings:audioVideo.videoSectionDesc")}
             </p>
           </div>
           <button
@@ -910,7 +937,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             className="text-[11px] text-discord-brand hover:underline flex items-center gap-1 cursor-pointer"
           >
             <RefreshCw className="w-3 h-3" />
-            <span>刷新设备</span>
+            <span>{t("settings:audioVideo.refreshDevices")}</span>
           </button>
         </div>
 
@@ -919,7 +946,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
           <div className="space-y-2">
             <label className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
               <Camera className="w-4 h-4 text-discord-brand" />
-              <span>摄像头设备 (Camera)</span>
+              <span>{t("settings:audioVideo.cameraDeviceLabel")}</span>
             </label>
             <select
               data-testid="camera-device-select"
@@ -928,11 +955,11 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               className="w-full bg-[#1e1f22] border border-[#3f4147] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-discord-brand transition cursor-pointer"
             >
               {cameraDevices.length === 0 && (
-                <option value="default">默认系统摄像头</option>
+                <option value="default">{t("settings:audioVideo.defaultCameraDevice")}</option>
               )}
               {cameraDevices.map((d, index) => (
                 <option key={d.deviceId || index} value={d.deviceId}>
-                  {d.label || `摄像头设备 ${index + 1}`}
+                  {d.label || t("settings:audioVideo.cameraDeviceIndex", { index: index + 1 })}
                 </option>
               ))}
             </select>
@@ -942,7 +969,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-gray-300">
-                视频预览 (Video Preview)
+                {t("settings:audioVideo.videoPreviewTitle")}
               </span>
               <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-400 hover:text-white transition">
                 <input
@@ -952,7 +979,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                   onChange={(e) => setMirrorPreview(e.target.checked)}
                   className="rounded border-[#3f4147] text-discord-brand focus:ring-0 bg-[#1e1f22]"
                 />
-                <span>镜像画面</span>
+                <span>{t("settings:audioVideo.mirrorPreview")}</span>
               </label>
             </div>
 
@@ -975,7 +1002,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                     <Camera className="w-6 h-6" />
                   </div>
                   <p className="text-xs text-gray-400">
-                    点击下方按钮测试您的摄像头，确认取景画面与照明效果
+                    {t("settings:audioVideo.videoPreviewPrompt")}
                   </p>
                 </div>
               )}
@@ -997,7 +1024,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             {/* 测试按钮 */}
             <div className="flex items-center justify-between pt-1">
               <span className="text-[11px] text-discord-textMuted">
-                测试流仅在本地窗口呈现，不会向当前频道广播任何视频数据
+                {t("settings:audioVideo.videoPreviewNotice")}
               </span>
               {isTestingVideo ? (
                 <button
@@ -1007,7 +1034,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                   className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
                 >
                   <Square className="w-3.5 h-3.5 fill-current" />
-                  <span>停止测试</span>
+                  <span>{t("settings:audioVideo.stopVideoTest")}</span>
                 </button>
               ) : (
                 <button
@@ -1017,7 +1044,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                   className="px-4 py-2 rounded-lg bg-discord-brand hover:bg-discord-brand-hover text-white text-xs font-semibold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
                 >
                   <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>测试视频</span>
+                  <span>{t("settings:audioVideo.startVideoTest")}</span>
                 </button>
               )}
             </div>
@@ -1030,10 +1057,10 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             <div className="space-y-0.5">
               <label className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
                 <Film className="w-4 h-4 text-discord-brand" />
-                <span>推流编码格式与硬件加速 (Video Codecs)</span>
+                <span>{t("settings:audioVideo.videoCodecsTitle")}</span>
               </label>
               <p className="text-[11px] text-discord-textMuted">
-                为摄像头与屏幕共享设置默认视频编码器。系统已动态探测本地硬件编解码支持能力。
+                {t("settings:audioVideo.videoCodecsDesc")}
               </p>
             </div>
             <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
@@ -1046,6 +1073,15 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             {supportedCodecs.map((item) => {
               const isSelected = preferredCodec === item.codec;
               const isAvailable = item.supported;
+              const codecDesc = t(
+                `settings:audioVideo.codec_${item.codec}_desc` as any,
+                { defaultValue: item.description },
+              );
+              const codecReason = item.reason
+                ? t(`settings:audioVideo.codec_${item.codec}_reason` as any, {
+                    defaultValue: item.reason,
+                  })
+                : undefined;
 
               return (
                 <button
@@ -1074,24 +1110,24 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                         {item.isHardwareAccelerated && isAvailable && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-medium flex items-center gap-0.5">
                             <Zap className="w-2.5 h-2.5" />
-                            硬编加速
+                            {t("settings:audioVideo.badgeHwAccelerated")}
                           </span>
                         )}
                         {!isAvailable && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-medium">
-                            暂不支持
+                            {t("settings:audioVideo.badgeUnsupported")}
                           </span>
                         )}
                       </div>
                     </div>
                     <p className="text-[11px] leading-relaxed text-discord-textMuted">
-                      {item.description}
+                      {codecDesc}
                     </p>
                   </div>
-                  {item.reason && !isAvailable && (
+                  {codecReason && !isAvailable && (
                     <div className="mt-2 text-[10px] text-amber-400/90 flex items-center gap-1 bg-amber-400/10 px-2 py-1 rounded">
                       <Info className="w-3 h-3 flex-shrink-0" />
-                      <span>{item.reason}</span>
+                      <span>{codecReason}</span>
                     </div>
                   )}
                 </button>
@@ -1104,11 +1140,10 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             <div className="space-y-0.5 max-w-lg">
               <label className="text-xs font-semibold text-gray-200 flex items-center gap-1.5">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span>启用 VP8 双编码兜底降级 (Dual-Codec Fallback)</span>
+                <span>{t("settings:audioVideo.dualCodecTitle")}</span>
               </label>
               <p className="text-[11px] text-discord-textMuted">
-                当您以 AV1、H.264 或 HEVC 推流时，系统底层同时推送一份轻量 VP8
-                备用流。若观众设备不支持高级格式，自动无缝切换至备用流，绝不黑屏。
+                {t("settings:audioVideo.dualCodecDesc")}
               </p>
             </div>
             <label className="relative inline-flex items-center cursor-pointer">
@@ -1129,11 +1164,10 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               <div className="space-y-0.5">
                 <label className="text-xs font-semibold text-gray-200 flex items-center gap-1.5">
                   <Gauge className="w-4 h-4 text-discord-brand" />
-                  <span>自定义目标推流码率 (Target Bitrate)</span>
+                  <span>{t("settings:audioVideo.customBitrateTitle")}</span>
                 </label>
                 <p className="text-[11px] text-discord-textMuted">
-                  覆盖默认画质档位预设码率。AV1/HEVC 建议 1500~3000 kbps，H.264
-                  电竞推流建议 4000~6000 kbps。
+                  {t("settings:audioVideo.customBitrateDesc")}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -1143,7 +1177,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                 >
                   {customBitrate
                     ? `${Math.round(customBitrate / 1000)} kbps`
-                    : "跟随预设 (自适应)"}
+                    : t("settings:audioVideo.bitrateAdaptive")}
                 </span>
                 {customBitrate && (
                   <button
@@ -1153,7 +1187,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                     className="text-[11px] text-gray-400 hover:text-white flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded hover:bg-white/10 transition"
                   >
                     <RotateCcw className="w-3 h-3" />
-                    <span>重置</span>
+                    <span>{t("settings:audioVideo.reset")}</span>
                   </button>
                 )}
               </div>
@@ -1190,16 +1224,15 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             <Sliders className="w-4 h-4 text-discord-brand" />
             <div>
               <span className="text-xs font-bold text-white">
-                高级音频设置与降噪实验室
+                {t("settings:audioVideo.advancedAudioLabTitle")}
               </span>
               <p className="text-[11px] text-discord-textMuted">
-                包含 Opus 传输码率、回声消除、48kHz 高保真立体声及三轨 A/B/C
-                降噪对比测试
+                {t("settings:audioVideo.advancedAudioLabDesc")}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-1.5 text-xs text-gray-400">
-            <span>{isAdvancedOpen ? "收起" : "展开高级选项"}</span>
+            <span>{isAdvancedOpen ? t("settings:audioVideo.collapse") : t("settings:audioVideo.expandAdvanced")}</span>
             {isAdvancedOpen ? (
               <ChevronUp className="w-4 h-4" />
             ) : (
@@ -1215,7 +1248,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
                   <Radio className="w-3.5 h-3.5 text-discord-brand" />
-                  <span>Opus 音频推流码率</span>
+                  <span>{t("settings:audioVideo.opusBitrateTitle")}</span>
                 </span>
                 <span className="text-xs font-mono text-discord-brand font-bold">
                   {config.audioBitrate / 1000} kbps
@@ -1223,11 +1256,11 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               </div>
               <div className="grid grid-cols-5 gap-2">
                 {[
-                  { label: "16k", value: 16000, desc: "节流" },
-                  { label: "32k", value: 32000, desc: "流畅" },
-                  { label: "64k", value: 64000, desc: "推荐" },
-                  { label: "96k", value: 96000, desc: "高清" },
-                  { label: "128k", value: 128000, desc: "无损" },
+                  { label: "16k", value: 16000, descKey: "bitrateLow" },
+                  { label: "32k", value: 32000, descKey: "bitrateSmooth" },
+                  { label: "64k", value: 64000, descKey: "bitrateRecommended" },
+                  { label: "96k", value: 96000, descKey: "bitrateHd" },
+                  { label: "128k", value: 128000, descKey: "bitrateLossless" },
                 ].map((item) => (
                   <button
                     key={item.value}
@@ -1241,7 +1274,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                   >
                     <div className="text-xs font-semibold">{item.label}</div>
                     <div className="text-[10px] text-gray-400 scale-90">
-                      {item.desc}
+                      {t(`settings:audioVideo.${item.descKey}` as any)}
                     </div>
                   </button>
                 ))}
@@ -1255,10 +1288,10 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                 <div>
                   <div className="text-xs font-semibold text-white flex items-center gap-1.5">
                     <Music className="w-3.5 h-3.5 text-discord-brand" />
-                    <span>48kHz 高保真音乐电台模式</span>
+                    <span>{t("settings:audioVideo.hiFiMusicTitle")}</span>
                   </div>
                   <div className="text-[11px] text-discord-textMuted">
-                    直通输出双声道，关闭系统回声消除与降噪，适合乐器吉他演奏或电台直播
+                    {t("settings:audioVideo.hiFiMusicDesc")}
                   </div>
                 </div>
                 <button
@@ -1284,10 +1317,10 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               <div className="flex items-center justify-between py-1">
                 <div>
                   <div className="text-xs font-semibold text-white">
-                    回声消除 (AEC)
+                    {t("settings:audioVideo.echoCancellationTitle")}
                   </div>
                   <div className="text-[11px] text-discord-textMuted">
-                    防止电脑扬声器声音被麦克风重复录入引发刺耳啸叫
+                    {t("settings:audioVideo.echoCancellationDetail")}
                   </div>
                 </div>
                 <button
@@ -1313,10 +1346,10 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               <div className="flex items-center justify-between py-1">
                 <div>
                   <div className="text-xs font-semibold text-white">
-                    自动增益控制 (AGC)
+                    {t("settings:audioVideo.agcTitle")}
                   </div>
                   <div className="text-[11px] text-discord-textMuted">
-                    自动动态平衡小声耳语与大声喊叫时的输出音量
+                    {t("settings:audioVideo.agcDetail")}
                   </div>
                 </div>
                 <button
@@ -1339,7 +1372,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                 <div className="bg-[#1e1f22] p-3 rounded-xl border border-white/5 space-y-2 mt-2">
                   <div className="flex items-center justify-between text-xs">
                     <span className="text-gray-300 font-semibold">
-                      自动增益提升上限 (AGC Gain Range)
+                      {t("settings:audioVideo.agcGainRangeTitle")}
                     </span>
                     <span className="font-mono text-discord-brand font-bold">
                       {config.agcGainRange ?? 18} dB
@@ -1357,9 +1390,9 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                     className="w-full h-1.5 bg-[#2b2d31] rounded-lg appearance-none cursor-pointer accent-discord-brand"
                   />
                   <div className="flex justify-between text-[10px] text-discord-textMuted">
-                    <span>6 dB (保守)</span>
-                    <span>18 dB (均衡推荐)</span>
-                    <span>30 dB (激进)</span>
+                    <span>{t("settings:audioVideo.agcGainConservative")}</span>
+                    <span>{t("settings:audioVideo.agcGainBalanced")}</span>
+                    <span>{t("settings:audioVideo.agcGainAggressive")}</span>
                   </div>
                 </div>
               )}
@@ -1371,7 +1404,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                 <div className="flex items-center gap-2">
                   <Sliders className="w-4 h-4 text-discord-brand" />
                   <span className="text-xs font-bold text-white">
-                    AI 降噪前后效果三轨录音试听对比
+                    {t("settings:audioVideo.abLabTitle")}
                   </span>
                 </div>
                 {abResult && (
@@ -1387,8 +1420,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               </div>
 
               <p className="text-[11px] text-discord-textMuted">
-                一键录制 5 秒音频，系统将同步采集「原始原声」、「RNNoise
-                滤噪」和「DTLN 深度消键盘音」三条音轨，供您同屏试听对比效果。
+                {t("settings:audioVideo.abLabDesc")}
               </p>
 
               {abError && (
@@ -1411,7 +1443,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                   className="w-full py-2.5 rounded-lg bg-discord-brand hover:bg-[#4752c4] text-white text-xs font-semibold transition flex items-center justify-center gap-2 shadow"
                 >
                   <Mic className="w-4 h-4" />
-                  <span>开始 5 秒环境与键盘杂音多轨录音测试</span>
+                  <span>{t("settings:audioVideo.abStartBtn")}</span>
                 </button>
               )}
 
@@ -1419,7 +1451,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                 <div className="bg-[#2b2d31] p-4 rounded-lg flex flex-col items-center justify-center border border-discord-brand/40">
                   <div className="w-8 h-8 rounded-full border-2 border-discord-brand/20 border-t-discord-brand animate-spin mb-2" />
                   <div className="text-xs font-bold text-white flex items-center gap-1.5">
-                    <span>请敲击键盘、摩擦桌面或说话测试...</span>
+                    <span>{t("settings:audioVideo.abRecordingPrompt")}</span>
                     <span className="text-discord-green">({abCountdown}s)</span>
                   </div>
                   <div className="w-40 h-1 bg-[#1e1f22] rounded-full overflow-hidden mt-2.5">
@@ -1433,13 +1465,13 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
 
               {abResult && (
                 <div className="space-y-3 animate-fadeIn">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
                     {/* 原始音轨 */}
                     <div className="bg-[#2b2d31] p-2.5 rounded-lg border border-white/5">
                       <div className="text-[11px] font-bold text-gray-400 mb-1 flex items-center justify-between">
-                        <span>原始未过滤</span>
+                        <span>{t("settings:audioVideo.abRawTrack")}</span>
                         <span className="text-[10px] text-rose-400">
-                          含环境音
+                          {t("settings:audioVideo.abContainsNoise")}
                         </span>
                       </div>
                       <audio
@@ -1452,7 +1484,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                     {/* RNNoise */}
                     <div className="bg-[#2b2d31] p-2.5 rounded-lg border border-discord-brand/40">
                       <div className="text-[11px] font-bold text-discord-brand mb-1 flex items-center justify-between">
-                        <span>RNNoise 滤噪</span>
+                        <span>{t("settings:audioVideo.abRnnoiseTrack")}</span>
                         <span className="text-[10px] bg-discord-brand/20 px-1 rounded">
                           +{abResult.rnnoiseDbReduction} dB
                         </span>
@@ -1467,13 +1499,28 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                     {/* DTLN */}
                     <div className="bg-[#2b2d31] p-2.5 rounded-lg border border-discord-green/40">
                       <div className="text-[11px] font-bold text-discord-green mb-1 flex items-center justify-between">
-                        <span>DTLN 深度消键盘</span>
+                        <span>{t("settings:audioVideo.abDtlnTrack")}</span>
                         <span className="text-[10px] bg-discord-green/20 px-1 rounded">
                           +{abResult.dtlnDbReduction} dB
                         </span>
                       </div>
                       <audio
                         src={abResult.dtlnUrl}
+                        controls
+                        className="w-full h-7 outline-none"
+                      />
+                    </div>
+
+                    {/* DFNv3 */}
+                    <div className="bg-[#2b2d31] p-2.5 rounded-lg border border-purple-500/40">
+                      <div className="text-[11px] font-bold text-purple-400 mb-1 flex items-center justify-between">
+                        <span>{t("settings:audioVideo.abDfn3Track")}</span>
+                        <span className="text-[10px] bg-purple-500/20 text-purple-300 px-1 rounded">
+                          +{abResult.dfn3DbReduction ?? 24.6} dB
+                        </span>
+                      </div>
+                      <audio
+                        src={abResult.dfn3Url || abResult.rnnoiseUrl}
                         controls
                         className="w-full h-7 outline-none"
                       />
@@ -1487,7 +1534,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                       className="px-3 py-1 text-xs text-gray-400 hover:text-white rounded bg-[#2b2d31] hover:bg-[#35373c] transition flex items-center gap-1.5"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
-                      <span>重新录制对比</span>
+                      <span>{t("settings:audioVideo.abReRecordBtn")}</span>
                     </button>
                   </div>
                 </div>

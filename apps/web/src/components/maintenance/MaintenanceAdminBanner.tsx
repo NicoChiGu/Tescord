@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ShieldAlert, Power, Sliders, Loader2 } from "lucide-react";
 import { useMaintenanceStore } from "../../stores/useMaintenanceStore.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
@@ -11,6 +12,7 @@ interface MaintenanceAdminBannerProps {
 export const MaintenanceAdminBanner: React.FC<MaintenanceAdminBannerProps> = ({
   onOpenAdminModal,
 }) => {
+  const { t } = useTranslation(["common"]);
   const { announcement, clearMaintenance } = useMaintenanceStore();
   const { getAuthHeaders } = useAuthStore();
   const [isDisabling, setIsDisabling] = useState(false);
@@ -51,14 +53,14 @@ export const MaintenanceAdminBanner: React.FC<MaintenanceAdminBannerProps> = ({
           <ShieldAlert className="h-3.5 w-3.5" />
         </span>
         <span className="font-bold">
-          [运维模式进行中]
+          {t("common:maintenance.adminBadge")}
         </span>
         <span className="hidden sm:inline opacity-90">
-          普通用户已阻断并展示全屏维护页，当前仅超级管理员可操作与调试。
+          {t("common:maintenance.adminDesc")}
         </span>
         {announcement && (
           <span className="hidden md:inline rounded bg-black/15 px-2 py-0.5 text-[11px] font-normal">
-            公告：{announcement}
+            {t("common:maintenance.announcement")}{announcement}
           </span>
         )}
       </div>
@@ -70,7 +72,7 @@ export const MaintenanceAdminBanner: React.FC<MaintenanceAdminBannerProps> = ({
             className="flex items-center gap-1 rounded bg-black/20 px-2.5 py-1 text-black font-semibold hover:bg-black/30 transition cursor-pointer"
           >
             <Sliders className="h-3 w-3" />
-            运维设置
+            {t("common:maintenance.settings")}
           </button>
         )}
         <button
@@ -83,7 +85,7 @@ export const MaintenanceAdminBanner: React.FC<MaintenanceAdminBannerProps> = ({
           ) : (
             <Power className="h-3 w-3" />
           )}
-          一键解除维护
+          {t("common:maintenance.disableBtn")}
         </button>
       </div>
     </div>

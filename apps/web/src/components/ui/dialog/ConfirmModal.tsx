@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle, AlertCircle, Info, ShieldAlert } from "lucide-react";
 import { BaseModal } from "./BaseModal";
 import { ConfirmDialogOptions } from "../../../stores/useDialogStore";
@@ -14,11 +15,12 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  const { t } = useTranslation("common");
   const {
     title,
     description,
-    confirmText = "确定",
-    cancelText = "取消",
+    confirmText = t("common:dialog.confirm", "确定"),
+    cancelText = t("common:dialog.cancel", "取消"),
     variant = "info",
     requireSecurityCode = false,
     dangerWarning,
@@ -87,7 +89,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs px-3.5 py-2.5 rounded-xl flex items-start gap-2.5">
             <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0 text-rose-400" />
             <div className="leading-relaxed">
-              {dangerWarning || "此操作具有破坏性且无法撤销，请谨慎核对后再执行。"}
+              {dangerWarning || t("common:dialog.dangerWarning", "此操作具有破坏性且无法撤销！")}
             </div>
           </div>
         )}
@@ -96,7 +98,9 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
         {requireSecurityCode && (
           <div className="space-y-3 pt-1">
             <div className="flex flex-col items-center justify-center p-3.5 bg-[#1e1f22] rounded-xl border border-white/5 space-y-2">
-              <span className="text-xs text-gray-400 font-medium">安全验证码</span>
+              <span className="text-xs text-gray-400 font-medium">
+                {t("common:dialog.securityCode", "安全验证码")}
+              </span>
               <div className="text-2xl font-mono font-extrabold tracking-[0.35em] text-amber-400 select-all bg-black/40 px-5 py-1.5 rounded-lg border border-amber-500/30 shadow-inner">
                 {securityCode}
               </div>
@@ -104,7 +108,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center justify-between">
-                <span>请输入上方 4 位验证码以确认：</span>
+                <span>{t("common:dialog.securityCodePrompt", "请输入上方显示的 4 位安全验证码以继续：")}</span>
                 <span className="text-gray-500 font-normal">{inputCode.length}/4</span>
               </label>
               <input

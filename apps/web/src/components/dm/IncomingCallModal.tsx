@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { User } from "@tescord/types";
 import { Phone, PhoneOff, ShieldCheck, Video } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 interface IncomingCallModalProps {
   caller: User;
@@ -21,6 +22,8 @@ export const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
   onReject,
   encryption,
 }) => {
+  const { t } = useTranslation(["chat", "common"]);
+
   // 振铃提示音 (Web Audio API 合成和弦振铃)
   useEffect(() => {
     let audioCtx: AudioContext | null = null;
@@ -94,7 +97,15 @@ export const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
   }, [onAccept, onReject]);
 
   return (
-    <div className="fixed bottom-8 right-8 z-50 animate-bounce-short select-none" role="dialog" aria-live="assertive" aria-label={`${caller.username} 的来电`}>
+    <div
+      className="fixed bottom-8 right-8 z-50 animate-bounce-short select-none"
+      role="dialog"
+      aria-live="assertive"
+      aria-label={t("chat:dm.incomingCall.ariaLabel", {
+        username: caller.username,
+        defaultValue: `${caller.username} 的来电`,
+      })}
+    >
       <div className="bg-[#2b2d31] p-5 rounded-2xl border border-discord-brand shadow-2xl flex items-center space-x-4 max-w-sm w-full">
         {/* 头像 */}
         <div className="relative">
@@ -125,19 +136,49 @@ export const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
           </p>
           <p className="text-xs text-discord-textMuted flex items-center space-x-1">
             <span className="inline-block w-2 h-2 rounded-full bg-discord-green animate-ping" />
-            <span>正在向您发起{hasVideo ? "视频" : "语音"}呼叫...</span>
+            <span>
+              {hasVideo
+                ? t("chat:dm.incomingCall.callingVideo", {
+                    defaultValue: "正在向您发起视频呼叫...",
+                  })
+                : t("chat:dm.incomingCall.callingVoice", {
+                    defaultValue: "正在向您发起语音呼叫...",
+                  })}
+            </span>
           </p>
           <p
             className={`mt-1 flex items-center gap-1 text-[10px] ${
-              encryption.status === "failed" ? "text-red-300" :
-                encryption.status === "negotiating" ? "text-amber-300" : "text-discord-green"
+              encryption.status === "failed"
+                ? "text-red-300"
+                : encryption.status === "negotiating"
+                ? "text-amber-300"
+                : "text-discord-green"
             }`}
-            title={encryption.fingerprint ? `设备指纹：${encryption.fingerprint}` : undefined}
+            title={
+              encryption.fingerprint
+                ? t("chat:dm.incomingCall.deviceFingerprint", {
+                    fingerprint: encryption.fingerprint,
+                    defaultValue: `设备指纹：${encryption.fingerprint}`,
+                  })
+                : undefined
+            }
           >
             <ShieldCheck className="h-3 w-3" />
-            {encryption.status === "trusted" ? "已验证设备 · E2EE" :
-              encryption.status === "tofu" ? "首次信任设备 · E2EE" :
-                encryption.status === "failed" ? "设备验证失败" : "正在验证设备密钥"}
+            {encryption.status === "trusted"
+              ? t("chat:dm.incomingCall.e2eeTrusted", {
+                  defaultValue: "已验证设备 · E2EE",
+                })
+              : encryption.status === "tofu"
+              ? t("chat:dm.incomingCall.e2eeTofu", {
+                  defaultValue: "首次信任设备 · E2EE",
+                })
+              : encryption.status === "failed"
+              ? t("chat:dm.incomingCall.e2eeFailed", {
+                  defaultValue: "设备验证失败",
+                })
+              : t("chat:dm.incomingCall.e2eeNegotiating", {
+                  defaultValue: "正在验证设备密钥",
+                })}
           </p>
         </div>
 
@@ -147,7 +188,9 @@ export const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
           <button
             onClick={onAccept}
             className="w-11 h-11 rounded-full bg-discord-green hover:bg-[#23a55a] flex items-center justify-center text-white shadow-lg transition transform hover:scale-105"
-            title="接听通话（Alt+A）"
+            title={t("chat:dm.incomingCall.acceptTooltip", {
+              defaultValue: "接听通话（Alt+A）",
+            })}
             data-testid="accept-call-btn"
           >
             <Phone className="w-5 h-5" />
@@ -157,7 +200,9 @@ export const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
           <button
             onClick={onReject}
             className="w-11 h-11 rounded-full bg-rose-600 hover:bg-rose-700 flex items-center justify-center text-white shadow-lg transition transform hover:scale-105"
-            title="拒绝呼叫（Alt+R）"
+            title={t("chat:dm.incomingCall.rejectTooltip", {
+              defaultValue: "拒绝呼叫（Alt+R）",
+            })}
             data-testid="reject-call-btn"
           >
             <PhoneOff className="w-5 h-5" />

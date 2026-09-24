@@ -1,6 +1,8 @@
 import React, { useState } from "react";
 import { X, KeyRound, Compass } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { API_BASE } from "../../config.js";
+import { getErrorMessage } from "../../i18n/index.js";
 
 interface JoinGuildModalProps {
   isOpen: boolean;
@@ -15,6 +17,7 @@ export const JoinGuildModal: React.FC<JoinGuildModalProps> = ({
   onGuildJoined,
   onOpenCreateModal,
 }) => {
+  const { t } = useTranslation(["modals", "common", "admin", "errors"]);
   const [inviteCode, setInviteCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,14 +45,14 @@ export const JoinGuildModal: React.FC<JoinGuildModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "加入服务器失败，请核对邀请码");
+        throw new Error(getErrorMessage(data) || t("modals:joinGuild.failed"));
       }
 
       const result = await res.json();
       onGuildJoined(result.guildId);
       onClose();
     } catch (err: any) {
-      setError(err.message || "网络连接异常");
+      setError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
     } finally {
       setIsSubmitting(false);
     }
@@ -63,6 +66,7 @@ export const JoinGuildModal: React.FC<JoinGuildModalProps> = ({
           <button
             onClick={onClose}
             className="absolute right-4 top-4 text-discord-textMuted hover:text-discord-textHeader transition"
+            title={t("common:close")}
           >
             <X className="w-5 h-5" />
           </button>
@@ -70,10 +74,10 @@ export const JoinGuildModal: React.FC<JoinGuildModalProps> = ({
             <Compass className="w-6 h-6" />
           </div>
           <h2 className="text-2xl font-bold text-discord-textHeader">
-            加入现有服务器
+            {t("modals:joinGuild.title")}
           </h2>
           <p className="text-xs text-discord-textMuted mt-1">
-            输入好友分享给您的 8 位专属邀请码或邀请链接。
+            {t("modals:joinGuild.subtitle")}
           </p>
         </div>
 
@@ -87,7 +91,8 @@ export const JoinGuildModal: React.FC<JoinGuildModalProps> = ({
 
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted mb-2">
-              邀请码 / 邀请链接 <span className="text-red-400">*</span>
+              {t("modals:joinGuild.inviteLabel")}{" "}
+              <span className="text-red-400">*</span>
             </label>
             <div className="relative flex items-center">
               <input
@@ -95,7 +100,7 @@ export const JoinGuildModal: React.FC<JoinGuildModalProps> = ({
                 required
                 value={inviteCode}
                 onChange={(e) => setInviteCode(e.target.value)}
-                placeholder="例如：7f503c71 或 http://.../invite/7f503c71"
+                placeholder={t("modals:joinGuild.invitePlaceholder")}
                 className="w-full bg-[#1e1f22] text-discord-textHeader px-3 py-2.5 pl-9 rounded text-sm focus:outline-none focus:ring-2 focus:ring-discord-brand transition border border-transparent focus:border-discord-brand font-mono"
               />
               <KeyRound className="w-4 h-4 text-discord-textMuted absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -104,7 +109,7 @@ export const JoinGuildModal: React.FC<JoinGuildModalProps> = ({
 
           <div className="text-[11px] text-discord-textMuted space-y-1 bg-[#2b2d31] p-2.5 rounded">
             <p className="font-semibold text-discord-textHeader">
-              邀请链接示例：
+              {t("modals:joinGuild.examplesTitle")}
             </p>
             <p className="font-mono text-discord-brand">7f503c71</p>
             <p className="font-mono">https://tescord.gg/7f503c71</p>
@@ -120,7 +125,7 @@ export const JoinGuildModal: React.FC<JoinGuildModalProps> = ({
               }}
               className="text-xs text-discord-brand hover:underline font-medium"
             >
-              没有邀请码？创建新服务器
+              {t("modals:joinGuild.noInvite")}
             </button>
 
             <button
@@ -128,7 +133,9 @@ export const JoinGuildModal: React.FC<JoinGuildModalProps> = ({
               disabled={isSubmitting || !inviteCode.trim()}
               className="bg-discord-brand hover:bg-discord-brandHover text-white px-5 py-2.5 rounded font-medium text-sm transition shadow-md disabled:opacity-50"
             >
-              {isSubmitting ? "加入中..." : "加入服务器"}
+              {isSubmitting
+                ? t("modals:joinGuild.submitting")
+                : t("modals:joinGuild.submit")}
             </button>
           </div>
         </form>

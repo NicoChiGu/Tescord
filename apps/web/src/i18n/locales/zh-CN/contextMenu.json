@@ -18,5 +18,65 @@
   "userVolume": "用户独立音量",
   "resetVolume": "重置 100%",
   "maxVolume": "上限 200%",
-  "unmuteUser": "取消静音"
+  "unmuteUser": "取消静音",
+  "profile": "个人资料",
+  "kickUserNamed": "踢出 {{name}}",
+  "banUserNamed": "封禁 {{name}}",
+  "userStatus": "在线状态",
+  "copyMyId": "复制我的 ID",
+  "showStats": "媒体属性与详细统计 (Stats)",
+  "stopStreaming": "停止直播",
+
+  "channel": {
+    "switchToChannel": "切换至该频道",
+    "muteChannel": "静音频道",
+    "unmuteChannel": "取消静音",
+    "markAsRead": "标记为已读",
+    "editChannel": "编辑频道",
+    "copyLink": "复制频道链接",
+    "deleteChannel": "删除频道",
+    "mute15m": "15 分钟",
+    "mute1h": "1 小时",
+    "mute3h": "3 小时",
+    "mute8h": "8 小时",
+    "mute24h": "24 小时",
+    "muteUntilTurnedOn": "直到重新开启"
+  },
+  "category": {
+    "createChannel": "创建频道",
+    "editCategory": "编辑分类",
+    "deleteCategory": "删除分类",
+    "copyId": "复制分类 ID",
+    "expand": "展开分类",
+    "collapse": "折叠分类"
+  },
+  "server": {
+    "settings": "服务器管理设置",
+    "createChannel": "创建频道",
+    "createCategory": "创建分类",
+    "invite": "邀请好友",
+    "leave": "退出服务器",
+    "disband": "解散服务器",
+    "leaveConfirmTitle": "退出服务器",
+    "leaveConfirmDesc": "确定要退出服务器 \"{{name}}\" 吗？"
+  },
+  "input": {
+    "cut": "剪切",
+    "copy": "复制",
+    "paste": "粘贴",
+    "selectAll": "全选",
+    "pasteTip": "请直接使用快捷键 Ctrl+V 粘贴",
+    "format": "文字格式",
+    "bold": "加粗粗体",
+    "spoiler": "剧透遮罩",
+    "inlineCode": "行内代码",
+    "placeholderText": "文字",
+    "codePlaceholder": "代码"
+  },
+  "global": {
+    "reload": "重新加载",
+    "back": "后退",
+    "forward": "前进",
+    "inspect": "检查元素"
+  }
 }

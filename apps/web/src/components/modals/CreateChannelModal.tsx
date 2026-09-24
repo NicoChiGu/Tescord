@@ -1,7 +1,9 @@
 import React, { useState } from "react";
 import { X, Hash, Volume2, ShieldCheck } from "lucide-react";
 import { Channel, ChannelCategory, ChannelType } from "@tescord/types";
+import { useTranslation } from "react-i18next";
 import { API_BASE } from "../../config.js";
+import { getErrorMessage } from "../../i18n/index.js";
 
 interface CreateChannelModalProps {
   isOpen: boolean;
@@ -20,6 +22,7 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
   onClose,
   onChannelCreated,
 }) => {
+  const { t } = useTranslation(["modals", "common", "admin", "errors"]);
   const [name, setName] = useState("");
   const [type, setType] = useState<ChannelType>("TEXT");
   const [parentId, setParentId] = useState<string | null>(initialCategoryId);
@@ -66,14 +69,14 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "创建频道失败");
+        throw new Error(getErrorMessage(data) || t("modals:createChannel.failed"));
       }
 
       const createdChannel: Channel = await res.json();
       onChannelCreated(createdChannel);
       onClose();
     } catch (err: any) {
-      setError(err.message || "网络连接异常");
+      setError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
     } finally {
       setIsSubmitting(false);
     }
@@ -87,14 +90,15 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
           <button
             onClick={onClose}
             className="absolute right-4 top-4 text-discord-textMuted hover:text-discord-textHeader transition"
+            title={t("common:close")}
           >
             <X className="w-5 h-5" />
           </button>
           <h2 className="text-xl font-bold text-discord-textHeader">
-            创建频道
+            {t("modals:createChannel.title")}
           </h2>
           <p className="text-xs text-discord-textMuted mt-1">
-            在当前服务器内建立新的沟通交流阵地。
+            {t("modals:createChannel.subtitle")}
           </p>
         </div>
 
@@ -109,7 +113,7 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
           {/* 频道类型切换 */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted mb-2">
-              频道类型
+              {t("modals:createChannel.typeLabel")}
             </label>
             <div className="space-y-2">
               <label
@@ -129,9 +133,11 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
                 />
                 <Hash className="w-6 h-6 mr-3 text-discord-textMuted flex-shrink-0" />
                 <div className="flex-1">
-                  <div className="font-semibold text-sm">文字频道 (Text)</div>
+                  <div className="font-semibold text-sm">
+                    {t("modals:createChannel.textType")}
+                  </div>
                   <div className="text-xs text-discord-textMuted">
-                    发布富文本消息、文件、截图与 Emoji 点赞
+                    {t("modals:createChannel.textTypeDesc")}
                   </div>
                 </div>
               </label>
@@ -153,9 +159,11 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
                 />
                 <Volume2 className="w-6 h-6 mr-3 text-discord-textMuted flex-shrink-0" />
                 <div className="flex-1">
-                  <div className="font-semibold text-sm">语音频道 (Voice)</div>
+                  <div className="font-semibold text-sm">
+                    {t("modals:createChannel.voiceType")}
+                  </div>
                   <div className="text-xs text-discord-textMuted">
-                    低延迟语音连麦、屏幕分享直播与 AI 降噪
+                    {t("modals:createChannel.voiceTypeDesc")}
                   </div>
                 </div>
               </label>
@@ -165,7 +173,8 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
           {/* 频道名称 */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted mb-2">
-              频道名称 <span className="text-red-400">*</span>
+              {t("modals:createChannel.nameLabel")}{" "}
+              <span className="text-red-400">*</span>
             </label>
             <div className="relative flex items-center">
               <span className="absolute left-3 top-1/2 -translate-y-1/2 flex items-center justify-center text-discord-textMuted pointer-events-none select-none">
@@ -176,7 +185,7 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="例如：极客日常"
+                placeholder={t("modals:createChannel.namePlaceholder")}
                 className="w-full bg-[#1e1f22] text-discord-textHeader pl-8 pr-3 py-2.5 rounded text-sm focus:outline-none focus:ring-2 focus:ring-discord-brand transition border border-transparent focus:border-discord-brand"
                 data-testid="create-channel-name-input"
               />
@@ -186,7 +195,7 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
           {/* 所属分类 */}
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted mb-2">
-              所属分类
+              {t("modals:createChannel.categoryLabel")}
             </label>
             <select
               value={parentId || ""}
@@ -194,7 +203,7 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
               className="w-full bg-[#1e1f22] text-discord-textHeader px-3 py-2.5 rounded text-sm focus:outline-none focus:ring-2 focus:ring-discord-brand transition border border-transparent cursor-pointer"
               data-testid="channel-category-select"
             >
-              <option value="">(无分类 / 顶部独立频道)</option>
+              <option value="">{t("modals:createChannel.noCategory")}</option>
               {categories.map((cat) => (
                 <option key={cat.id} value={cat.id}>
                   📁 {cat.name}
@@ -207,13 +216,13 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
           {type === "TEXT" && (
             <div>
               <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted mb-2">
-                频道话题 (选填)
+                {t("modals:createChannel.topicLabel")}
               </label>
               <input
                 type="text"
                 value={topic}
                 onChange={(e) => setTopic(e.target.value)}
-                placeholder="简单介绍这个频道的讨论内容..."
+                placeholder={t("modals:createChannel.topicPlaceholder")}
                 className="w-full bg-[#1e1f22] text-discord-textHeader px-3 py-2 rounded text-sm focus:outline-none focus:ring-1 focus:ring-discord-brand transition"
               />
             </div>
@@ -225,10 +234,10 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
               <ShieldCheck className="w-5 h-5 text-discord-green" />
               <div>
                 <div className="text-sm font-semibold text-discord-textHeader">
-                  端到端加密 (E2EE)
+                  {t("modals:createChannel.e2ee")}
                 </div>
                 <div className="text-[11px] text-discord-textMuted">
-                  客户端本地密文封装，服务端不保存明文
+                  {t("modals:createChannel.e2eeDesc")}
                 </div>
               </div>
             </div>
@@ -247,14 +256,16 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
               onClick={onClose}
               className="text-xs text-discord-textHeader hover:underline px-3 py-2"
             >
-              取消
+              {t("common:cancel")}
             </button>
             <button
               type="submit"
               disabled={isSubmitting || !name.trim()}
               className="bg-discord-brand hover:bg-discord-brandHover text-white px-5 py-2.5 rounded font-medium text-sm transition shadow-md disabled:opacity-50"
             >
-              {isSubmitting ? "创建中..." : "创建频道"}
+              {isSubmitting
+                ? t("modals:createChannel.submitting")
+                : t("modals:createChannel.submit")}
             </button>
           </div>
         </form>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Guild, GuildBan } from "@tescord/types";
 import { Search, Ban, Unlock, AlertCircle } from "lucide-react";
 import { API_BASE, resolveServerUrl } from "../../config.js";
@@ -12,6 +13,7 @@ interface BansTabProps {
 }
 
 export const BansTab: React.FC<BansTabProps> = ({ guild, onUnbanMember }) => {
+  const { t } = useTranslation(["server", "common", "errors"]);
   const { token } = useAuthStore();
   const [bans, setBans] = useState<GuildBan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,19 +49,19 @@ export const BansTab: React.FC<BansTabProps> = ({ guild, onUnbanMember }) => {
   const handleUnban = async (ban: GuildBan) => {
     const name = ban.user?.username || "该用户";
     const confirmed = await dialog.confirm({
-      title: "解除成员封禁",
+      title: t("server:bans.unban"),
       description: `确定要解除对 “${name}” 的封禁吗？解封后对方可重新凭邀请码进入服务器。`,
       variant: "info",
-      confirmText: "确认解封",
+      confirmText: t("server:bans.unban"),
     });
     if (!confirmed) return;
 
     try {
       await onUnbanMember(ban.userId);
       setBans((prev) => prev.filter((b) => b.userId !== ban.userId));
-      toast.success(`已解除对 “${name}” 的封禁`);
+      toast.success(t("server:bans.unbanSuccess"));
     } catch (err: any) {
-      toast.error(err?.message || "解封失败");
+      toast.error(err?.message || t("errors:UNKNOWN_ERROR"));
     }
   };
 
@@ -77,7 +79,7 @@ export const BansTab: React.FC<BansTabProps> = ({ guild, onUnbanMember }) => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-white mb-1">
-            封禁名单 ({bans.length})
+            {t("server:bans.title")} ({bans.length})
           </h2>
           <p className="text-xs text-gray-400">
             被封禁的用户将无法加入或访问此服务器，直至管理员手动将其移出黑名单。
@@ -90,7 +92,7 @@ export const BansTab: React.FC<BansTabProps> = ({ guild, onUnbanMember }) => {
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="搜索被封禁用户或理由..."
+            placeholder={t("server:bans.searchPlaceholder")}
             className="w-full bg-[#1e1f22] border border-white/10 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#5865f2] transition-colors"
           />
         </div>
@@ -111,7 +113,7 @@ export const BansTab: React.FC<BansTabProps> = ({ guild, onUnbanMember }) => {
             <Ban className="w-6 h-6" />
           </div>
           <div className="text-sm font-semibold text-gray-300">
-            暂无被封禁的用户
+            {t("server:bans.noBans")}
           </div>
           <p className="text-xs text-gray-500 max-w-sm">
             该服务器目前非常和平，没有任何成员被列入封禁黑名单。
@@ -156,7 +158,7 @@ export const BansTab: React.FC<BansTabProps> = ({ guild, onUnbanMember }) => {
                 className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-300 hover:text-white bg-[#1e1f22] hover:bg-[#248046] border border-white/5 transition-all self-start sm:self-center"
               >
                 <Unlock className="w-3.5 h-3.5" />
-                <span>解除封禁</span>
+                <span>{t("server:bans.unban")}</span>
               </button>
             </div>
           ))}

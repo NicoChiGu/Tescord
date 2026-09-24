@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Channel, Guild, CHANNEL_MUTE_DURATION_OPTIONS } from "@tescord/types";
 import {
   ContextMenu,
@@ -47,6 +48,7 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
   onDeleteChannel,
   onMarkAsRead,
 }) => {
+  const { t } = useTranslation(["contextMenu", "server", "common"]);
   const { canManageChannels, canCreateInvite } = usePermissions(guild);
   const [copiedId, setCopiedId] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
@@ -109,7 +111,7 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
             ) : (
               <Hash className="w-4 h-4 text-discord-textMuted" />
             )}
-            <span>{isVoice ? "连接语音频道" : "切换至该频道"}</span>
+            <span>{isVoice ? t("server:roles.perm.connect") : t("contextMenu:channel.switchToChannel")}</span>
           </div>
         </ContextMenuItem>
 
@@ -119,7 +121,7 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
         >
           <div className="flex items-center space-x-2">
             <CheckCircle2 className="w-4 h-4 text-discord-textMuted" />
-            <span>标记为已读</span>
+            <span>{t("contextMenu:channel.markAsRead")}</span>
           </div>
         </ContextMenuItem>
 
@@ -135,7 +137,7 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
               ) : (
                 <UserPlus className="w-4 h-4" />
               )}
-              <span>{copiedInvite ? "邀请码已复制" : "邀请其他人"}</span>
+              <span>{copiedInvite ? t("server:invites.copied") : t("contextMenu:server.invite")}</span>
             </div>
           </ContextMenuItem>
         )}
@@ -149,7 +151,7 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
             >
               <div className="flex items-center space-x-2">
                 <Bell className="w-4 h-4 text-discord-green" />
-                <span>取消静音频道</span>
+                <span>{t("contextMenu:channel.unmuteChannel")}</span>
               </div>
             </ContextMenuItem>
             <ContextMenuSub>
@@ -159,7 +161,7 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
               >
                 <div className="flex items-center space-x-2">
                   <BellOff className="w-4 h-4 text-discord-textMuted" />
-                  <span>更改静音时长</span>
+                  <span>{t("contextMenu:channel.muteChannel")}</span>
                 </div>
               </ContextMenuSubTrigger>
               <ContextMenuSubContent className="w-44">
@@ -170,7 +172,7 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
                     onClick={() => setChannelMute(channel.id, opt.durationMs)}
                     className="hover:bg-discord-brand text-xs"
                   >
-                    <span>{opt.label}</span>
+                    <span>{opt.i18nKey ? t(opt.i18nKey) : opt.label}</span>
                   </ContextMenuItem>
                 ))}
               </ContextMenuSubContent>
@@ -184,7 +186,7 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
             >
               <div className="flex items-center space-x-2">
                 <BellOff className="w-4 h-4 text-discord-textMuted" />
-                <span>静音频道</span>
+                <span>{t("contextMenu:channel.muteChannel")}</span>
               </div>
             </ContextMenuSubTrigger>
             <ContextMenuSubContent className="w-44">
@@ -195,7 +197,7 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
                   onClick={() => setChannelMute(channel.id, opt.durationMs)}
                   className="hover:bg-discord-brand text-xs"
                 >
-                  <span>{opt.label}</span>
+                  <span>{opt.i18nKey ? t(opt.i18nKey) : opt.label}</span>
                 </ContextMenuItem>
               ))}
             </ContextMenuSubContent>
@@ -211,7 +213,7 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
           >
             <div className="flex items-center space-x-2">
               <Edit3 className="w-4 h-4 text-discord-textMuted" />
-              <span>编辑频道</span>
+              <span>{t("contextMenu:channel.editChannel")}</span>
             </div>
           </ContextMenuItem>
         )}
@@ -223,7 +225,7 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
             ) : (
               <Copy className="w-4 h-4 text-discord-textMuted" />
             )}
-            <span>{copiedId ? "已复制频道 ID" : "复制频道 ID"}</span>
+            <span>{copiedId ? t("common:copied") : t("contextMenu:copyChannelId")}</span>
           </div>
         </ContextMenuItem>
 
@@ -236,7 +238,7 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
             >
               <div className="flex items-center space-x-2">
                 <Trash2 className="w-4 h-4" />
-                <span>删除频道</span>
+                <span>{t("contextMenu:channel.deleteChannel")}</span>
               </div>
             </ContextMenuItem>
           </>

@@ -41,33 +41,43 @@ interface UserSettingsModalProps {
 
 const STATUS_OPTIONS: {
   value: UserStatus;
-  label: string;
+  labelKey: string;
+  defaultLabel: string;
   color: string;
-  desc: string;
+  descKey: string;
+  defaultDesc: string;
 }[] = [
   {
     value: "ONLINE",
-    label: "在线",
+    labelKey: "common:status.online",
+    defaultLabel: "在线",
     color: "bg-emerald-500",
-    desc: "正常接收所有通知",
+    descKey: "common:status.onlineDesc",
+    defaultDesc: "正常接收所有通知",
   },
   {
     value: "IDLE",
-    label: "离开",
+    labelKey: "common:status.idle",
+    defaultLabel: "离开",
     color: "bg-amber-500",
-    desc: "短时间内离开电脑",
+    descKey: "common:status.idleDesc",
+    defaultDesc: "短时间内离开电脑",
   },
   {
     value: "DND",
-    label: "请勿打扰",
+    labelKey: "common:status.dnd",
+    defaultLabel: "请勿打扰",
     color: "bg-rose-500",
-    desc: "静音所有桌面通知",
+    descKey: "common:status.dndDesc",
+    defaultDesc: "静音所有桌面通知",
   },
   {
     value: "OFFLINE",
-    label: "隐身",
+    labelKey: "common:status.invisible",
+    defaultLabel: "隐身",
     color: "bg-gray-400",
-    desc: "显示为离线但仍可使用全部功能",
+    descKey: "common:status.invisibleDesc",
+    defaultDesc: "显示为离线但仍可使用全部功能",
   },
 ];
 
@@ -100,10 +110,15 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   isInCall = false,
 }) => {
   const { user, updateProfile, logout } = useAuthStore();
-  const { t } = useTranslation(["settings", "common"]);
+  const { t } = useTranslation(["settings", "common", "auth"]);
   const [activeTab, setActiveTab] = useState<UserSettingsTabType>(initialTab);
 
   // 资料与展示卡表单状态
+  const userPrefix = user?.username.includes("#") ? user.username.split("#")[0] : user?.username || "";
+  const userTag = user?.discriminator || (user?.username.includes("#") ? user.username.split("#")[1] : "00000");
+
+  const [displayName, setDisplayName] = useState(user?.displayName || "");
+  const [usernamePrefix, setUsernamePrefix] = useState(userPrefix);
   const [status, setStatus] = useState<UserStatus>(user?.status || "ONLINE");
   const [customStatus, setCustomStatus] = useState(user?.customStatus || "");
   const [bio, setBio] = useState(user?.bio || "");
@@ -127,6 +142,8 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   // 检查是否有未保存的更改
   const hasChanges = useMemo(() => {
     if (!user) return false;
+    const initialDisplayName = user.displayName || "";
+    const initialPrefix = user.username.includes("#") ? user.username.split("#")[0] : user.username;
     const initialStatus = user.status || "ONLINE";
     const initialCustomStatus = user.customStatus || "";
     const initialBio = user.bio || "";
@@ -137,6 +154,8 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
     const initialShowActivity = user.showActivity !== false;
 
     return (
+      displayName !== initialDisplayName ||
+      usernamePrefix !== initialPrefix ||
       status !== initialStatus ||
       customStatus !== initialCustomStatus ||
       bio !== initialBio ||
@@ -148,6 +167,8 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
     );
   }, [
     user,
+    displayName,
+    usernamePrefix,
     status,
     customStatus,
     bio,
@@ -161,6 +182,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   // 重置表单状态至当前已保存值
   const handleResetChanges = () => {
     if (!user) return;
+    const currentPrefix = user.username.includes("#") ? user.username.split("#")[0] : user.username;
+    setDisplayName(user.displayName || "");
+    setUsernamePrefix(currentPrefix);
     setStatus(user.status || "ONLINE");
     setCustomStatus(user.customStatus || "");
     setBio(user.bio || "");
@@ -219,6 +243,8 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
     setSaveSuccess(false);
     try {
       await updateProfile({
+        displayName: displayName.trim() || null,
+        username: usernamePrefix.trim(),
         status,
         customStatus: customStatus.trim() || null,
         bio: bio.trim() || null,
@@ -233,8 +259,8 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
       }
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2500);
-    } catch (err) {
-      toast.error("保存个人资料失败，请重试");
+    } catch (err: any) {
+      toast.error(err?.message || t("settings:saveProfileError", "保存个人资料失败，请重试"));
     } finally {
       setIsSaving(false);
     }
@@ -242,10 +268,10 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
 
   const handleLogout = async () => {
     const confirmed = await dialog.confirm({
-      title: "退出登录",
-      description: "确定要退出当前账号吗？退出后您需要重新验证身份并登录。",
+      title: t("auth:logoutConfirmTitle", "退出登录"),
+      description: t("auth:logoutConfirmDesc", "确定要退出当前账号吗？退出后您需要重新验证身份并登录。"),
       variant: "warning",
-      confirmText: "退出登录",
+      confirmText: t("auth:logoutConfirmTitle", "退出登录"),
     });
     if (confirmed) {
       logout();
@@ -293,7 +319,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                 }`}
               >
                 <Palette className="w-4 h-4 text-[#5865f2]" />
-                <span>个人资料与展示卡</span>
+                <span>{t("settings:profileTab", "个人资料与展示卡")}</span>
               </button>
 
               {/* 分组 2：应用设置 */}
@@ -338,7 +364,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                   }`}
                 >
                   <Download className="w-4 h-4 text-discord-brand" />
-                  <span>版本与更新</span>
+                  <span>{t("settings:updatesTab", "版本与更新")}</span>
                 </button>
               </div>
 
@@ -448,21 +474,69 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                       <div className="flex-1 text-center sm:text-left">
                         <div className="flex items-center justify-center sm:justify-start gap-2">
                           <h4 className="text-lg font-bold text-white">
-                            {user.username}
+                            {displayName || userPrefix}
                           </h4>
                           <span className="flex items-center gap-1 text-[11px] font-bold bg-[#5865f2]/20 text-[#5865f2] px-2 py-0.5 rounded-full">
                             <Shield className="w-3 h-3" />
                             已鉴权
                           </span>
                         </div>
-                        <p className="text-xs text-gray-400 mt-0.5">{user.email}</p>
+                        <p className="text-xs text-gray-400 mt-0.5 font-mono">
+                          @{usernamePrefix}#{userTag}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 1.1 显示昵称与用户识别码 (图1 核心功能) */}
+                    <div className="space-y-4 p-4 rounded-xl bg-[#2b2d31] border border-white/5">
+                      <div className="space-y-1.5">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">
+                          显示昵称 (Display Name)
+                        </label>
+                        <input
+                          type="text"
+                          value={displayName}
+                          onChange={(e) => setDisplayName(e.target.value)}
+                          placeholder={userPrefix || "设置向大家展示的昵称"}
+                          data-testid="profile-display-name-input"
+                          className="w-full rounded-xl bg-[#1e1f22] border border-white/5 px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
+                        />
+                        <p className="text-[11px] text-gray-400">
+                          这是您在聊天、成员列表和个人卡片中展示的专属昵称。您可以随时调整，无修改次数限制。
+                        </p>
+                      </div>
+
+                      <div className="space-y-1.5 pt-2 border-t border-white/5">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">
+                          用户识别码 (Unique Identifier)
+                        </label>
+                        <div className="flex items-center bg-[#1e1f22] rounded-xl border border-white/5 focus-within:ring-2 focus-within:ring-[#5865f2] px-3 py-2">
+                          <span className="text-gray-400 text-sm font-mono mr-1 select-none">@</span>
+                          <input
+                            type="text"
+                            value={usernamePrefix}
+                            onChange={(e) => setUsernamePrefix(e.target.value.replace(/#/g, ""))}
+                            data-testid="profile-username-prefix-input"
+                            className="flex-1 bg-transparent text-white text-sm focus:outline-none"
+                            placeholder="用户名"
+                          />
+                          <span
+                            className="bg-[#2b2d31] text-gray-400 font-mono text-xs px-2.5 py-1 rounded-md border border-white/10 select-none ml-2"
+                            title="数字标签终身唯一绑定不可修改"
+                          >
+                            #{userTag}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-gray-400">
+                          识别码前缀可自由定制；后面的 5 位数字标签 <span className="font-mono text-zinc-300">#{userTag}</span> 为终身唯一绑定不可更改。
+                        </p>
                       </div>
                     </div>
 
                     {/* 2. 在线状态单选 */}
                     <div className="space-y-2.5">
                       <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">
-                        在线状态 (Presence)
+                        {t("settings:presence", "在线状态 (Presence)")}
                       </label>
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                         {STATUS_OPTIONS.map((opt) => {
@@ -483,10 +557,10 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                               />
                               <div className="min-w-0">
                                 <div className="text-xs font-semibold text-white truncate">
-                                  {opt.label}
+                                  {t(opt.labelKey, opt.defaultLabel)}
                                 </div>
                                 <div className="text-[10px] text-gray-400 truncate">
-                                  {opt.desc}
+                                  {t(opt.descKey, opt.defaultDesc)}
                                 </div>
                               </div>
                             </button>
@@ -705,6 +779,8 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                   <div className="w-full lg:w-80 shrink-0 flex justify-center sticky top-2">
                     <ProfileCardPreview
                       user={user}
+                      displayName={displayName}
+                      usernamePrefix={usernamePrefix}
                       avatarUrl={avatarUrl}
                       status={status}
                       customStatus={customStatus}

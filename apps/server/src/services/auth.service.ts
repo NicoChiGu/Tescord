@@ -46,9 +46,17 @@ export class AuthService {
    * 将 Prisma User 实体转换为统一契约协议 User
    */
   public formatUser(u: any): User {
+    const fallbackDiscriminator =
+      u.discriminator ||
+      (typeof u.username === "string" && u.username.includes("#")
+        ? u.username.split("#")[1]
+        : "00000");
+
     return {
       id: u.id,
       username: u.username,
+      displayName: u.displayName || null,
+      discriminator: fallbackDiscriminator,
       email: u.email,
       avatarUrl: u.avatarUrl || null,
       status: (u.status as UserStatus) || "ONLINE",
@@ -156,30 +164,47 @@ export class AuthService {
       throw new Error("请输入有效的邮箱地址");
     }
 
-    // 确定唯一用户名逻辑：若提供昵称则生成类似 Discord 风格的「昵称#随机5位数字」(如 Nick#43142)
+    // 确定唯一用户名与 tag 逻辑：若提供昵称则生成类似 Discord 风格的「昵称#随机5位数字」(如 Nick#43142)
     let finalUsername = dto.username?.trim();
+    let finalDiscriminator = "";
+    let finalDisplayName: string | null = dto.nickname?.trim() || null;
+
     if (dto.nickname && dto.nickname.trim()) {
-      const baseName = dto.nickname.trim();
-      let candidate = "";
+      const baseName = dto.nickname.trim().replace(/#/g, "");
       for (let attempt = 0; attempt < 15; attempt++) {
         const tag = Math.floor(10000 + Math.random() * 90000);
-        candidate = `${baseName}#${tag}`;
+        const candidate = `${baseName}#${tag}`;
         const exists = await prisma.user.findFirst({
           where: { username: candidate },
           select: { id: true },
         });
         if (!exists) {
           finalUsername = candidate;
+          finalDiscriminator = String(tag);
           break;
         }
       }
       if (!finalUsername) {
-        finalUsername = `${baseName}#${Date.now().toString().slice(-5)}`;
+        const tag = Date.now().toString().slice(-5);
+        finalUsername = `${baseName}#${tag}`;
+        finalDiscriminator = tag;
       }
     } else if (!finalUsername) {
-      const baseName = dto.email.split("@")[0].trim() || "User";
+      const baseName = (dto.email.split("@")[0].trim() || "User").replace(/#/g, "");
       const tag = Math.floor(10000 + Math.random() * 90000);
       finalUsername = `${baseName}#${tag}`;
+      finalDiscriminator = String(tag);
+      finalDisplayName = baseName;
+    } else {
+      if (finalUsername.includes("#")) {
+        const parts = finalUsername.split("#");
+        finalDiscriminator = parts[1] || String(Math.floor(10000 + Math.random() * 90000));
+        finalDisplayName = parts[0];
+      } else {
+        finalDiscriminator = String(Math.floor(10000 + Math.random() * 90000));
+        finalDisplayName = finalUsername;
+        finalUsername = `${finalUsername}#${finalDiscriminator}`;
+      }
     }
 
     const existingEmail = await prisma.user.findFirst({
@@ -216,6 +241,8 @@ export class AuthService {
       return tx.user.create({
         data: {
           username: finalUsername,
+          displayName: finalDisplayName,
+          discriminator: finalDiscriminator,
           email: dto.email.toLowerCase().trim(),
           passwordHash,
           avatarUrl: `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(finalUsername)}`,
@@ -339,27 +366,71 @@ export class AuthService {
     userId: string,
     dto: UpdateProfileDTO,
   ): Promise<User> {
+    const currentUser = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+    if (!currentUser) {
+      throw new Error("用户不存在");
+    }
+
+    const dataToUpdate: any = {
+      ...(dto.avatarUrl !== undefined ? { avatarUrl: dto.avatarUrl } : {}),
+      ...(dto.customStatus !== undefined
+        ? { customStatus: dto.customStatus }
+        : {}),
+      ...(dto.bio !== undefined ? { bio: dto.bio } : {}),
+      ...(dto.status ? { status: dto.status } : {}),
+      ...(dto.bannerUrl !== undefined ? { bannerUrl: dto.bannerUrl } : {}),
+      ...(dto.bannerColor !== undefined
+        ? { bannerColor: dto.bannerColor }
+        : {}),
+      ...(dto.themeColor !== undefined
+        ? { themeColor: dto.themeColor }
+        : {}),
+      ...(dto.showActivity !== undefined
+        ? { showActivity: dto.showActivity }
+        : {}),
+    };
+
+    if (dto.displayName !== undefined) {
+      dataToUpdate.displayName = dto.displayName ? dto.displayName.trim() : null;
+    }
+
+    if (dto.username !== undefined && dto.username.trim()) {
+      // 提取不可变 5 位 discriminator
+      let discriminator = currentUser.discriminator;
+      if (!discriminator || discriminator === "00000") {
+        if (currentUser.username.includes("#")) {
+          discriminator = currentUser.username.split("#")[1];
+        } else {
+          discriminator = String(Math.floor(10000 + Math.random() * 90000));
+        }
+      }
+
+      // 用户想要修改识别码的前缀
+      const cleanPrefix = dto.username.split("#")[0].trim().replace(/#/g, "");
+      if (!cleanPrefix) {
+        throw new Error("用户名识别码前缀不能为空");
+      }
+      const newUsername = `${cleanPrefix}#${discriminator}`;
+      if (newUsername !== currentUser.username) {
+        const conflict = await prisma.user.findFirst({
+          where: {
+            username: newUsername,
+            id: { not: userId },
+          },
+        });
+        if (conflict) {
+          throw new Error("该识别码已被占用，请尝试其他前缀");
+        }
+        dataToUpdate.username = newUsername;
+        dataToUpdate.discriminator = discriminator;
+      }
+    }
+
     const updated = await prisma.user.update({
       where: { id: userId },
-      data: {
-        ...(dto.username ? { username: dto.username } : {}),
-        ...(dto.avatarUrl !== undefined ? { avatarUrl: dto.avatarUrl } : {}),
-        ...(dto.customStatus !== undefined
-          ? { customStatus: dto.customStatus }
-          : {}),
-        ...(dto.bio !== undefined ? { bio: dto.bio } : {}),
-        ...(dto.status ? { status: dto.status } : {}),
-        ...(dto.bannerUrl !== undefined ? { bannerUrl: dto.bannerUrl } : {}),
-        ...(dto.bannerColor !== undefined
-          ? { bannerColor: dto.bannerColor }
-          : {}),
-        ...(dto.themeColor !== undefined
-          ? { themeColor: dto.themeColor }
-          : {}),
-        ...(dto.showActivity !== undefined
-          ? { showActivity: dto.showActivity }
-          : {}),
-      },
+      data: dataToUpdate,
     });
 
     if (dto.status) {

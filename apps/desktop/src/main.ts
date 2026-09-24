@@ -84,7 +84,44 @@ let tray: Tray | null = null;
 let isQuitting = false;
 let currentPTTKey: string | null = null;
 let currentUserStatus: UserStatus = "ONLINE";
-let currentLocale: SupportedLocale = "zh-CN";
+
+function getDesktopSettingsPath(): string {
+  try {
+    return path.join(app.getPath("userData"), "desktop-settings.json");
+  } catch {
+    return "";
+  }
+}
+
+function loadPersistedLocale(): SupportedLocale {
+  try {
+    const p = getDesktopSettingsPath();
+    if (p && fs.existsSync(p)) {
+      const data = JSON.parse(fs.readFileSync(p, "utf-8"));
+      if (data.locale === "zh-CN" || data.locale === "en-US" || data.locale === "ja-JP") {
+        return data.locale;
+      }
+    }
+  } catch {}
+  return "zh-CN";
+}
+
+function savePersistedLocale(locale: SupportedLocale): void {
+  try {
+    const p = getDesktopSettingsPath();
+    if (p) {
+      let existing: any = {};
+      if (fs.existsSync(p)) {
+        try {
+          existing = JSON.parse(fs.readFileSync(p, "utf-8"));
+        } catch {}
+      }
+      fs.writeFileSync(p, JSON.stringify({ ...existing, locale }, null, 2), "utf-8");
+    }
+  } catch {}
+}
+
+let currentLocale: SupportedLocale = loadPersistedLocale();
 
 let currentWindowMode: DesktopWindowMode = "auth";
 
@@ -951,6 +988,7 @@ ipcMain.on("sync-user-status", (_event, status: UserStatus) => {
 ipcMain.on("sync-locale", (_event, locale: SupportedLocale) => {
   if (locale === "zh-CN" || locale === "en-US" || locale === "ja-JP") {
     currentLocale = locale;
+    savePersistedLocale(locale);
     updateTrayContextMenu(currentUserStatus);
   }
 });
@@ -1111,19 +1149,20 @@ async function startApplicationWithSplash(): Promise<void> {
   const shouldShowSplash = app.isPackaged || process.env.SHOW_SPLASH === "true";
 
   if (shouldShowSplash) {
+    const dLoc = getDesktopLocale(currentLocale);
     splashWindow = new SplashWindow();
     splashWindow.updateStatus({
-      text: "正在启动 Tescord...",
+      text: dLoc.splashStarting,
       version: `v${activeEntry.version}`,
     });
 
     if (BUILD_CONFIG.IS_UPDATER_ENABLED) {
-      splashWindow.updateStatus({ text: "正在检查更新..." });
+      splashWindow.updateStatus({ text: dLoc.splashCheckingUpdates });
       try {
         const check = await updateManager.checkForUpdates();
         if (check.hasUpdate && !check.isHostUpdateRequired && check.latestVersion) {
           splashWindow.updateStatus({
-            text: `发现新版本 v${check.latestVersion}，正在下载...`,
+            text: dLoc.splashFoundUpdate.replace("{{version}}", check.latestVersion),
             showProgress: true,
             percent: 5,
           });
@@ -1132,8 +1171,8 @@ async function startApplicationWithSplash(): Promise<void> {
             splashWindow?.updateStatus({
               text:
                 prog.state === "extracting"
-                  ? "正在解压安装增量包..."
-                  : `正在下载更新 (${prog.percent}%)...`,
+                  ? dLoc.splashExtracting
+                  : dLoc.splashDownloading.replace("{{percent}}", String(prog.percent)),
               percent: prog.percent,
               showProgress: true,
             });
@@ -1141,7 +1180,7 @@ async function startApplicationWithSplash(): Promise<void> {
 
           if (applyRes.success) {
             splashWindow.updateStatus({
-              text: "更新已完成，正在载入...",
+              text: dLoc.splashComplete,
               showProgress: false,
               hideSpinner: true,
             });

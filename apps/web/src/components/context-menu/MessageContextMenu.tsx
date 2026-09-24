@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Message, Guild } from "@tescord/types";
 import {
   ContextMenu,
@@ -34,6 +35,7 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
   onTogglePin,
   onAddReaction,
 }) => {
+  const { t } = useTranslation(["contextMenu", "common"]);
   const { user: currentUser } = useAuthStore();
   const { canManageMessages } = usePermissions(guild);
   const [copiedText, setCopiedText] = useState(false);
@@ -74,7 +76,7 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
               type="button"
               onClick={() => onAddReaction?.(message.id, emoji)}
               className="text-base hover:scale-125 hover:bg-[#35373c] p-1 rounded transition-transform"
-              title={`添加反应 ${emoji}`}
+              title={`${t("contextMenu:addReaction")} ${emoji}`}
             >
               {emoji}
             </button>
@@ -90,7 +92,7 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
           >
             <div className="flex items-center space-x-2">
               <Reply className="w-4 h-4 text-discord-textMuted" />
-              <span>引用回复</span>
+              <span>{t("contextMenu:quoteReply")}</span>
             </div>
           </ContextMenuItem>
         )}
@@ -102,7 +104,7 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
           >
             <div className="flex items-center space-x-2">
               <Edit2 className="w-4 h-4 text-discord-textMuted" />
-              <span>编辑消息</span>
+              <span>{t("contextMenu:editMessage")}</span>
             </div>
           </ContextMenuItem>
         )}
@@ -120,7 +122,7 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
                     : "text-discord-textMuted"
                 }`}
               />
-              <span>{message.isPinned ? "取消置顶" : "置顶消息"}</span>
+              <span>{message.isPinned ? t("contextMenu:unpinMessage") : t("contextMenu:pinMessage")}</span>
             </div>
           </ContextMenuItem>
         )}
@@ -134,7 +136,7 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
             ) : (
               <Copy className="w-4 h-4 text-discord-textMuted" />
             )}
-            <span>{copiedText ? "已复制消息内容" : "复制文字消息"}</span>
+            <span>{copiedText ? t("common:copied") : t("contextMenu:copyText")}</span>
           </div>
         </ContextMenuItem>
 
@@ -145,7 +147,7 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
             ) : (
               <Copy className="w-4 h-4 text-discord-textMuted" />
             )}
-            <span>{copiedId ? "已复制消息 ID" : "复制消息 ID"}</span>
+            <span>{copiedId ? t("common:copied") : t("contextMenu:copyMessageId")}</span>
           </div>
         </ContextMenuItem>
 
@@ -158,7 +160,7 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
             >
               <div className="flex items-center space-x-2">
                 <Trash2 className="w-4 h-4" />
-                <span>撤回 / 删除消息</span>
+                <span>{t("contextMenu:deleteMessage")}</span>
               </div>
             </ContextMenuItem>
           </>

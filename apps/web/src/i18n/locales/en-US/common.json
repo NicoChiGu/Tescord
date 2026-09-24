@@ -10,6 +10,7 @@
   "retry": "Retry",
   "back": "Back",
   "next": "Next",
+  "continue": "Continue",
   "search": "Search",
   "loading": "Loading...",
   "refresh": "Refresh",
@@ -21,10 +22,10 @@
     "dnd": "Do Not Disturb",
     "invisible": "Invisible",
     "offline": "Offline",
-    "onlineDesc": "Receive notifications and messages normally",
-    "idleDesc": "Away or currently inactive",
-    "dndDesc": "Do not receive desktop notifications or sounds",
-    "invisibleDesc": "Appear offline, but with full access to all features"
+    "onlineDesc": "Receive all notifications and messages normally",
+    "idleDesc": "Away from keyboard or inactive",
+    "dndDesc": "You will not receive any desktop or sound notifications",
+    "invisibleDesc": "Appear offline to everyone, but keep full access to everything"
   },
   "titleBar": {
     "gatewayConnected": "WebSocket Gateway: Connected",
@@ -35,6 +36,15 @@
     "restore": "Restore",
     "close": "Close"
   },
+  "gateway": {
+    "connected": "Connected",
+    "connecting": "Connecting to server...",
+    "disconnected": "Disconnected from server",
+    "reconnecting": "Connection lost. Attempting to reconnect...",
+    "latency": "Latency",
+    "reconnect": "Retry Now",
+    "reconnectTooltip": "Reconnect Immediately"
+  },
   "user": {
     "mute": "Mute Microphone",
     "unmute": "Unmute Microphone",
@@ -43,5 +53,76 @@
     "userSettings": "User Settings",
     "copyUserId": "Copy User ID",
     "viewProfile": "View Profile"
+  },
+  "dialog": {
+    "confirm": "Confirm",
+    "cancel": "Cancel",
+    "securityCode": "Security Verification Code",
+    "securityCodePrompt": "Please enter the 4-digit code shown above to continue:",
+    "securityCodeMismatch": "Security code does not match",
+    "dangerWarning": "This action is destructive and cannot be undone!"
+  },
+  "sidebar": {
+    "home": "Direct Messages & Home",
+    "admin": "Admin Console (Super Admin)",
+    "addServer": "Add a Server",
+    "explore": "Explore Public Servers",
+    "network": "Network Quality"
+  },
+  "memberList": {
+    "online": "Online",
+    "offline": "Offline",
+    "owner": "Server Owner",
+    "bot": "Bot",
+    "invisibleSelf": "Invisible (Only you can see this)",
+    "defaultBio": "Exploring Tescord 🚀"
+  },
+  "profilePopout": {
+    "sendDM": "Send message to @{{name}}",
+    "addNote": "Add Note",
+    "clickToAddNote": "Click to add a note",
+    "notePlaceholder": "Click to add a note...",
+    "mutualServers": "Mutual Servers",
+    "roles": "Roles",
+    "registered": "Registered",
+    "customStatus": "Custom Status"
+  },
+  "emptyWelcome": {
+    "title": "Welcome to Tescord",
+    "subtitle": "Self-hosted, high-fidelity real-time voice, video, and collaborative team workspace",
+    "exploreTitle": "Explore Communities",
+    "exploreDesc": "Join various public servers, make new friends, and discuss technologies",
+    "createTitle": "Create Your First Server",
+    "createDesc": "Set up a private space for your team, friends, or gaming squad",
+    "exploreBtn": "Explore Communities →",
+    "createBtn": "Create a Server →"
+  },
+  "maintenance": {
+    "adminBadge": "[Maintenance Active]",
+    "adminDesc": "Regular users are blocked with the maintenance screen. Only super administrators can perform operations.",
+    "announcement": "Announcement: ",
+    "settings": "Maintenance Settings",
+    "disableBtn": "End Maintenance",
+    "badge": "Maintenance Mode Active",
+    "title": "System Under Maintenance",
+    "desc": "To provide you with better and more reliable services, administrators are performing system maintenance. Regular services are temporarily suspended.",
+    "adminAnnouncement": "Admin Announcement",
+    "startTime": "Started at: {{time}}",
+    "realtimeTip": "Realtime connection channel established. System will recover automatically once maintenance finishes.",
+    "checking": "Checking service status...",
+    "checkBtn": "Check System Status",
+    "restoring": "Maintenance complete, restoring system...",
+    "stillMaintenance": "System is still under maintenance, please wait",
+    "networkChecking": "Checking network connection, will reconnect automatically when service resumes",
+    "currentAccount": "Current Account: ",
+    "guest": "Guest",
+    "switchAccount": "Log Out / Switch Account"
+  },
+  "updater": {
+    "readyTitle": "New version v{{version}} is ready",
+    "readyDesc": "The portable delta update has finished downloading in the background. Click restart to apply new features instantly!",
+    "restartNow": "Restart Now",
+    "nextTime": "Apply on next launch",
+    "dismiss": "Dismiss"
   }
 }

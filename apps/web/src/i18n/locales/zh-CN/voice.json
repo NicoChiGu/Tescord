@@ -64,5 +64,40 @@
   "activeCandidatePair": "活跃候选对类型",
   "downstreamPeers": "下游接力分发节点",
   "treeRelayMode": "P2P 智能接力 (Tree Relay)",
-  "peerCount": "直连成员节点数"
+  "peerCount": "直连成员节点数",
+
+  "pip": {
+    "streamingTitle": "{{name}} 的直播",
+    "returnToRoom": "回到语音频道",
+    "stopWatching": "停止观看"
+  },
+  "call": {
+    "incoming": "正在向您发起语音通话...",
+    "accept": "接听通话",
+    "decline": "拒绝呼叫",
+    "calling": "正在呼叫...",
+    "ended": "通话已结束"
+  },
+  "hud": {
+    "title": "媒体属性与实时统计",
+    "localStream": "本地推流",
+    "remoteStream": "远端拉流",
+    "resolution": "分辨率",
+    "fps": "帧率",
+    "jitter": "抖动"
+  },
+  "previewAndJoin": "单击预览房间，双击加入语音通话",
+  "channelMuted": "该频道已被静音",
+  "liveStreaming": "直播中",
+  "voiceTransferred": "语音已转移至 {{target}}",
+  "ignoreNotice": "忽略提示",
+  "otherDeviceVoiceNotice": "您的当前账号正在另一处语音频道中",
+  "joinOnThisDevice": "在此设备上加入",
+  "openProfileTooltip": "打开个人卡片，右键切换状态",
+  "wsLatencyTooltip": "WebSocket 延迟: {{ping}}ms",
+  "createChannelInCategory": "在“{{name}}”中创建频道",
+  "notifications": "通知",
+  "cancelVoiceConnecting": "取消",
+  "enableVideo": "开启视频",
+  "disableVideo": "停用视频"
 }

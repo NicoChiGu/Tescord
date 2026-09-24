@@ -110,7 +110,7 @@ export const AuthModal: React.FC = () => {
 
   const triggerFieldError = (
     field: "email" | "password" | "inviteCode" | "nickname",
-    message: string
+    message: string,
   ) => {
     setFieldErrors((prev) => ({ ...prev, [field]: message }));
     setShakeFields((prev) => ({ ...prev, [field]: true }));
@@ -166,17 +166,16 @@ export const AuthModal: React.FC = () => {
       if (!trimmed) {
         triggerFieldError(
           "email",
-          t("auth:error.requiredEmail", "请输入邮箱地址")
+          t("auth:error.requiredEmail", { defaultValue: "请输入邮箱地址" }),
         );
         return;
       }
       if (!EMAIL_REGEX.test(trimmed)) {
         triggerFieldError(
           "email",
-          t(
-            "auth:error.invalidEmail",
-            "请输入有效的邮箱地址（例如 name@example.com）"
-          )
+          t("auth:error.invalidEmail", {
+            defaultValue: "请输入有效的邮箱地址（例如 name@example.com）",
+          }),
         );
         return;
       }
@@ -193,7 +192,12 @@ export const AuthModal: React.FC = () => {
 
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          throw new Error(data.error || "检测邮箱失败");
+          throw new Error(
+            data.error ||
+              t("auth:error.checkEmailFailed", {
+                defaultValue: "检测邮箱失败",
+              }),
+          );
         }
 
         const data: CheckEmailResponse = await res.json();
@@ -204,7 +208,13 @@ export const AuthModal: React.FC = () => {
           setPhase("REGISTER");
         }
       } catch (err: any) {
-        triggerFieldError("email", err.message || "检测邮箱失败");
+        triggerFieldError(
+          "email",
+          err.message ||
+            t("auth:error.checkEmailFailed", {
+              defaultValue: "检测邮箱失败",
+            }),
+        );
       } finally {
         setIsSubmitting(false);
       }
@@ -213,7 +223,12 @@ export const AuthModal: React.FC = () => {
 
     if (phase === "PASSWORD") {
       if (!password) {
-        triggerFieldError("password", t("auth:error.requiredFieldsLogin"));
+        triggerFieldError(
+          "password",
+          t("auth:error.requiredFieldsLogin", {
+            defaultValue: "请输入邮箱/用户名以及密码",
+          }),
+        );
         return;
       }
 
@@ -226,7 +241,13 @@ export const AuthModal: React.FC = () => {
           password,
         });
       } catch (err: any) {
-        triggerFieldError("password", err.message || t("auth:error.generalFailed"));
+        triggerFieldError(
+          "password",
+          err.message ||
+            t("auth:error.generalFailed", {
+              defaultValue: "操作失败，请重试",
+            }),
+        );
       } finally {
         setIsSubmitting(false);
       }
@@ -235,7 +256,11 @@ export const AuthModal: React.FC = () => {
 
     if (phase === "REGISTER") {
       if (!registrationPolicy.allowRegistration) {
-        setFieldErrors({ general: "当前系统已暂停新用户注册，请联系管理员" });
+        setFieldErrors({
+          general: t("auth:registrationDisabled", {
+            defaultValue: "当前系统已暂停新用户注册，请联系超级管理员",
+          }),
+        });
         return;
       }
 
@@ -243,36 +268,51 @@ export const AuthModal: React.FC = () => {
       if (!trimmedEmail) {
         triggerFieldError(
           "email",
-          t("auth:error.requiredEmail", "请输入邮箱地址")
+          t("auth:error.requiredEmail", { defaultValue: "请输入邮箱地址" }),
         );
         return;
       }
       if (!EMAIL_REGEX.test(trimmedEmail)) {
         triggerFieldError(
           "email",
-          t(
-            "auth:error.invalidEmail",
-            "请输入有效的邮箱地址（例如 name@example.com）"
-          )
+          t("auth:error.invalidEmail", {
+            defaultValue: "请输入有效的邮箱地址（例如 name@example.com）",
+          }),
         );
         return;
       }
 
       const trimmedNickname = nickname.trim();
       if (!trimmedNickname) {
-        triggerFieldError("nickname", "请输入您的昵称");
+        triggerFieldError(
+          "nickname",
+          t("auth:error.requiredNickname", { defaultValue: "请输入您的昵称" }),
+        );
         return;
       }
       if (!password) {
-        triggerFieldError("password", "请输入密码");
+        triggerFieldError(
+          "password",
+          t("auth:error.requiredPassword", { defaultValue: "请输入密码" }),
+        );
         return;
       }
       if (password.length < 6) {
-        triggerFieldError("password", t("auth:error.passwordMinLength"));
+        triggerFieldError(
+          "password",
+          t("auth:error.passwordMinLength", {
+            defaultValue: "密码长度至少需要 6 个字符",
+          }),
+        );
         return;
       }
       if (registrationPolicy.requireInviteCode && !inviteCode.trim()) {
-        triggerFieldError("inviteCode", "系统已开启邀请码准入，请填写注册邀请码");
+        triggerFieldError(
+          "inviteCode",
+          t("auth:error.inviteCodeRequired", {
+            defaultValue: "系统已开启邀请码准入，请填写注册邀请码",
+          }),
+        );
         return;
       }
 
@@ -288,7 +328,11 @@ export const AuthModal: React.FC = () => {
           inviteCode: inviteCode.trim().toUpperCase() || undefined,
         });
       } catch (err: any) {
-        const msg = err.message || t("auth:error.generalFailed");
+        const msg =
+          err.message ||
+          t("auth:error.generalFailed", {
+            defaultValue: "操作失败，请重试",
+          });
         if (msg.includes("邀请码") || msg.toLowerCase().includes("invite")) {
           triggerFieldError("inviteCode", msg);
         } else if (msg.includes("密码") || msg.toLowerCase().includes("password")) {
@@ -305,28 +349,34 @@ export const AuthModal: React.FC = () => {
   const getTitleAndSubtitle = () => {
     if (phase === "EMAIL") {
       return {
-        title: "欢迎使用 Tescord",
-        subtitle: "输入邮箱以继续登录或创建新账号",
+        title: t("auth:welcomeTitle", { defaultValue: "欢迎使用 Tescord" }),
+        subtitle: t("auth:welcomeSubtitle", {
+          defaultValue: "输入邮箱以继续登录或创建新账号",
+        }),
       };
     }
     if (phase === "PASSWORD") {
       return {
-        title: t("auth:welcomeBack"),
-        subtitle: t("auth:welcomeBackDesc"),
+        title: t("auth:welcomeBack", { defaultValue: "欢迎回到 Tescord！" }),
+        subtitle: t("auth:welcomeBackDesc", {
+          defaultValue: "很高兴再次见到你，立刻加入语音与聊天。",
+        }),
       };
     }
     return {
-      title: t("auth:createAccount"),
-      subtitle: "该邮箱尚未注册，请设置昵称与密码完成加入",
+      title: t("auth:createAccount", { defaultValue: "创建你的 Tescord 账号" }),
+      subtitle: t("auth:registerSubtitle", {
+        defaultValue: "该邮箱尚未注册，请设置昵称与密码完成加入",
+      }),
     };
   };
 
   const { title, subtitle } = getTitleAndSubtitle();
 
   const getButtonText = () => {
-    if (phase === "EMAIL") return t("common:continue", "继续");
-    if (phase === "PASSWORD") return t("auth:login", "登录");
-    return t("auth:registerAndLogin", "注册并登录");
+    if (phase === "EMAIL") return t("common:continue", { defaultValue: "继续" });
+    if (phase === "PASSWORD") return t("auth:login", { defaultValue: "登录" });
+    return t("auth:registerAndLogin", { defaultValue: "注册并登录" });
   };
 
   const content = (
@@ -343,6 +393,7 @@ export const AuthModal: React.FC = () => {
           <div className="relative">
             <button
               type="button"
+              data-testid="auth-language-selector"
               onClick={() => setIsLangMenuOpen(!isLangMenuOpen)}
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium text-gray-400 hover:text-white hover:bg-white/5 transition-colors border border-white/5"
             >
@@ -360,6 +411,7 @@ export const AuthModal: React.FC = () => {
                   <button
                     key={option.code}
                     type="button"
+                    data-testid={`auth-lang-${option.code}`}
                     onClick={async () => {
                       await i18n.changeLanguage(option.code);
                       setIsLangMenuOpen(false);
@@ -400,7 +452,11 @@ export const AuthModal: React.FC = () => {
         {phase === "REGISTER" && !registrationPolicy.allowRegistration && (
           <div className="mb-4 flex items-center gap-2 rounded-lg bg-amber-500/10 border border-amber-500/30 p-3 text-sm text-amber-300 animate-auth-field">
             <AlertCircle className="w-4 h-4 flex-shrink-0 text-amber-400" />
-            <span>当前系统已暂停新用户注册，请联系超级管理员</span>
+            <span>
+              {t("auth:registrationDisabled", {
+                defaultValue: "当前系统已暂停新用户注册，请联系超级管理员",
+              })}
+            </span>
           </div>
         )}
 
@@ -422,7 +478,8 @@ export const AuthModal: React.FC = () => {
                   fieldErrors.email ? "text-rose-400" : "text-gray-300"
                 }`}
               >
-                {t("auth:email")} <span className="text-rose-400">*</span>
+                {t("auth:email", { defaultValue: "电子邮箱" })}{" "}
+                <span className="text-rose-400">*</span>
               </label>
               {phase !== "EMAIL" && isEmailVerified && (
                 <button
@@ -432,7 +489,9 @@ export const AuthModal: React.FC = () => {
                   className="text-xs text-[#5865f2] hover:underline font-medium flex items-center gap-1 transition-all animate-auth-field"
                 >
                   <Edit3 className="w-3 h-3" />
-                  <span>修改邮箱</span>
+                  <span>
+                    {t("auth:editEmail", { defaultValue: "修改邮箱" })}
+                  </span>
                 </button>
               )}
             </div>
@@ -460,7 +519,9 @@ export const AuthModal: React.FC = () => {
                 disabled={phase !== "EMAIL" && isEmailVerified}
                 value={email}
                 onChange={(e) => handleEmailChange(e.target.value)}
-                placeholder={t("auth:emailPlaceholder")}
+                placeholder={t("auth:emailPlaceholder", {
+                  defaultValue: "yourname@example.com",
+                })}
                 className={`w-full rounded-lg pl-10 pr-4 py-2.5 text-sm transition-all duration-200 ${
                   fieldErrors.email
                     ? "border border-rose-500 ring-2 ring-rose-500/20 bg-[#1e1f22] text-white"
@@ -487,7 +548,8 @@ export const AuthModal: React.FC = () => {
                     fieldErrors.password ? "text-rose-400" : "text-gray-300"
                   }`}
                 >
-                  {t("auth:password")} <span className="text-rose-400">*</span>
+                  {t("auth:password", { defaultValue: "密码" })}{" "}
+                  <span className="text-rose-400">*</span>
                 </label>
                 <div
                   className={`relative transition-transform ${
@@ -506,7 +568,9 @@ export const AuthModal: React.FC = () => {
                     required
                     value={password}
                     onChange={(e) => handlePasswordChange(e.target.value)}
-                    placeholder={t("auth:passwordPlaceholder")}
+                    placeholder={t("auth:passwordPlaceholder", {
+                      defaultValue: "••••••••",
+                    })}
                     className={`w-full rounded-lg bg-[#1e1f22] pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none transition-all ${
                       fieldErrors.password
                         ? "border border-rose-500 ring-2 ring-rose-500/20"
@@ -534,7 +598,8 @@ export const AuthModal: React.FC = () => {
                     fieldErrors.nickname ? "text-rose-400" : "text-gray-300"
                   }`}
                 >
-                  昵称 <span className="text-rose-400">*</span>
+                  {t("auth:nickname", { defaultValue: "昵称" })}{" "}
+                  <span className="text-rose-400">*</span>
                 </label>
                 <div
                   className={`relative transition-transform ${
@@ -553,7 +618,9 @@ export const AuthModal: React.FC = () => {
                     required
                     value={nickname}
                     onChange={(e) => handleNicknameChange(e.target.value)}
-                    placeholder="请输入您的昵称 (如 Nick)"
+                    placeholder={t("auth:nicknamePlaceholder", {
+                      defaultValue: "请输入您的昵称 (如 Nick)",
+                    })}
                     className={`w-full rounded-lg bg-[#1e1f22] pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none transition-all ${
                       fieldErrors.nickname
                         ? "border border-rose-500 ring-2 ring-rose-500/20"
@@ -576,7 +643,8 @@ export const AuthModal: React.FC = () => {
                     fieldErrors.password ? "text-rose-400" : "text-gray-300"
                   }`}
                 >
-                  {t("auth:password")} <span className="text-rose-400">*</span>
+                  {t("auth:password", { defaultValue: "密码" })}{" "}
+                  <span className="text-rose-400">*</span>
                 </label>
                 <div
                   className={`relative transition-transform ${
@@ -595,7 +663,9 @@ export const AuthModal: React.FC = () => {
                     required
                     value={password}
                     onChange={(e) => handlePasswordChange(e.target.value)}
-                    placeholder={t("auth:passwordPlaceholder")}
+                    placeholder={t("auth:passwordPlaceholder", {
+                      defaultValue: "••••••••",
+                    })}
                     className={`w-full rounded-lg bg-[#1e1f22] pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none transition-all ${
                       fieldErrors.password
                         ? "border border-rose-500 ring-2 ring-rose-500/20"
@@ -619,13 +689,19 @@ export const AuthModal: React.FC = () => {
                       fieldErrors.inviteCode ? "text-rose-400" : "text-gray-300"
                     }`}
                   >
-                    邀请码{" "}
+                    {t("auth:inviteCodeLabel", { defaultValue: "邀请码" })}{" "}
                     {registrationPolicy.requireInviteCode && (
                       <span className="text-rose-400">*</span>
                     )}
                   </label>
                   <span className="text-[11px] text-gray-400">
-                    {registrationPolicy.requireInviteCode ? "必填准入" : "选填"}
+                    {registrationPolicy.requireInviteCode
+                      ? t("auth:inviteCodeRequiredBadge", {
+                          defaultValue: "必填准入",
+                        })
+                      : t("auth:inviteCodeOptionalBadge", {
+                          defaultValue: "选填",
+                        })}
                   </span>
                 </div>
                 <div
@@ -646,8 +722,12 @@ export const AuthModal: React.FC = () => {
                     onChange={(e) => handleInviteCodeChange(e.target.value)}
                     placeholder={
                       registrationPolicy.requireInviteCode
-                        ? "请输入注册邀请码"
-                        : "如有邀请码可在此填写 (选填)"
+                        ? t("auth:inviteCodeRequiredPlaceholder", {
+                            defaultValue: "请输入注册邀请码",
+                          })
+                        : t("auth:inviteCodeOptionalPlaceholder", {
+                            defaultValue: "如有邀请码可在此填写 (选填)",
+                          })
                     }
                     className={`w-full rounded-lg bg-[#1e1f22] pl-10 pr-4 py-2.5 text-sm text-white uppercase placeholder-gray-500 font-mono tracking-wider focus:outline-none transition-all ${
                       fieldErrors.inviteCode
@@ -691,14 +771,18 @@ export const AuthModal: React.FC = () => {
         {phase !== "EMAIL" && (
           <div className="mt-6 pt-4 border-t border-white/5 flex flex-col gap-3.5 animate-auth-field">
             <div className="flex items-center justify-between text-xs text-gray-400">
-              <span>需要使用其他邮箱？</span>
+              <span>
+                {t("auth:useOtherEmail", {
+                  defaultValue: "需要使用其他邮箱？",
+                })}
+              </span>
               <button
                 type="button"
                 data-testid="auth-switch-mode-btn"
                 onClick={handleReturnToEmail}
                 className="text-[#5865f2] hover:underline font-medium transition-colors"
               >
-                返回重新输入
+                {t("auth:backToEdit", { defaultValue: "返回重新输入" })}
               </button>
             </div>
           </div>

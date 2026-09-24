@@ -12,6 +12,8 @@ import {
 
 interface ProfileCardPreviewProps {
   user: User;
+  displayName?: string | null;
+  usernamePrefix?: string;
   avatarUrl?: string | null;
   status: UserStatus;
   customStatus?: string | null;
@@ -25,6 +27,8 @@ interface ProfileCardPreviewProps {
 
 export const ProfileCardPreview: React.FC<ProfileCardPreviewProps> = ({
   user,
+  displayName,
+  usernamePrefix,
   avatarUrl,
   status,
   customStatus,
@@ -156,18 +160,44 @@ export const ProfileCardPreview: React.FC<ProfileCardPreviewProps> = ({
 
         {/* 3. 个人基本信息与个性签名气泡 */}
         <div className="px-4 pt-3 pb-2">
-          <div className="flex items-center gap-1.5">
-            <h4
-              className="text-lg font-bold text-white leading-tight truncate"
-              style={{ color: themeColor || undefined }}
-            >
-              {user.username}
-            </h4>
-          </div>
+          {(() => {
+            const currentDiscriminator =
+              user.discriminator ||
+              (user.username.includes("#") ? user.username.split("#")[1] : "00000");
+            const effectivePrefix =
+              usernamePrefix !== undefined
+                ? usernamePrefix.trim()
+                : user.username.includes("#")
+                ? user.username.split("#")[0]
+                : user.username;
+            const effectiveFullUsername = `${effectivePrefix}#${currentDiscriminator}`;
 
-          <div className="text-xs text-[#949ba4] font-medium mt-0.5">
-            @{user.username}
-          </div>
+            const displayMain =
+              displayName !== undefined && displayName !== null
+                ? (displayName.trim() || effectivePrefix)
+                : (user.displayName || effectivePrefix);
+
+            return (
+              <>
+                <div className="flex items-center gap-1.5">
+                  <h4
+                    className="text-lg font-bold text-white leading-tight truncate"
+                    style={{ color: themeColor || undefined }}
+                    data-testid="profile-preview-display-name"
+                  >
+                    {displayMain}
+                  </h4>
+                </div>
+
+                <div
+                  className="text-xs text-[#949ba4] font-medium mt-0.5"
+                  data-testid="profile-preview-sub-identifier"
+                >
+                  @{effectiveFullUsername}
+                </div>
+              </>
+            );
+          })()}
 
           {/* 个性状态气泡 */}
           {customStatus && (

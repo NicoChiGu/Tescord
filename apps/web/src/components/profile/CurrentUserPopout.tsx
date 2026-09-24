@@ -408,7 +408,10 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
         {/* 3. 昵称、用户名与徽章 */}
         <div className="px-4 pt-3 pb-2">
           <div className="text-[17px] font-bold text-white leading-tight truncate">
-            {currentUser.username}
+            {currentUser.displayName ||
+              (currentUser.username.includes("#")
+                ? currentUser.username.split("#")[0]
+                : currentUser.username)}
           </div>
           <div className="text-xs text-[#949ba4] font-medium mt-0.5 flex items-center gap-1.5">
             <span className="truncate">@{currentUser.username}</span>

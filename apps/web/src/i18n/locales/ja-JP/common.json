@@ -6,10 +6,11 @@
   "close": "閉じる",
   "edit": "編集",
   "copy": "コピー",
-  "copied": "コピーしました",
+  "copied": "コピー完了",
   "retry": "再試行",
   "back": "戻る",
   "next": "次へ",
+  "continue": "次へ",
   "search": "検索",
   "loading": "読み込み中...",
   "refresh": "更新",
@@ -21,27 +22,107 @@
     "dnd": "取り込み中",
     "invisible": "オンライン状態を隠す",
     "offline": "オフライン",
-    "onlineDesc": "通常通り通知やメッセージを受信します",
-    "idleDesc": "離席中または一時的な非アクティブ",
-    "dndDesc": "デスクトップ通知とサウンドをミュートします",
-    "invisibleDesc": "オフラインとして表示されますが、すべての機能を利用できます"
+    "onlineDesc": "すべての通知とメッセージを通常通り受信します",
+    "idleDesc": "席を外しているか、非アクティブ状態です",
+    "dndDesc": "デスクトップ通知やサウンド通知を受け取りません",
+    "invisibleDesc": "他のユーザーにはオフラインとして表示されますが、すべての機能を利用できます"
   },
   "titleBar": {
-    "gatewayConnected": "WebSocket ゲートウェイ: 接続済み",
-    "gatewayDisconnected": "WebSocket ゲートウェイ: 未接続",
-    "gatewayLatency": "遅延",
+    "gatewayConnected": "WebSocket ゲートウェイ接続状態: 接続中",
+    "gatewayDisconnected": "WebSocket ゲートウェイ接続状態: 切断",
+    "gatewayLatency": "レイテンシ",
     "minimize": "最小化",
     "maximize": "最大化",
     "restore": "元に戻す",
     "close": "閉じる"
   },
+  "gateway": {
+    "connected": "接続完了",
+    "connecting": "サーバーに接続中...",
+    "disconnected": "サーバーから切断されました",
+    "reconnecting": "接続が切断されました。再接続を試みています...",
+    "latency": "レイテンシ",
+    "reconnect": "今すぐ再試行",
+    "reconnectTooltip": "直ちに再接続"
+  },
   "user": {
     "mute": "マイクをミュート",
-    "unmute": "マイクのミュート解除",
+    "unmute": "マイクのミュートを解除",
     "deafen": "スピーカーをミュート",
-    "undeafen": "スピーカーのミュート解除",
+    "undeafen": "スピーカーのミュートを解除",
     "userSettings": "ユーザー設定",
-    "copyUserId": "ユーザー ID をコピー",
+    "copyUserId": "ユーザーIDをコピー",
     "viewProfile": "プロフィールを表示"
+  },
+  "dialog": {
+    "confirm": "確認",
+    "cancel": "キャンセル",
+    "securityCode": "セキュリティ認証コード",
+    "securityCodePrompt": "続行するには上記の4桁のコードを入力してください:",
+    "securityCodeMismatch": "セキュリティ認証コードが一致しません",
+    "dangerWarning": "この操作は破壊的であり、取り消すことはできません！"
+  },
+  "sidebar": {
+    "home": "ダイレクトメッセージ・ホーム",
+    "admin": "システム管理コンソール (管理者専用)",
+    "addServer": "サーバーを追加",
+    "explore": "公開サーバーを探す",
+    "network": "ネットワーク品質"
+  },
+  "memberList": {
+    "online": "オンライン",
+    "offline": "オフライン",
+    "owner": "サーバー所有者",
+    "bot": "ボット",
+    "invisibleSelf": "オンライン状態を隠す (自分にのみ表示)",
+    "defaultBio": "Tescord を体験中 🚀"
+  },
+  "profilePopout": {
+    "sendDM": "@{{name}} にメッセージを送信",
+    "addNote": "メモを追加",
+    "clickToAddNote": "クリックしてメモを追加",
+    "notePlaceholder": "クリックしてメモを追加...",
+    "mutualServers": "共通のサーバー",
+    "roles": "役職",
+    "registered": "登録日時",
+    "customStatus": "カスタムステータス"
+  },
+  "emptyWelcome": {
+    "title": "Tescord へようこそ",
+    "subtitle": "完全オフライン自立・高忠実度リアルタイム音声通話＆コラボレーション空間",
+    "exploreTitle": "公開コミュニティを探す",
+    "exploreDesc": "多彩な公開サーバーに参加して、新しい仲間と技術を語り合おう",
+    "createTitle": "最初のサーバーを作成",
+    "createDesc": "チーム、友達、ゲーム仲間だけの専用プライベート空間を立ち上げよう",
+    "exploreBtn": "コミュニティを探す →",
+    "createBtn": "サーバーを作成する →"
+  },
+  "maintenance": {
+    "adminBadge": "[メンテナンス実施中]",
+    "adminDesc": "一般ユーザーは遮断され全画面メンテ通知が表示されています。管理者のみ操作可能です。",
+    "announcement": "お知らせ：",
+    "settings": "メンテ設定",
+    "disableBtn": "メンテナンス解除",
+    "badge": "メンテナンスモード中",
+    "title": "システムメンテナンス中",
+    "desc": "より安定したサービス提供のため、現在メンテナンスを実施しております。通常業務は一時停止中です。",
+    "adminAnnouncement": "管理者からのお知らせ",
+    "startTime": "開始時刻：{{time}}",
+    "realtimeTip": "リアルタイム接続確立済み。終了次第自動復帰します。",
+    "checking": "サービス状態を確認中...",
+    "checkBtn": "システム状態を確認",
+    "restoring": "メンテナンスが終了しました。復帰しています...",
+    "stillMaintenance": "まだメンテナンス中です。お待ちください",
+    "networkChecking": "接続確認中。サービス復旧後に自動接続されます",
+    "currentAccount": "現在のアカウント：",
+    "guest": "ゲスト",
+    "switchAccount": "ログアウト / アカウント切替"
+  },
+  "updater": {
+    "readyTitle": "新バージョン v{{version}} の準備が完了しました",
+    "readyDesc": "差分アップデートがバックグラウンドでダウンロード完了しました。再起動して新機能を適用してください！",
+    "restartNow": "今すぐ再起動",
+    "nextTime": "次回起動時に適用",
+    "dismiss": "通知を閉じる"
   }
 }

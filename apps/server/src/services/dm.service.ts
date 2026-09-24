@@ -63,10 +63,18 @@ export class DMService {
     let channel = await prisma.channel.findUnique({ where: { dmKey }, include });
 
     if (!channel) {
+      const isFriend = await prisma.relationship.findFirst({
+        where: {
+          userId: caller.id,
+          targetUserId: recipient.id,
+          type: "FRIEND",
+        },
+      });
       const allowed =
         caller.role === "SUPER_ADMIN" ||
+        Boolean(isFriend) ||
         (await this.hasSharedGuild(caller.id, recipient.id));
-      if (!allowed) throw new Error("仅允许同一服务器成员之间首次建立私信");
+      if (!allowed) throw new Error("仅允许好友或同一服务器成员之间首次建立私信");
       try {
         channel = await prisma.channel.create({
           data: {

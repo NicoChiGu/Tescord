@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { Message, User } from "@tescord/types";
 import {
   Pin,
@@ -28,6 +29,7 @@ export const PinnedMessagesPopover: React.FC<PinnedMessagesPopoverProps> = ({
   onJumpToMessage,
   onUnpinMessage,
 }) => {
+  const { t } = useTranslation(["chat", "common"]);
   const popoverRef = useRef<HTMLDivElement | null>(null);
 
   // 监听点击外部与 ESC 键自动关闭
@@ -73,7 +75,7 @@ export const PinnedMessagesPopover: React.FC<PinnedMessagesPopoverProps> = ({
         <div className="flex items-center space-x-2">
           <Pin className="w-4 h-4 text-discord-textHeader rotate-45" />
           <span className="font-bold text-discord-textHeader text-sm">
-            已固定的消息
+            {t("chat:pinnedList.title")}
           </span>
           <span className="text-xs text-discord-textMuted font-medium">
             ({pinnedMessages.length})
@@ -83,7 +85,7 @@ export const PinnedMessagesPopover: React.FC<PinnedMessagesPopoverProps> = ({
           type="button"
           onClick={onClose}
           className="p-1 rounded text-discord-textMuted hover:text-white hover:bg-[#35373c] transition"
-          title="关闭"
+          title={t("common:close")}
         >
           <X className="w-4 h-4" />
         </button>
@@ -97,11 +99,10 @@ export const PinnedMessagesPopover: React.FC<PinnedMessagesPopoverProps> = ({
               <Pin className="w-7 h-7 text-discord-textMuted opacity-60 rotate-45" />
             </div>
             <h4 className="text-sm font-semibold text-discord-textHeader mb-1">
-              还没有已固定的消息
+              {t("chat:pinnedList.emptyTitle")}
             </h4>
             <p className="text-xs text-discord-textMuted max-w-xs leading-relaxed">
-              悬停在 #{channelName}{" "}
-              中的任何重要消息上，点击右键或操作栏中的“置顶消息”即可将其固定在此处。
+              {t("chat:pinnedList.emptyDesc", { channel: channelName })}
             </p>
           </div>
         ) : (
@@ -124,11 +125,11 @@ export const PinnedMessagesPopover: React.FC<PinnedMessagesPopoverProps> = ({
                         msg.author?.avatarUrl ||
                         "https://api.dicebear.com/7.x/bottts/svg?seed=user"
                       }
-                      alt={msg.author?.username || "用户"}
+                      alt={msg.author?.username || t("common:memberList.defaultUser", "用户")}
                       className="w-6 h-6 rounded-full flex-shrink-0"
                     />
                     <span className="font-semibold text-xs text-discord-textHeader truncate">
-                      {msg.author?.username || "用户"}
+                      {msg.author?.username || t("common:memberList.defaultUser", "用户")}
                     </span>
                     <span className="text-[10px] text-discord-textMuted font-mono flex-shrink-0">
                       {formatTime(msg.createdAt)}
@@ -144,17 +145,17 @@ export const PinnedMessagesPopover: React.FC<PinnedMessagesPopoverProps> = ({
                         onClose();
                       }}
                       className="flex items-center space-x-1 px-2 py-0.5 rounded bg-discord-brand/20 hover:bg-discord-brand text-discord-brand hover:text-white text-[11px] font-medium transition"
-                      title="在聊天视口中定位此消息"
+                      title={t("chat:pinnedList.jumpTooltip")}
                     >
                       <ExternalLink className="w-3 h-3" />
-                      <span>跳转</span>
+                      <span>{t("chat:pinnedList.jump")}</span>
                     </button>
                     {onUnpinMessage && (
                       <button
                         type="button"
                         onClick={() => onUnpinMessage(msg.id)}
                         className="p-1 rounded text-discord-textMuted hover:text-discord-danger hover:bg-discord-danger/10 transition"
-                        title="取消固定"
+                        title={t("chat:pinnedList.unpin")}
                       >
                         <PinOff className="w-3.5 h-3.5" />
                       </button>

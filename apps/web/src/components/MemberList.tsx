@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { Guild, User, GuildMember, Role, parseRoleIds } from "@tescord/types";
 import { Crown, ShieldCheck, Gamepad2 } from "lucide-react";
 import { UserContextMenu } from "./context-menu/UserContextMenu.js";
@@ -53,6 +54,7 @@ export const MemberList: React.FC<MemberListProps> = ({
   onKickMember,
   onBanMember,
 }) => {
+  const { t } = useTranslation("common");
   const { isOpen, activeTriggerId, togglePopout, closePopout } =
     useUserProfilePopoutStore();
   const presences = usePresenceStore((s) => s.presences);
@@ -68,14 +70,14 @@ export const MemberList: React.FC<MemberListProps> = ({
       return [
         {
           id: "online",
-          name: "在线",
+          name: t("common:memberList.online", "在线"),
           members: [
             {
               id: currentUser.id,
               username: currentUser.username,
               avatarUrl: currentUser.avatarUrl,
               status: currentUser.status,
-              customStatus: currentUser.customStatus || "正在体验 Tescord 🚀",
+              customStatus: currentUser.customStatus || t("common:memberList.defaultBio", "正在体验 Tescord 🚀"),
               bio: currentUser.bio,
               isOwner: true,
               rawUser: currentUser,
@@ -172,13 +174,13 @@ export const MemberList: React.FC<MemberListProps> = ({
 
     const defaultOnlineGroup: MemberGroup = {
       id: "online",
-      name: "在线",
+      name: t("common:memberList.online", "在线"),
       members: [],
     };
 
     const defaultOfflineGroup: MemberGroup = {
       id: "offline",
-      name: "离线",
+      name: t("common:memberList.offline", "离线"),
       members: [],
     };
 
@@ -293,7 +295,7 @@ export const MemberList: React.FC<MemberListProps> = ({
                       }`}
                       title={
                         m.status === "INVISIBLE" && m.id === currentUser.id
-                          ? "隐身 (仅自己可见)"
+                          ? t("common:memberList.invisibleSelf", "隐身 (仅自己可见)")
                           : m.status
                       }
                     />
@@ -305,10 +307,14 @@ export const MemberList: React.FC<MemberListProps> = ({
                         className="text-xs font-semibold truncate group-hover:text-white transition-colors"
                         style={{ color: m.color || undefined }}
                       >
-                        {m.nickname || m.username}
+                        {m.nickname ||
+                          m.rawUser.displayName ||
+                          (m.username.includes("#")
+                            ? m.username.split("#")[0]
+                            : m.username)}
                       </span>
                       {m.isOwner && (
-                        <span title="服务器所有者" className="flex-shrink-0">
+                        <span title={t("common:memberList.owner", "服务器所有者")} className="flex-shrink-0">
                           <Crown className="w-3.5 h-3.5 text-amber-400" />
                         </span>
                       )}

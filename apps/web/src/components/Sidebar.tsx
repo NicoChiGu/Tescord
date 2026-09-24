@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Guild } from "@tescord/types";
 import { MessageSquare, Plus, Compass, ShieldAlert } from "lucide-react";
 import { ServerContextMenu } from "./context-menu/ServerContextMenu.js";
@@ -135,6 +136,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onMarkGuildAsRead,
   onReorderGuilds,
 }) => {
+  const { t } = useTranslation("common");
   const [activeGuild, setActiveGuild] = useState<Guild | null>(null);
 
   // 拖拽传感器：MouseSensor 5px 快速响应，低于 5px 保留为单击选择或右键菜单；TouchSensor 200ms 防滚屏误触
@@ -215,7 +217,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ? "bg-discord-brand text-white !rounded-[16px]"
             : "bg-discord-channelList text-discord-textNormal hover:bg-discord-brand hover:text-white"
         }`}
-        title="私信与主页"
+        title={t("common:sidebar.home", "私信与主页")}
       >
         <span
           className={`absolute left-0 w-1 bg-white rounded-r-full transition-all duration-200 ${
@@ -230,7 +232,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <button
           onClick={onOpenAdminDashboard}
           className="group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-discord-channelList text-amber-400 hover:bg-amber-500 hover:text-white transition-all duration-200 shadow-md shrink-0"
-          title="系统管理控制台 (超级管理员)"
+          title={t("common:sidebar.admin", "系统管理控制台 (超级管理员)")}
           data-testid="admin-dashboard-btn"
         >
           <ShieldAlert className="w-6 h-6" />
@@ -298,7 +300,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* 添加服务器 */}
         <button
           className="group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-discord-channelList text-discord-green hover:bg-discord-green hover:text-white transition-all duration-200 shrink-0"
-          title="创建新服务器"
+          title={t("common:sidebar.addServer", "添加服务器")}
           onClick={onOpenCreateGuild}
         >
           <Plus className="w-6 h-6" />
@@ -308,7 +310,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <button
           data-testid="open-discovery-btn"
           className="group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-discord-channelList text-discord-green hover:bg-discord-green hover:text-white transition-all duration-200 shrink-0"
-          title="探索与加入服务器"
+          title={t("common:sidebar.explore", "探索公开服务器")}
           onClick={onOpenJoinGuild}
         >
           <Compass className="w-6 h-6" />

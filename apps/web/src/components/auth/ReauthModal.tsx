@@ -87,7 +87,7 @@ export const ReauthModal: React.FC = () => {
     } catch (err: any) {
       setLocalError(
         err.message ||
-          t("auth:error.generalFailed", {
+          t("auth:reauthModal.verifyFailed", {
             defaultValue: "验证失败，请确认密码是否正确",
           }),
       );
@@ -100,7 +100,9 @@ export const ReauthModal: React.FC = () => {
     switchAccount();
   };
 
-  const displayName = currentUser?.username || "用户";
+  const displayName =
+    currentUser?.username ||
+    t("auth:reauthModal.defaultUserName", { defaultValue: "用户" });
   const emailOrAccount = currentUser?.email || currentUser?.username || "";
   const avatarUrl = currentUser?.avatarUrl;
 
@@ -131,7 +133,9 @@ export const ReauthModal: React.FC = () => {
             )}
             <div
               className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-amber-500 border-2 border-[#313338] flex items-center justify-center text-white"
-              title="会话已过期"
+              title={t("auth:reauthModal.sessionExpired", {
+                defaultValue: "会话已过期",
+              })}
             >
               <ShieldAlert className="w-4 h-4" />
             </div>
@@ -147,7 +151,10 @@ export const ReauthModal: React.FC = () => {
           <div className="mt-3 px-3 py-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300 flex items-center gap-1.5">
             <ShieldAlert className="w-3.5 h-3.5 flex-shrink-0" />
             <span>
-              {reauthReason || "登录会话已过期，请输入密码解锁以继续当前操作"}
+              {reauthReason ||
+                t("auth:reauthModal.defaultReason", {
+                  defaultValue: "登录会话已过期，请输入密码解锁以继续当前操作",
+                })}
             </span>
           </div>
         </div>
@@ -179,7 +186,9 @@ export const ReauthModal: React.FC = () => {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="请输入密码重新激活会话"
+                placeholder={t("auth:reauthModal.passwordPlaceholder", {
+                  defaultValue: "请输入密码重新激活会话",
+                })}
                 disabled={isSubmitting}
                 className="w-full rounded-lg bg-[#1e1f22] pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2] transition-all disabled:opacity-50"
               />
@@ -196,7 +205,11 @@ export const ReauthModal: React.FC = () => {
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
               <>
-                <span>解锁并恢复会话</span>
+                <span>
+                  {t("auth:reauthModal.unlockButton", {
+                    defaultValue: "解锁并恢复会话",
+                  })}
+                </span>
                 <ArrowRight className="w-4 h-4" />
               </>
             )}
@@ -205,7 +218,11 @@ export const ReauthModal: React.FC = () => {
 
         {/* 底部：切换账号 */}
         <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between text-xs text-gray-400">
-          <span>不是您的账号？</span>
+          <span>
+            {t("auth:reauthModal.notYourAccount", {
+              defaultValue: "不是您的账号？",
+            })}
+          </span>
           <button
             type="button"
             data-testid="reauth-switch-account-btn"
@@ -213,7 +230,11 @@ export const ReauthModal: React.FC = () => {
             className="text-gray-300 hover:text-white hover:underline flex items-center gap-1 transition-colors"
           >
             <LogOut className="w-3.5 h-3.5" />
-            <span>切换其他账号</span>
+            <span>
+              {t("auth:reauthModal.switchAccount", {
+                defaultValue: "切换其他账号",
+              })}
+            </span>
           </button>
         </div>
       </div>

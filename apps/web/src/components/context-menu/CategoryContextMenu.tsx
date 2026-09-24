@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ChannelCategory, Guild } from "@tescord/types";
 import {
   ContextMenu,
@@ -31,6 +32,7 @@ export const CategoryContextMenu: React.FC<CategoryContextMenuProps> = ({
   onToggleCollapse,
   isCollapsed,
 }) => {
+  const { t } = useTranslation(["contextMenu", "common"]);
   const { canManageChannels } = usePermissions(guild);
   const [copiedId, setCopiedId] = useState(false);
 
@@ -56,7 +58,7 @@ export const CategoryContextMenu: React.FC<CategoryContextMenuProps> = ({
           >
             <div className="flex items-center space-x-2">
               <Plus className="w-4 h-4 text-discord-textMuted" />
-              <span>创建频道</span>
+              <span>{t("contextMenu:category.createChannel")}</span>
             </div>
           </ContextMenuItem>
         )}
@@ -71,7 +73,7 @@ export const CategoryContextMenu: React.FC<CategoryContextMenuProps> = ({
             ) : (
               <ChevronDown className="w-4 h-4 text-discord-textMuted" />
             )}
-            <span>{isCollapsed ? "展开分类" : "折叠分类"}</span>
+            <span>{isCollapsed ? t("contextMenu:category.expand") : t("contextMenu:category.collapse")}</span>
           </div>
         </ContextMenuItem>
 
@@ -85,7 +87,7 @@ export const CategoryContextMenu: React.FC<CategoryContextMenuProps> = ({
             ) : (
               <Copy className="w-4 h-4 text-discord-textMuted" />
             )}
-            <span>{copiedId ? "已复制分类 ID" : "复制分类 ID"}</span>
+            <span>{copiedId ? t("common:copied") : t("contextMenu:category.copyId")}</span>
           </div>
         </ContextMenuItem>
 
@@ -99,7 +101,7 @@ export const CategoryContextMenu: React.FC<CategoryContextMenuProps> = ({
             >
               <div className="flex items-center space-x-2">
                 <Edit3 className="w-4 h-4 text-discord-textMuted" />
-                <span>编辑分类</span>
+                <span>{t("contextMenu:category.editCategory")}</span>
               </div>
             </ContextMenuItem>
 
@@ -110,7 +112,7 @@ export const CategoryContextMenu: React.FC<CategoryContextMenuProps> = ({
             >
               <div className="flex items-center space-x-2">
                 <Trash2 className="w-4 h-4 text-red-400" />
-                <span>删除分类</span>
+                <span>{t("contextMenu:category.deleteCategory")}</span>
               </div>
             </ContextMenuItem>
           </>

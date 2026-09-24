@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -35,6 +36,7 @@ export const InputContextMenu: React.FC<InputContextMenuProps> = ({
   onChange,
   children,
 }) => {
+  const { t } = useTranslation(["contextMenu", "common"]);
   const [pasteTip, setPasteTip] = useState<string | null>(null);
 
   // 获取输入框当前选区
@@ -97,7 +99,7 @@ export const InputContextMenu: React.FC<InputContextMenuProps> = ({
       }, 0);
     } catch (err) {
       // 浏览器权限受阻时给出友好提示
-      setPasteTip("请直接使用快捷键 Ctrl+V 粘贴");
+      setPasteTip(t("contextMenu:input.pasteTip"));
       setTimeout(() => setPasteTip(null), 3000);
     }
   };
@@ -111,7 +113,7 @@ export const InputContextMenu: React.FC<InputContextMenuProps> = ({
 
   const handleFormat = (prefix: string, suffix: string) => {
     const { start, end, selectedText } = getSelectionInfo();
-    const content = selectedText || "文字";
+    const content = selectedText || t("contextMenu:input.placeholderText");
     const inserted = `${prefix}${content}${suffix}`;
     const nextVal = value.substring(0, start) + inserted + value.substring(end);
     onChange(nextVal);
@@ -139,7 +141,7 @@ export const InputContextMenu: React.FC<InputContextMenuProps> = ({
         >
           <div className="flex items-center space-x-2">
             <Scissors className="w-4 h-4 text-discord-textMuted" />
-            <span>剪切</span>
+            <span>{t("contextMenu:input.cut")}</span>
           </div>
           <ContextMenuShortcut>Ctrl+X</ContextMenuShortcut>
         </ContextMenuItem>
@@ -151,7 +153,7 @@ export const InputContextMenu: React.FC<InputContextMenuProps> = ({
         >
           <div className="flex items-center space-x-2">
             <Copy className="w-4 h-4 text-discord-textMuted" />
-            <span>复制</span>
+            <span>{t("contextMenu:input.copy")}</span>
           </div>
           <ContextMenuShortcut>Ctrl+C</ContextMenuShortcut>
         </ContextMenuItem>
@@ -162,7 +164,7 @@ export const InputContextMenu: React.FC<InputContextMenuProps> = ({
         >
           <div className="flex items-center space-x-2">
             <ClipboardPaste className="w-4 h-4 text-discord-textMuted" />
-            <span>{pasteTip || "粘贴"}</span>
+            <span>{pasteTip || t("contextMenu:input.paste")}</span>
           </div>
           <ContextMenuShortcut>Ctrl+V</ContextMenuShortcut>
         </ContextMenuItem>
@@ -175,7 +177,7 @@ export const InputContextMenu: React.FC<InputContextMenuProps> = ({
         >
           <div className="flex items-center space-x-2">
             <CheckCheck className="w-4 h-4 text-discord-textMuted" />
-            <span>全选</span>
+            <span>{t("contextMenu:input.selectAll")}</span>
           </div>
           <ContextMenuShortcut>Ctrl+A</ContextMenuShortcut>
         </ContextMenuItem>
@@ -187,32 +189,32 @@ export const InputContextMenu: React.FC<InputContextMenuProps> = ({
           <ContextMenuSubTrigger>
             <div className="flex items-center space-x-2">
               <Bold className="w-4 h-4 text-discord-textMuted" />
-              <span>文字格式</span>
+              <span>{t("contextMenu:input.format")}</span>
             </div>
           </ContextMenuSubTrigger>
           <ContextMenuSubContent className="w-44">
             <ContextMenuItem onClick={() => handleFormat("**", "**")}>
               <div className="flex items-center space-x-2">
                 <Bold className="w-4 h-4 text-discord-textMuted" />
-                <span>加粗粗体</span>
+                <span>{t("contextMenu:input.bold")}</span>
               </div>
-              <ContextMenuShortcut>**文本**</ContextMenuShortcut>
+              <ContextMenuShortcut>**{t("contextMenu:input.placeholderText")}**</ContextMenuShortcut>
             </ContextMenuItem>
 
             <ContextMenuItem onClick={() => handleFormat("||", "||")}>
               <div className="flex items-center space-x-2">
                 <EyeOff className="w-4 h-4 text-discord-textMuted" />
-                <span>剧透遮罩</span>
+                <span>{t("contextMenu:input.spoiler")}</span>
               </div>
-              <ContextMenuShortcut>||文本||</ContextMenuShortcut>
+              <ContextMenuShortcut>||{t("contextMenu:input.placeholderText")}||</ContextMenuShortcut>
             </ContextMenuItem>
 
             <ContextMenuItem onClick={() => handleFormat("`", "`")}>
               <div className="flex items-center space-x-2">
                 <Code className="w-4 h-4 text-discord-textMuted" />
-                <span>行内代码</span>
+                <span>{t("contextMenu:input.inlineCode")}</span>
               </div>
-              <ContextMenuShortcut>`代码`</ContextMenuShortcut>
+              <ContextMenuShortcut>`{t("contextMenu:input.codePlaceholder")}`</ContextMenuShortcut>
             </ContextMenuItem>
           </ContextMenuSubContent>
         </ContextMenuSub>

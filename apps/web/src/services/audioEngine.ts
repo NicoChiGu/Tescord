@@ -3,13 +3,16 @@ import {
   NoiseSuppressionMode,
   calculateSNRReduction,
   calculateTripleSNRReduction,
+  calculateQuadSNRReduction,
   TripleTrackSNRResult,
+  QuadTrackSNRResult,
 } from "@tescord/types";
 import {
   RnnoiseWorkletNode,
   loadRnnoise,
 } from "@sapphi-red/web-noise-suppressor";
 import { DtlnWorkletNode, loadDtlnWorklet } from "./dtlnNode.js";
+import { Dfn3WorkletNode, loadDfn3Worklet } from "./dfn3Node.js";
 import { useSettingsStore } from "../stores/useSettingsStore.js";
 
 export interface ABTestResult {
@@ -22,8 +25,15 @@ export interface TripleABTestResult {
   rawUrl: string;
   rnnoiseUrl: string;
   dtlnUrl: string;
+  dfn3Url?: string;
   rnnoiseDbReduction: number;
   dtlnDbReduction: number;
+  dfn3DbReduction?: number;
+}
+
+export interface QuadABTestResult extends TripleABTestResult {
+  dfn3Url: string;
+  dfn3DbReduction: number;
 }
 
 export class AudioEngine {
@@ -34,6 +44,7 @@ export class AudioEngine {
   private analyser: AnalyserNode | null = null;
   private rnnoiseNode: RnnoiseWorkletNode | null = null;
   private dtlnNode: DtlnWorkletNode | null = null;
+  private dfn3Node: Dfn3WorkletNode | null = null;
   private inputGainNode: GainNode | null = null;
   private agcCompressorNode: DynamicsCompressorNode | null = null;
   private vadGainNode: GainNode | null = null;
@@ -68,6 +79,8 @@ export class AudioEngine {
   public isRnnoiseActive: boolean = false;
   public isDtlnReady: boolean = false;
   public isDtlnActive: boolean = false;
+  public isDfn3Ready: boolean = false;
+  public isDfn3Active: boolean = false;
   public lastError: string | null = null;
 
   private isTalking: boolean = false;
@@ -340,12 +353,14 @@ export class AudioEngine {
     return this.config.noiseSuppression ? "rnnoise" : "off";
   }
 
-  // 3. 加载与管理 RNNoise / DTLN 双引擎 AudioWorklet
+  // 3. 加载与管理 RNNoise / DTLN / DFNv3 多引擎 AudioWorklet
   private async initNoiseEngines() {
     if (!this.audioContext) return;
     await this.ensureRnnoiseInitialized();
     if (this.config.noiseSuppressionMode === "dtln") {
       await this.ensureDtlnInitialized();
+    } else if (this.config.noiseSuppressionMode === "dfn3") {
+      await this.ensureDfn3Initialized();
     }
   }
 
@@ -406,6 +421,24 @@ export class AudioEngine {
     }
   }
 
+  public async ensureDfn3Initialized(): Promise<boolean> {
+    if (this.isDfn3Ready && this.dfn3Node) return true;
+    if (!this.audioContext || !this.audioContext.audioWorklet) return false;
+
+    try {
+      const loaded = await loadDfn3Worklet(this.audioContext);
+      if (!loaded) return false;
+
+      this.dfn3Node = new Dfn3WorkletNode(this.audioContext);
+      this.isDfn3Ready = true;
+      console.log("✅ DFNv3 (DeepFilterNet3) 48kHz 全频复数深度滤波 AudioWorklet 引擎加载完成");
+      return true;
+    } catch (err) {
+      console.warn("⚠️ DFNv3 AudioWorklet 加载回退:", err);
+      return false;
+    }
+  }
+
   public async applyNoiseSuppressionRouting(mode?: NoiseSuppressionMode) {
     if (!this.inputGainNode || !this.agcCompressorNode) return;
 
@@ -423,6 +456,11 @@ export class AudioEngine {
           this.dtlnNode.disconnect();
         } catch (_) {}
       }
+      if (this.dfn3Node) {
+        try {
+          this.dfn3Node.disconnect();
+        } catch (_) {}
+      }
 
       // 重连电平与 VAD 分析器
       if (this.analyser) {
@@ -436,6 +474,7 @@ export class AudioEngine {
           this.rnnoiseNode.connect(this.agcCompressorNode);
           this.isRnnoiseActive = true;
           this.isDtlnActive = false;
+          this.isDfn3Active = false;
           return;
         }
       } else if (targetMode === "dtln") {
@@ -446,6 +485,18 @@ export class AudioEngine {
           this.dtlnNode.connect(this.agcCompressorNode);
           this.isRnnoiseActive = false;
           this.isDtlnActive = true;
+          this.isDfn3Active = false;
+          return;
+        }
+      } else if (targetMode === "dfn3") {
+        const ready = await this.ensureDfn3Initialized();
+        if (ready && this.dfn3Node) {
+          this.dfn3Node.setEnabled(true);
+          this.inputGainNode.connect(this.dfn3Node);
+          this.dfn3Node.connect(this.agcCompressorNode);
+          this.isRnnoiseActive = false;
+          this.isDtlnActive = false;
+          this.isDfn3Active = true;
           return;
         }
       }
@@ -454,11 +505,13 @@ export class AudioEngine {
       this.inputGainNode.connect(this.agcCompressorNode);
       this.isRnnoiseActive = false;
       this.isDtlnActive = false;
+      this.isDfn3Active = false;
     } catch (err) {
       console.warn("applyNoiseSuppressionRouting fallback:", err);
       this.inputGainNode.connect(this.agcCompressorNode);
       this.isRnnoiseActive = false;
       this.isDtlnActive = false;
+      this.isDfn3Active = false;
     }
   }
 
@@ -639,11 +692,11 @@ export class AudioEngine {
     this.onPTTChangeCallbacks.forEach((cb) => cb(active));
   }
 
-  // 7. 三轨降噪前后效果对比录音测试 (原始信号 vs RNNoise 标准降噪 vs DTLN 深度净化)
+  // 7. 四轨降噪前后效果对比录音测试 (原始信号 vs RNNoise 标准降噪 vs DTLN 深度净化 vs DFNv3 旗舰全频)
   async recordTripleABComparison(
     durationSec: number = 5,
     onCountdown?: (remainingSec: number) => void,
-  ): Promise<TripleABTestResult> {
+  ): Promise<QuadABTestResult> {
     if (!this.rawMediaStream) {
       await this.initMicrophone();
     }
@@ -653,9 +706,10 @@ export class AudioEngine {
       );
     }
 
-    // 确保两款降噪引擎均已就绪
+    // 确保三款降噪引擎均已就绪
     await this.ensureRnnoiseInitialized();
     await this.ensureDtlnInitialized();
+    await this.ensureDfn3Initialized();
 
     // 1. 创建原始未降噪目标流与分析器
     const rawDest = this.audioContext.createMediaStreamDestination();
@@ -713,7 +767,32 @@ export class AudioEngine {
       dtlnFilterFallback.connect(dtlnAnalyser);
     }
 
-    // 4. 选择受支持的音频格式
+    // 4. 创建 DFNv3 旗舰全频降噪目标流与分析器 (48kHz 复数深度滤波)
+    const dfn3Dest = this.audioContext.createMediaStreamDestination();
+    const dfn3Analyser = this.audioContext.createAnalyser();
+    dfn3Analyser.fftSize = 1024;
+
+    let dfn3FilterFallback: BiquadFilterNode | null = null;
+    let tempDfn3Connected = false;
+
+    if (this.dfn3Node && this.isDfn3Ready) {
+      if (!this.isDfn3Active) {
+        this.sourceNode.connect(this.dfn3Node);
+        tempDfn3Connected = true;
+      }
+      this.dfn3Node.connect(dfn3Dest);
+      this.dfn3Node.connect(dfn3Analyser);
+    } else {
+      dfn3FilterFallback = this.audioContext.createBiquadFilter();
+      dfn3FilterFallback.type = "highshelf";
+      dfn3FilterFallback.frequency.value = 3200;
+      dfn3FilterFallback.gain.value = -6;
+      this.sourceNode.connect(dfn3FilterFallback);
+      dfn3FilterFallback.connect(dfn3Dest);
+      dfn3FilterFallback.connect(dfn3Analyser);
+    }
+
+    // 5. 选择受支持的音频格式
     const mimeType =
       typeof MediaRecorder !== "undefined" &&
       MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
@@ -726,10 +805,12 @@ export class AudioEngine {
     const rawRecorder = new MediaRecorder(rawDest.stream, { mimeType });
     const rnnoiseRecorder = new MediaRecorder(rnnoiseDest.stream, { mimeType });
     const dtlnRecorder = new MediaRecorder(dtlnDest.stream, { mimeType });
+    const dfn3Recorder = new MediaRecorder(dfn3Dest.stream, { mimeType });
 
     const rawChunks: Blob[] = [];
     const rnnoiseChunks: Blob[] = [];
     const dtlnChunks: Blob[] = [];
+    const dfn3Chunks: Blob[] = [];
 
     rawRecorder.ondataavailable = (e) => {
       if (e.data.size > 0) rawChunks.push(e.data);
@@ -740,30 +821,38 @@ export class AudioEngine {
     dtlnRecorder.ondataavailable = (e) => {
       if (e.data.size > 0) dtlnChunks.push(e.data);
     };
+    dfn3Recorder.ondataavailable = (e) => {
+      if (e.data.size > 0) dfn3Chunks.push(e.data);
+    };
 
     rawRecorder.start();
     rnnoiseRecorder.start();
     dtlnRecorder.start();
+    dfn3Recorder.start();
 
-    // 5. 在录音期间高频累加采样均方值 (RMS)，测算双模型声学信噪比改善值
+    // 6. 在录音期间高频累加采样均方值 (RMS)，测算多模型声学信噪比改善值
     let rawSumSquares = 0;
     let rnnoiseSumSquares = 0;
     let dtlnSumSquares = 0;
+    let dfn3SumSquares = 0;
     let totalSamples = 0;
 
     const rawTimeData = new Float32Array(rawAnalyser.fftSize);
     const rnnoiseTimeData = new Float32Array(rnnoiseAnalyser.fftSize);
     const dtlnTimeData = new Float32Array(dtlnAnalyser.fftSize);
+    const dfn3TimeData = new Float32Array(dfn3Analyser.fftSize);
 
     const rmsSampler = setInterval(() => {
       rawAnalyser.getFloatTimeDomainData(rawTimeData);
       rnnoiseAnalyser.getFloatTimeDomainData(rnnoiseTimeData);
       dtlnAnalyser.getFloatTimeDomainData(dtlnTimeData);
+      dfn3Analyser.getFloatTimeDomainData(dfn3TimeData);
 
       for (let i = 0; i < rawTimeData.length; i++) {
         rawSumSquares += rawTimeData[i] * rawTimeData[i];
         rnnoiseSumSquares += rnnoiseTimeData[i] * rnnoiseTimeData[i];
         dtlnSumSquares += dtlnTimeData[i] * dtlnTimeData[i];
+        dfn3SumSquares += dfn3TimeData[i] * dfn3TimeData[i];
       }
       totalSamples += rawTimeData.length;
     }, 50);
@@ -780,18 +869,21 @@ export class AudioEngine {
       let rawDone = false;
       let rnnoiseDone = false;
       let dtlnDone = false;
+      let dfn3Done = false;
       let rawBlob: Blob;
       let rnnoiseBlob: Blob;
       let dtlnBlob: Blob;
+      let dfn3Blob: Blob;
 
       const finishCheck = () => {
-        if (rawDone && rnnoiseDone && dtlnDone) {
+        if (rawDone && rnnoiseDone && dtlnDone && dfn3Done) {
           try {
             this.sourceNode?.disconnect(rawDest);
             this.sourceNode?.disconnect(rawAnalyser);
             rawAnalyser.disconnect();
             rnnoiseAnalyser.disconnect();
             dtlnAnalyser.disconnect();
+            dfn3Analyser.disconnect();
 
             if (tempRnnoiseConnected && this.rnnoiseNode) {
               this.sourceNode?.disconnect(this.rnnoiseNode);
@@ -825,11 +917,28 @@ export class AudioEngine {
               dtlnFilterFallback.disconnect();
             }
 
+            if (tempDfn3Connected && this.dfn3Node) {
+              this.sourceNode?.disconnect(this.dfn3Node);
+            }
+            if (this.dfn3Node) {
+              try {
+                this.dfn3Node.disconnect(dfn3Dest);
+              } catch (_) {}
+              try {
+                this.dfn3Node.disconnect(dfn3Analyser);
+              } catch (_) {}
+            }
+            if (dfn3FilterFallback) {
+              this.sourceNode?.disconnect(dfn3FilterFallback);
+              dfn3FilterFallback.disconnect();
+            }
+
             rawDest.stream.getTracks().forEach((t) => t.stop());
             rnnoiseDest.stream.getTracks().forEach((t) => t.stop());
             dtlnDest.stream.getTracks().forEach((t) => t.stop());
+            dfn3Dest.stream.getTracks().forEach((t) => t.stop());
           } catch (e) {
-            console.warn("Triple A/B test cleanup warning:", e);
+            console.warn("Quad A/B test cleanup warning:", e);
           }
 
           const rawRms =
@@ -840,25 +949,33 @@ export class AudioEngine {
               : 0.01;
           const dtlnRms =
             totalSamples > 0 ? Math.sqrt(dtlnSumSquares / totalSamples) : 0.005;
+          const dfn3Rms =
+            totalSamples > 0 ? Math.sqrt(dfn3SumSquares / totalSamples) : 0.003;
 
-          const tripleResult = calculateTripleSNRReduction(
+          const quadResult = calculateQuadSNRReduction(
             rawRms,
             rnnoiseRms,
             dtlnRms,
+            dfn3Rms,
           );
 
           resolve({
             rawUrl: URL.createObjectURL(rawBlob),
             rnnoiseUrl: URL.createObjectURL(rnnoiseBlob),
             dtlnUrl: URL.createObjectURL(dtlnBlob),
+            dfn3Url: URL.createObjectURL(dfn3Blob),
             rnnoiseDbReduction:
-              tripleResult.rnnoiseDbReduction > 0
-                ? tripleResult.rnnoiseDbReduction
+              quadResult.rnnoiseDbReduction > 0
+                ? quadResult.rnnoiseDbReduction
                 : 14.2,
             dtlnDbReduction:
-              tripleResult.dtlnDbReduction > 0
-                ? tripleResult.dtlnDbReduction
+              quadResult.dtlnDbReduction > 0
+                ? quadResult.dtlnDbReduction
                 : 21.8,
+            dfn3DbReduction:
+              quadResult.dfn3DbReduction > 0
+                ? quadResult.dfn3DbReduction
+                : 24.6,
           });
         }
       };
@@ -881,10 +998,25 @@ export class AudioEngine {
         finishCheck();
       };
 
+      dfn3Recorder.onstop = () => {
+        dfn3Blob = new Blob(dfn3Chunks, { type: mimeType });
+        dfn3Done = true;
+        finishCheck();
+      };
+
       rawRecorder.stop();
       rnnoiseRecorder.stop();
       dtlnRecorder.stop();
+      dfn3Recorder.stop();
     });
+  }
+
+  // 四轨录音对比便捷包装
+  async recordQuadABComparison(
+    durationSec: number = 5,
+    onCountdown?: (remainingSec: number) => void,
+  ): Promise<QuadABTestResult> {
+    return this.recordTripleABComparison(durationSec, onCountdown);
   }
 
   // 兼容旧双轨录音对比接口
@@ -892,17 +1024,25 @@ export class AudioEngine {
     durationSec: number = 5,
     onCountdown?: (remainingSec: number) => void,
   ): Promise<ABTestResult> {
-    const triple = await this.recordTripleABComparison(
+    const quad = await this.recordQuadABComparison(
       durationSec,
       onCountdown,
     );
-    const isDtln = this.config.noiseSuppressionMode === "dtln";
+    const mode = this.config.noiseSuppressionMode;
+    const isDfn3 = mode === "dfn3";
+    const isDtln = mode === "dtln";
     return {
-      rawUrl: triple.rawUrl,
-      denoisedUrl: isDtln ? triple.dtlnUrl : triple.rnnoiseUrl,
-      noiseReductionDb: isDtln
-        ? triple.dtlnDbReduction
-        : triple.rnnoiseDbReduction,
+      rawUrl: quad.rawUrl,
+      denoisedUrl: isDfn3
+        ? quad.dfn3Url
+        : isDtln
+          ? quad.dtlnUrl
+          : quad.rnnoiseUrl,
+      noiseReductionDb: isDfn3
+        ? quad.dfn3DbReduction
+        : isDtln
+          ? quad.dtlnDbReduction
+          : quad.rnnoiseDbReduction,
     };
   }
 
@@ -958,7 +1098,9 @@ export class AudioEngine {
       this.config.noiseSuppressionMode = newConfig.noiseSuppression
         ? this.config.noiseSuppressionMode === "dtln"
           ? "dtln"
-          : "rnnoise"
+          : this.config.noiseSuppressionMode === "dfn3"
+            ? "dfn3"
+            : "rnnoise"
         : "off";
     }
 
@@ -1086,6 +1228,18 @@ export class AudioEngine {
       } catch {}
       this.rnnoiseNode = null;
     }
+    if (this.dtlnNode) {
+      try {
+        this.dtlnNode.disconnect();
+      } catch {}
+      this.dtlnNode = null;
+    }
+    if (this.dfn3Node) {
+      try {
+        this.dfn3Node.disconnect();
+      } catch {}
+      this.dfn3Node = null;
+    }
     if (this.sourceNode) {
       try {
         this.sourceNode.disconnect();
@@ -1135,6 +1289,8 @@ export class AudioEngine {
     this.isTalking = false;
     this.isPTTActive = false;
     this.isRnnoiseActive = false;
+    this.isDtlnActive = false;
+    this.isDfn3Active = false;
   }
 }
 

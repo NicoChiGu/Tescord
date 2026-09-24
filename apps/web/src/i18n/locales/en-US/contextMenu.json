@@ -11,12 +11,72 @@
   "copyUserId": "Copy User ID",
   "mentionUser": "Mention User",
   "sendMessage": "Direct Message",
-  "muteUser": "Mute Member",
-  "kickUser": "Kick Member",
-  "banUser": "Ban Member",
+  "muteUser": "Mute User",
+  "kickUser": "Kick User",
+  "banUser": "Ban User",
   "addReaction": "Add Reaction",
   "userVolume": "User Volume",
   "resetVolume": "Reset 100%",
   "maxVolume": "Max 200%",
-  "unmuteUser": "Unmute User"
+  "unmuteUser": "Unmute User",
+  "profile": "Profile",
+  "kickUserNamed": "Kick {{name}}",
+  "banUserNamed": "Ban {{name}}",
+  "userStatus": "Online Status",
+  "copyMyId": "Copy My ID",
+  "showStats": "Media Stats (Stats for Nerds)",
+  "stopStreaming": "Stop Streaming",
+
+  "channel": {
+    "switchToChannel": "Switch to Channel",
+    "muteChannel": "Mute Channel",
+    "unmuteChannel": "Unmute Channel",
+    "markAsRead": "Mark as Read",
+    "editChannel": "Edit Channel",
+    "copyLink": "Copy Channel Link",
+    "deleteChannel": "Delete Channel",
+    "mute15m": "For 15 Minutes",
+    "mute1h": "For 1 Hour",
+    "mute3h": "For 3 Hours",
+    "mute8h": "For 8 Hours",
+    "mute24h": "For 24 Hours",
+    "muteUntilTurnedOn": "Until I turn it back on"
+  },
+  "category": {
+    "createChannel": "Create Channel",
+    "editCategory": "Edit Category",
+    "deleteCategory": "Delete Category",
+    "copyId": "Copy Category ID",
+    "expand": "Expand Category",
+    "collapse": "Collapse Category"
+  },
+  "server": {
+    "settings": "Server Settings",
+    "createChannel": "Create Channel",
+    "createCategory": "Create Category",
+    "invite": "Invite Friends",
+    "leave": "Leave Server",
+    "disband": "Delete Server",
+    "leaveConfirmTitle": "Leave Server",
+    "leaveConfirmDesc": "Are you sure you want to leave \"{{name}}\"?"
+  },
+  "input": {
+    "cut": "Cut",
+    "copy": "Copy",
+    "paste": "Paste",
+    "selectAll": "Select All",
+    "pasteTip": "Please use Ctrl+V to paste directly",
+    "format": "Text Format",
+    "bold": "Bold",
+    "spoiler": "Spoiler",
+    "inlineCode": "Inline Code",
+    "placeholderText": "text",
+    "codePlaceholder": "code"
+  },
+  "global": {
+    "reload": "Reload",
+    "back": "Back",
+    "forward": "Forward",
+    "inspect": "Inspect Element"
+  }
 }

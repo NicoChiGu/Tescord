@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import {
   Guild,
   Role,
@@ -55,6 +56,7 @@ export const RolesTab: React.FC<RolesTabProps> = ({
   onUpdateRole,
   onDeleteRole,
 }) => {
+  const { t } = useTranslation(["server", "common", "errors"]);
   const { user: currentUser } = useAuthStore();
   const sortedRoles = useMemo(() => {
     return [...roles].sort((a, b) => b.position - a.position);
@@ -141,9 +143,10 @@ export const RolesTab: React.FC<RolesTabProps> = ({
         permissions: formPermissions,
       });
       setSaveSuccess(true);
+      toast.success(t("server:roles.saveSuccess"));
       setTimeout(() => setSaveSuccess(false), 2000);
     } catch (err: any) {
-      toast.error(err?.message || "更新身份组失败");
+      toast.error(err?.message || t("errors:UNKNOWN_ERROR"));
     } finally {
       setIsSaving(false);
     }
@@ -151,21 +154,21 @@ export const RolesTab: React.FC<RolesTabProps> = ({
 
   const handleCreateNewRole = async () => {
     try {
-      const newRole = await onCreateRole("新身份组");
+      const newRole = await onCreateRole(t("server:roles.createRole"));
       setSelectedRoleId(newRole.id);
-      toast.success("已创建新身份组");
+      toast.success(t("server:roles.createRole"));
     } catch (err: any) {
-      toast.error(err?.message || "创建新角色失败");
+      toast.error(err?.message || t("errors:UNKNOWN_ERROR"));
     }
   };
 
   const handleDelete = async () => {
     if (!selectedRole || !canDeleteSelectedRole) return;
     const confirmed = await dialog.confirm({
-      title: "删除身份组",
-      description: `确定要彻底删除角色 “${selectedRole.name}” 吗？删除后所有已赋予该身份组的成员将失去对应权限。`,
+      title: t("server:roles.deleteConfirmTitle"),
+      description: t("server:roles.deleteConfirmDesc", { name: selectedRole.name }),
       variant: "danger",
-      confirmText: "删除角色",
+      confirmText: t("server:roles.deleteRole"),
     });
     if (!confirmed) return;
 
@@ -175,9 +178,9 @@ export const RolesTab: React.FC<RolesTabProps> = ({
       if (remaining.length > 0) {
         setSelectedRoleId(remaining[0].id);
       }
-      toast.success("身份组已成功删除");
+      toast.success(t("server:roles.deleteRole"));
     } catch (err: any) {
-      toast.error(err?.message || "删除角色失败");
+      toast.error(err?.message || t("errors:UNKNOWN_ERROR"));
     }
   };
 
@@ -193,11 +196,11 @@ export const RolesTab: React.FC<RolesTabProps> = ({
         <div className="space-y-3">
           <div className="flex items-center justify-between px-1">
             <span className="text-xs font-bold uppercase tracking-wider text-gray-400">
-              身份组 ({sortedRoles.length})
+              {t("server:roles.title")} ({sortedRoles.length})
             </span>
             <button
               onClick={handleCreateNewRole}
-              title="新建身份组"
+              title={t("server:roles.createRole")}
               className="p-1 rounded bg-[#5865f2] hover:bg-[#4752c4] text-white transition-colors"
             >
               <Plus className="w-4 h-4" />
@@ -233,7 +236,7 @@ export const RolesTab: React.FC<RolesTabProps> = ({
                   </div>
                   {isDef && (
                     <span className="text-[10px] bg-black/20 px-1.5 py-0.5 rounded text-gray-300 shrink-0">
-                      默认
+                      {t("common:status.default", { defaultValue: "默认" })}
                     </span>
                   )}
                 </button>
@@ -248,7 +251,7 @@ export const RolesTab: React.FC<RolesTabProps> = ({
             className="flex items-center justify-center gap-1.5 w-full py-2 rounded-lg text-xs font-semibold text-rose-400 hover:text-white hover:bg-rose-600 transition-colors border border-rose-500/20"
           >
             <Trash2 className="w-3.5 h-3.5" />
-            <span>删除此身份组</span>
+            <span>{t("server:roles.deleteRole")}</span>
           </button>
         )}
       </div>
@@ -262,7 +265,7 @@ export const RolesTab: React.FC<RolesTabProps> = ({
               <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
                 <AlertCircle className="w-4 h-4 shrink-0" />
                 <span>
-                  该身份组的层级权重高于或等同于您拥有的最高身份组，您仅拥有查看权限，无法修改或调整。
+                  {t("server:roles.hierarchyWarning")}
                 </span>
               </div>
             )}
@@ -270,25 +273,25 @@ export const RolesTab: React.FC<RolesTabProps> = ({
             {/* 基础显示属性 */}
             <div className="space-y-4">
               <h3 className="text-sm font-bold uppercase tracking-wider text-gray-300">
-                显示设置
+                {t("server:roles.title")}
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-bold text-gray-300 mb-1.5">
-                    身份组名称
+                    {t("server:roles.roleName")}
                   </label>
                   <input
                     type="text"
                     value={formName}
                     disabled={isEveryone || !canEditSelectedRole}
                     onChange={(e) => setFormName(e.target.value)}
-                    placeholder="输入角色名称"
+                    placeholder={t("server:roles.roleName")}
                     className="w-full bg-[#1e1f22] border border-white/10 rounded-lg px-3.5 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#5865f2] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   />
                   {isEveryone && (
                     <span className="text-[11px] text-gray-400 mt-1 block">
-                      @everyone 基础角色名称不可修改
+                      @everyone {t("server:roles.defaultRole")}
                     </span>
                   )}
                 </div>
@@ -323,7 +326,7 @@ export const RolesTab: React.FC<RolesTabProps> = ({
               {!isEveryone && (
                 <div>
                   <label className="block text-xs font-bold text-gray-300 mb-2">
-                    身份组颜色
+                    {t("server:roles.roleColor")}
                   </label>
                   <div className="flex flex-wrap items-center gap-2">
                     {PRESET_COLORS.map((c) => (
@@ -369,7 +372,7 @@ export const RolesTab: React.FC<RolesTabProps> = ({
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h3 className="text-sm font-bold uppercase tracking-wider text-gray-300">
-                    权限设置
+                    {t("server:roles.permissions")}
                   </h3>
                   <p className="text-xs text-gray-400">
                     为拥有此身份组的成员开启或关闭相应的服务器能力。
@@ -464,12 +467,12 @@ export const RolesTab: React.FC<RolesTabProps> = ({
             <div className="text-xs text-gray-400">
               {saveSuccess && (
                 <span className="text-emerald-400 flex items-center gap-1 font-medium">
-                  <Check className="w-4 h-4" /> 身份组属性已保存成功！
+                  <Check className="w-4 h-4" /> {t("server:roles.saveSuccess")}
                 </span>
               )}
               {!saveSuccess && hasChanges && (
                 <span className="text-amber-400 font-medium">
-                  身份组配置存在未保存的改动
+                  {t("server:overview.unsavedChanges")}
                 </span>
               )}
             </div>
@@ -486,7 +489,7 @@ export const RolesTab: React.FC<RolesTabProps> = ({
                   }}
                   className="text-xs text-gray-300 hover:underline px-2 py-1"
                 >
-                  重置
+                  {t("server:overview.reset")}
                 </button>
               )}
               <button
@@ -495,14 +498,14 @@ export const RolesTab: React.FC<RolesTabProps> = ({
                 onClick={handleSave}
                 className="px-5 py-2 rounded-lg bg-[#248046] hover:bg-[#1a6334] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold shadow transition-all"
               >
-                {isSaving ? "正在保存..." : "保存修改"}
+                {isSaving ? t("server:overview.saving") : t("server:overview.saveChanges")}
               </button>
             </div>
           </div>
         </div>
       ) : (
         <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
-          请选择一个身份组进行编辑
+          {t("server:roles.searchRoles")}
         </div>
       )}
     </div>

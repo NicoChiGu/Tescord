@@ -10,8 +10,10 @@ import {
   Search,
 } from "lucide-react";
 import { PublicGuild } from "@tescord/types";
+import { useTranslation } from "react-i18next";
 import { API_BASE, resolveServerUrl } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
+import { getErrorMessage } from "../../i18n/index.js";
 
 interface DiscoveryModalProps {
   isOpen: boolean;
@@ -26,6 +28,7 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
   onGuildJoined,
   onOpenCreateModal,
 }) => {
+  const { t } = useTranslation(["modals", "common", "admin", "errors"]);
   const { getAuthHeaders } = useAuthStore();
   const [activeTab, setActiveTab] = useState<"discovery" | "invite">(
     "discovery",
@@ -60,12 +63,13 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
         },
       });
       if (!res.ok) {
-        throw new Error("获取公开社区列表失败");
+        const data = await res.json().catch(() => ({}));
+        throw new Error(getErrorMessage(data) || t("common:loadFailed", "获取公开社区列表失败"));
       }
       const data: PublicGuild[] = await res.json();
       setPublicGuilds(data);
     } catch (err: any) {
-      setDiscoveryError(err.message || "无法连接到服务器");
+      setDiscoveryError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
     } finally {
       setIsLoadingGuilds(false);
     }
@@ -87,14 +91,14 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "加入服务器失败");
+        throw new Error(getErrorMessage(data) || t("modals:joinGuild.failed"));
       }
 
       const result = await res.json();
       onGuildJoined(result.id || guildId);
       onClose();
     } catch (err: any) {
-      setDiscoveryError(err.message || "加入服务器异常");
+      setDiscoveryError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
     } finally {
       setJoiningGuildId(null);
     }
@@ -121,14 +125,14 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "加入服务器失败，请核对邀请码");
+        throw new Error(getErrorMessage(data) || t("modals:joinGuild.failed"));
       }
 
       const result = await res.json();
       onGuildJoined(result.guildId);
       onClose();
     } catch (err: any) {
-      setInviteError(err.message || "网络连接异常");
+      setInviteError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
     } finally {
       setIsSubmittingInvite(false);
     }
@@ -157,7 +161,7 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
           <button
             onClick={onClose}
             className="absolute right-4 top-4 text-discord-textMuted hover:text-discord-textHeader transition p-1 rounded-full hover:bg-white/5"
-            title="关闭 (ESC)"
+            title={t("common:close")}
           >
             <X className="w-5 h-5" />
           </button>
@@ -168,10 +172,10 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
             </div>
             <div>
               <h2 className="text-xl font-bold text-discord-textHeader">
-                探索与加入服务器
+                {t("modals:discovery.title")}
               </h2>
               <p className="text-xs text-discord-textMuted mt-0.5">
-                发现并加入精彩的公共社区，或通过邀请码直达私密空间。
+                {t("modals:discovery.subtitle")}
               </p>
             </div>
           </div>
@@ -187,7 +191,7 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
               }`}
             >
               <Compass className="w-4 h-4" />
-              <span>探索公共社区</span>
+              <span>{t("modals:discovery.tabExplore")}</span>
             </button>
             <button
               onClick={() => setActiveTab("invite")}
@@ -198,7 +202,7 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
               }`}
             >
               <KeyRound className="w-4 h-4" />
-              <span>使用邀请码</span>
+              <span>{t("modals:discovery.tabInvite")}</span>
             </button>
           </div>
         </div>
@@ -214,7 +218,7 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="搜索服务器名称或话题介绍..."
+                  placeholder={t("modals:discovery.searchPlaceholder")}
                   className="w-full bg-[#1e1f22] text-discord-textHeader pl-10 pr-4 py-2.5 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-discord-brand border border-transparent focus:border-discord-brand transition placeholder-gray-500"
                 />
               </div>
@@ -229,7 +233,7 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
               {isLoadingGuilds && (
                 <div className="py-12 flex flex-col items-center justify-center text-discord-textMuted gap-2">
                   <Loader2 className="w-6 h-6 animate-spin text-discord-brand" />
-                  <span className="text-xs">正在发现精彩社区...</span>
+                  <span className="text-xs">{t("modals:discovery.loading")}</span>
                 </div>
               )}
 
@@ -265,7 +269,7 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
                             </h3>
                             <p className="text-[11px] text-discord-textMuted line-clamp-2 mt-1 leading-relaxed">
                               {g.description ||
-                                "一个充满活力的 Tescord 极客社区。"}
+                                t("modals:discovery.defaultDescription")}
                             </p>
                           </div>
                         </div>
@@ -273,7 +277,9 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
                         <div className="flex items-center justify-between border-t border-white/5 pt-3 mt-3">
                           <div className="flex items-center gap-1.5 text-discord-textMuted text-[11px]">
                             <Users className="w-3.5 h-3.5" />
-                            <span>{g.memberCount} 位成员</span>
+                            <span>
+                              {t("modals:discovery.membersCount", { count: g.memberCount })}
+                            </span>
                           </div>
 
                           {g.isJoined ? (
@@ -282,7 +288,7 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
                               className="flex items-center gap-1 px-3 py-1.5 rounded-md bg-white/10 text-gray-300 text-xs font-semibold cursor-default"
                             >
                               <Check className="w-3.5 h-3.5 text-emerald-400" />
-                              <span>已加入</span>
+                              <span>{t("modals:discovery.joined")}</span>
                             </button>
                           ) : (
                             <button
@@ -294,7 +300,7 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
                               {joiningGuildId === g.id && (
                                 <Loader2 className="w-3 h-3 animate-spin" />
                               )}
-                              <span>加入服务器</span>
+                              <span>{t("modals:discovery.join")}</span>
                             </button>
                           )}
                         </div>
@@ -312,10 +318,10 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
                   </div>
                   <div>
                     <div className="text-sm font-semibold text-gray-300">
-                      暂无找到匹配的公开社区
+                      {t("modals:discovery.noGuilds")}
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
-                      您可以尝试更换搜索词，或创建属于自己的服务器。
+                      {t("modals:discovery.noGuildsDesc")}
                     </p>
                   </div>
                 </div>
@@ -336,7 +342,8 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
 
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted mb-2">
-                  邀请码 / 邀请链接 <span className="text-red-400">*</span>
+                  {t("modals:joinGuild.inviteLabel")}{" "}
+                  <span className="text-red-400">*</span>
                 </label>
                 <div className="relative flex items-center">
                   <input
@@ -344,13 +351,13 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
                     required
                     value={inviteCode}
                     onChange={(e) => setInviteCode(e.target.value)}
-                    placeholder="例如：7f503c71 或 http://.../invite/7f503c71"
+                    placeholder={t("modals:joinGuild.invitePlaceholder")}
                     className="w-full bg-[#1e1f22] text-discord-textHeader px-3.5 py-2.5 pl-10 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-discord-brand transition border border-transparent focus:border-discord-brand font-mono placeholder-gray-500"
                   />
                   <KeyRound className="w-4 h-4 text-discord-textMuted absolute left-3.5 pointer-events-none" />
                 </div>
                 <p className="text-[11px] text-discord-textMuted mt-1.5">
-                  输入由服务器管理员或好友分发的 8 位专属邀请码。
+                  {t("modals:discovery.invitePrompt")}
                 </p>
               </div>
 
@@ -363,7 +370,7 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
                   {isSubmittingInvite && (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   )}
-                  <span>加入服务器</span>
+                  <span>{t("modals:joinGuild.submit")}</span>
                 </button>
               </div>
             </form>
@@ -372,7 +379,7 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
 
         {/* 弹窗底部操作 Footer */}
         <div className="bg-[#2b2d31] px-6 py-4 border-t border-[#3f4147]/60 flex items-center justify-between text-xs text-discord-textMuted flex-shrink-0">
-          <span>还没有心仪的圈子？</span>
+          <span>{t("modals:discovery.noMatchingCircles")}</span>
           <button
             type="button"
             onClick={() => {
@@ -382,7 +389,7 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
             className="flex items-center gap-1.5 text-discord-brand hover:underline font-semibold"
           >
             <Plus className="w-4 h-4" />
-            <span>创建专属服务器</span>
+            <span>{t("modals:discovery.createExclusiveServer")}</span>
           </button>
         </div>
       </div>

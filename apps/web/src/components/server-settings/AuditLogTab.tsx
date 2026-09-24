@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Guild, AuditLogEntry, AuditLogAction } from "@tescord/types";
 import {
   FileText,
@@ -15,54 +16,69 @@ interface AuditLogTabProps {
   guild: Guild;
 }
 
-const ACTION_DESCRIPTIONS: Record<string, { label: string; color: string }> = {
+const ACTION_DESCRIPTIONS: Record<
+  string,
+  { i18nKey: string; label: string; color: string }
+> = {
   [AuditLogAction.GUILD_UPDATE]: {
+    i18nKey: "server:auditLog.actions.guildUpdate",
     label: "修改服务器基本信息",
     color: "bg-blue-500/20 text-blue-400",
   },
   [AuditLogAction.ROLE_CREATE]: {
+    i18nKey: "server:auditLog.actions.roleCreate",
     label: "创建新身份组",
     color: "bg-emerald-500/20 text-emerald-400",
   },
   [AuditLogAction.ROLE_UPDATE]: {
+    i18nKey: "server:auditLog.actions.roleUpdate",
     label: "修改身份组属性/权限",
     color: "bg-amber-500/20 text-amber-400",
   },
   [AuditLogAction.ROLE_DELETE]: {
+    i18nKey: "server:auditLog.actions.roleDelete",
     label: "删除身份组",
     color: "bg-rose-500/20 text-rose-400",
   },
   [AuditLogAction.MEMBER_KICK]: {
+    i18nKey: "server:auditLog.actions.memberKick",
     label: "踢出成员",
     color: "bg-amber-500/20 text-amber-400",
   },
   [AuditLogAction.MEMBER_BAN_ADD]: {
+    i18nKey: "server:auditLog.actions.memberBanAdd",
     label: "封禁成员 (拉入黑名单)",
     color: "bg-rose-500/20 text-rose-400",
   },
   [AuditLogAction.MEMBER_BAN_REMOVE]: {
+    i18nKey: "server:auditLog.actions.memberBanRemove",
     label: "解除成员封禁",
     color: "bg-emerald-500/20 text-emerald-400",
   },
   [AuditLogAction.MEMBER_ROLE_UPDATE]: {
+    i18nKey: "server:auditLog.actions.memberRoleUpdate",
     label: "更新成员角色/昵称",
     color: "bg-purple-500/20 text-purple-400",
   },
   [AuditLogAction.INVITE_CREATE]: {
+    i18nKey: "server:auditLog.actions.inviteCreate",
     label: "生成新邀请链接",
     color: "bg-teal-500/20 text-teal-400",
   },
   [AuditLogAction.INVITE_DELETE]: {
+    i18nKey: "server:auditLog.actions.inviteDelete",
     label: "作废/删除邀请链接",
     color: "bg-gray-500/20 text-gray-300",
   },
   GUILD_OWNERSHIP_TRANSFER: {
+    i18nKey: "server:auditLog.actions.guildOwnershipTransfer",
     label: "转让服务器所有权",
     color: "bg-amber-500/20 text-amber-400",
   },
 };
 
 export const AuditLogTab: React.FC<AuditLogTabProps> = ({ guild }) => {
+  const { t } = useTranslation(["server", "common", "errors"]);
   const { token } = useAuthStore();
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -100,10 +116,10 @@ export const AuditLogTab: React.FC<AuditLogTabProps> = ({ guild }) => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-white mb-1">
-            操作审计日志 (Audit Log)
+            {t("server:auditLog.title")}
           </h2>
           <p className="text-xs text-gray-400">
-            细粒度追踪服务器设置变更、身份组调整、成员处分等重要管理员活动。
+            {t("server:auditLog.description")}
           </p>
         </div>
 
@@ -115,26 +131,26 @@ export const AuditLogTab: React.FC<AuditLogTabProps> = ({ guild }) => {
             onChange={(e) => setFilterAction(e.target.value)}
             className="bg-[#1e1f22] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#5865f2]"
           >
-            <option value="ALL">全部操作类型</option>
-            <option value={AuditLogAction.GUILD_UPDATE}>修改服务器</option>
-            <option value={AuditLogAction.ROLE_CREATE}>创建身份组</option>
-            <option value={AuditLogAction.ROLE_UPDATE}>修改身份组</option>
-            <option value={AuditLogAction.ROLE_DELETE}>删除身份组</option>
-            <option value={AuditLogAction.MEMBER_KICK}>踢出成员</option>
-            <option value={AuditLogAction.MEMBER_BAN_ADD}>封禁成员</option>
-            <option value={AuditLogAction.MEMBER_BAN_REMOVE}>解封成员</option>
+            <option value="ALL">{t("server:auditLog.filterAll")}</option>
+            <option value={AuditLogAction.GUILD_UPDATE}>{t("server:auditLog.actions.guildUpdate")}</option>
+            <option value={AuditLogAction.ROLE_CREATE}>{t("server:auditLog.actions.roleCreate")}</option>
+            <option value={AuditLogAction.ROLE_UPDATE}>{t("server:auditLog.actions.roleUpdate")}</option>
+            <option value={AuditLogAction.ROLE_DELETE}>{t("server:auditLog.actions.roleDelete")}</option>
+            <option value={AuditLogAction.MEMBER_KICK}>{t("server:auditLog.actions.memberKick")}</option>
+            <option value={AuditLogAction.MEMBER_BAN_ADD}>{t("server:auditLog.actions.memberBanAdd")}</option>
+            <option value={AuditLogAction.MEMBER_BAN_REMOVE}>{t("server:auditLog.actions.memberBanRemove")}</option>
             <option value={AuditLogAction.MEMBER_ROLE_UPDATE}>
-              更新成员角色
+              {t("server:auditLog.actions.memberRoleUpdate")}
             </option>
-            <option value={AuditLogAction.INVITE_DELETE}>删除邀请码</option>
-            <option value="GUILD_OWNERSHIP_TRANSFER">转让所有权</option>
+            <option value={AuditLogAction.INVITE_DELETE}>{t("server:auditLog.actions.inviteDelete")}</option>
+            <option value="GUILD_OWNERSHIP_TRANSFER">{t("server:auditLog.actions.guildOwnershipTransfer")}</option>
           </select>
         </div>
       </div>
 
       {isLoading ? (
         <div className="py-12 text-center text-xs text-gray-400 animate-pulse">
-          正在加载审计记录...
+          {t("server:auditLog.loading")}
         </div>
       ) : logs.length === 0 ? (
         <div className="rounded-xl bg-[#2b2d31]/30 border border-white/5 p-12 text-center flex flex-col items-center justify-center space-y-3">
@@ -142,19 +158,18 @@ export const AuditLogTab: React.FC<AuditLogTabProps> = ({ guild }) => {
             <FileText className="w-6 h-6" />
           </div>
           <div className="text-sm font-semibold text-gray-300">
-            暂无匹配的审计记录
+            {t("server:auditLog.noLogs")}
           </div>
           <p className="text-xs text-gray-500 max-w-sm">
-            任何管理员对服务器、角色、成员或邀请的调整都会永久留存记录于此。
+            {t("server:auditLog.noLogsDesc")}
           </p>
         </div>
       ) : (
         <div className="rounded-xl bg-[#2b2d31]/40 border border-white/5 divide-y divide-white/5 overflow-hidden">
           {logs.map((log) => {
-            const meta = ACTION_DESCRIPTIONS[log.action] || {
-              label: log.action,
-              color: "bg-gray-500/20 text-gray-300",
-            };
+            const meta = ACTION_DESCRIPTIONS[log.action];
+            const actionLabel = meta?.i18nKey ? t(meta.i18nKey) : meta?.label || log.action;
+            const actionColor = meta?.color || "bg-gray-500/20 text-gray-300";
 
             return (
               <div
@@ -173,16 +188,16 @@ export const AuditLogTab: React.FC<AuditLogTabProps> = ({ guild }) => {
                       className="w-7 h-7 rounded-full bg-[#1e1f22] object-cover ring-1 ring-white/10 shrink-0"
                     />
                     <span className="text-xs font-bold text-white">
-                      {log.user?.username || "未知管理员"}
+                      {log.user?.username || t("server:auditLog.table.actor")}
                     </span>
                     <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${meta.color}`}
+                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${actionColor}`}
                     >
-                      {meta.label}
+                      {actionLabel}
                     </span>
                     {log.targetName && (
                       <span className="text-xs text-gray-300">
-                        目标：
+                        {t("server:auditLog.table.target")}：
                         <code className="bg-[#1e1f22] px-1.5 py-0.5 rounded text-white font-semibold">
                           {log.targetName}
                         </code>
@@ -199,7 +214,7 @@ export const AuditLogTab: React.FC<AuditLogTabProps> = ({ guild }) => {
                 {/* 理由说明 */}
                 {log.reason && (
                   <div className="text-xs text-gray-400 pl-9">
-                    理由：{log.reason}
+                    {t("server:bans.table.reason")}：{log.reason}
                   </div>
                 )}
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import {
   useContextMenuStore,
   MessageMenuData,
@@ -126,6 +127,7 @@ const MessageMenuItems: React.FC<MessageMenuItemsProps> = ({
   setCopiedId,
   onClose,
 }) => {
+  const { t } = useTranslation(["contextMenu", "common"]);
   const { message, guild, onReply, onEdit, onDelete, onTogglePin, onAddReaction } =
     data;
   const { canManageMessages } = usePermissions(guild);
@@ -174,7 +176,7 @@ const MessageMenuItems: React.FC<MessageMenuItemsProps> = ({
               onClose();
             }}
             className="text-base hover:scale-125 hover:bg-[#35373c] p-1 rounded transition-transform"
-            title={`添加反应 ${emoji}`}
+            title={`${t("contextMenu:addReaction")} ${emoji}`}
           >
             {emoji}
           </button>
@@ -194,7 +196,7 @@ const MessageMenuItems: React.FC<MessageMenuItemsProps> = ({
         >
           <div className="flex items-center space-x-2">
             <Reply className="w-4 h-4 text-discord-textMuted" />
-            <span>引用回复</span>
+            <span>{t("contextMenu:quoteReply")}</span>
           </div>
         </div>
       )}
@@ -210,7 +212,7 @@ const MessageMenuItems: React.FC<MessageMenuItemsProps> = ({
         >
           <div className="flex items-center space-x-2">
             <Edit2 className="w-4 h-4 text-discord-textMuted" />
-            <span>编辑消息</span>
+            <span>{t("contextMenu:editMessage")}</span>
           </div>
         </div>
       )}
@@ -232,7 +234,7 @@ const MessageMenuItems: React.FC<MessageMenuItemsProps> = ({
                   : "text-discord-textMuted"
               }`}
             />
-            <span>{message.isPinned ? "取消置顶" : "置顶消息"}</span>
+            <span>{message.isPinned ? t("contextMenu:unpinMessage") : t("contextMenu:pinMessage")}</span>
           </div>
         </div>
       )}
@@ -250,7 +252,7 @@ const MessageMenuItems: React.FC<MessageMenuItemsProps> = ({
           ) : (
             <Copy className="w-4 h-4 text-discord-textMuted" />
           )}
-          <span>{copiedText ? "已复制消息内容" : "复制文字消息"}</span>
+          <span>{copiedText ? t("common:copied") : t("contextMenu:copyText")}</span>
         </div>
       </div>
 
@@ -265,7 +267,7 @@ const MessageMenuItems: React.FC<MessageMenuItemsProps> = ({
           ) : (
             <Copy className="w-4 h-4 text-discord-textMuted" />
           )}
-          <span>{copiedId ? "已复制消息 ID" : "复制消息 ID"}</span>
+          <span>{copiedId ? t("common:copied") : t("contextMenu:copyMessageId")}</span>
         </div>
       </div>
 
@@ -282,7 +284,7 @@ const MessageMenuItems: React.FC<MessageMenuItemsProps> = ({
           >
             <div className="flex items-center space-x-2">
               <Trash2 className="w-4 h-4" />
-              <span>撤回 / 删除消息</span>
+              <span>{t("contextMenu:deleteMessage")}</span>
             </div>
           </div>
         </>
@@ -307,6 +309,7 @@ const UserMenuItems: React.FC<UserMenuItemsProps> = ({
   setCopiedId,
   onClose,
 }) => {
+  const { t } = useTranslation(["contextMenu", "common"]);
   const {
     targetUser,
     guild,
@@ -362,7 +365,7 @@ const UserMenuItems: React.FC<UserMenuItemsProps> = ({
         >
           <div className="flex items-center space-x-2">
             <UserIcon className="w-4 h-4 text-discord-textMuted" />
-            <span>个人资料</span>
+            <span>{t("contextMenu:profile")}</span>
           </div>
         </div>
       )}
@@ -378,7 +381,7 @@ const UserMenuItems: React.FC<UserMenuItemsProps> = ({
         >
           <div className="flex items-center space-x-2">
             <MessageSquare className="w-4 h-4 text-discord-textMuted" />
-            <span>发消息</span>
+            <span>{t("contextMenu:sendMessage")}</span>
           </div>
         </div>
       )}
@@ -394,7 +397,7 @@ const UserMenuItems: React.FC<UserMenuItemsProps> = ({
         >
           <div className="flex items-center space-x-2">
             <AtSign className="w-4 h-4 text-discord-textMuted" />
-            <span>提及</span>
+            <span>{t("contextMenu:mentionUser")}</span>
           </div>
         </div>
       )}
@@ -405,7 +408,7 @@ const UserMenuItems: React.FC<UserMenuItemsProps> = ({
           <div className="flex items-center justify-between text-[11px] text-discord-textMuted mb-1">
             <span className="flex items-center space-x-1">
               <Volume2 className="w-3.5 h-3.5" />
-              <span>用户音量</span>
+              <span>{t("contextMenu:userVolume")}</span>
             </span>
             <span>{volume}%</span>
           </div>
@@ -433,7 +436,7 @@ const UserMenuItems: React.FC<UserMenuItemsProps> = ({
           ) : (
             <Copy className="w-4 h-4 text-discord-textMuted" />
           )}
-          <span>{copiedId ? "已复制用户 ID" : "复制用户 ID"}</span>
+          <span>{copiedId ? t("common:copied") : t("contextMenu:copyUserId")}</span>
         </div>
       </div>
 
@@ -452,7 +455,7 @@ const UserMenuItems: React.FC<UserMenuItemsProps> = ({
             >
               <div className="flex items-center space-x-2">
                 <UserX className="w-4 h-4" />
-                <span>踢出 {targetUser.username}</span>
+                <span>{t("contextMenu:kickUserNamed", { name: targetUser.username })}</span>
               </div>
             </div>
           )}
@@ -467,7 +470,7 @@ const UserMenuItems: React.FC<UserMenuItemsProps> = ({
             >
               <div className="flex items-center space-x-2">
                 <ShieldAlert className="w-4 h-4" />
-                <span>封禁 {targetUser.username}</span>
+                <span>{t("contextMenu:banUserNamed", { name: targetUser.username })}</span>
               </div>
             </div>
           )}

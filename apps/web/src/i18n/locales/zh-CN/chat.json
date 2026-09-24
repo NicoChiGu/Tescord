@@ -18,7 +18,105 @@
   "historyDivider": "以下是新消息",
   "noMessages": "暂无消息，来打个招呼吧！",
   "typing": "{{users}} 正在输入...",
+  "typingOne": "{{user}} 正在输入...",
+  "typingTwo": "{{user1}} 和 {{user2}} 正在输入...",
+  "typingMany": "数人正在输入...",
   "searchMessages": "密文搜索...",
   "memberList": "成员列表",
-  "pinnedMessages": "置顶消息列表"
+  "pinnedMessages": "置顶消息列表",
+  "dragDropUpload": "拖拽文件到此处即可上传",
+  "uploading": "正在上传附件...",
+  "deleteConfirmTitle": "删除消息",
+  "deleteConfirmDesc": "确定要删除这条消息吗？此操作无法撤销。",
+  "pinnedList": {
+    "title": "已固定的消息",
+    "emptyTitle": "还没有已固定的消息",
+    "emptyDesc": "悬停在 #{{channel}} 中的任何重要消息上，点击右键或操作栏中的“置顶消息”即可将其固定在此处。",
+    "jump": "跳转",
+    "jumpTooltip": "在聊天视口中定位此消息",
+    "unpin": "取消固定"
+  },
+  "friends": {
+    "title": "好友",
+    "tabs": {
+      "online": "在线",
+      "all": "全部",
+      "pending": "待处理",
+      "addFriend": "添加好友"
+    },
+    "add": {
+      "title": "添加好友",
+      "desc": "你可以通过好友的完整用户唯一识别码进行搜索和添加（例如：{{example}}，不可只输入名称或数字标签）。",
+      "placeholder": "你可以输入例如 Nick#12312",
+      "submit": "发送好友申请",
+      "emptyTitle": "结识新伙伴",
+      "emptyDesc": "成为好友后，你们将不受服务器限制，随时随地发起 1v1 即时私信、语音连麦和视频通话。"
+    },
+    "errors": {
+      "inputEmpty": "请输入对方的用户识别码",
+      "missingTag": "缺少数字标签！请输入完整的用户识别码，例如：用户名#12345",
+      "missingUsername": "缺少用户名称！请输入完整的用户识别码，例如：用户名#12345",
+      "invalidFormat": "识别码格式不正确，标签必须为 5 位数字，例如：Nick#12345",
+      "sendFailed": "发送申请失败，请稍后重试",
+      "acceptFailed": "接受申请失败",
+      "actionFailed": "操作失败"
+    },
+    "success": {
+      "mutualFriend": "太棒了！你与 {{name}} 互相发送了申请，已直接成为好友！",
+      "requestSent": "好友申请已成功发送给 {{name}}！"
+    },
+    "list": {
+      "searchPlaceholder": "搜索好友...",
+      "onlineCount": "在线 — {{count}}",
+      "allCount": "全部好友 — {{count}}",
+      "pendingCount": "待处理 — {{count}}",
+      "incomingCount": "收到的申请 — {{count}}",
+      "outgoingCount": "发出的申请 — {{count}}",
+      "emptyOnline": "目前没有好友在线",
+      "emptyAll": "暂无好友，快去“添加好友”结交新伙伴吧！",
+      "emptyPending": "没有待处理的好友申请",
+      "incomingRequest": "发来了好友申请",
+      "waitingAccept": "等待对方同意"
+    },
+    "actions": {
+      "sendMessage": "发送消息",
+      "voiceCall": "语音呼叫",
+      "moreOptions": "更多选项",
+      "removeFriend": "删除好友",
+      "acceptRequest": "接受申请",
+      "rejectRequest": "拒绝申请",
+      "cancelRequest": "取消申请"
+    }
+  },
+  "dm": {
+    "title": "私信列表",
+    "createDM": "发起私信",
+    "friendsTab": "好友",
+    "sectionHeader": "直接消息",
+    "clickToChat": "点击开始私信沟通",
+    "closeDM": "关闭私信",
+    "emptyActiveTitle": "暂无活跃私信会话",
+    "emptyActiveDesc": "点击右上角 + 或在服务器成员列表中右键发起私信",
+    "createModal": {
+      "title": "发起新的私信会话",
+      "inputLabel": "输入对方用户名 (需同属同一服务器)",
+      "placeholder": "用户名，例如: Jackey",
+      "cancel": "取消",
+      "submit": "建立私信",
+      "errorFailed": "发起私信会话失败",
+      "errorServerRequired": "无法发起私信，需双方同属同一服务器"
+    },
+    "incomingCall": {
+      "ariaLabel": "{{username}} 的来电",
+      "callingVoice": "正在向您发起语音呼叫...",
+      "callingVideo": "正在向您发起视频呼叫...",
+      "deviceFingerprint": "设备指纹：{{fingerprint}}",
+      "e2eeTrusted": "已验证设备 · E2EE",
+      "e2eeTofu": "首次信任设备 · E2EE",
+      "e2eeFailed": "设备验证失败",
+      "e2eeNegotiating": "正在验证设备密钥",
+      "acceptTooltip": "接听通话（Alt+A）",
+      "rejectTooltip": "拒绝呼叫（Alt+R）"
+    }
+  }
 }

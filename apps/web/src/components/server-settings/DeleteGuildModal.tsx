@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { AlertTriangle, X, ShieldAlert } from "lucide-react";
 
 interface DeleteGuildModalProps {
@@ -14,6 +15,7 @@ export const DeleteGuildModal: React.FC<DeleteGuildModalProps> = ({
   onClose,
   onConfirm,
 }) => {
+  const { t } = useTranslation(["server", "common", "errors"]);
   // 生成 4 位随机数字安全验证码
   const securityCode = useMemo(() => {
     return Math.floor(1000 + Math.random() * 9000).toString();
@@ -35,7 +37,7 @@ export const DeleteGuildModal: React.FC<DeleteGuildModalProps> = ({
       await onConfirm();
       onClose();
     } catch (err: any) {
-      setError(err?.message || "解散服务器失败，请重试");
+      setError(err?.message || t("errors:UNKNOWN_ERROR"));
     } finally {
       setIsDeleting(false);
     }
@@ -62,7 +64,7 @@ export const DeleteGuildModal: React.FC<DeleteGuildModalProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-rose-500 font-bold text-lg">
             <AlertTriangle className="w-5 h-5" />
-            <span>解散并删除服务器</span>
+            <span>{t("server:deleteModal.title")}</span>
           </div>
           <button
             onClick={onClose}
@@ -84,8 +86,7 @@ export const DeleteGuildModal: React.FC<DeleteGuildModalProps> = ({
           <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs px-3.5 py-2.5 rounded-xl flex items-start gap-2">
             <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0 text-rose-400" />
             <span>
-              此操作具有破坏性且<strong>无法撤销</strong>
-              。该服务器下的所有频道、聊天记录、媒体附件和身份组都将被永久清除。
+              {t("server:deleteModal.warning")}
             </span>
           </div>
         </div>
@@ -93,7 +94,9 @@ export const DeleteGuildModal: React.FC<DeleteGuildModalProps> = ({
         {/* 4 位随机安全验证码区域 */}
         <div className="space-y-3 pt-1">
           <div className="flex flex-col items-center justify-center p-3.5 bg-[#1e1f22] rounded-xl border border-white/5 space-y-1.5">
-            <span className="text-xs text-gray-400 font-medium">安全验证码</span>
+            <span className="text-xs text-gray-400 font-medium">
+              {t("common:dialog.securityCode")}
+            </span>
             <div className="text-2xl font-mono font-extrabold tracking-[0.35em] text-amber-400 select-all bg-black/40 px-5 py-1.5 rounded-lg border border-amber-500/30 shadow-inner">
               {securityCode}
             </div>
@@ -101,7 +104,7 @@ export const DeleteGuildModal: React.FC<DeleteGuildModalProps> = ({
 
           <div className="space-y-1.5">
             <label className="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center justify-between">
-              <span>请输入上方 4 位验证码以确认解散：</span>
+              <span>{t("common:dialog.securityCodePrompt")}</span>
               <span className="text-gray-500 font-normal">{inputCode.length}/4</span>
             </label>
             <input
@@ -127,7 +130,7 @@ export const DeleteGuildModal: React.FC<DeleteGuildModalProps> = ({
             disabled={isDeleting}
             className="px-4 py-2 text-sm font-medium text-gray-300 hover:text-white transition-colors"
           >
-            取消
+            {t("common:cancel")}
           </button>
           <button
             type="button"
@@ -140,7 +143,7 @@ export const DeleteGuildModal: React.FC<DeleteGuildModalProps> = ({
                 : "bg-rose-900/40 text-gray-400 cursor-not-allowed"
             }`}
           >
-            {isDeleting ? "正在删除..." : "删除服务器"}
+            {isDeleting ? t("server:deleteModal.submitting") : t("server:deleteModal.confirmBtn")}
           </button>
         </div>
       </div>

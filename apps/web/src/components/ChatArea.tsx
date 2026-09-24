@@ -252,19 +252,30 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
         <div className="flex-1 overflow-hidden">
           {/* 用户信息与时间栏 */}
           <div className="flex items-center space-x-2">
-            <span
-              data-profile-trigger={`chat-${msg.author.id}`}
-              onContextMenu={handleAuthorContextMenu}
-              onClick={(e) =>
-                onOpenProfile?.(
-                  msg.author,
-                  e.currentTarget.getBoundingClientRect(),
-                )
-              }
-              className="font-semibold text-discord-textHeader text-sm cursor-pointer hover:underline"
-            >
-              {msg.author.username}
-            </span>
+            {(() => {
+              const member = guild?.members?.find((m) => m.userId === msg.author.id);
+              const authorName =
+                member?.nickname ||
+                (msg.author as any).displayName ||
+                (msg.author.username.includes("#")
+                  ? msg.author.username.split("#")[0]
+                  : msg.author.username);
+              return (
+                <span
+                  data-profile-trigger={`chat-${msg.author.id}`}
+                  onContextMenu={handleAuthorContextMenu}
+                  onClick={(e) =>
+                    onOpenProfile?.(
+                      msg.author,
+                      e.currentTarget.getBoundingClientRect(),
+                    )
+                  }
+                  className="font-semibold text-discord-textHeader text-sm cursor-pointer hover:underline"
+                >
+                  {authorName}
+                </span>
+              );
+            })()}
             {isMe && (
               <span className="text-[10px] bg-discord-brand/20 text-discord-brand px-1 rounded font-medium">
                 我

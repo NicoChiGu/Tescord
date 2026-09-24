@@ -10,6 +10,7 @@
   "retry": "重试",
   "back": "返回",
   "next": "下一步",
+  "continue": "继续",
   "search": "搜索",
   "loading": "加载中...",
   "refresh": "刷新",
@@ -35,6 +36,15 @@
     "restore": "向下还原",
     "close": "关闭"
   },
+  "gateway": {
+    "connected": "已连接",
+    "connecting": "正在连接到服务器...",
+    "disconnected": "与服务器已断开连接",
+    "reconnecting": "网络连接已中断，正在尝试重新连接...",
+    "latency": "延迟",
+    "reconnect": "立即重试",
+    "reconnectTooltip": "立即重连"
+  },
   "user": {
     "mute": "静音麦克风",
     "unmute": "取消麦克风静音",
@@ -43,5 +53,76 @@
     "userSettings": "用户设置",
     "copyUserId": "复制用户 ID",
     "viewProfile": "查看个人资料"
+  },
+  "dialog": {
+    "confirm": "确定",
+    "cancel": "取消",
+    "securityCode": "安全验证码",
+    "securityCodePrompt": "请输入上方显示的 4 位安全验证码以继续：",
+    "securityCodeMismatch": "安全验证码输入不正确",
+    "dangerWarning": "此操作具有破坏性且无法撤销！"
+  },
+  "sidebar": {
+    "home": "私信与主页",
+    "admin": "系统管理控制台 (超级管理员)",
+    "addServer": "添加服务器",
+    "explore": "探索公开服务器",
+    "network": "网络质量"
+  },
+  "memberList": {
+    "online": "在线",
+    "offline": "离线",
+    "owner": "服务器所有者",
+    "bot": "机器人",
+    "invisibleSelf": "隐身 (仅自己可见)",
+    "defaultBio": "正在体验 Tescord 🚀"
+  },
+  "profilePopout": {
+    "sendDM": "发送私信给 @{{name}}",
+    "addNote": "添加备注",
+    "clickToAddNote": "点击添加备注",
+    "notePlaceholder": "点击添加备注...",
+    "mutualServers": "共同所在的服务器",
+    "roles": "身份组",
+    "registered": "注册时间",
+    "customStatus": "自定义状态"
+  },
+  "emptyWelcome": {
+    "title": "欢迎来到 Tescord",
+    "subtitle": "纯粹离线自治、高保真实时音视频与极客团队的即时通讯工作空间",
+    "exploreTitle": "探索公开社区",
+    "exploreDesc": "加入各种各样的公开服务器，结识新朋友并畅聊技术",
+    "createTitle": "创建你的第一个服务器",
+    "createDesc": "为你自己的团队、好友圈或游戏战队搭建专属私密空间",
+    "exploreBtn": "立即探索社区 →",
+    "createBtn": "立即创建服务器 →"
+  },
+  "maintenance": {
+    "adminBadge": "[运维模式进行中]",
+    "adminDesc": "普通用户已阻断并展示全屏维护页，当前仅超级管理员可操作与调试。",
+    "announcement": "公告：",
+    "settings": "运维设置",
+    "disableBtn": "一键解除维护",
+    "badge": "维护模式已开启",
+    "title": "系统正在维护升级",
+    "desc": "为了给您带来更稳定优质的服务，管理员正在进行系统维护或升级演练，普通业务已暂时挂起。",
+    "adminAnnouncement": "管理员公告",
+    "startTime": "开启时间：{{time}}",
+    "realtimeTip": "实时长连接通道已建立，维护结束后将自动秒级恢复",
+    "checking": "正在检测服务状态...",
+    "checkBtn": "检查系统状态",
+    "restoring": "维护已结束，正在恢复系统...",
+    "stillMaintenance": "系统仍在维护中，请稍候",
+    "networkChecking": "网络连接检测中，将在服务恢复后自动连接",
+    "currentAccount": "当前账号：",
+    "guest": "游客",
+    "switchAccount": "退出 / 切换账号"
+  },
+  "updater": {
+    "readyTitle": "新版本 v{{version}} 已就绪",
+    "readyDesc": "免安装增量更新已在后台下载完毕，点击重启即可秒级载入新特性！",
+    "restartNow": "立即重启",
+    "nextTime": "下次启动生效",
+    "dismiss": "关闭提醒"
   }
 }

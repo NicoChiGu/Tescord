@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Guild } from "@tescord/types";
 import { Camera, Copy, Check, UploadCloud } from "lucide-react";
 import { API_BASE, resolveServerUrl } from "../../config.js";
@@ -19,6 +20,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   guild,
   onUpdateGuild,
 }) => {
+  const { t } = useTranslation(["server", "common", "errors"]);
   const { getAuthHeaders } = useAuthStore();
   const [name, setName] = useState(guild.name || "");
   const [iconUrl, setIconUrl] = useState(guild.iconUrl || "");
@@ -96,7 +98,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
   const handleSave = async () => {
     if (!name.trim()) {
-      toast.error("服务器名称不能为空");
+      toast.error(t("errors:GUILD_NAME_REQUIRED"));
       return;
     }
     setIsSaving(true);
@@ -109,10 +111,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         isPublic,
       });
       setSaveSuccess(true);
-      toast.success("服务器设置已保存");
+      toast.success(t("server:overview.saveSuccess"));
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err: any) {
-      toast.error(err.message || "保存服务器设置失败");
+      toast.error(err.message || t("errors:UNKNOWN_ERROR"));
     } finally {
       setIsSaving(false);
     }
@@ -121,9 +123,11 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   return (
     <div className="space-y-8 animate-in fade-in duration-200">
       <div>
-        <h2 className="text-xl font-bold text-white mb-1">服务器概览</h2>
+        <h2 className="text-xl font-bold text-white mb-1">
+          {t("server:overview.title")}
+        </h2>
         <p className="text-xs text-gray-400">
-          自定义服务器的名称、个性图标以及基本对外公开描述。
+          {t("server:overview.descriptionPlaceholder")}
         </p>
       </div>
 
@@ -131,7 +135,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         {/* 图标预览与上传 */}
         <div className="flex flex-col items-center md:items-start space-y-3">
           <label className="text-xs font-bold uppercase tracking-wider text-gray-300">
-            服务器图标
+            {t("server:overview.iconLabel")}
           </label>
           <div className="relative group cursor-pointer w-28 h-28 rounded-full bg-[#1e1f22] border-2 border-dashed border-white/20 hover:border-[#5865f2] flex items-center justify-center overflow-hidden transition-all shadow-lg">
             {iconUrl ? (
@@ -147,7 +151,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             )}
             <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity text-white">
               <Camera className="w-6 h-6 mb-1" />
-              <span className="text-[10px] font-bold">更换图标</span>
+              <span className="text-[10px] font-bold">{t("server:overview.changeIcon")}</span>
             </div>
             <input
               type="file"
@@ -171,13 +175,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         <div className="md:col-span-2 space-y-5">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-gray-300 mb-2">
-              服务器名称 <span className="text-rose-500">*</span>
+              {t("server:overview.nameLabel")} <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="例如：Tescord 极客交流区"
+              placeholder={t("server:overview.namePlaceholder")}
               className="w-full bg-[#1e1f22] border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#5865f2] transition-colors"
             />
           </div>
@@ -197,12 +201,12 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-gray-300 mb-2">
-              服务器简述 (Description)
+              {t("server:overview.descriptionLabel")}
             </label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="简要介绍这个服务器的定位、话题或欢迎词..."
+              placeholder={t("server:overview.descriptionPlaceholder")}
               rows={3}
               className="w-full bg-[#1e1f22] border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#5865f2] transition-colors resize-none"
             />
@@ -213,10 +217,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             <div className="flex items-center justify-between p-4 rounded-xl bg-[#1e1f22] border border-white/5">
               <div className="space-y-1">
                 <div className="text-sm font-semibold text-white">
-                  在探索中心公开此服务器
+                  {t("server:overview.publicTitle")}
                 </div>
                 <p className="text-xs text-discord-textMuted">
-                  开启后，任何用户均可在“探索社区”大厅中发现此服务器卡片并直接一键加入。
+                  {t("server:overview.publicDesc")}
                 </p>
               </div>
               <button
@@ -242,7 +246,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
       <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-400">服务器唯一标识：</span>
+          <span className="text-xs text-gray-400">{t("server:overview.guildIdLabel")}</span>
           <code className="text-xs bg-[#1e1f22] px-2 py-1 rounded text-gray-300 border border-white/5 select-all">
             {guild.id}
           </code>
@@ -253,12 +257,12 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             {copiedId ? (
               <>
                 <Check className="w-3.5 h-3.5" />
-                <span>已复制</span>
+                <span>{t("common:copied")}</span>
               </>
             ) : (
               <>
                 <Copy className="w-3.5 h-3.5" />
-                <span>复制 ID</span>
+                <span>{t("common:copy")} ID</span>
               </>
             )}
           </button>
@@ -268,20 +272,20 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         {hasChanges && (
           <div className="flex items-center gap-3 bg-[#111214] px-4 py-2 rounded-xl border border-white/10 shadow-xl animate-in slide-in-from-bottom-2">
             <span className="text-xs text-amber-400 font-medium">
-              小心 — 你有未保存的修改！
+              {t("server:overview.unsavedChanges")}
             </span>
             <button
               onClick={handleReset}
               className="text-xs text-gray-300 hover:underline px-2 py-1"
             >
-              重置
+              {t("server:overview.reset")}
             </button>
             <button
               onClick={handleSave}
               disabled={isSaving}
               className="px-4 py-1.5 rounded-md bg-[#248046] hover:bg-[#1a6334] text-white text-xs font-semibold shadow transition-colors"
             >
-              {isSaving ? "正在保存..." : "保存修改"}
+              {isSaving ? t("server:overview.saving") : t("server:overview.saveChanges")}
             </button>
           </div>
         )}
@@ -289,7 +293,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         {!hasChanges && saveSuccess && (
           <div className="flex items-center gap-1 text-xs text-emerald-400 font-medium">
             <Check className="w-4 h-4" />
-            <span>修改已成功同步！</span>
+            <span>{t("server:overview.saveSuccess")}</span>
           </div>
         )}
       </div>

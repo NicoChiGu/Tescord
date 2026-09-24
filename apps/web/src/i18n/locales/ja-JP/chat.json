@@ -1,13 +1,13 @@
 {
-  "sendToChannel": "#{{name}} へのメッセージ",
-  "sendToChannelPlaceholder": "#{{name}} にメッセージを送信",
-  "uploadFile": "ファイルまたは画像をアップロード (MinIO 直送対応)",
+  "sendToChannel": "#{{name}} に送信",
+  "sendToChannelPlaceholder": "#{{name}} へメッセージを送信",
+  "uploadFile": "ファイルまたは画像をアップロード",
   "selectEmoji": "絵文字を選択",
   "replyingTo": "{{name}} への返信中",
   "cancelReply": "返信をキャンセル",
   "edited": "(編集済み)",
-  "pinned": "ピン留め済み",
-  "pinMessage": "ピン留め",
+  "pinned": "ピン留めされたメッセージ",
+  "pinMessage": "メッセージをピン留め",
   "unpinMessage": "ピン留めを解除",
   "reply": "返信",
   "deleteMessage": "メッセージを削除",
@@ -15,10 +15,108 @@
   "copyLink": "メッセージリンクをコピー",
   "e2eeEncrypted": "エンドツーエンド暗号化メッセージ (E2EE)",
   "e2eeDecrypted": "復号済み",
-  "historyDivider": "新しいメッセージ",
-  "noMessages": "まだメッセージはありません。挨拶してみましょう！",
+  "historyDivider": "ここから新しいメッセージ",
+  "noMessages": "まだメッセージはありません。最初のメッセージを送信しましょう！",
   "typing": "{{users}} が入力中...",
+  "typingOne": "{{user}} が入力中...",
+  "typingTwo": "{{user1}} と {{user2}} が入力中...",
+  "typingMany": "複数人が入力中...",
   "searchMessages": "暗号化メッセージを検索...",
   "memberList": "メンバーリスト",
-  "pinnedMessages": "ピン留めされたメッセージ"
+  "pinnedMessages": "ピン留め一覧",
+  "dragDropUpload": "ここにファイルをドロップしてアップロード",
+  "uploading": "添付ファイルをアップロード中...",
+  "deleteConfirmTitle": "メッセージの削除",
+  "deleteConfirmDesc": "このメッセージを削除してもよろしいですか？この操作は取り消せません。",
+  "pinnedList": {
+    "title": "ピン留めされたメッセージ",
+    "emptyTitle": "ピン留めされたメッセージはまだありません",
+    "emptyDesc": "#{{channel}} のメッセージにカーソルを合わせ、右クリックまたは操作メニューからピン留めしてください。",
+    "jump": "ジャンプ",
+    "jumpTooltip": "チャット内のこのメッセージに移動",
+    "unpin": "ピン留めを解除"
+  },
+  "friends": {
+    "title": "フレンド",
+    "tabs": {
+      "online": "オンライン",
+      "all": "すべて",
+      "pending": "保留中",
+      "addFriend": "フレンドに追加"
+    },
+    "add": {
+      "title": "フレンドに追加",
+      "desc": "フレンドの完全なユーザー固有タグで検索・追加できます（例: {{example}}、名前または数字タグのみは不可）。",
+      "placeholder": "例: Nick#12312 と入力できます",
+      "submit": "フレンドリクエストを送信",
+      "emptyTitle": "新しいフレンドとつながる",
+      "emptyDesc": "フレンドになると、サーバーの制限なく、いつでも1対1のDM、音声通話、ビデオ通話を開始できます。"
+    },
+    "errors": {
+      "inputEmpty": "相手のユーザー識別コードを入力してください",
+      "missingTag": "数字タグがありません！完全なユーザー識別コードを入力してください（例: ユーザー名#12345）",
+      "missingUsername": "ユーザー名がありません！完全なユーザー識別コードを入力してください（例: ユーザー名#12345）",
+      "invalidFormat": "識別コードの形式が正しくありません。タグは5桁の数字である必要があります（例: Nick#12345）",
+      "sendFailed": "リクエストの送信に失敗しました。後でもう一度お試しください",
+      "acceptFailed": "リクエストの承認に失敗しました",
+      "actionFailed": "操作に失敗しました"
+    },
+    "success": {
+      "mutualFriend": "素晴らしい！あなたと {{name}} はお互いに申請を送り、直接フレンドになりました！",
+      "requestSent": "{{name}} にフレンドリクエストを送信しました！"
+    },
+    "list": {
+      "searchPlaceholder": "フレンドを検索...",
+      "onlineCount": "オンライン — {{count}}",
+      "allCount": "すべてのフレンド — {{count}}",
+      "pendingCount": "保留中 — {{count}}",
+      "incomingCount": "受信したリクエスト — {{count}}",
+      "outgoingCount": "送信したリクエスト — {{count}}",
+      "emptyOnline": "現在オンラインのフレンドはいません",
+      "emptyAll": "フレンドがまだいません。「フレンドに追加」から新しい仲間を見つけましょう！",
+      "emptyPending": "保留中のフレンドリクエストはありません",
+      "incomingRequest": "フレンドリクエストが届きました",
+      "waitingAccept": "承認待ち"
+    },
+    "actions": {
+      "sendMessage": "メッセージを送信",
+      "voiceCall": "音声通話",
+      "moreOptions": "その他のオプション",
+      "removeFriend": "フレンドを削除",
+      "acceptRequest": "リクエストを承認",
+      "rejectRequest": "リクエストを拒否",
+      "cancelRequest": "リクエストをキャンセル"
+    }
+  },
+  "dm": {
+    "title": "ダイレクトメッセージ",
+    "createDM": "DMを開始",
+    "friendsTab": "フレンド",
+    "sectionHeader": "ダイレクトメッセージ",
+    "clickToChat": "クリックしてDMを開始",
+    "closeDM": "DMを閉じる",
+    "emptyActiveTitle": "アクティブなDMはありません",
+    "emptyActiveDesc": "右上の + をクリックするか、サーバーメンバーを右クリックしてDMを開始してください",
+    "createModal": {
+      "title": "新しいダイレクトメッセージを開始",
+      "inputLabel": "相手のユーザー名を入力（同じサーバーに所属している必要があります）",
+      "placeholder": "ユーザー名 (例: Jackey)",
+      "cancel": "キャンセル",
+      "submit": "DMを開始",
+      "errorFailed": "DMの開始に失敗しました",
+      "errorServerRequired": "DMを開始できません。双方が同じサーバーに所属している必要があります"
+    },
+    "incomingCall": {
+      "ariaLabel": "{{username}} からの着信",
+      "callingVoice": "から音声通話のリクエストが届いています...",
+      "callingVideo": "からビデオ通話のリクエストが届いています...",
+      "deviceFingerprint": "デバイスフィンガープリント: {{fingerprint}}",
+      "e2eeTrusted": "認証済みデバイス · E2EE",
+      "e2eeTofu": "初回信頼デバイス · E2EE",
+      "e2eeFailed": "デバイスの検証に失敗しました",
+      "e2eeNegotiating": "デバイス鍵を検証中...",
+      "acceptTooltip": "応答（Alt+A）",
+      "rejectTooltip": "拒否（Alt+R）"
+    }
+  }
 }

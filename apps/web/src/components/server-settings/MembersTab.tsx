@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Guild, GuildMember, Role, parseRoleIds } from "@tescord/types";
 import {
   Search,
@@ -37,6 +38,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({
   onBanMember,
   onTransferOwnership,
 }) => {
+  const { t } = useTranslation(["server", "common", "errors"]);
   const { user: currentUser } = useAuthStore();
   const [search, setSearch] = useState("");
   const [activeRolePickerUserId, setActiveRolePickerUserId] = useState<
@@ -117,17 +119,17 @@ export const MembersTab: React.FC<MembersTabProps> = ({
   const handleKick = async (member: GuildMember) => {
     const name = member.nickname || member.user?.username || "该成员";
     const reason = await dialog.prompt({
-      title: `踢出成员 “${name}”`,
-      description: `请输入将 “${name}” 踢出服务器的理由（可选）：`,
-      placeholder: "输入踢出原因...",
-      confirmText: "确认踢出",
+      title: t("server:members.kickConfirmTitle"),
+      description: t("server:members.kickConfirmDesc", { name }),
+      placeholder: t("server:members.searchPlaceholder"),
+      confirmText: t("server:members.kick"),
     });
     if (reason !== null) {
       try {
         await onKickMember(member.userId, reason || undefined);
         toast.success(`已将成员 “${name}” 踢出服务器`);
       } catch (err: any) {
-        toast.error(err?.message || "踢出成员失败");
+        toast.error(err?.message || t("errors:UNKNOWN_ERROR"));
       }
     }
   };
@@ -135,10 +137,10 @@ export const MembersTab: React.FC<MembersTabProps> = ({
   const handleBan = async (member: GuildMember) => {
     const name = member.nickname || member.user?.username || "该成员";
     const reason = await dialog.prompt({
-      title: `封禁成员 “${name}”`,
-      description: `请输入将 “${name}” 封禁并拉入黑名单的理由：`,
-      placeholder: "输入封禁原因...",
-      confirmText: "确认封禁",
+      title: t("server:members.banConfirmTitle"),
+      description: t("server:members.banConfirmDesc", { name }),
+      placeholder: t("server:bans.searchPlaceholder"),
+      confirmText: t("server:members.ban"),
       required: false,
     });
     if (reason !== null) {
@@ -146,7 +148,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({
         await onBanMember(member.userId, reason || undefined);
         toast.success(`已封禁成员 “${name}”`);
       } catch (err: any) {
-        toast.error(err?.message || "封禁成员失败");
+        toast.error(err?.message || t("errors:UNKNOWN_ERROR"));
       }
     }
   };
@@ -154,11 +156,11 @@ export const MembersTab: React.FC<MembersTabProps> = ({
   const handleTransfer = async (member: GuildMember) => {
     const name = member.nickname || member.user?.username || "该成员";
     const confirmed = await dialog.confirm({
-      title: "转让服务器所有权",
+      title: t("server:members.transferOwnership"),
       description: `您确认将服务器的所有权转让给 “${name}” 吗？此操作无法撤销，转让后您将失去该服务器的最高所有者权限！`,
       variant: "danger",
       requireSecurityCode: true,
-      confirmText: "确认转让",
+      confirmText: t("common:confirm"),
     });
     if (!confirmed) return;
 
@@ -167,7 +169,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({
         await onTransferOwnership(member.userId);
         toast.success(`已成功将服务器所有权转让给 “${name}”`);
       } catch (err: any) {
-        toast.error(err?.message || "转让所有权失败");
+        toast.error(err?.message || t("errors:UNKNOWN_ERROR"));
       }
     }
   };
@@ -177,10 +179,10 @@ export const MembersTab: React.FC<MembersTabProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl font-bold text-white mb-1">
-            成员列表 ({guild.members?.length || 0})
+            {t("server:members.title")} ({guild.members?.length || 0})
           </h2>
           <p className="text-xs text-gray-400">
-            查看服务器内所有成员，管理其昵称、授权身份组或实施踢出与封禁。
+            {t("server:members.membersCount", { count: guild.members?.length || 0 })}
           </p>
         </div>
 
@@ -191,7 +193,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="搜索成员或昵称..."
+            placeholder={t("server:members.searchPlaceholder")}
             className="w-full bg-[#1e1f22] border border-white/10 rounded-lg pl-9 pr-3 py-1.5 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#5865f2] transition-colors"
           />
         </div>
@@ -270,7 +272,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                     )}
                     {isMemberOwner && (
                       <span
-                        title="服务器所有者"
+                        title={t("server:members.ownerBadge")}
                         className="text-amber-400 p-0.5 rounded"
                       >
                         <Crown className="w-3.5 h-3.5" />
@@ -278,7 +280,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                     )}
                   </div>
                   <div className="text-[11px] text-gray-400 mt-0.5">
-                    加入时间：{new Date(m.joinedAt).toLocaleDateString()}
+                    {t("server:members.table.joined")}：{new Date(m.joinedAt).toLocaleDateString()}
                   </div>
                 </div>
               </div>
@@ -317,7 +319,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                         )
                       }
                       className="p-1 rounded-full bg-[#1e1f22] hover:bg-white/10 text-gray-300 hover:text-white transition-colors border border-white/5"
-                      title="为成员分配角色"
+                      title={t("server:members.editRoles")}
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
@@ -325,7 +327,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                     {isRolePickerOpen && (
                       <div className="absolute right-0 bottom-full mb-2 w-48 rounded-xl bg-[#1e1f22] border border-white/10 shadow-2xl p-2 z-30 space-y-1 animate-in fade-in duration-100 max-h-56 overflow-y-auto">
                         <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-2 py-1">
-                          选择身份组
+                          {t("server:roles.title")}
                         </div>
                         {roles
                           .filter((r) => !r.isDefault && r.name !== "@everyone")
@@ -379,7 +381,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                       setEditingNicknameUserId(m.userId);
                       setTempNickname(m.nickname || "");
                     }}
-                    title="修改此服务器内的昵称"
+                    title={t("server:members.editNickname")}
                     className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
                   >
                     <Edit2 className="w-4 h-4" />
@@ -390,7 +392,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                 {canManageThisMember && (
                   <button
                     onClick={() => handleKick(m)}
-                    title="踢出该成员"
+                    title={t("server:members.kick")}
                     className="p-1.5 rounded-lg text-gray-400 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
                   >
                     <UserX className="w-4 h-4" />
@@ -401,7 +403,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                 {canManageThisMember && (
                   <button
                     onClick={() => handleBan(m)}
-                    title="封禁该成员 (拉黑)"
+                    title={t("server:members.ban")}
                     className="p-1.5 rounded-lg text-gray-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
                   >
                     <Ban className="w-4 h-4" />
@@ -412,7 +414,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                 {isOwner && !isMemberOwner && onTransferOwnership && (
                   <button
                     onClick={() => handleTransfer(m)}
-                    title="将服务器所有权转让给该成员"
+                    title={t("server:members.transferOwnership")}
                     className="p-1.5 rounded-lg text-gray-400 hover:text-amber-400 hover:bg-amber-500/10 transition-colors"
                   >
                     <Crown className="w-4 h-4" />

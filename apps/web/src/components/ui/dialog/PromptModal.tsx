@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { MessageSquare } from "lucide-react";
 import { BaseModal } from "./BaseModal";
 import { PromptDialogOptions } from "../../../stores/useDialogStore";
@@ -14,13 +15,14 @@ export const PromptModal: React.FC<PromptModalProps> = ({
   onSubmit,
   onCancel,
 }) => {
+  const { t } = useTranslation("common");
   const {
     title,
     description,
-    placeholder = "请输入...",
+    placeholder = "...",
     defaultValue = "",
-    confirmText = "确定",
-    cancelText = "取消",
+    confirmText = t("common:dialog.confirm", "确定"),
+    cancelText = t("common:dialog.cancel", "取消"),
     required = false,
     maxLength = 200,
   } = options;

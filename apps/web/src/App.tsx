@@ -38,6 +38,7 @@ import { GlobalContextMenu } from "./components/context-menu/GlobalContextMenu.j
 import { GlobalDialogContainer } from "./components/ui/dialog/GlobalDialogContainer.js";
 import { GlobalToastContainer } from "./components/ui/dialog/GlobalToastContainer.js";
 import { dialog } from "./stores/useDialogStore.js";
+import { useTranslation } from "react-i18next";
 import { installFetchInterceptor } from "./services/apiClient.js";
 
 installFetchInterceptor();
@@ -58,6 +59,8 @@ import { IncomingCallModal } from "./components/dm/IncomingCallModal.js";
 import { FloatingPiP } from "./components/FloatingPiP.js";
 import { MaintenanceScreen } from "./components/maintenance/MaintenanceScreen.js";
 import { MaintenanceAdminBanner } from "./components/maintenance/MaintenanceAdminBanner.js";
+import { FriendsDashboard } from "./components/friends/FriendsDashboard.js";
+import { useFriendStore } from "./stores/useFriendStore.js";
 import { UpdateNotificationBanner } from "./components/updater/UpdateNotificationBanner.js";
 import { useMaintenanceStore } from "./stores/useMaintenanceStore.js";
 import { useChannelNavStore } from "./stores/useChannelNavStore.js";
@@ -93,6 +96,7 @@ import { messageDb } from "./services/messageDb.js";
 import { preheatManager } from "./services/preheatManager.js";
 
 export const App: React.FC = () => {
+  const { t } = useTranslation(["common", "server", "modals", "contextMenu"]);
   const {
     user: currentUser,
     isAuthenticated,
@@ -134,6 +138,7 @@ export const App: React.FC = () => {
 
   const [selectedGuildId, setSelectedGuildId] = useState<string | null>(null);
   const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
+  const [isFriendsTabActive, setIsFriendsTabActive] = useState<boolean>(true);
 
   // 切换频道或切换至宽屏桌面端时，自动收起移动端/平板端右侧抽屉
   useEffect(() => {
@@ -1651,7 +1656,43 @@ export const App: React.FC = () => {
       },
     );
 
+    const unbindRelAdd = gatewayClient.on(
+      GatewayEvents.RELATIONSHIP_ADD,
+      (rel: any) => {
+        useFriendStore.getState().onRelationshipAdd(rel);
+        if (rel.type === "PENDING_INCOMING") {
+          showGlobalToast(
+            `收到来自 ${rel.targetUser?.displayName || rel.targetUser?.username} 的好友申请！`,
+            "info",
+          );
+        }
+      },
+    );
+
+    const unbindRelUpdate = gatewayClient.on(
+      GatewayEvents.RELATIONSHIP_UPDATE,
+      (rel: any) => {
+        useFriendStore.getState().onRelationshipUpdate(rel);
+        if (rel.type === "FRIEND") {
+          showGlobalToast(
+            `你与 ${rel.targetUser?.displayName || rel.targetUser?.username} 已成为好友！`,
+            "info",
+          );
+        }
+      },
+    );
+
+    const unbindRelRemove = gatewayClient.on(
+      GatewayEvents.RELATIONSHIP_REMOVE,
+      (data: { userId: string; targetUserId: string }) => {
+        useFriendStore.getState().onRelationshipRemove(data);
+      },
+    );
+
     return () => {
+      unbindRelAdd();
+      unbindRelUpdate();
+      unbindRelRemove();
       unbindMaintenanceUpdate();
       unbindAuthExpired();
       unbindReady();
@@ -2172,10 +2213,13 @@ export const App: React.FC = () => {
   // 业务：删除频道 (右键菜单调用)
   const handleDeleteChannel = async (channel: Channel) => {
     const confirmed = await dialog.confirm({
-      title: "删除频道",
-      description: `确定要删除频道 #${channel.name} 吗？此操作无法撤销，该频道下的所有历史聊天记录将被永久清除。`,
+      title: t("modals:editChannel.deleteConfirmTitle", "删除频道"),
+      description: t("modals:editChannel.deleteConfirmDesc", {
+        name: channel.name,
+        defaultValue: `确定要删除频道 #${channel.name} 吗？此操作无法撤销，所有聊天记录将被永久移除。`,
+      }),
       variant: "danger",
-      confirmText: "删除频道",
+      confirmText: t("modals:editChannel.deleteChannel", "删除频道"),
     });
     if (!confirmed) {
       return;
@@ -2317,10 +2361,12 @@ export const App: React.FC = () => {
   // 业务：退出公会 (右键菜单调用)
   const handleLeaveGuild = async (guild: Guild) => {
     const confirmed = await dialog.confirm({
-      title: "退出服务器",
-      description: `确定要退出服务器 “${guild.name}” 吗？退出后您需要重新通过邀请链接才能再次加入。`,
+      title: t("contextMenu:server.leaveConfirmTitle"),
+      description: t("contextMenu:server.leaveConfirmDesc", {
+        name: guild.name,
+      }),
       variant: "danger",
-      confirmText: "退出服务器",
+      confirmText: t("contextMenu:server.leave"),
     });
     if (!confirmed) {
       return;
@@ -2370,10 +2416,12 @@ export const App: React.FC = () => {
   const handleKickMember = async (userId: string, username: string) => {
     if (!selectedGuildId) return;
     const confirmed = await dialog.confirm({
-      title: "踢出成员",
-      description: `确定要将成员 “${username}” 踢出服务器吗？对方可以重新凭邀请链接进入。`,
+      title: t("server:members.kickConfirmTitle"),
+      description: t("server:members.kickConfirmDesc", {
+        name: username,
+      }),
       variant: "warning",
-      confirmText: "确认踢出",
+      confirmText: t("server:members.kick"),
     });
     if (!confirmed) {
       return;
@@ -2398,10 +2446,12 @@ export const App: React.FC = () => {
   const handleBanMember = async (userId: string, username: string) => {
     if (!selectedGuildId) return;
     const confirmed = await dialog.confirm({
-      title: "封禁成员",
-      description: `确定要封禁成员 “${username}” 吗？封禁后对方将无法再次凭邀请链接进入本服务器。`,
+      title: t("server:members.banConfirmTitle"),
+      description: t("server:members.banConfirmDesc", {
+        name: username,
+      }),
       variant: "danger",
-      confirmText: "确认封禁",
+      confirmText: t("server:members.ban"),
     });
     if (!confirmed) {
       return;
@@ -2690,10 +2740,42 @@ export const App: React.FC = () => {
         return [dmChannel, ...prev];
       });
       setSelectedGuildId(null);
+      setIsFriendsTabActive(false);
       setSelectedChannel(dmChannel);
     } catch (err) {
       console.error("Failed to start DM:", err);
       showGlobalToast("发起私信会话失败", "error");
+    }
+  };
+
+  // 好友列表快捷发起通话
+  const handleStartCallFromFriend = async (targetUserId: string) => {
+    try {
+      const token = localStorage.getItem("tescord_access_token");
+      const res = await fetch(`${API_BASE}/api/users/@me/channels`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ recipientId: targetUserId }),
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        showGlobalToast(errData.error || "无法发起呼叫", "warning");
+        return;
+      }
+      const dmChannel: Channel = await res.json();
+      setDmChannels((prev) => [
+        dmChannel,
+        ...prev.filter((c) => c.id !== dmChannel.id),
+      ]);
+      setSelectedGuildId(null);
+      setIsFriendsTabActive(false);
+      setSelectedChannel(dmChannel);
+      handleStartCall(dmChannel.id, false);
+    } catch {
+      showGlobalToast("发起呼叫失败", "error");
     }
   };
 
@@ -2997,7 +3079,7 @@ export const App: React.FC = () => {
     }
   };
 
-  // 切换 AI 降噪 (支持三档轮转：RNNoise 标准轻量 -> DTLN 深度消键盘音 -> 关闭)
+  // 切换 AI 降噪 (支持四档轮转：RNNoise 标准轻量 -> DTLN 深度消键盘音 -> DFNv3 旗舰全频 -> 关闭)
   const handleToggleNoiseSuppression = () => {
     const currentMode = noiseSuppressionMode;
 
@@ -3005,6 +3087,8 @@ export const App: React.FC = () => {
     if (currentMode === "rnnoise") {
       nextMode = "dtln";
     } else if (currentMode === "dtln") {
+      nextMode = "dfn3";
+    } else if (currentMode === "dfn3") {
       nextMode = "off";
     } else {
       nextMode = "rnnoise";
@@ -3014,6 +3098,14 @@ export const App: React.FC = () => {
     setIsNoiseSuppressionEnabled(nextEnabled);
     setNoiseSuppressionMode(nextMode);
     audioEngine.setNoiseSuppressionMode(nextMode);
+  };
+
+  // 精准点选 AI 降噪模式
+  const handleSelectNoiseSuppressionMode = (mode: NoiseSuppressionMode) => {
+    const nextEnabled = mode !== "off";
+    setIsNoiseSuppressionEnabled(nextEnabled);
+    setNoiseSuppressionMode(mode);
+    audioEngine.setNoiseSuppressionMode(mode);
   };
 
   // 全面核对当前用户是否正处于屏幕推流状态 (多重事实源兜底校验，防止任何状态不同步)
@@ -3346,12 +3438,10 @@ export const App: React.FC = () => {
         onSelectGuild={(id) => {
           setSelectedGuildId(id);
           if (id === null) {
-            if (dmChannels.length > 0) {
-              setSelectedChannel(dmChannels[0]);
-            } else {
-              setSelectedChannel(null);
-            }
+            setIsFriendsTabActive(true);
+            setSelectedChannel(null);
           } else {
+            setIsFriendsTabActive(false);
             const g = guilds.find((item) => item.id === id);
             if (g) {
               const lastChannelId = useChannelNavStore
@@ -3384,10 +3474,19 @@ export const App: React.FC = () => {
         guild={currentGuild}
         channels={currentChannels}
         dmChannels={dmChannels}
+        isFriendsActive={selectedGuildId === null && isFriendsTabActive}
+        onSelectFriends={() => {
+          setIsFriendsTabActive(true);
+          setSelectedChannel(null);
+          if (isDrawer) {
+            setIsMobileDrawerOpen(false);
+          }
+        }}
         onCloseDMChannel={handleCloseDMChannel}
         onDMChannelCreated={(ch) => {
           setDmChannels((prev) => [ch, ...prev.filter((c) => c.id !== ch.id)]);
           setSelectedGuildId(null);
+          setIsFriendsTabActive(false);
           setSelectedChannel(ch);
         }}
         selectedChannelId={selectedChannel?.id || ""}
@@ -3405,6 +3504,7 @@ export const App: React.FC = () => {
         onDismissVoiceTransferNotice={() => setVoiceTransferNotice(null)}
         onReclaimVoice={(ch) => handleJoinVoiceChannel(ch)}
         onSelectChannel={(ch) => {
+          setIsFriendsTabActive(false);
           setSelectedChannel(ch);
           if (ch.guildId) {
             useChannelNavStore.getState().recordChannelVisit(ch.guildId, ch.id);
@@ -3566,11 +3666,18 @@ export const App: React.FC = () => {
             onStopScreenShare={handleStopScreenShare}
             onToggleVideo={handleToggleCamera}
             onToggleNoiseSuppression={handleToggleNoiseSuppression}
+            onSelectNoiseSuppressionMode={handleSelectNoiseSuppressionMode}
             onLeave={handleLeaveVoiceChannel}
             onJoin={() => handleJoinVoiceChannel(selectedChannel)}
             onCancelJoin={handleCancelVoiceJoin}
             onToggleMobileDrawer={() => setIsMobileDrawerOpen((prev) => !prev)}
             onOpenVideoSettings={() => handleOpenUserSettings("audio", "video")}
+          />
+        ) : selectedGuildId === null && isFriendsTabActive ? (
+          <FriendsDashboard
+            currentUser={currentUser}
+            onStartDM={handleStartDM}
+            onStartCall={handleStartCallFromFriend}
           />
         ) : selectedChannel ? (
           <ChatArea

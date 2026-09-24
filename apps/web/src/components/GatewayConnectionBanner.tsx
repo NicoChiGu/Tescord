@@ -1,5 +1,6 @@
 import React from "react";
 import { Loader2, AlertCircle, RefreshCw } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useGatewayStatus } from "../hooks/useGatewayStatus.js";
 import { gatewayClient } from "../services/gateway.js";
 import { useAuthStore } from "../stores/useAuthStore.js";
@@ -9,6 +10,7 @@ import { useAuthStore } from "../stores/useAuthStore.js";
  * 仅在连接中 (connecting)、断线重连 (reconnecting) 或已断开 (disconnected) 时滑出
  */
 export const GatewayConnectionBanner: React.FC = () => {
+  const { t } = useTranslation(["common"]);
   const { connectionState } = useGatewayStatus();
   const token = useAuthStore((state) => state.token);
 
@@ -42,10 +44,10 @@ export const GatewayConnectionBanner: React.FC = () => {
         )}
         <span>
           {isConnecting
-            ? "正在连接到服务器..."
+            ? t("common:gateway.connecting")
             : isReconnecting
-              ? "网络连接已中断，正在尝试重新连接..."
-              : "与服务器已断开连接"}
+              ? t("common:gateway.reconnecting")
+              : t("common:gateway.disconnected")}
         </span>
       </div>
 
@@ -54,10 +56,10 @@ export const GatewayConnectionBanner: React.FC = () => {
           type="button"
           onClick={handleManualReconnect}
           className="hidden sm:flex items-center space-x-1 px-2 py-0.5 rounded bg-black/20 hover:bg-black/30 transition text-[11px] font-semibold cursor-pointer"
-          title="立即重连"
+          title={t("common:gateway.reconnectTooltip")}
         >
           <RefreshCw className="w-3 h-3" />
-          <span>立即重试</span>
+          <span>{t("common:gateway.reconnect")}</span>
         </button>
       )}
     </div>

@@ -11,6 +11,8 @@ datasource db {
 model User {
   id           String         @id @default(cuid())
   username     String         @unique
+  displayName  String?
+  discriminator String        @default("00000")
   email        String         @unique
   passwordHash String
   avatarUrl    String?
@@ -43,6 +45,8 @@ model User {
   createdRegistrationInvites RegistrationInvite[] @relation("CreatedRegistrationInvites")
   registeredWithInviteCode   String?
   registeredWithInvite       RegistrationInvite?  @relation("RegisteredWithInvite", fields: [registeredWithInviteCode], references: [code], onDelete: SetNull)
+  relationships              Relationship[]       @relation("UserRelationships")
+  targetedRelationships      Relationship[]       @relation("TargetUserRelationships")
 }
 
 model RefreshToken {
@@ -340,4 +344,19 @@ model RegistrationInvite {
 
   @@index([createdById])
   @@index([isRevoked])
+}
+
+// 14. 好友关系与申请
+model Relationship {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation("UserRelationships", fields: [userId], references: [id], onDelete: Cascade)
+  targetUserId String
+  targetUser   User     @relation("TargetUserRelationships", fields: [targetUserId], references: [id], onDelete: Cascade)
+  type         String   // FRIEND | PENDING_INCOMING | PENDING_OUTGOING | BLOCKED
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, targetUserId])
+  @@index([userId, type])
 }

@@ -22,6 +22,12 @@ export interface DesktopLocaleStrings {
   copyImageLink: string;
   inspectElement: string;
   reload: string;
+  splashStarting: string;
+  splashCheckingUpdates: string;
+  splashFoundUpdate: string;
+  splashDownloading: string;
+  splashExtracting: string;
+  splashComplete: string;
 }
 
 export const desktopLocales: Record<SupportedLocale, DesktopLocaleStrings> = {
@@ -47,6 +53,12 @@ export const desktopLocales: Record<SupportedLocale, DesktopLocaleStrings> = {
     copyImageLink: "复制图片链接",
     inspectElement: "检查元素 (Inspect Element)",
     reload: "重新加载页面",
+    splashStarting: "正在启动 Tescord...",
+    splashCheckingUpdates: "正在检查更新...",
+    splashFoundUpdate: "发现新版本，正在下载...",
+    splashDownloading: "正在下载更新...",
+    splashExtracting: "正在解压安装增量包...",
+    splashComplete: "更新已完成，正在载入...",
   },
   "en-US": {
     trayTooltip: "Tescord - Private Real-Time Communication Client",
@@ -70,6 +82,12 @@ export const desktopLocales: Record<SupportedLocale, DesktopLocaleStrings> = {
     copyImageLink: "Copy Image Address",
     inspectElement: "Inspect Element",
     reload: "Reload Page",
+    splashStarting: "Starting Tescord...",
+    splashCheckingUpdates: "Checking for updates...",
+    splashFoundUpdate: "Found new version, downloading...",
+    splashDownloading: "Downloading update...",
+    splashExtracting: "Extracting and installing update...",
+    splashComplete: "Update complete. Loading...",
   },
   "ja-JP": {
     trayTooltip: "Tescord プライベートリアルタイム通信クライアント",
@@ -93,6 +111,12 @@ export const desktopLocales: Record<SupportedLocale, DesktopLocaleStrings> = {
     copyImageLink: "画像のアドレスをコピー",
     inspectElement: "要素の検証",
     reload: "ページの再読み込み",
+    splashStarting: "Tescord を起動中...",
+    splashCheckingUpdates: "アップデートを確認中...",
+    splashFoundUpdate: "新しいバージョンが見つかりました。ダウンロード中...",
+    splashDownloading: "アップデートをダウンロード中...",
+    splashExtracting: "差分パッケージを展開中...",
+    splashComplete: "アップデートが完了しました。読み込み中...",
   },
 };
 
