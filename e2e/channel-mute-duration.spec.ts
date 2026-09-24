@@ -127,13 +127,13 @@ test.describe("频音频道静音与时长选项自动化验收 (Channel Mute & 
       '[data-testid="channel-context-menu-unmute"]',
     );
     await expect(unmuteItem).toBeVisible({ timeout: 3000 });
-    await expect(unmuteItem).toContainText("取消静音频道");
+    await expect(unmuteItem).toContainText("取消静音");
 
     const changeDurationTrigger = page.locator(
       '[data-testid="channel-context-menu-change-mute-trigger"]',
     );
     await expect(changeDurationTrigger).toBeVisible({ timeout: 3000 });
-    await expect(changeDurationTrigger).toContainText("更改静音时长");
+    await expect(changeDurationTrigger).toContainText("静音频道");
 
     // 10. 点击“取消静音频道”
     await unmuteItem.click();

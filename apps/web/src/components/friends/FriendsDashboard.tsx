@@ -13,19 +13,26 @@ import {
   Trash2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Guild } from "@tescord/types";
 import { useFriendStore, FriendTab } from "../../stores/useFriendStore.js";
 import { usePresenceStore } from "../../stores/usePresenceStore.js";
+import { useSettingsStore } from "../../stores/useSettingsStore.js";
+import { UserContextMenu } from "../context-menu/UserContextMenu.js";
 
 interface FriendsDashboardProps {
   currentUser: User;
+  guilds?: Guild[];
   onStartDM: (targetUserId: string) => void;
   onStartCall?: (targetUserId: string) => void;
+  onOpenProfile?: (userId: string) => void;
 }
 
 export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
   currentUser,
+  guilds,
   onStartDM,
   onStartCall,
+  onOpenProfile,
 }) => {
   const { t } = useTranslation(["chat", "common"]);
 
@@ -44,6 +51,8 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
     getPendingIncoming,
     getPendingOutgoing,
   } = useFriendStore();
+
+  const { userNotes, isUserMuted } = useSettingsStore();
 
   const presences = usePresenceStore((s) => s.presences);
 
@@ -186,15 +195,18 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
         ? realtimePresence.customStatus
         : friend.customStatus;
 
-    // 名称分层：主标题大字显示 displayName || 前缀；副标题小字显示 @username
-    const displayMain =
+    // 备注与名称分层：若有备注优先展示备注，副标题展示 @username
+    const note = userNotes?.[friend.id];
+    const originalName =
       friend.displayName ||
       (friend.username.includes("#")
         ? friend.username.split("#")[0]
         : friend.username);
+    const displayMain = note || originalName;
     const displaySub = friend.username.startsWith("@")
       ? friend.username
       : `@${friend.username}`;
+    const muted = isUserMuted(friend.id);
 
     const getStatusDotColor = (st: string) => {
       switch (st) {
@@ -210,110 +222,139 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
     };
 
     return (
-      <div
+      <UserContextMenu
         key={rel.id}
-        className="group flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-[#35373c]/50 transition border-t border-[#1f2023]/40 first:border-none"
+        targetUser={friend}
+        guilds={guilds}
+        onStartCall={onStartCall}
+        onOpenProfile={onOpenProfile}
+        onSendMessage={() => onStartDM(friend.id)}
       >
-        <div className="flex items-center space-x-3 min-w-0 flex-1">
-          {/* 头像 + 状态灯 */}
-          <div className="relative flex-shrink-0">
-            {friend.avatarUrl ? (
-              <img
-                src={friend.avatarUrl}
-                alt={displayMain}
-                className="w-10 h-10 rounded-full object-cover"
+        <div
+          onDoubleClick={() => onStartDM(friend.id)}
+          className="group flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-[#35373c]/50 transition border-t border-[#1f2023]/40 first:border-none cursor-pointer"
+        >
+          <div className="flex items-center space-x-3 min-w-0 flex-1">
+            {/* 头像 + 状态灯 */}
+            <div className="relative flex-shrink-0">
+              {friend.avatarUrl ? (
+                <img
+                  src={friend.avatarUrl}
+                  alt={displayMain}
+                  className="w-10 h-10 rounded-full object-cover"
+                />
+              ) : (
+                <div className="w-10 h-10 rounded-full bg-discord-brand text-white flex items-center justify-center font-bold text-sm">
+                  {displayMain.slice(0, 2).toUpperCase()}
+                </div>
+              )}
+              <span
+                className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-discord-chat ${getStatusDotColor(
+                  status,
+                )}`}
               />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-discord-brand text-white flex items-center justify-center font-bold text-sm">
-                {displayMain.slice(0, 2).toUpperCase()}
-              </div>
-            )}
-            <span
-              className={`absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 rounded-full border-2 border-discord-chat ${getStatusDotColor(
-                status,
-              )}`}
-            />
-          </div>
-
-          {/* 名字分层展示 */}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center space-x-2">
-              <span className="font-semibold text-white text-sm truncate">
-                {displayMain}
-              </span>
-              <span className="text-xs text-discord-textMuted font-mono">
-                {displaySub}
-              </span>
             </div>
-            {customStatus ? (
-              <div className="text-xs text-discord-textMuted truncate mt-0.5">
-                {customStatus}
-              </div>
-            ) : (
-              <div className="text-xs text-discord-textMuted capitalize mt-0.5">
-                {t(`common:status.${status.toLowerCase()}`, {
-                  defaultValue: status.toLowerCase(),
-                })}
-              </div>
-            )}
-          </div>
-        </div>
 
-        {/* 快捷操作区 */}
-        <div className="flex items-center space-x-2 pl-3 relative">
-          <button
-            onClick={() => onStartDM(friend.id)}
-            className="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-[#35373c] text-discord-textMuted hover:text-white flex items-center justify-center transition shadow-sm"
-            title={t("chat:friends.actions.sendMessage", {
-              defaultValue: "发送消息",
-            })}
-          >
-            <MessageSquare className="w-4 h-4" />
-          </button>
-          {onStartCall && (
-            <button
-              onClick={() => onStartCall(friend.id)}
-              className="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-[#35373c] text-discord-textMuted hover:text-white flex items-center justify-center transition shadow-sm"
-              title={t("chat:friends.actions.voiceCall", {
-                defaultValue: "语音呼叫",
-              })}
-            >
-              <Phone className="w-4 h-4" />
-            </button>
-          )}
-          <div className="relative">
-            <button
-              onClick={() =>
-                setActionMenuUserId(
-                  actionMenuUserId === friend.id ? null : friend.id,
-                )
-              }
-              className="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-[#35373c] text-discord-textMuted hover:text-white flex items-center justify-center transition shadow-sm"
-              title={t("chat:friends.actions.moreOptions", {
-                defaultValue: "更多选项",
-              })}
-            >
-              <MoreVertical className="w-4 h-4" />
-            </button>
-
-            {actionMenuUserId === friend.id && (
-              <div className="absolute right-0 top-10 w-36 bg-[#111214] border border-[#232428] rounded-md shadow-xl py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
-                <button
-                  onClick={() => handleRemove(friend.id)}
-                  className="w-full px-3 py-1.5 text-xs text-rose-400 hover:bg-rose-500/20 flex items-center space-x-2 transition text-left"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>
-                    {t("chat:friends.actions.removeFriend", {
-                      defaultValue: "删除好友",
-                    })}
+            {/* 名字分层展示 */}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center space-x-2">
+                <span className="font-semibold text-white text-sm truncate">
+                  {displayMain}
+                </span>
+                {note && (
+                  <span className="text-xs text-discord-textMuted truncate">
+                    ({originalName})
                   </span>
-                </button>
+                )}
+                <span className="text-xs text-discord-textMuted font-mono">
+                  {displaySub}
+                </span>
+                {muted && (
+                  <span className="text-[10px] bg-[#1e1f22] text-discord-textMuted px-1.5 py-0.5 rounded">
+                    {t("common:muted", { defaultValue: "已静音" })}
+                  </span>
+                )}
               </div>
+              {customStatus ? (
+                <div className="text-xs text-discord-textMuted truncate mt-0.5">
+                  {customStatus}
+                </div>
+              ) : (
+                <div className="text-xs text-discord-textMuted capitalize mt-0.5">
+                  {t(`common:status.${status.toLowerCase()}`, {
+                    defaultValue: status.toLowerCase(),
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* 快捷操作区 */}
+          <div className="flex items-center space-x-2 pl-3 relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onStartDM(friend.id);
+              }}
+              className="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-[#35373c] text-discord-textMuted hover:text-white flex items-center justify-center transition shadow-sm"
+              title={t("chat:friends.actions.sendMessage", {
+                defaultValue: "发送消息",
+              })}
+            >
+              <MessageSquare className="w-4 h-4" />
+            </button>
+            {onStartCall && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onStartCall(friend.id);
+                }}
+                className="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-[#35373c] text-discord-textMuted hover:text-white flex items-center justify-center transition shadow-sm"
+                title={t("chat:friends.actions.voiceCall", {
+                  defaultValue: "语音呼叫",
+                })}
+              >
+                <Phone className="w-4 h-4" />
+              </button>
             )}
+            <div className="relative">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setActionMenuUserId(
+                    actionMenuUserId === friend.id ? null : friend.id,
+                  );
+                }}
+                className="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-[#35373c] text-discord-textMuted hover:text-white flex items-center justify-center transition shadow-sm"
+                title={t("chat:friends.actions.moreOptions", {
+                  defaultValue: "更多选项",
+                })}
+              >
+                <MoreVertical className="w-4 h-4" />
+              </button>
+
+              {actionMenuUserId === friend.id && (
+                <div className="absolute right-0 top-10 w-36 bg-[#111214] border border-[#232428] rounded-md shadow-xl py-1 z-30 animate-in fade-in zoom-in-95 duration-100">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemove(friend.id);
+                    }}
+                    className="w-full px-3 py-1.5 text-xs text-rose-400 hover:bg-rose-500/20 flex items-center space-x-2 transition text-left"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>
+                      {t("chat:friends.actions.removeFriend", {
+                        defaultValue: "删除好友",
+                      })}
+                    </span>
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      </UserContextMenu>
     );
   };
 
@@ -377,7 +418,7 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
                 {t("chat:friends.tabs.pending", { defaultValue: "待处理" })}
               </span>
               {pendingCount > 0 && (
-                <span className="px-1.5 py-0.2 text-[10px] font-bold bg-discord-red text-white rounded-full">
+                <span className="px-1.5 py-0.2 text-[10px] font-bold bg-[#f23f43] text-white rounded-full">
                   {pendingCount}
                 </span>
               )}

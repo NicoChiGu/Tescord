@@ -47,6 +47,30 @@ const syncDesktopWindowMode = (mode: "auth" | "main") => {
   }
 };
 
+let activeRefreshPromise: Promise<boolean> | null = null;
+let proactiveRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+
+// Access Token 寿命 15 分钟，在第 12 分钟 (720 秒) 执行主动静默预续期
+const PROACTIVE_REFRESH_INTERVAL_MS = 12 * 60 * 1000;
+
+function clearProactiveRefreshTimer() {
+  if (proactiveRefreshTimer) {
+    clearTimeout(proactiveRefreshTimer);
+    proactiveRefreshTimer = null;
+  }
+}
+
+function scheduleProactiveRefresh(triggerFn: () => Promise<boolean>) {
+  clearProactiveRefreshTimer();
+  proactiveRefreshTimer = setTimeout(async () => {
+    try {
+      await triggerFn();
+    } catch {
+      // 容错处理，由后续请求或重试接管
+    }
+  }, PROACTIVE_REFRESH_INTERVAL_MS);
+}
+
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   setUser: (user) => set({ user }),
@@ -110,6 +134,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             isLoading: false,
           });
           syncDesktopWindowMode("main");
+          scheduleProactiveRefresh(() => get().refreshAuth());
           return;
         }
       }
@@ -162,6 +187,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         error: null,
       });
       syncDesktopWindowMode("main");
+      scheduleProactiveRefresh(() => get().refreshAuth());
     } catch (err: any) {
       set({ error: err.message });
       throw err;
@@ -198,6 +224,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         error: null,
       });
       syncDesktopWindowMode("main");
+      scheduleProactiveRefresh(() => get().refreshAuth());
     } catch (err: any) {
       set({ error: err.message });
       throw err;
@@ -205,41 +232,59 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   refreshAuth: async () => {
+    // 1. 若当前已有正在进行的刷新请求，直接复用 Promise（防并发冲突）
+    if (activeRefreshPromise) {
+      return activeRefreshPromise;
+    }
+
     const refreshToken =
       get().refreshToken || localStorage.getItem("tescord_refresh_token");
     if (!refreshToken) return false;
 
-    try {
-      const res = await fetch(`${API_BASE}/api/auth/refresh`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken }),
-      });
+    activeRefreshPromise = (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken }),
+        });
 
-      if (!res.ok) return false;
+        if (!res.ok) {
+          clearProactiveRefreshTimer();
+          return false;
+        }
 
-      const data = (await res.json()) as AuthTokens;
-      localStorage.setItem("tescord_access_token", data.accessToken);
-      localStorage.setItem("tescord_refresh_token", data.refreshToken);
-      localStorage.setItem("tescord_last_user", JSON.stringify(data.user));
+        const data = (await res.json()) as AuthTokens;
+        localStorage.setItem("tescord_access_token", data.accessToken);
+        localStorage.setItem("tescord_refresh_token", data.refreshToken);
+        localStorage.setItem("tescord_last_user", JSON.stringify(data.user));
 
-      set({
-        user: data.user,
-        lastActiveUser: data.user,
-        accessToken: data.accessToken,
-        token: data.accessToken,
-        refreshToken: data.refreshToken,
-        isAuthenticated: true,
-        isLoading: false,
-        error: null,
-      });
-      return true;
-    } catch {
-      return false;
-    }
+        set({
+          user: data.user,
+          lastActiveUser: data.user,
+          accessToken: data.accessToken,
+          token: data.accessToken,
+          refreshToken: data.refreshToken,
+          isAuthenticated: true,
+          isLoading: false,
+          error: null,
+        });
+
+        // 成功换票后安排下一轮主动静默预续期
+        scheduleProactiveRefresh(() => get().refreshAuth());
+        return true;
+      } catch {
+        return false;
+      } finally {
+        activeRefreshPromise = null;
+      }
+    })();
+
+    return activeRefreshPromise;
   },
 
   logout: () => {
+    clearProactiveRefreshTimer();
     localStorage.removeItem("tescord_access_token");
     localStorage.removeItem("tescord_refresh_token");
     set({
@@ -307,6 +352,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       error: null,
     });
     syncDesktopWindowMode("main");
+    scheduleProactiveRefresh(() => get().refreshAuth());
   },
 
   switchAccount: () => {

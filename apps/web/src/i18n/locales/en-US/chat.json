@@ -118,5 +118,18 @@
       "acceptTooltip": "Accept Call (Alt+A)",
       "rejectTooltip": "Decline Call (Alt+R)"
     }
+  },
+  "invite": {
+    "invitedByUser": "{{user}} invited you to join a server",
+    "invitedPrompt": "You've been invited to join a server",
+    "onlineCount": "{{count}} Online",
+    "memberCount": "{{count}} Members",
+    "join": "Join",
+    "joined": "Joined",
+    "joinSuccess": "Successfully joined {{name}}!",
+    "joinFailed": "Failed to join server",
+    "invalidTitle": "Invite Invalid",
+    "invalidDesc": "This invite may be expired, or you might not have permission to join.",
+    "resolving": "Resolving server invite..."
   }
 }

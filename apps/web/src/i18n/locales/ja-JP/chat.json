@@ -118,5 +118,18 @@
       "acceptTooltip": "応答（Alt+A）",
       "rejectTooltip": "拒否（Alt+R）"
     }
+  },
+  "invite": {
+    "invitedByUser": "{{user}} がサーバーに招待しました",
+    "invitedPrompt": "サーバーへの招待を受け取りました",
+    "onlineCount": "{{count}} オンライン",
+    "memberCount": "{{count}} メンバー",
+    "join": "参加",
+    "joined": "参加済み",
+    "joinSuccess": "サーバー {{name}} に参加しました！",
+    "joinFailed": "サーバーへの参加に失敗しました",
+    "invalidTitle": "無効な招待",
+    "invalidDesc": "この招待リンクは期限切れか、参加権限がありません。",
+    "resolving": "招待を解決中..."
   }
 }

@@ -107,7 +107,7 @@ test("HTTP and Gateway reject missing, expired, revoked and banned sessions", as
   expect(registration.ok()).toBeTruthy();
   const registered = (await registration.json()) as {
     accessToken: string;
-    user: { id: string };
+    user: { id: string; username: string };
   };
   const token = registered.accessToken;
   const [header, payloadPart] = token.split(".");
@@ -147,11 +147,11 @@ test("HTTP and Gateway reject missing, expired, revoked and banned sessions", as
   ).toBe(401);
   const relogin = await request.post("/api/auth/login", {
     data: {
-      emailOrUsername: `security_${suffix}`,
+      emailOrUsername: registered.user.username,
       password: `${password}Changed`,
     },
   });
-  expect(relogin.ok()).toBeTruthy();
+  expect(relogin.ok(), await relogin.text()).toBeTruthy();
   const activeToken = ((await relogin.json()) as { accessToken: string })
     .accessToken;
   const adminLogin = await request.post("/api/auth/login", {

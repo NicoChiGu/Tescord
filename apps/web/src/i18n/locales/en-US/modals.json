@@ -184,5 +184,46 @@
     "passwordMismatch": "Passwords do not match",
     "passwordLengthError": "New password must be at least 10 characters and match the confirmation",
     "failed": "Failed to update password"
+  },
+  "inviteFriends": {
+    "title": "Invite friends to {{serverName}}",
+    "searchPlaceholder": "Search friends",
+    "invite": "Invite",
+    "invited": "Invited",
+    "sentSuccess": "Successfully sent server invite to {{name}}!",
+    "noFriends": "No friends found. You can invite people using the link below.",
+    "noSearchResults": "No matching friends found",
+    "sendLinkPrompt": "Or send a server invite link to a friend",
+    "linkCopied": "Invite link copied to clipboard!",
+    "editLink": "Edit invite link",
+    "expireNever": "Your invite link will never expire.",
+    "expireDays": "Your invite link will expire in {{count}} days.",
+    "expireHours": "Your invite link will expire in {{count}} hours."
+  },
+  "inviteSettings": {
+    "title": "Server Invite Link Settings",
+    "expireTitle": "Expire after",
+    "expireOptions": {
+      "30m": "30 minutes",
+      "1h": "1 hour",
+      "6h": "6 hours",
+      "12h": "12 hours",
+      "1d": "1 day",
+      "7d": "7 days",
+      "never": "Never"
+    },
+    "maxUsesTitle": "Max number of uses",
+    "maxUsesOptions": {
+      "unlimited": "No limit",
+      "1": "1 use",
+      "5": "5 uses",
+      "10": "10 uses",
+      "25": "25 uses",
+      "50": "50 uses",
+      "100": "100 uses"
+    },
+    "temporaryTitle": "Grant temporary membership",
+    "temporaryDesc": "Members are automatically kicked when they disconnect unless a role is assigned.",
+    "generateNew": "Generate a New Link"
   }
 }

@@ -88,7 +88,8 @@ test.describe("Discord 风格左下角当前用户弹窗卡片 (CurrentUserPopou
 
     // 校验核心操作菜单项存在
     await expect(page.getByTestId("popout-edit-profile-btn")).toBeVisible();
-    await expect(popoutCard.getByText("新的")).toBeVisible();
+    await expect(page.getByTestId("popout-badge-new")).toBeVisible();
+    await expect(page.getByTestId("popout-badge-new")).toHaveText(/新的|NEW/);
     await expect(page.getByTestId("popout-status-menu-btn")).toBeVisible();
     await expect(page.getByTestId("popout-switch-account-btn")).toBeVisible();
     await expect(page.getByTestId("popout-copy-id-btn")).toBeVisible();
@@ -126,7 +127,9 @@ test.describe("Discord 风格左下角当前用户弹窗卡片 (CurrentUserPopou
 
     const copyBtn = page.getByTestId("popout-copy-id-btn");
     await copyBtn.click();
-    await expect(popoutCard.getByText("已複製")).toBeVisible({ timeout: 3000 });
+    const copyFeedback = page.getByTestId("popout-copy-feedback");
+    await expect(copyFeedback).toBeVisible({ timeout: 3000 });
+    await expect(copyFeedback).toHaveText(/已[复制複製]|Copied|コピー完了/);
 
     // ===============================================================
     // 场景 6：测试展开在线状态切换子菜单
@@ -163,6 +166,49 @@ test.describe("Discord 风格左下角当前用户弹窗卡片 (CurrentUserPopou
     await expect(page.getByTestId("user-settings-modal")).toBeVisible({
       timeout: 5000,
     });
+
+    // ===============================================================
+    // 场景 8：国际化 (i18n) 动态响应验证 —— 热切换至 English (US) 并验证卡片文案
+    // ===============================================================
+    // 在已打开的用户设置弹窗中，切换至“界面语言” Tab 并选择 English (US)
+    const langTabBtn = page.getByTestId("tab-language-btn");
+    await expect(langTabBtn).toBeVisible({ timeout: 3000 });
+    await langTabBtn.click();
+
+    const enOption = page.getByTestId("lang-option-en-US");
+    await expect(enOption).toBeVisible({ timeout: 3000 });
+    await enOption.click();
+
+    // 关闭用户设置弹窗
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("user-settings-modal")).toHaveCount(0);
+
+    // 重新呼出左下角卡片
+    await userPanelBtn.click();
+    await expect(popoutCard).toBeVisible({ timeout: 5000 });
+
+    // 校验英文模式下的关键文案渲染
+    await expect(page.getByTestId("popout-badge-new")).toHaveText("NEW");
+    await expect(popoutCard.getByText("Edit Profile")).toBeVisible();
+    await expect(popoutCard.getByText("Switch Account")).toBeVisible();
+    await expect(popoutCard.getByText("Copy User ID")).toBeVisible();
+
+    // 校验个性签名 Tooltip 与清除状态后的空状态英文文案
+    const statusBubble = page.getByTestId("user-popout-custom-status-bubble");
+    await expect(statusBubble).toHaveAttribute(
+      "title",
+      /Custom status: .* \(Click to edit\)/,
+    );
+    await statusBubble.hover();
+    const clearBtn = page.getByTitle("Clear status");
+    await expect(clearBtn).toBeVisible();
+    await clearBtn.click();
+    await expect(popoutCard.getByText("Share your thoughts...")).toBeVisible();
+
+    // 展开状态子菜单验证英文状态描述
+    await page.getByTestId("popout-status-menu-btn").click();
+    await expect(popoutCard.getByText("Do Not Disturb")).toBeVisible();
+    await expect(popoutCard.getByText("Invisible")).toBeVisible();
 
     // 确认控制台无严重异常
     expect(uncaughtErrors).toEqual([]);

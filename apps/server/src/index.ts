@@ -83,6 +83,24 @@ const server = fastify({
   bodyLimit: 50 * 1024 * 1024,
 });
 
+server.addContentTypeParser(
+  "application/json",
+  { parseAs: "string" },
+  (_req, body, defaultDone) => {
+    if (!body || (typeof body === "string" && body.trim().length === 0)) {
+      defaultDone(null, {});
+      return;
+    }
+    try {
+      const json = JSON.parse(body as string);
+      defaultDone(null, json);
+    } catch (err: any) {
+      err.statusCode = 400;
+      defaultDone(err, undefined);
+    }
+  },
+);
+
 const requestWindows = new Map<string, { startedAt: number; count: number }>();
 server.addHook("onRequest", async (request, reply) => {
   if (process.env.IS_E2E === "true") return;
@@ -2472,11 +2490,14 @@ server.post("/api/guilds/:guildId/invites", async (request, reply) => {
 
   const body = (request.body || {}) as CreateInviteDTO;
   const maxUses = body.maxUses || 0;
-  const expiresInHours = body.expiresInHours || 0;
   const expiresAt =
-    expiresInHours > 0
-      ? new Date(Date.now() + expiresInHours * 3600 * 1000)
-      : null;
+    body.maxAge !== undefined
+      ? body.maxAge > 0
+        ? new Date(Date.now() + body.maxAge * 1000)
+        : null
+      : body.expiresInHours && body.expiresInHours > 0
+        ? new Date(Date.now() + body.expiresInHours * 3600 * 1000)
+        : null;
   const code = randomBytes(4).toString("hex");
 
   const invite = await prisma.invite.create({
@@ -2497,6 +2518,75 @@ server.post("/api/guilds/:guildId/invites", async (request, reply) => {
     uses: invite.uses,
     expiresAt: invite.expiresAt ? invite.expiresAt.toISOString() : null,
     createdAt: invite.createdAt.toISOString(),
+  };
+});
+
+// 获取邀请码详情与服务器概览信息 (用于渲染聊天中的服务器邀请卡片与加入前展示)
+server.get("/api/invites/:code", async (request, reply) => {
+  const { code } = request.params as any;
+  const invite = await prisma.invite.findUnique({
+    where: { code },
+    include: {
+      guild: {
+        select: {
+          id: true,
+          name: true,
+          iconUrl: true,
+          description: true,
+          _count: {
+            select: { members: true },
+          },
+        },
+      },
+      inviter: {
+        select: {
+          id: true,
+          username: true,
+          avatarUrl: true,
+        },
+      },
+    },
+  });
+
+  if (!invite) {
+    return reply.status(404).send({ error: "邀请码不存在或已失效" });
+  }
+
+  if (invite.expiresAt && new Date() > invite.expiresAt) {
+    return reply.status(410).send({ error: "邀请链接已过期" });
+  }
+
+  if (invite.maxUses > 0 && invite.uses >= invite.maxUses) {
+    return reply.status(410).send({ error: "邀请链接已达最大使用次数" });
+  }
+
+  const memberCount = invite.guild._count.members;
+  const currentUserId = await getUserIdFromRequest(request);
+  let isMember = false;
+  if (currentUserId) {
+    const existingMember = await prisma.guildMember.findUnique({
+      where: {
+        guildId_userId: { guildId: invite.guild.id, userId: currentUserId },
+      },
+    });
+    isMember = !!existingMember;
+  }
+
+  return {
+    code: invite.code,
+    guild: {
+      id: invite.guild.id,
+      name: invite.guild.name,
+      iconUrl: invite.guild.iconUrl,
+      description: invite.guild.description,
+      approximateMemberCount: memberCount,
+      approximatePresenceCount: Math.max(1, Math.floor(memberCount * 0.4)),
+    },
+    inviter: invite.inviter,
+    expiresAt: invite.expiresAt ? invite.expiresAt.toISOString() : null,
+    maxUses: invite.maxUses,
+    uses: invite.uses,
+    isMember,
   };
 });
 
@@ -3501,24 +3591,32 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
       });
       if (r.userId !== author.id) {
         if (r.isClosed) {
-          const restored = await dmService.getDMChannels(r.userId, 1, 100);
-          const restoredChannel = restored.items.find(
-            (item) => item.id === channelId,
-          );
-          if (restoredChannel) {
-            gatewayManager.sendToUser(r.userId, {
-              op: GatewayOpCode.DISPATCH,
-              t: GatewayEvents.DM_CHANNEL_CREATE,
-              d: restoredChannel,
-            });
-          }
-        } else {
-          gatewayManager.sendToUser(r.userId, {
-            op: GatewayOpCode.DISPATCH,
-            t: GatewayEvents.DM_CHANNEL_UPDATE,
-            d: { channelId, isClosed: false, lastMessage: messagePayload },
+          await prisma.channelRecipient.updateMany({
+            where: { channelId, userId: r.userId },
+            data: { isClosed: false },
           });
         }
+        const fullChannel = await dmService.getFormattedDMChannel(
+          r.userId,
+          channelId,
+        );
+        if (fullChannel) {
+          gatewayManager.sendToUser(r.userId, {
+            op: GatewayOpCode.DISPATCH,
+            t: GatewayEvents.DM_CHANNEL_CREATE,
+            d: fullChannel,
+          });
+        }
+        gatewayManager.sendToUser(r.userId, {
+          op: GatewayOpCode.DISPATCH,
+          t: GatewayEvents.DM_CHANNEL_UPDATE,
+          d: {
+            channelId,
+            isClosed: false,
+            lastMessage: messagePayload,
+            unreadIncrement: 1,
+          },
+        });
       }
     }
   } else {

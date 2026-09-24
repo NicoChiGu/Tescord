@@ -121,14 +121,17 @@ export class GatewayManager {
         where: { id: conn.userId },
         select: { isBanned: true, sessionVersion: true },
       });
-      if (
-        !current ||
-        current.isBanned ||
-        current.sessionVersion !== conn.sessionVersion ||
-        (conn.tokenExpiresAt && Date.now() >= conn.tokenExpiresAt)
-      ) {
+      if (!current || current.isBanned) {
         this.send(conn.ws, { op: GatewayOpCode.INVALID_SESSION });
-        conn.ws.close(GatewayCloseCode.TOKEN_EXPIRED, "Session revoked");
+        conn.ws.close(
+          GatewayCloseCode.ACCOUNT_BANNED,
+          "Account suspended or banned",
+        );
+        return;
+      }
+      if (current.sessionVersion !== conn.sessionVersion) {
+        this.send(conn.ws, { op: GatewayOpCode.INVALID_SESSION });
+        conn.ws.close(GatewayCloseCode.SESSION_INVALID, "Session revoked");
         return;
       }
     }
@@ -839,11 +842,7 @@ export class GatewayManager {
     const sessions = this.userSessions.get(userId);
     if (sessions) {
       for (const conn of sessions.values()) {
-        if (conn.tokenExpiresAt && Date.now() >= conn.tokenExpiresAt) {
-          conn.ws.close(GatewayCloseCode.TOKEN_EXPIRED, "Token expired");
-        } else {
-          this.send(conn.ws, payload);
-        }
+        this.send(conn.ws, payload);
       }
     }
   }

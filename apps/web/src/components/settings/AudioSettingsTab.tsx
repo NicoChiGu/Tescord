@@ -106,6 +106,33 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
     QuadABTestResult | TripleABTestResult | null
   >(null);
   const [abError, setABError] = useState<string | null>(null);
+  const abAbortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => abAbortRef.current?.abort(), []);
+  const [noiseStatus, setNoiseStatus] = useState(() => ({
+    ...audioEngine.noiseStatus,
+  }));
+  useEffect(
+    () => () => {
+      if (!abResult) return;
+      for (const url of [
+        abResult.rawUrl,
+        abResult.rnnoiseUrl,
+        abResult.dtlnUrl,
+        abResult.dfn3Url,
+      ]) {
+        if (url) URL.revokeObjectURL(url);
+      }
+    },
+    [abResult],
+  );
+
+  useEffect(() => {
+    const timer = setInterval(
+      () => setNoiseStatus({ ...audioEngine.noiseStatus }),
+      250,
+    );
+    return () => clearInterval(timer);
+  }, []);
 
   // 视频编解码器与硬件加速配置状态
   const [supportedCodecs, setSupportedCodecs] = useState<CodecCapabilityInfo[]>(
@@ -481,21 +508,29 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
   };
 
   const runABComparisonTest = async () => {
+    const controller = new AbortController();
+    abAbortRef.current = controller;
     try {
       setIsABTesting(true);
       setABCountdown(5);
       setABResult(null);
       setABError(null);
 
-      const result = await audioEngine.recordTripleABComparison(5, (sec) => {
-        setABCountdown(sec);
-      });
+      const result = await audioEngine.recordTripleABComparison(
+        5,
+        (sec) => {
+          setABCountdown(sec);
+        },
+        controller.signal,
+      );
 
       setABResult(result);
     } catch (err: any) {
+      if (err?.name === "AbortError") return;
       console.error("A/B test failed:", err);
       setABError(err?.message || t("settings:audioVideo.abErrorMsg"));
     } finally {
+      if (abAbortRef.current === controller) abAbortRef.current = null;
       setIsABTesting(false);
     }
   };
@@ -1431,7 +1466,21 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               )}
             </div>
 
-            {/* 4.3 三轨 A/B/C 录音降噪对比实验室 */}
+            <p
+              className="text-[11px] text-discord-textMuted"
+              data-testid="noise-engine-status"
+            >
+              实际降噪：{noiseStatus.effectiveMode} · {noiseStatus.backend} ·{" "}
+              {noiseStatus.phase}
+              {noiseStatus.reason ? `（${noiseStatus.reason}）` : ""}
+              {noiseStatus.processingP95Ms !== undefined
+                ? ` · 推理 P95 ${noiseStatus.processingP95Ms.toFixed(1)} ms · 队列 ${noiseStatus.queueMs?.toFixed(1) ?? "-"} ms`
+                : ""}
+              {noiseStatus.capture?.warnings.length
+                ? ` · 采集提示：${noiseStatus.capture.warnings.join("、")}`
+                : ""}
+            </p>
+            {/* 4.3 同一段录音的四轨试听 */}
             <div className="bg-[#1e1f22] p-4 rounded-xl border border-white/5 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -1443,10 +1492,10 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                 {abResult && (
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] bg-discord-brand/20 text-discord-brand px-2 py-0.5 rounded-full font-bold">
-                      RNNoise +{abResult.rnnoiseDbReduction} dB
+                      RNNoise {abResult.rnnoiseUrl ? "可试听" : "不可用"}
                     </span>
                     <span className="text-[10px] bg-discord-green/20 text-discord-green px-2 py-0.5 rounded-full font-bold">
-                      DTLN +{abResult.dtlnDbReduction} dB
+                      DTLN {abResult.dtlnUrl ? "可试听" : "不可用"}
                     </span>
                   </div>
                 )}
@@ -1493,6 +1542,13 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                       style={{ width: `${((5 - abCountdown) / 5) * 100}%` }}
                     />
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => abAbortRef.current?.abort()}
+                    className="mt-2 text-[11px] text-gray-400 hover:text-white"
+                  >
+                    取消试听
+                  </button>
                 </div>
               )}
 
@@ -1519,14 +1575,19 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                       <div className="text-[11px] font-bold text-discord-brand mb-1 flex items-center justify-between">
                         <span>{t("settings:audioVideo.abRnnoiseTrack")}</span>
                         <span className="text-[10px] bg-discord-brand/20 px-1 rounded">
-                          +{abResult.rnnoiseDbReduction} dB
+                          {abResult.rnnoiseUrl ? "可试听" : "不可用"}
                         </span>
                       </div>
                       <audio
-                        src={abResult.rnnoiseUrl}
+                        src={abResult.rnnoiseUrl ?? undefined}
                         controls
                         className="w-full h-7 outline-none"
                       />
+                      {abResult.rnnoiseError && (
+                        <p className="text-[10px] text-red-300 break-words">
+                          {abResult.rnnoiseError}
+                        </p>
+                      )}
                     </div>
 
                     {/* DTLN */}
@@ -1534,14 +1595,19 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                       <div className="text-[11px] font-bold text-discord-green mb-1 flex items-center justify-between">
                         <span>{t("settings:audioVideo.abDtlnTrack")}</span>
                         <span className="text-[10px] bg-discord-green/20 px-1 rounded">
-                          +{abResult.dtlnDbReduction} dB
+                          {abResult.dtlnUrl ? "可试听" : "不可用"}
                         </span>
                       </div>
                       <audio
-                        src={abResult.dtlnUrl}
+                        src={abResult.dtlnUrl ?? undefined}
                         controls
                         className="w-full h-7 outline-none"
                       />
+                      {abResult.dtlnError && (
+                        <p className="text-[10px] text-red-300 break-words">
+                          {abResult.dtlnError}
+                        </p>
+                      )}
                     </div>
 
                     {/* DFNv3 */}
@@ -1549,14 +1615,19 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                       <div className="text-[11px] font-bold text-purple-400 mb-1 flex items-center justify-between">
                         <span>{t("settings:audioVideo.abDfn3Track")}</span>
                         <span className="text-[10px] bg-purple-500/20 text-purple-300 px-1 rounded">
-                          +{abResult.dfn3DbReduction ?? 24.6} dB
+                          {abResult.dfn3Url ? "可试听" : "不可用"}
                         </span>
                       </div>
                       <audio
-                        src={abResult.dfn3Url || abResult.rnnoiseUrl}
+                        src={abResult.dfn3Url ?? undefined}
                         controls
                         className="w-full h-7 outline-none"
                       />
+                      {abResult.dfn3Error && (
+                        <p className="text-[10px] text-red-300 break-words">
+                          {abResult.dfn3Error}
+                        </p>
+                      )}
                     </div>
                   </div>
 

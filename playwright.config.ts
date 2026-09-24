@@ -53,15 +53,16 @@ export default defineConfig({
     {
       command:
         "pnpm --filter @tescord/server exec tsx scripts/run-e2e-server.ts",
-      url: "http://127.0.0.1:3001/health",
-      reuseExistingServer: !process.env.CI,
+      url: "http://127.0.0.1:3101/health",
+      reuseExistingServer: false,
       timeout: 60000,
     },
     {
       command: "pnpm --filter @tescord/web preview --port 4173",
+      env: { TESCORD_E2E_BACKEND_PORT: "3101" },
       url: "https://localhost:4173",
       ignoreHTTPSErrors: true,
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 30000,
     },
   ],

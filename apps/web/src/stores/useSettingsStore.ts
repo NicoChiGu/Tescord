@@ -18,6 +18,8 @@ interface SettingsState extends UserSettingsDTO {
   lastCloudSyncedAt: number | null;
   guildPositions: string[];
   userNotes: Record<string, string>;
+  pinnedDMs: string[];
+  mutedUsers: Record<string, number>;
 
   // Actions
   setAudioConfig: (partial: Partial<AudioProcessingConfig>) => void;
@@ -31,6 +33,12 @@ interface SettingsState extends UserSettingsDTO {
   unmuteChannel: (channelId: string) => void;
   isChannelMuted: (channelId: string) => boolean;
   setGuildPositions: (positions: string[]) => void;
+  pinDM: (channelId: string) => void;
+  unpinDM: (channelId: string) => void;
+  isDMPinned: (channelId: string) => boolean;
+  muteUser: (targetUserId: string, durationMinutes: number) => void;
+  unmuteUser: (targetUserId: string) => void;
+  isUserMuted: (targetUserId: string) => boolean;
   fetchCloudSettings: () => Promise<void>;
   syncToCloud: () => Promise<void>;
 }
@@ -75,6 +83,8 @@ export const useSettingsStore = create<SettingsState>()(
       mutedChannels: {},
       guildPositions: [],
       userNotes: {},
+      pinnedDMs: [],
+      mutedUsers: {},
       isCloudSyncing: false,
       lastCloudSyncedAt: null,
 
@@ -185,6 +195,55 @@ export const useSettingsStore = create<SettingsState>()(
         get().syncToCloud();
       },
 
+      pinDM: (channelId: string) => {
+        set((state) => {
+          if (state.pinnedDMs?.includes(channelId)) return state;
+          return { pinnedDMs: [...(state.pinnedDMs || []), channelId] };
+        });
+        get().syncToCloud();
+      },
+
+      unpinDM: (channelId: string) => {
+        set((state) => ({
+          pinnedDMs: (state.pinnedDMs || []).filter((id) => id !== channelId),
+        }));
+        get().syncToCloud();
+      },
+
+      isDMPinned: (channelId: string) => {
+        return get().pinnedDMs?.includes(channelId) || false;
+      },
+
+      muteUser: (targetUserId: string, durationMinutes: number) => {
+        const until =
+          durationMinutes === -1
+            ? -1
+            : Date.now() + durationMinutes * 60 * 1000;
+        set((state) => ({
+          mutedUsers: {
+            ...(state.mutedUsers || {}),
+            [targetUserId]: until,
+          },
+        }));
+        get().syncToCloud();
+      },
+
+      unmuteUser: (targetUserId: string) => {
+        set((state) => {
+          const updated = { ...(state.mutedUsers || {}) };
+          delete updated[targetUserId];
+          return { mutedUsers: updated };
+        });
+        get().syncToCloud();
+      },
+
+      isUserMuted: (targetUserId: string) => {
+        const until = get().mutedUsers?.[targetUserId];
+        if (until === undefined) return false;
+        if (until === -1) return true;
+        return Date.now() < until;
+      },
+
       fetchCloudSettings: async () => {
         const { getAuthHeaders, isAuthenticated } = useAuthStore.getState();
         if (!isAuthenticated) return;
@@ -240,6 +299,13 @@ export const useSettingsStore = create<SettingsState>()(
                   ...state.userNotes,
                   ...(cloudSettings.userNotes || {}),
                 },
+                pinnedDMs: Array.isArray(cloudSettings.pinnedDMs)
+                  ? cloudSettings.pinnedDMs
+                  : state.pinnedDMs,
+                mutedUsers: {
+                  ...state.mutedUsers,
+                  ...(cloudSettings.mutedUsers || {}),
+                },
                 lastCloudSyncedAt: Date.now(),
               };
             });
@@ -289,6 +355,8 @@ export const useSettingsStore = create<SettingsState>()(
             mutedChannels: state.mutedChannels,
             guildPositions: state.guildPositions,
             userNotes: state.userNotes,
+            pinnedDMs: state.pinnedDMs,
+            mutedUsers: state.mutedUsers,
           };
 
           try {
@@ -319,6 +387,8 @@ export const useSettingsStore = create<SettingsState>()(
         mutedChannels: state.mutedChannels,
         guildPositions: state.guildPositions,
         userNotes: state.userNotes,
+        pinnedDMs: state.pinnedDMs,
+        mutedUsers: state.mutedUsers,
       }),
     },
   ),

@@ -4,27 +4,32 @@
   "private": true,
   "main": "dist/main.js",
   "scripts": {
-    "copy-assets": "node -e \"const fs=require('fs'); fs.mkdirSync('dist/updater', {recursive:true}); fs.copyFileSync('src/updater/splash.html', 'dist/updater/splash.html');\"",
-    "build": "node ../../scripts/generate-build-config.mjs && tsc && pnpm run copy-assets",
+    "copy-assets": "node scripts/copy-assets.mjs",
+    "build:native": "node scripts/build-rnnoise.mjs",
+    "build": "node ../../scripts/generate-build-config.mjs && pnpm run build:native && tsc && pnpm run copy-assets",
     "start": "electron .",
-    "dev": "node ../../scripts/generate-build-config.mjs && tsc && pnpm run copy-assets && electron .",
+    "dev": "pnpm run build && electron .",
     "dist": "pnpm run build && electron-builder",
     "dist:win": "pnpm run build && electron-builder --win",
     "dist:mac": "pnpm run build && electron-builder --mac"
   },
   "dependencies": {
     "@tescord/types": "workspace:*",
-    "adm-zip": "^0.6.1"
+    "adm-zip": "^0.6.1",
+    "onnxruntime-node": "1.22.0"
   },
   "devDependencies": {
+    "@shiguredo/rnnoise-wasm": "2022.2.0",
     "@types/adm-zip": "^0.5.8",
     "electron": "^33.2.1",
     "electron-builder": "^26.15.3",
+    "node-gyp": "11.5.0",
     "typescript": "^5.8.2"
   },
   "build": {
     "appId": "com.tescord.desktop",
     "productName": "Tescord",
+    "electronDist": "node_modules/electron/dist",
     "directories": {
       "output": "release"
     },
@@ -32,6 +37,9 @@
       "dist/**/*",
       "node_modules/**/*",
       "package.json"
+    ],
+    "asarUnpack": [
+      "dist/audio/*.node"
     ],
     "extraResources": [
       {

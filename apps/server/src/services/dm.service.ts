@@ -131,7 +131,49 @@ export class DMService {
       t: GatewayEvents.DM_CHANNEL_CREATE,
       d: formatted,
     });
+
+    // 同时向接收方推送 DM_CHANNEL_CREATE，确保新会话实时出现在接收方私信列表中
+    const recipientFormatted = this.formatDMChannel(
+      fresh,
+      recipient.id,
+      0,
+      dmPresences,
+    );
+    gatewayManager.sendToUser(recipient.id, {
+      op: GatewayOpCode.DISPATCH,
+      t: GatewayEvents.DM_CHANNEL_CREATE,
+      d: recipientFormatted,
+    });
+
     return formatted;
+  }
+
+  async getFormattedDMChannel(
+    userId: string,
+    channelId: string,
+  ): Promise<Channel | null> {
+    const channel = await prisma.channel.findUnique({
+      where: { id: channelId },
+      include: {
+        recipients: { include: { user: true } },
+        messages: {
+          take: 1,
+          orderBy: [{ sequence: "desc" as const }, { id: "desc" as const }],
+          include: { author: true },
+        },
+      },
+    });
+    if (!channel) return null;
+
+    const recipientIds = channel.recipients.map((r) => r.userId);
+    const presences = new Map<string, UserPresence>();
+    await Promise.all(
+      recipientIds.map(async (rid) => {
+        const p = await cacheStore.getUserPresence(rid);
+        if (p) presences.set(rid, p);
+      }),
+    );
+    return this.formatDMChannel(channel, userId, 0, presences);
   }
 
   async getDMChannels(
@@ -304,6 +346,7 @@ export class DMService {
     return {
       id: user.id,
       username: user.username,
+      displayName: user.displayName || null,
       email: "",
       avatarUrl: user.avatarUrl,
       status: effectiveStatus,
@@ -354,7 +397,7 @@ export class DMService {
     return {
       id: channel.id,
       guildId: null,
-      name: other?.username || "私信",
+      name: other?.displayName || other?.username || "私信",
       type: "DM",
       topic: other?.customStatus || other?.bio || null,
       parentId: null,

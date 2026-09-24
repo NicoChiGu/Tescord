@@ -1,9 +1,11 @@
 {
-  "name": "DTLN-Dual-Signal-Transformation-LSTM",
-  "version": "1.0.0",
+  "name": "DTLN",
+  "source": "https://github.com/breizhn/DTLN",
+  "sourceCommit": "1de1f15a8b5b7e1c44905618ff2ef70ca8277fbc",
+  "license": "MIT",
   "sampleRate": 16000,
   "frameSize": 512,
-  "hopSize": 256,
-  "author": "Tescord Offline Acoustic Lab",
-  "description": "Offline-first Dual-Signal Transformation LSTM Network for non-stationary noise and mechanical keyboard suppression"
+  "hopSize": 128,
+  "model1Sha256": "22b91cae3855e5a0620e66a917ca6c82c58db0e842c770f58d86751c5e8d4ae3",
+  "model2Sha256": "e20c92f9233fccf29cddf86970d0d0161a03aebccc26d6f4d5639c4d5ec2e639"
 }

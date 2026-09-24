@@ -184,5 +184,46 @@
     "passwordMismatch": "入力されたパスワードが一致しません",
     "passwordLengthError": "パスワードは10文字以上で、確認用と一致する必要があります",
     "failed": "パスワードの変更に失敗しました"
+  },
+  "inviteFriends": {
+    "title": "{{serverName}} に友達を招待",
+    "searchPlaceholder": "フレンドを検索",
+    "invite": "招待",
+    "invited": "招待済み",
+    "sentSuccess": "{{name}} にサーバー招待を送信しました！",
+    "noFriends": "フレンドがいません。以下のリンクを使って招待できます。",
+    "noSearchResults": "一致するフレンドが見つかりません",
+    "sendLinkPrompt": "またはサーバー招待リンクをフレンドに送信",
+    "linkCopied": "招待リンクをクリップボードにコピーしました！",
+    "editLink": "招待リンクを編集",
+    "expireNever": "招待リンクは無期限です。",
+    "expireDays": "招待リンクは {{count}} 日後に有効期限が切れます。",
+    "expireHours": "招待リンクは {{count}} 時間後に有効期限が切れます。"
+  },
+  "inviteSettings": {
+    "title": "サーバー招待リンクの設定",
+    "expireTitle": "リンクの有効期限",
+    "expireOptions": {
+      "30m": "30分",
+      "1h": "1時間",
+      "6h": "6時間",
+      "12h": "12時間",
+      "1d": "1日",
+      "7d": "7日",
+      "never": "無期限"
+    },
+    "maxUsesTitle": "最大使用回数",
+    "maxUsesOptions": {
+      "unlimited": "無制限",
+      "1": "1回",
+      "5": "5回",
+      "10": "10回",
+      "25": "25回",
+      "50": "50回",
+      "100": "100回"
+    },
+    "temporaryTitle": "一時的なメンバーシップを付与",
+    "temporaryDesc": "役職が割り当てられていない場合、切断時に自動的にキックされます。",
+    "generateNew": "新しいリンクを生成"
   }
 }

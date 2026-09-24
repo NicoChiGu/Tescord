@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   audioEngine,
   ABTestResult,
@@ -37,6 +37,9 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
   isInCall = false,
 }) => {
   const [config, setConfig] = useState(audioEngine.config);
+  const [noiseStatus, setNoiseStatus] = useState(() => ({
+    ...audioEngine.noiseStatus,
+  }));
   const [currentVolume, setCurrentVolume] = useState(0);
 
   // 按键录制状态
@@ -49,9 +52,28 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
     QuadABTestResult | TripleABTestResult | null
   >(null);
   const [abError, setABError] = useState<string | null>(null);
+  const abAbortRef = useRef<AbortController | null>(null);
+  useEffect(
+    () => () => {
+      if (!abResult) return;
+      for (const url of [
+        abResult.rawUrl,
+        abResult.rnnoiseUrl,
+        abResult.dtlnUrl,
+        abResult.dfn3Url,
+      ]) {
+        if (url) URL.revokeObjectURL(url);
+      }
+    },
+    [abResult],
+  );
 
   useEffect(() => {
     if (!isOpen) return;
+    const statusTimer = setInterval(
+      () => setNoiseStatus({ ...audioEngine.noiseStatus }),
+      250,
+    );
 
     // 同步最新引擎配置
     setConfig(audioEngine.config);
@@ -72,6 +94,8 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
     }
 
     return () => {
+      abAbortRef.current?.abort();
+      clearInterval(statusTimer);
       cleanupSpeaking();
       // 关闭设置弹窗时：如果用户并未加入语音频道 (非通话中)，安全释放临时测试麦克风流
       if (!isInCall) {
@@ -174,21 +198,29 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
   };
 
   const runABComparisonTest = async () => {
+    const controller = new AbortController();
+    abAbortRef.current = controller;
     try {
       setIsABTesting(true);
       setABCountdown(5);
       setABResult(null);
       setABError(null);
 
-      const result = await audioEngine.recordTripleABComparison(5, (sec) => {
-        setABCountdown(sec);
-      });
+      const result = await audioEngine.recordTripleABComparison(
+        5,
+        (sec) => {
+          setABCountdown(sec);
+        },
+        controller.signal,
+      );
 
       setABResult(result);
     } catch (err: any) {
+      if (err?.name === "AbortError") return;
       console.error("A/B test failed:", err);
       setABError(err?.message || "录音对比测试失败，请检查麦克风权限与设备");
     } finally {
+      if (abAbortRef.current === controller) abAbortRef.current = null;
       setIsABTesting(false);
     }
   };
@@ -215,34 +247,33 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
 
         {/* 选项内容滚动区 */}
         <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar">
-          {/* 1. 双引擎 AI 神经网络降噪模式选择器 */}
+          {/* 降噪引擎选择器 */}
           <div className="bg-[#2b2d31] p-4 rounded-xl border border-[#383a40]">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center space-x-2">
                 <Sparkles className="w-5 h-5 text-discord-green" />
                 <span className="text-sm font-bold text-discord-textHeader">
-                  RNNoise 神经网络深度降噪 (DTLN 双引擎)
+                  降噪引擎
                 </span>
               </div>
               <span className="text-[10px] bg-discord-green/20 text-discord-green px-2 py-0.5 rounded-full font-bold flex items-center space-x-1">
                 <Cpu className="w-3 h-3" />
                 <span>
                   {config.noiseSuppressionMode === "dfn3"
-                    ? "DFNv3 48kHz 全频 (复数深度滤波)"
+                    ? "DeepFilterNet3 · 48 kHz"
                     : config.noiseSuppressionMode === "dtln"
-                      ? "DTLN 双流 LSTM (消键盘音)"
+                      ? "DTLN · 16 kHz 双阶段"
                       : config.noiseSuppressionMode === "off" ||
                           !config.noiseSuppression
                         ? "直通模式 (未降噪)"
-                        : "RNNoise WASM 480分帧"}
+                        : "RNNoise · 48 kHz"}
                 </span>
               </span>
             </div>
 
             <p className="text-xs text-discord-textMuted mb-3 leading-relaxed">
-              支持在独立的 AudioWorklet 隔离线程中运行 RNN / LSTM /
-              复数深度滤波神经网络。RNNoise 专注极速底噪滤除，DTLN
-              专注消键盘音，DFNv3 提供 48kHz 全频带广播级高保真降噪。
+              每次只启用一种降噪模型。浏览器使用本地 WASM，Electron
+              使用独立原生进程；不同噪声下的效果请以试听为准。
             </p>
 
             {/* 4 档分段卡片选择器 */}
@@ -292,12 +323,12 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
                       )}
                   </div>
                   <p className="text-[10px] text-discord-textMuted">
-                    150KB WASM 极低算力，消除风扇风噪与平稳室内底噪
+                    48 kHz 轻量实时降噪，适合日常语音通话
                   </p>
                 </div>
               </button>
 
-              {/* 模式 3: DTLN 深度净化 (推荐消除机械键盘音) */}
+              {/* 模式 3: DTLN 双阶段降噪 */}
               <button
                 type="button"
                 onClick={() => handleNoiseModeChange("dtln")}
@@ -314,16 +345,16 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
                       <span>DTLN 深度净化</span>
                     </span>
                     <span className="text-[9px] bg-discord-green text-black px-1.5 py-0.2 rounded font-bold">
-                      消键盘音
+                      16k 双阶段
                     </span>
                   </div>
                   <p className="text-[10px] text-discord-textMuted">
-                    时频双流 LSTM，专攻青轴打字、敲桌瞬态爆音
+                    双阶段 LSTM，经重采样接入 48 kHz 通话
                   </p>
                 </div>
               </button>
 
-              {/* 模式 4: DFNv3 旗舰声学全频高保真 */}
+              {/* 模式 4: DeepFilterNet3 */}
               <button
                 type="button"
                 onClick={() => handleNoiseModeChange("dfn3")}
@@ -337,14 +368,14 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <span className="font-bold text-xs flex items-center space-x-1">
-                      <span>DFNv3 旗舰声学</span>
+                      <span>DeepFilterNet3</span>
                     </span>
                     <span className="text-[9px] bg-purple-500 text-white px-1.5 py-0.2 rounded font-bold">
                       48k全频
                     </span>
                   </div>
                   <p className="text-[10px] text-discord-textMuted">
-                    DeepFilterNet3 48kHz 复数滤波，广播级人声通透
+                    48 kHz 复数深度滤波，默认最大衰减 12 dB
                   </p>
                 </div>
               </button>
@@ -681,29 +712,43 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
             )}
           </div>
 
-          {/* 7. 降噪前后效果对比测试录音小工具 (三轨 A/B/C Test Tool) */}
+          <p
+            className="text-xs text-discord-textMuted"
+            data-testid="noise-engine-status"
+          >
+            实际降噪：{noiseStatus.effectiveMode} · {noiseStatus.backend} ·{" "}
+            {noiseStatus.phase}
+            {noiseStatus.reason ? `（${noiseStatus.reason}）` : ""}
+            {noiseStatus.processingP95Ms !== undefined
+              ? ` · 推理 P95 ${noiseStatus.processingP95Ms.toFixed(1)} ms · 队列 ${noiseStatus.queueMs?.toFixed(1) ?? "-"} ms`
+              : ""}
+            {noiseStatus.capture?.warnings.length
+              ? ` · 采集提示：${noiseStatus.capture.warnings.join("、")}`
+              : ""}
+          </p>
+          {/* 7. 同一段录音的四轨试听 */}
           <div className="bg-[#232428] p-4 rounded-xl border border-[#383a40]">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center space-x-2">
                 <Sliders className="w-4 h-4 text-discord-brand" />
                 <span className="text-sm font-bold text-discord-textHeader">
-                  AI 降噪前后效果三轨录音试听对比
+                  AI 降噪前后效果四轨录音试听对比
                 </span>
               </div>
               {abResult && (
                 <div className="flex items-center space-x-2">
                   <span className="text-[11px] bg-discord-brand/20 text-discord-brand px-2 py-0.5 rounded-full font-bold">
-                    RNNoise +{abResult.rnnoiseDbReduction} dB
+                    RNNoise {abResult.rnnoiseUrl ? "可试听" : "不可用"}
                   </span>
                   <span className="text-[11px] bg-discord-green/20 text-discord-green px-2 py-0.5 rounded-full font-bold">
-                    DTLN +{abResult.dtlnDbReduction} dB
+                    DTLN {abResult.dtlnUrl ? "可试听" : "不可用"}
                   </span>
                 </div>
               )}
             </div>
             <p className="text-xs text-discord-textMuted mb-3">
-              点击下方按钮录制 5 秒音频，系统将同时捕获原始带噪声音频、RNNoise
-              滤噪及 DTLN 深度消键盘音音频供您同屏试听对比。
+              先录制同一段 5 秒原声，再分别交给 RNNoise、DTLN 和 DeepFilterNet3
+              处理。系统会估计并校正可辨认的起点；平稳或微弱声音可能无法可靠对齐。
             </p>
 
             {abError && (
@@ -743,6 +788,13 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
                     style={{ width: `${((5 - abCountdown) / 5) * 100}%` }}
                   />
                 </div>
+                <button
+                  type="button"
+                  onClick={() => abAbortRef.current?.abort()}
+                  className="mt-3 text-xs text-discord-textMuted hover:text-white"
+                >
+                  取消试听
+                </button>
               </div>
             )}
 
@@ -775,14 +827,19 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
                         <span>RNNoise 滤噪</span>
                       </div>
                       <span className="text-[10px] bg-discord-brand/20 px-1.5 py-0.2 rounded font-bold">
-                        +{abResult.rnnoiseDbReduction} dB
+                        {abResult.rnnoiseUrl ? "可试听" : "不可用"}
                       </span>
                     </div>
                     <audio
-                      src={abResult.rnnoiseUrl}
+                      src={abResult.rnnoiseUrl ?? undefined}
                       controls
                       className="w-full h-8 outline-none"
                     />
+                    {abResult.rnnoiseError && (
+                      <p className="text-[10px] text-red-300 break-words">
+                        {abResult.rnnoiseError}
+                      </p>
+                    )}
                   </div>
 
                   {/* 3. DTLN 深度降噪 */}
@@ -793,14 +850,19 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
                         <span>DTLN 深度净化</span>
                       </div>
                       <span className="text-[10px] bg-discord-green/20 text-discord-green px-1.5 py-0.2 rounded font-bold">
-                        +{abResult.dtlnDbReduction} dB
+                        {abResult.dtlnUrl ? "可试听" : "不可用"}
                       </span>
                     </div>
                     <audio
-                      src={abResult.dtlnUrl}
+                      src={abResult.dtlnUrl ?? undefined}
                       controls
                       className="w-full h-8 outline-none"
                     />
+                    {abResult.dtlnError && (
+                      <p className="text-[10px] text-red-300 break-words">
+                        {abResult.dtlnError}
+                      </p>
+                    )}
                   </div>
 
                   {/* 4. DFNv3 旗舰全频降噪 */}
@@ -811,21 +873,26 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
                         <span>DFNv3 旗舰全频</span>
                       </div>
                       <span className="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.2 rounded font-bold">
-                        +{abResult.dfn3DbReduction ?? 24.6} dB
+                        {abResult.dfn3Url ? "可试听" : "不可用"}
                       </span>
                     </div>
                     <audio
-                      src={abResult.dfn3Url || abResult.rnnoiseUrl}
+                      src={abResult.dfn3Url ?? undefined}
                       controls
                       className="w-full h-8 outline-none"
                     />
+                    {abResult.dfn3Error && (
+                      <p className="text-[10px] text-red-300 break-words">
+                        {abResult.dfn3Error}
+                      </p>
+                    )}
                   </div>
                 </div>
 
                 <div className="flex justify-between items-center pt-1">
                   <span className="text-[11px] text-discord-green flex items-center space-x-1">
                     <CheckCircle2 className="w-3.5 h-3.5" />
-                    <span>DTLN 对机械键盘瞬态脉冲噪声实现显著声学压制</span>
+                    <span>仅比较试听结果；此录音不计算信噪比提升</span>
                   </span>
                   <button
                     type="button"

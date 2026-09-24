@@ -16,6 +16,7 @@
   "refresh": "Refresh",
   "enabled": "Enabled",
   "disabled": "Disabled",
+  "new": "NEW",
   "status": {
     "online": "Online",
     "idle": "Idle",
@@ -52,7 +53,8 @@
     "undeafen": "Undeafen",
     "userSettings": "User Settings",
     "copyUserId": "Copy User ID",
-    "viewProfile": "View Profile"
+    "viewProfile": "View Profile",
+    "switchAccount": "Switch Account"
   },
   "dialog": {
     "confirm": "Confirm",
@@ -78,6 +80,7 @@
     "defaultBio": "Exploring Tescord 🚀"
   },
   "profilePopout": {
+    "editProfile": "Edit Profile",
     "sendDM": "Send message to @{{name}}",
     "addNote": "Add Note",
     "clickToAddNote": "Click to add a note",
@@ -85,7 +88,23 @@
     "mutualServers": "Mutual Servers",
     "roles": "Roles",
     "registered": "Registered",
-    "customStatus": "Custom Status"
+    "customStatus": "Custom Status",
+    "setStatusPlaceholder": "Set a status...",
+    "saveStatus": "Save status (Enter)",
+    "cancelStatus": "Cancel (Esc)",
+    "customStatusTooltip": "Custom status: {{status}} (Click to edit)",
+    "setCustomStatus": "Click to set custom status",
+    "clearStatus": "Clear status",
+    "emptyStatusPrompt": "Share your thoughts..."
+  },
+  "badges": {
+    "verifiedClient": "Tescord Verified Client",
+    "member": "Tescord Member Badge",
+    "earlyExplorer": "Early Explorer",
+    "geekPioneer": "Geek Pioneer"
+  },
+  "activity": {
+    "playing": "Playing"
   },
   "emptyWelcome": {
     "title": "Welcome to Tescord",

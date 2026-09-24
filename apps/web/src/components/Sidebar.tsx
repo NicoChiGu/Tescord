@@ -27,6 +27,8 @@ import { CSS } from "@dnd-kit/utilities";
 interface SidebarProps {
   guilds: Guild[];
   selectedGuildId: string | null;
+  totalDmUnread?: number;
+  guildUnreadMap?: Record<string, { hasUnread: boolean; mentionCount: number }>;
   isSuperAdmin?: boolean;
   onOpenAdminDashboard?: () => void;
   onSelectGuild: (guildId: string | null) => void;
@@ -42,6 +44,8 @@ interface SidebarProps {
 interface SortableServerItemProps {
   guild: Guild;
   isSelected: boolean;
+  hasUnread?: boolean;
+  mentionCount?: number;
   onSelectGuild: (guildId: string) => void;
   onOpenCreateChannel?: (guild: Guild) => void;
   onOpenServerSettings?: (guild: Guild) => void;
@@ -52,6 +56,8 @@ interface SortableServerItemProps {
 const SortableServerItem: React.FC<SortableServerItemProps> = ({
   guild,
   isSelected,
+  hasUnread = false,
+  mentionCount = 0,
   onSelectGuild,
   onOpenCreateChannel,
   onOpenServerSettings,
@@ -94,7 +100,7 @@ const SortableServerItem: React.FC<SortableServerItemProps> = ({
           {...sortableAttributes}
           {...listeners}
           onClick={() => onSelectGuild(guild.id)}
-          className={`group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] transition-all duration-200 overflow-hidden shrink-0 touch-none select-none ${
+          className={`group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] transition-all duration-200 overflow-visible shrink-0 touch-none select-none ${
             isSelected ? "!rounded-[16px]" : ""
           }`}
           title={guild.name}
@@ -102,19 +108,35 @@ const SortableServerItem: React.FC<SortableServerItemProps> = ({
         >
           <span
             className={`absolute left-0 w-1 bg-white rounded-r-full transition-all duration-200 ${
-              isSelected ? "h-10" : "h-0 group-hover:h-5"
+              isSelected
+                ? "h-10"
+                : hasUnread
+                  ? "h-2 group-hover:h-5"
+                  : "h-0 group-hover:h-5"
             }`}
           />
-          {guild.iconUrl ? (
-            <img
-              src={guild.iconUrl}
-              alt={guild.name}
-              className="w-full h-full object-cover pointer-events-none"
-            />
-          ) : (
-            <div className="w-full h-full bg-discord-channelList text-discord-textHeader flex items-center justify-center font-semibold text-sm pointer-events-none">
-              {guild.name.slice(0, 2).toUpperCase()}
-            </div>
+          <div className="w-12 h-12 rounded-[24px] group-hover:rounded-[16px] overflow-hidden transition-all duration-200 flex items-center justify-center">
+            {guild.iconUrl ? (
+              <img
+                src={guild.iconUrl}
+                alt={guild.name}
+                className="w-full h-full object-cover pointer-events-none"
+              />
+            ) : (
+              <div className="w-full h-full bg-discord-channelList text-discord-textHeader flex items-center justify-center font-semibold text-sm pointer-events-none">
+                {guild.name.slice(0, 2).toUpperCase()}
+              </div>
+            )}
+          </div>
+
+          {/* 服务器提及未读数字 Badge */}
+          {mentionCount > 0 && !isSelected && (
+            <span
+              className="absolute -bottom-1 -right-1 bg-[#f23f43] text-white text-[10px] font-bold px-1.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center border-2 border-discord-sidebar shadow-md pointer-events-none select-none z-10 animate-in zoom-in-75 duration-150"
+              data-testid={`guild-mention-badge-${guild.id}`}
+            >
+              {mentionCount > 99 ? "99+" : mentionCount}
+            </span>
           )}
         </button>
       </ServerContextMenu>
@@ -125,6 +147,8 @@ const SortableServerItem: React.FC<SortableServerItemProps> = ({
 export const Sidebar: React.FC<SidebarProps> = ({
   guilds,
   selectedGuildId,
+  totalDmUnread = 0,
+  guildUnreadMap = {},
   isSuperAdmin,
   onOpenAdminDashboard,
   onSelectGuild,
@@ -210,22 +234,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside className="w-[72px] h-full bg-discord-sidebar flex flex-col items-center py-3 space-y-2 select-none z-20 shrink-0">
       {/* 私信 / 首页 */}
-      <button
-        onClick={() => onSelectGuild(null)}
-        className={`group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] transition-all duration-200 shrink-0 ${
-          selectedGuildId === null
-            ? "bg-discord-brand text-white !rounded-[16px]"
-            : "bg-discord-channelList text-discord-textNormal hover:bg-discord-brand hover:text-white"
-        }`}
-        title={t("common:sidebar.home", "私信与主页")}
-      >
-        <span
-          className={`absolute left-0 w-1 bg-white rounded-r-full transition-all duration-200 ${
-            selectedGuildId === null ? "h-10" : "h-0 group-hover:h-5"
+      <div className="relative shrink-0 flex items-center justify-center w-full">
+        <button
+          data-testid="home-nav-button"
+          onClick={() => onSelectGuild(null)}
+          className={`group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] transition-all duration-200 shrink-0 ${
+            selectedGuildId === null
+              ? "bg-discord-brand text-white !rounded-[16px]"
+              : "bg-discord-channelList text-discord-textNormal hover:bg-discord-brand hover:text-white"
           }`}
-        />
-        <MessageSquare className="w-6 h-6" />
-      </button>
+          title={t("common:sidebar.home", "私信与主页")}
+        >
+          <span
+            className={`absolute left-0 w-1 bg-white rounded-r-full transition-all duration-200 ${
+              selectedGuildId === null ? "h-10" : "h-0 group-hover:h-5"
+            }`}
+          />
+          <MessageSquare className="w-6 h-6" />
+
+          {/* 右下角 Badge 展示私信未读数量，超过99展示 99+ */}
+          {totalDmUnread > 0 && (
+            <span
+              className="absolute -bottom-1 -right-1 bg-[#f23f43] text-white text-[10px] font-bold px-1.5 min-w-[18px] h-[18px] rounded-full flex items-center justify-center border-2 border-discord-sidebar shadow-md pointer-events-none select-none z-10 animate-in zoom-in-75 duration-150"
+              data-testid="dm-unread-badge"
+            >
+              {totalDmUnread > 99 ? "99+" : totalDmUnread}
+            </span>
+          )}
+        </button>
+      </div>
 
       {/* 超级管理员系统控制台 */}
       {isSuperAdmin && (
@@ -260,11 +297,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             {guilds.map((guild) => {
               const isSelected = selectedGuildId === guild.id;
+              const unreadInfo = guildUnreadMap[guild.id];
               return (
                 <SortableServerItem
                   key={guild.id}
                   guild={guild}
                   isSelected={isSelected}
+                  hasUnread={unreadInfo?.hasUnread || false}
+                  mentionCount={unreadInfo?.mentionCount || 0}
                   onSelectGuild={onSelectGuild}
                   onOpenCreateChannel={onOpenCreateChannel}
                   onOpenServerSettings={onOpenServerSettings}

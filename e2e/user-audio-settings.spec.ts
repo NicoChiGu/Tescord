@@ -36,7 +36,7 @@ test.describe("个人设置中心与全新“音频”菜单交互验收", () =>
 
     // 1. 点击进入首个可用服务器
     const serverButton = page
-      .getByRole("button", { name: /Tescord 极客总部|极客/i })
+      .getByRole("button", { name: /Tescord 极客总部|极客|小窝/i })
       .first();
     await expect(serverButton).toBeVisible({ timeout: 10000 });
     await serverButton.click();
@@ -73,7 +73,7 @@ test.describe("个人设置中心与全新“音频”菜单交互验收", () =>
     await expect(pttCard).toBeVisible();
 
     // 4.3 智能降噪卡片
-    await expect(page.getByText(/AI 智能降噪/i)).toBeVisible();
+    await expect(page.getByText(/本地降噪引擎/i)).toBeVisible();
     const rnnoiseCard = page.getByRole("button", { name: /RNNoise 标准轻量/i });
     const dtlnCard = page.getByRole("button", { name: /DTLN 深度净化/i });
     const offCard = page.getByRole("button", { name: /直通原声/i });
@@ -84,7 +84,7 @@ test.describe("个人设置中心与全新“音频”菜单交互验收", () =>
 
     // 测试点击切换降噪模式
     await dtlnCard.click();
-    await expect(page.getByText(/消键盘音/i)).toBeVisible();
+    await expect(page.getByText(/16 kHz 双阶段 LSTM/i)).toBeVisible();
 
     await offCard.click();
     await expect(page.getByText(/直通模式 \(未降噪\)/i)).toBeVisible();
@@ -99,9 +99,9 @@ test.describe("个人设置中心与全新“音频”菜单交互验收", () =>
     await expect(advancedToggleBtn).toBeVisible();
     await advancedToggleBtn.click();
 
-    // 展开后应能看到 Opus 码率和三轨录音实验室
+    // 展开后应能看到 Opus 码率和四轨录音实验室
     await expect(page.getByText(/Opus 音频推流码率/i)).toBeVisible();
-    await expect(page.getByText(/AI 降噪前后效果三轨录音/i)).toBeVisible();
+    await expect(page.getByText(/AI 降噪前后效果四轨录音/i)).toBeVisible();
 
     // 5. 验证导航栏无缝切换至【个人资料】
     await profileTabBtn.click();
@@ -127,7 +127,7 @@ test.describe("个人设置中心与全新“音频”菜单交互验收", () =>
     await expect(userPanelBtn).toBeVisible();
     await userPanelBtn.click({ button: "right" });
     const contextSettingsItem = page.getByRole("menuitem", {
-      name: /个人设置/i,
+      name: /个人设置|用户设置/i,
     });
     await expect(contextSettingsItem).toBeVisible();
     await contextSettingsItem.click();

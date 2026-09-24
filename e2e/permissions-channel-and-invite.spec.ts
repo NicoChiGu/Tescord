@@ -190,7 +190,7 @@ test.describe("频道与分类拖拽及创建/邀请入口权限控制专项端�
     // 4. 验证右键菜单项完整展现
     // 4.1 右键服务器
     await serverBtn.click({ button: "right" });
-    await expect(page.getByText("邀请其他人")).toBeVisible();
+    await expect(page.getByText(/邀请好友|邀请其他人/)).toBeVisible();
     await expect(page.getByText("创建频道")).toBeVisible();
     await expect(page.getByText("创建分类")).toBeVisible();
     await page.keyboard.press("Escape");

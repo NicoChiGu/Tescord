@@ -136,7 +136,7 @@ test.describe("Tescord Web 端到端冒烟与核心交互验收", () => {
       name: /语音引擎与 RNNoise|降噪控制中心/i,
     });
     await expect(modalHeading).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText(/RNNoise 神经网络深度降噪/i)).toBeVisible();
+    await expect(page.getByText("RNNoise 标准轻量")).toBeVisible();
 
     // 点击右上角关闭按钮
     const closeBtn = page.getByRole("button", { name: "关闭" });

@@ -2,13 +2,16 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import basicSsl from "@vitejs/plugin-basic-ssl";
 
+const backendUrl = `http://127.0.0.1:${process.env.TESCORD_E2E_BACKEND_PORT || "3001"}`;
+const gatewayUrl = `ws://127.0.0.1:${process.env.TESCORD_E2E_BACKEND_PORT || "3001"}`;
+
 const proxyConfig = {
   "/api": {
-    target: "http://127.0.0.1:3001",
+    target: backendUrl,
     changeOrigin: true,
   },
   "/gateway": {
-    target: "ws://127.0.0.1:3001",
+    target: gatewayUrl,
     ws: true,
     configure: (proxy: any) => {
       proxy.on("error", (err: any) => {
@@ -18,15 +21,15 @@ const proxyConfig = {
     },
   },
   "/uploads": {
-    target: "http://127.0.0.1:3001",
+    target: backendUrl,
     changeOrigin: true,
   },
   "/attachments": {
-    target: "http://127.0.0.1:3001",
+    target: backendUrl,
     changeOrigin: true,
   },
   "/public-assets": {
-    target: "http://127.0.0.1:3001",
+    target: backendUrl,
     changeOrigin: true,
   },
   "/minio": {

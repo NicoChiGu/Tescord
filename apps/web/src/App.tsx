@@ -53,6 +53,7 @@ import { CreateCategoryModal } from "./components/modals/CreateCategoryModal.js"
 import { EditCategoryModal } from "./components/modals/EditCategoryModal.js";
 import { ScreenShareModal } from "./components/modals/ScreenShareModal.js";
 import { NetworkQualityModal } from "./components/modals/NetworkQualityModal.js";
+import { InviteFriendsModal } from "./components/modals/InviteFriendsModal.js";
 import { P2PFallbackModal } from "./components/modals/P2PFallbackModal.js";
 import { AdminDashboardModal } from "./components/admin/AdminDashboardModal.js";
 import { IncomingCallModal } from "./components/dm/IncomingCallModal.js";
@@ -336,9 +337,19 @@ export const App: React.FC = () => {
     useState(false);
   const [isP2PFallbackModalOpen, setIsP2PFallbackModalOpen] = useState(false);
   const [p2pFallbackReason, setP2PFallbackReason] = useState<string>("");
+  const [inviteFriendsGuild, setInviteFriendsGuild] = useState<Guild | null>(
+    null,
+  );
 
   // 私信、呼叫与超级管理员状态
   const [dmChannels, setDmChannels] = useState<Channel[]>([]);
+  const [guildUnreadMap, setGuildUnreadMap] = useState<
+    Record<string, { hasUnread: boolean; mentionCount: number }>
+  >({});
+
+  const totalDmUnread = React.useMemo(() => {
+    return dmChannels.reduce((sum, ch) => sum + (ch.unreadCount || 0), 0);
+  }, [dmChannels]);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [incomingCall, setIncomingCall] = useState<{
     callId: string;
@@ -822,21 +833,83 @@ export const App: React.FC = () => {
           });
         }
 
-        // 若属于私信会话，同步最新消息与未读计数
-        setDmChannels((prev) =>
-          prev.map((dm) => {
-            if (dm.id === msg.channelId) {
-              const isCurrentActive =
-                selectedChannelRef.current?.id === msg.channelId;
-              return {
-                ...dm,
-                lastMessage: msg,
-                unreadCount: isCurrentActive ? 0 : (dm.unreadCount || 0) + 1,
-              };
-            }
-            return dm;
-          }),
+        // 查找该消息频道所属的服务器 (若存在)
+        const targetGuild = guilds.find((g) =>
+          g.channels?.some((c) => c.id === msg.channelId),
         );
+        const msgGuildId = targetGuild?.id;
+
+        // 若属于服务器消息，且当前未在此频道，累计服务器未读与提及计数
+        if (msgGuildId && msg.channelId !== selectedChannelRef.current?.id) {
+          const isMentioned = Boolean(
+            currentUser &&
+            (msg.content.includes(`@${currentUser.username}`) ||
+              msg.content.includes("@everyone") ||
+              msg.content.includes("@here")),
+          );
+          setGuildUnreadMap((prev) => {
+            const cur = prev[msgGuildId] || {
+              hasUnread: false,
+              mentionCount: 0,
+            };
+            return {
+              ...prev,
+              [msgGuildId]: {
+                hasUnread: true,
+                mentionCount: isMentioned
+                  ? cur.mentionCount + 1
+                  : cur.mentionCount,
+              },
+            };
+          });
+        }
+
+        // 若属于私信会话，同步最新消息与未读计数（若不存在则自动拉取加入列表）
+        setDmChannels((prev) => {
+          const index = prev.findIndex((dm) => dm.id === msg.channelId);
+          const isCurrentActive =
+            selectedChannelRef.current?.id === msg.channelId;
+          if (index !== -1) {
+            const target = prev[index];
+            const updated = {
+              ...target,
+              lastMessage: msg,
+              unreadCount: isCurrentActive ? 0 : (target.unreadCount || 0) + 1,
+            };
+            const next = [...prev];
+            next.splice(index, 1);
+            return [updated, ...next];
+          } else {
+            // 本地尚无此会话（例如好友首次发来私信），自动向后端拉取并加入列表头部
+            const token = useAuthStore.getState().token;
+            fetch(`${API_BASE}/api/users/@me/channels`, {
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+            })
+              .then((res) => (res.ok ? res.json() : null))
+              .then((data) => {
+                if (data?.items) {
+                  const found = data.items.find(
+                    (c: Channel) => c.id === msg.channelId,
+                  );
+                  if (found) {
+                    setDmChannels((curr) => {
+                      if (curr.some((c) => c.id === found.id)) return curr;
+                      return [
+                        {
+                          ...found,
+                          lastMessage: msg,
+                          unreadCount: isCurrentActive ? 0 : 1,
+                        },
+                        ...curr,
+                      ];
+                    });
+                  }
+                }
+              })
+              .catch(() => {});
+            return prev;
+          }
+        });
 
         if (
           selectedChannelRef.current?.type === "DM" &&
@@ -854,15 +927,19 @@ export const App: React.FC = () => {
           }).catch(() => undefined);
         }
 
-        // 4.3 原生桌面通知推送 (当窗口未聚焦或有 @ 提及，且频道未静音)
+        // 4.3 原生桌面通知推送 (当窗口未聚焦或有 @ 提及，且频道与发件人均未被静音)
         if (msg.authorId !== currentUser.id) {
           const isMentioned = msg.content.includes(`@${currentUser.username}`);
           const isChannelMuted = useSettingsStore
             .getState()
             .isChannelMuted(msg.channelId);
+          const isUserMuted = useSettingsStore
+            .getState()
+            .isUserMuted(msg.authorId);
           const isHidden =
             document.hidden || selectedChannelRef.current?.id !== msg.channelId;
-          if (isMentioned || (!isChannelMuted && isHidden)) {
+
+          if (!isUserMuted && !isChannelMuted && (isMentioned || isHidden)) {
             window.electronAPI?.showNotification({
               title: `${msg.author?.username || "Tescord"}`,
               body:
@@ -870,7 +947,10 @@ export const App: React.FC = () => {
                   ? msg.content.slice(0, 80) + "..."
                   : msg.content,
               channelId: msg.channelId,
-              guildId: selectedGuildIdRef.current || undefined,
+              guildId: msgGuildId || selectedGuildIdRef.current || undefined,
+              avatarUrl: msg.author?.avatarUrl || undefined,
+              senderName: msg.author?.username,
+              timestamp: Date.now(),
             });
           }
         }
@@ -1744,6 +1824,36 @@ export const App: React.FC = () => {
     };
   }, [isAuthenticated, currentUser?.id]);
 
+  // 监听打开邀请弹窗与切换服务器等全局自定义事件
+  useEffect(() => {
+    const handleOpenInvite = (e: any) => {
+      if (e.detail?.guild) {
+        setInviteFriendsGuild(e.detail.guild);
+      }
+    };
+    const handleSwitchGuild = (e: any) => {
+      if (e.detail?.guildId) {
+        setSelectedGuildId(e.detail.guildId);
+        setIsFriendsTabActive(false);
+      }
+    };
+    window.addEventListener(
+      "tescord:open-invite-modal" as any,
+      handleOpenInvite,
+    );
+    window.addEventListener("tescord:switch-guild" as any, handleSwitchGuild);
+    return () => {
+      window.removeEventListener(
+        "tescord:open-invite-modal" as any,
+        handleOpenInvite,
+      );
+      window.removeEventListener(
+        "tescord:switch-guild" as any,
+        handleSwitchGuild,
+      );
+    };
+  }, []);
+
   // 10 分钟无操作自动离开 (AFK Auto-Idle) 检测
   useEffect(() => {
     if (!currentUser || !isAuthenticated) return;
@@ -2474,7 +2584,12 @@ export const App: React.FC = () => {
 
   // 业务：标记服务器为已读
   const handleMarkGuildAsRead = (guild: Guild) => {
-    console.log(`服务器 ${guild.name} 标记为已读`);
+    setGuildUnreadMap((prev) => {
+      if (!prev[guild.id]) return prev;
+      const next = { ...prev };
+      delete next[guild.id];
+      return next;
+    });
   };
 
   // 业务：标记频道为已读
@@ -3430,6 +3545,8 @@ export const App: React.FC = () => {
       <Sidebar
         guilds={sortedGuilds}
         selectedGuildId={selectedGuildId}
+        totalDmUnread={totalDmUnread}
+        guildUnreadMap={guildUnreadMap}
         isSuperAdmin={currentUser?.role === "SUPER_ADMIN"}
         onOpenAdminDashboard={() => setIsAdminModalOpen(true)}
         onSelectGuild={(id) => {
@@ -3439,6 +3556,13 @@ export const App: React.FC = () => {
             setSelectedChannel(null);
           } else {
             setIsFriendsTabActive(false);
+            // 切换进入该服务器时清空未读与提及状态
+            setGuildUnreadMap((prev) => {
+              if (!prev[id]) return prev;
+              const next = { ...prev };
+              delete next[id];
+              return next;
+            });
             const g = guilds.find((item) => item.id === id);
             if (g) {
               const lastChannelId = useChannelNavStore
@@ -3469,9 +3593,33 @@ export const App: React.FC = () => {
       {/* 2. 次级频道列表与底部控制栏 */}
       <ChannelSidebar
         guild={currentGuild}
+        guilds={guilds}
         channels={currentChannels}
         dmChannels={dmChannels}
         isFriendsActive={selectedGuildId === null && isFriendsTabActive}
+        onStartDMCall={(targetUserId) =>
+          handleStartCallFromFriend(targetUserId)
+        }
+        onOpenProfile={(targetUserId) => {
+          const targetFriend = useFriendStore
+            .getState()
+            .relationships.find(
+              (r) => r.targetUserId === targetUserId,
+            )?.targetUser;
+          if (targetFriend) {
+            const rect = new DOMRect(
+              window.innerWidth / 2 - 150,
+              window.innerHeight / 2 - 200,
+              300,
+              400,
+            );
+            useUserProfilePopoutStore.getState().openPopout({
+              user: targetFriend,
+              targetRect: rect,
+            });
+          }
+        }}
+        onOpenInviteFriends={(g) => setInviteFriendsGuild(g)}
         onSelectFriends={() => {
           setIsFriendsTabActive(true);
           setSelectedChannel(null);
@@ -3673,8 +3821,29 @@ export const App: React.FC = () => {
         ) : selectedGuildId === null && isFriendsTabActive ? (
           <FriendsDashboard
             currentUser={currentUser}
+            guilds={guilds}
             onStartDM={handleStartDM}
             onStartCall={handleStartCallFromFriend}
+            onOpenProfile={(targetUserId) => {
+              // 根据 targetUserId 查找好友或在线状态
+              const targetFriend = useFriendStore
+                .getState()
+                .relationships.find(
+                  (r) => r.targetUserId === targetUserId,
+                )?.targetUser;
+              if (targetFriend) {
+                const rect = new DOMRect(
+                  window.innerWidth / 2 - 150,
+                  window.innerHeight / 2 - 200,
+                  300,
+                  400,
+                );
+                useUserProfilePopoutStore.getState().openPopout({
+                  user: targetFriend,
+                  targetRect: rect,
+                });
+              }
+            }}
           />
         ) : selectedChannel ? (
           <ChatArea
@@ -4156,6 +4325,13 @@ export const App: React.FC = () => {
       )}
       <ForcedPasswordChangeModal />
       <ReauthModal />
+      {inviteFriendsGuild && (
+        <InviteFriendsModal
+          isOpen={!!inviteFriendsGuild}
+          guild={inviteFriendsGuild}
+          onClose={() => setInviteFriendsGuild(null)}
+        />
+      )}
 
       {/* 15. 全局单例用户信息卡片浮层 (User Profile Popout) */}
       {isProfilePopoutOpen && profilePopoutPayload && currentUser && (

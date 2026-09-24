@@ -2,15 +2,15 @@
 
 interface ElectronAPI {
   platform: string;
+  openAudioInferencePort?: (
+    mode: "rnnoise" | "dtln" | "dfn3",
+    requestId: string,
+  ) => void;
+  closeAudioInferencePort?: (requestId: string) => void;
   getDesktopSources: () => Promise<import("@tescord/types").DesktopSource[]>;
-  showNotification: (payload: {
-    title: string;
-    body: string;
-    channelId?: string;
-    guildId?: string;
-    icon?: string;
-    silent?: boolean;
-  }) => Promise<boolean>;
+  showNotification: (
+    payload: import("@tescord/types").DesktopNotificationPayload,
+  ) => Promise<boolean>;
   onNotificationClick: (
     callback: (data: { channelId?: string; guildId?: string }) => void,
   ) => () => void;

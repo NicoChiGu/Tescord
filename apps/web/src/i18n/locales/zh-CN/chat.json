@@ -118,5 +118,18 @@
       "acceptTooltip": "接听通话（Alt+A）",
       "rejectTooltip": "拒绝呼叫（Alt+R）"
     }
+  },
+  "invite": {
+    "invitedByUser": "{{user}} 邀请你加入服务器",
+    "invitedPrompt": "你受邀加入此服务器",
+    "onlineCount": "{{count}} 在线",
+    "memberCount": "{{count}} 成员",
+    "join": "加入",
+    "joined": "已加入",
+    "joinSuccess": "成功加入服务器 {{name}}！",
+    "joinFailed": "加入服务器失败",
+    "invalidTitle": "邀请已失效",
+    "invalidDesc": "此邀请链接可能已过期，或者您没有加入此服务器的权限。",
+    "resolving": "正在解析服务器邀请..."
   }
 }

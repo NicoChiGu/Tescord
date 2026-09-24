@@ -547,8 +547,37 @@ export interface ReorderChannelsDTO {
 }
 
 export interface CreateInviteDTO {
+  maxAge?: number;
   maxUses?: number;
   expiresInHours?: number;
+  isTemporary?: boolean;
+}
+
+export interface InvitePreviewDTO {
+  code: string;
+  guild: {
+    id: string;
+    name: string;
+    iconUrl?: string | null;
+    description?: string | null;
+    approximateMemberCount?: number;
+    approximatePresenceCount?: number;
+  };
+  inviter?: {
+    id: string;
+    username: string;
+    displayName?: string | null;
+    avatarUrl?: string | null;
+  } | null;
+  channel?: {
+    id: string;
+    name: string;
+  } | null;
+  expiresAt?: string | null;
+  isTemporary?: boolean;
+  approximateMemberCount?: number;
+  approximatePresenceCount?: number;
+  isMember?: boolean;
 }
 
 export interface JoinInviteDTO {
@@ -744,6 +773,68 @@ export interface LiveKitTokenResponse {
 // 7. 音频设置与降噪配置
 export type AudioInputMode = "VAD" | "PTT";
 export type NoiseSuppressionMode = "off" | "rnnoise" | "dtln" | "dfn3";
+
+export type NoiseEngineBackend = "web-wasm" | "desktop-native" | "bypass";
+export type NoiseEnginePhase = "idle" | "loading" | "ready" | "failed";
+
+/** Requested mode is persisted; effective mode describes the PCM actually sent. */
+export interface NoiseEngineStatus {
+  requestedMode: NoiseSuppressionMode;
+  effectiveMode: NoiseSuppressionMode;
+  backend: NoiseEngineBackend;
+  phase: NoiseEnginePhase;
+  reason?: string;
+  sampleRate: number;
+  processedFrames?: number;
+  queueMs?: number;
+  processingMs?: number;
+  processingP50Ms?: number;
+  processingP95Ms?: number;
+  processingP99Ms?: number;
+  capture?: {
+    requestedEchoCancellation: boolean;
+    actualEchoCancellation?: boolean;
+    actualNoiseSuppression?: boolean;
+    actualAutoGainControl?: boolean;
+    actualSampleRate?: number;
+    actualChannelCount?: number;
+    contextSampleRate: number;
+    warnings: string[];
+  };
+}
+
+export interface DesktopNoiseFrame {
+  sessionId: string;
+  sequence: number;
+  sampleCount: number;
+  mode: Exclude<NoiseSuppressionMode, "off">;
+  sampleRate: 48000;
+  pcm: Float32Array;
+}
+
+export interface DesktopNoiseFrameResult {
+  sessionId: string;
+  sequence: number;
+  sampleCount: number;
+  pcm: Float32Array;
+  processingMs: number;
+  error?: string;
+}
+
+export interface DesktopAudioInferenceStart {
+  mode: Exclude<NoiseSuppressionMode, "off">;
+  requestId: string;
+}
+
+/** Stops only the inference process owned by the calling main window. */
+export interface DesktopAudioInferenceStop {
+  requestId: string;
+}
+
+export interface DesktopAudioInferenceFailure {
+  requestId: string;
+  reason: string;
+}
 
 export type SoundEffectType =
   | "MUTE"
@@ -960,6 +1051,8 @@ export interface UserSettingsDTO {
   mutedChannels?: Record<string, ChannelMuteConfig>; // 频道静音配置项字典 (key 为 channelId)
   guildPositions?: string[]; // 用户个人服务器排序偏好列表 (guildId 顺序)
   userNotes?: Record<string, string>; // 针对特定目标用户的私有备注字典 (targetUserId -> note)
+  pinnedDMs?: string[]; // 置顶的私信会话 ID 列表
+  mutedUsers?: Record<string, number>; // 针对特定用户的私信静音截止时间戳字典 (targetUserId -> timestamp, -1 代表永久)
 }
 
 export interface UpdateUserNoteDTO {
@@ -1615,6 +1708,9 @@ export interface DesktopNotificationPayload {
   channelId?: string;
   guildId?: string;
   icon?: string;
+  avatarUrl?: string;
+  senderName?: string;
+  timestamp?: number;
   silent?: boolean;
 }
 

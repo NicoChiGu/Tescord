@@ -16,6 +16,7 @@
   "refresh": "更新",
   "enabled": "有効",
   "disabled": "無効",
+  "new": "NEW",
   "status": {
     "online": "オンライン",
     "idle": "退席中",
@@ -52,7 +53,8 @@
     "undeafen": "スピーカーのミュートを解除",
     "userSettings": "ユーザー設定",
     "copyUserId": "ユーザーIDをコピー",
-    "viewProfile": "プロフィールを表示"
+    "viewProfile": "プロフィールを表示",
+    "switchAccount": "アカウントを切り替え"
   },
   "dialog": {
     "confirm": "確認",
@@ -78,6 +80,7 @@
     "defaultBio": "Tescord を体験中 🚀"
   },
   "profilePopout": {
+    "editProfile": "プロフィールを編集",
     "sendDM": "@{{name}} にメッセージを送信",
     "addNote": "メモを追加",
     "clickToAddNote": "クリックしてメモを追加",
@@ -85,7 +88,23 @@
     "mutualServers": "共通のサーバー",
     "roles": "役職",
     "registered": "登録日時",
-    "customStatus": "カスタムステータス"
+    "customStatus": "カスタムステータス",
+    "setStatusPlaceholder": "ステータスを設定...",
+    "saveStatus": "ステータスを保存 (Enter)",
+    "cancelStatus": "キャンセル (Esc)",
+    "customStatusTooltip": "カスタムステータス：{{status}} (クリックして変更)",
+    "setCustomStatus": "クリックしてカスタムステータスを設定",
+    "clearStatus": "ステータスを消去",
+    "emptyStatusPrompt": "今の気持ちを共有..."
+  },
+  "badges": {
+    "verifiedClient": "Tescord 認証クライアント",
+    "member": "Tescord メンバーバッジ",
+    "earlyExplorer": "早期探検家",
+    "geekPioneer": "ギークパイオニア"
+  },
+  "activity": {
+    "playing": "プレイ中"
   },
   "emptyWelcome": {
     "title": "Tescord へようこそ",

@@ -48,6 +48,7 @@ import { MobileActionSheet } from "./chat/MobileActionSheet.js";
 import { MentionInput, MentionInputHandle } from "./chat/MentionInput.js";
 import { TypingIndicator } from "./chat/TypingIndicator.js";
 import { ImageAttachment } from "./chat/ImageAttachment.js";
+import { ServerInviteEmbed } from "./chat/ServerInviteEmbed.js";
 import { PinnedMessagesPopover } from "./PinnedMessagesPopover.js";
 import { useUserProfilePopoutStore } from "../stores/useUserProfilePopoutStore.js";
 import { usePresenceStore } from "../stores/usePresenceStore.js";
@@ -61,6 +62,7 @@ import { clientFtsStorage } from "../services/e2eeStorage.js";
 import { useViewport } from "../hooks/useViewport.js";
 import { useLongPress } from "../hooks/useLongPress.js";
 import { useAuthStore } from "../stores/useAuthStore.js";
+import { useSettingsStore } from "../stores/useSettingsStore.js";
 import { getUserDisplayName } from "../utils/userDisplay.js";
 
 // 频道草稿缓存字典（按频道隔离保留用户未发送的草稿，切回时自动恢复）
@@ -156,6 +158,41 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
     msg.isEncrypted ||
     !!decryptedContents[msg.id] ||
     doubleRatchetManager.isEncryptedEnvelope(msg.content);
+
+  const resolvedContent = isMsgEncrypted
+    ? decryptedContents[msg.id]?.text || ""
+    : msg.content || "";
+
+  const inviteCodes = React.useMemo(() => {
+    if (!resolvedContent) return [];
+    const matches = resolvedContent.match(
+      /(?:https?:\/\/[^\s/]+)?\/invite\/([a-zA-Z0-9_-]+)/gi,
+    );
+    if (!matches) return [];
+    const codes: string[] = [];
+    for (const m of matches) {
+      const parts = m.split("/invite/");
+      if (parts[1]) {
+        const code = parts[1].split(/[?#\s]/)[0];
+        if (code && !codes.includes(code)) {
+          codes.push(code);
+        }
+      }
+    }
+    return codes;
+  }, [resolvedContent]);
+
+  // 清洗掉邀请链接，避免 url 裸露在消息正文中
+  const displayContent = React.useMemo(() => {
+    if (!resolvedContent) return "";
+    if (inviteCodes.length === 0) return resolvedContent;
+    return resolvedContent
+      .replace(
+        /(?:https?:\/\/[^\s/]+)?\/invite\/[a-zA-Z0-9_-]+(?:\?[^\s]*)?/gi,
+        "",
+      )
+      .trim();
+  }, [resolvedContent, inviteCodes]);
 
   const longPressProps = useLongPress(() => {
     if (isMobile) {
@@ -285,20 +322,24 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
           </div>
 
           {/* 消息正文 (支持 Markdown 与剧透) */}
-          {msg.content && (
+          {displayContent ? (
             <div className="mt-1 selectable-text">
               <MarkdownRenderer
-                content={
-                  isMsgEncrypted
-                    ? decryptedContents[msg.id]?.text ||
-                      "🔒 [端到端双棘轮密文解密中...]"
-                    : msg.content
-                }
+                content={displayContent}
                 currentUsername={currentUser.username}
                 onMentionClick={(username, rect) =>
                   onOpenProfileByName?.(username, rect)
                 }
               />
+            </div>
+          ) : null}
+
+          {/* 服务器邀请卡片 (Discord 风格) */}
+          {inviteCodes.length > 0 && (
+            <div className="mt-2 space-y-2">
+              {inviteCodes.map((code) => (
+                <ServerInviteEmbed key={code} code={code} />
+              ))}
             </div>
           )}
 
@@ -537,6 +578,28 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     setSearchQuery("");
   }, [channel.id]);
   const { togglePopout } = useUserProfilePopoutStore();
+  const { userNotes } = useSettingsStore();
+
+  const otherRecipient = React.useMemo(() => {
+    if (channel.type !== "DM") return null;
+    return channel.recipients?.find((r) => r.id !== currentUser.id) || null;
+  }, [channel, currentUser.id]);
+
+  const displayChannelName = React.useMemo(() => {
+    if (channel.type !== "DM") return channel.name;
+    if (otherRecipient) {
+      const note = userNotes[otherRecipient.id];
+      if (note && note.trim()) return note.trim();
+      if (otherRecipient.displayName && otherRecipient.displayName.trim()) {
+        return otherRecipient.displayName.trim();
+      }
+      if (otherRecipient.username) {
+        const u = otherRecipient.username.trim();
+        return u.includes("#") ? u.split("#")[0] : u;
+      }
+    }
+    return channel.name;
+  }, [channel, otherRecipient, userNotes]);
 
   const handleOpenProfile = useCallback(
     (author: Message["author"], rect: DOMRect) => {
@@ -1711,8 +1774,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           ) : (
             <Hash className="w-5 h-5 text-discord-textMuted flex-shrink-0" />
           )}
-          <span className="font-bold text-discord-textHeader truncate max-w-[120px] xs:max-w-[160px] sm:max-w-xs md:max-w-none">
-            {channel.name}
+          <span
+            data-testid="chat-header-title"
+            className="font-bold text-discord-textHeader truncate max-w-[120px] xs:max-w-[160px] sm:max-w-xs md:max-w-none"
+          >
+            {displayChannelName}
           </span>
           {channel.isE2EE && (
             <button
@@ -1953,26 +2019,64 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           }}
         >
           {/* 欢迎卡片 */}
-          <div className="pt-4 pb-2 border-b border-[#35373c] mb-4">
-            <div className="w-16 h-16 rounded-full bg-[#2b2d31] flex items-center justify-center mb-2">
-              {channel.isE2EE ? (
-                <div className="relative">
-                  <Hash className="w-8 h-8 text-discord-textHeader" />
-                  <Lock className="w-4 h-4 text-discord-green absolute -top-1 -right-1" />
-                </div>
-              ) : (
-                <Hash className="w-8 h-8 text-discord-textHeader" />
+          {channel.type === "DM" ? (
+            <div
+              data-testid="dm-welcome-banner"
+              className="pt-6 pb-4 border-b border-[#35373c] mb-4 select-none"
+            >
+              <div className="relative mb-3">
+                {otherRecipient?.avatarUrl ? (
+                  <img
+                    src={otherRecipient.avatarUrl}
+                    alt={displayChannelName}
+                    className="w-20 h-20 rounded-full object-cover shadow-md"
+                  />
+                ) : (
+                  <div className="w-20 h-20 rounded-full bg-discord-brand text-white text-2xl font-bold flex items-center justify-center shadow-md">
+                    {displayChannelName.slice(0, 2).toUpperCase()}
+                  </div>
+                )}
+              </div>
+              <h2
+                data-testid="dm-welcome-displayname"
+                className="text-2xl sm:text-3xl font-bold text-discord-textHeader"
+              >
+                {displayChannelName}
+              </h2>
+              {otherRecipient?.username && (
+                <p className="text-sm font-medium text-discord-textMuted mt-0.5">
+                  @{otherRecipient.username.replace(/^@/, "")}
+                </p>
               )}
+              <p className="text-sm text-discord-textMuted mt-2">
+                {t("chat:dm.welcomePrompt", {
+                  name: displayChannelName,
+                  defaultValue: `这是你与 ${displayChannelName} 私信历史记录的起点。`,
+                })}
+              </p>
             </div>
-            <h2 className="text-2xl font-bold text-discord-textHeader">
-              欢迎来到 #{channel.name}!
-            </h2>
-            <p className="text-sm text-discord-textMuted mt-1">
-              {channel.isE2EE
-                ? "这是一个实验性端到端双棘轮加密绝密频道 (Beta)。所有消息均在客户端本地密文封装，服务器仅充当盲中继，零明文存储。"
-                : `这是 #${channel.name} 频道的起点。畅所欲言吧！`}
-            </p>
-          </div>
+          ) : (
+            <div className="pt-4 pb-2 border-b border-[#35373c] mb-4">
+              <div className="w-16 h-16 rounded-full bg-[#2b2d31] flex items-center justify-center mb-2">
+                {channel.isE2EE ? (
+                  <div className="relative">
+                    <Hash className="w-8 h-8 text-discord-textHeader" />
+                    <Lock className="w-4 h-4 text-discord-green absolute -top-1 -right-1" />
+                  </div>
+                ) : (
+                  <Hash className="w-8 h-8 text-discord-textHeader" />
+                )}
+              </div>
+              <h2 className="text-2xl font-bold text-discord-textHeader">
+                欢迎来到 #{channel.name}!
+              </h2>
+              <p className="text-sm text-discord-textMuted mt-1">
+                {channel.isE2EE
+                  ? "这是一个实验性端到端双棘轮加密绝密频道 (Beta)。所有消息均在客户端本地密文封装，服务器仅充当盲中继，零明文存储。"
+                  : `这是 #${channel.name} 频道的起点。畅所欲言吧！`}
+              </p>
+            </div>
+          )}
 
           {/* 骨架屏加载状态 (延迟 100ms 显示防瞬闪) vs 虚拟化消息流 */}
           {showSkeleton && displayedMessages.length === 0 ? (
@@ -2164,9 +2268,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             ref={mentionInputRef}
             initialValue={inputText}
             placeholder={
-              isMobile
-                ? t("chat:sendToChannel", { name: channel.name })
-                : t("chat:sendToChannelPlaceholder", { name: channel.name })
+              channel.type === "DM"
+                ? `发送私信给 @${displayChannelName}`
+                : isMobile
+                  ? t("chat:sendToChannel", { name: channel.name })
+                  : t("chat:sendToChannelPlaceholder", { name: channel.name })
             }
             members={guild?.members || []}
             roles={guild?.roles || []}

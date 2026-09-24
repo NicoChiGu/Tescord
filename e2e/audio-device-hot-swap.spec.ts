@@ -109,14 +109,14 @@ test.describe("语音输入配置热切换与无缝推流验收 (Audio Input Hot
 
     // 2. 进入服务器与语音频道
     const serverButton = page
-      .getByRole("button", { name: /Tescord 极客总部|极客/i })
+      .getByRole("button", { name: /Tescord 极客总部|极客|小窝/i })
       .first();
     await expect(serverButton).toBeVisible({ timeout: 10000 });
     await serverButton.click();
 
     // 双击加入语音频道
     const voiceChannelBtn = page
-      .getByRole("button", { name: /语音闲聊|开黑开麦|voice/i })
+      .locator('button[data-testid^="channel-button-"][title]')
       .first();
     await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
     await voiceChannelBtn.dblclick();

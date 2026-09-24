@@ -4,10 +4,47 @@ import {
   UserStatus,
   DesktopWindowMode,
   DesktopAuthSuccessPayload,
+  DesktopAudioInferenceStart,
+  DesktopAudioInferenceStop,
 } from "@tescord/types";
+
+ipcRenderer.on("audio-inference-exit", (_event, data) => {
+  if (typeof data?.requestId === "string")
+    window.postMessage({ type: "tescord-audio-inference-exit", ...data }, "*");
+});
+ipcRenderer.on("audio-inference-error", (_event, data) => {
+  if (typeof data?.requestId === "string" && typeof data?.reason === "string")
+    window.postMessage({ type: "tescord-audio-inference-error", ...data }, "*");
+});
 
 contextBridge.exposeInMainWorld("electronAPI", {
   platform: process.platform,
+
+  openAudioInferencePort: (
+    mode: DesktopAudioInferenceStart["mode"],
+    requestId: string,
+  ): void => {
+    if (
+      (mode !== "rnnoise" && mode !== "dtln" && mode !== "dfn3") ||
+      typeof requestId !== "string" ||
+      requestId.length > 80
+    )
+      return;
+    const channel = new MessageChannel();
+    const request: DesktopAudioInferenceStart = { mode, requestId };
+    ipcRenderer.postMessage("audio-inference-start", request, [channel.port2]);
+    window.postMessage(
+      { type: "tescord-audio-inference-port", requestId },
+      "*",
+      [channel.port1],
+    );
+  },
+  closeAudioInferencePort: (requestId: string): void => {
+    if (typeof requestId !== "string" || !/^[a-f0-9]{32}$/.test(requestId))
+      return;
+    const request: DesktopAudioInferenceStop = { requestId };
+    ipcRenderer.send("audio-inference-stop", request);
+  },
 
   // 认证与双窗口状态联动
   notifyAuthSuccess: (payload?: DesktopAuthSuccessPayload) =>

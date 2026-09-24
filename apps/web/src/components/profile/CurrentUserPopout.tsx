@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from "react";
 import ReactDOM from "react-dom";
+import { useTranslation } from "react-i18next";
 import { User, UserStatus } from "@tescord/types";
 import {
   Pencil,
@@ -29,31 +30,52 @@ interface CurrentUserPopoutProps {
   onSwitchAccount?: () => void;
 }
 
-const STATUS_CONFIG: Record<
+const STATUS_META: Record<
   Exclude<UserStatus, "OFFLINE">,
-  { label: string; desc: string; color: string }
+  {
+    labelKey: string;
+    descKey: string;
+    defaultLabel: string;
+    defaultDesc: string;
+    color: string;
+  }
 > = {
   ONLINE: {
-    label: "線上",
-    desc: "正常接收通知與消息",
+    labelKey: "common:status.online",
+    descKey: "common:status.onlineDesc",
+    defaultLabel: "在线",
+    defaultDesc: "正常接收通知与消息",
     color: "bg-[#23a55a]",
   },
   IDLE: {
-    label: "閒置",
-    desc: "離開座位或暫未操作",
+    labelKey: "common:status.idle",
+    descKey: "common:status.idleDesc",
+    defaultLabel: "闲置",
+    defaultDesc: "离开座位或暂未操作",
     color: "bg-[#f0b232]",
   },
   DND: {
-    label: "請勿打擾",
-    desc: "不會收到任何桌面彈窗與通知",
+    labelKey: "common:status.dnd",
+    descKey: "common:status.dndDesc",
+    defaultLabel: "请勿打扰",
+    defaultDesc: "不会收到任何桌面弹窗与通知",
     color: "bg-[#f23f43]",
   },
   INVISIBLE: {
-    label: "隱身",
-    desc: "對外顯示為離線，可正常使用所有功能",
+    labelKey: "common:status.invisible",
+    descKey: "common:status.invisibleDesc",
+    defaultLabel: "隐身",
+    defaultDesc: "对外显示为离线，可正常使用所有功能",
     color: "border-2 border-[#80848e] bg-[#232428]",
   },
 };
+
+const STATUS_KEYS: Exclude<UserStatus, "OFFLINE">[] = [
+  "ONLINE",
+  "IDLE",
+  "DND",
+  "INVISIBLE",
+];
 
 export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
   isOpen,
@@ -64,6 +86,7 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
   onOpenUserSettings,
   onSwitchAccount,
 }) => {
+  const { t } = useTranslation(["common", "contextMenu"]);
   const popoutRef = useRef<HTMLDivElement>(null);
   const statusInputRef = useRef<HTMLInputElement>(null);
 
@@ -282,8 +305,13 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
       : currentUser.status || "ONLINE"
   ) as Exclude<UserStatus, "OFFLINE">;
 
-  const currentStatusInfo =
-    STATUS_CONFIG[currentStatusKey] || STATUS_CONFIG.ONLINE;
+  const currentStatusInfo = {
+    label: t(
+      STATUS_META[currentStatusKey]?.labelKey || "common:status.online",
+      STATUS_META[currentStatusKey]?.defaultLabel || "在线",
+    ),
+    color: STATUS_META[currentStatusKey]?.color || STATUS_META.ONLINE.color,
+  };
 
   return ReactDOM.createPortal(
     <div
@@ -314,7 +342,7 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
           {/* 右上角系统微章装饰 */}
           <div className="flex items-center gap-1 text-white/50 hover:text-white/80 transition">
             <span
-              title="Tescord 已验证客户端"
+              title={t("common:badges.verifiedClient", "Tescord 已验证客户端")}
               className="p-1 rounded-full bg-black/30 backdrop-blur-sm flex items-center justify-center"
             >
               <Shield className="w-3.5 h-3.5 text-[#5865f2]" />
@@ -350,7 +378,10 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
                   maxLength={100}
                   value={customStatusInput}
                   onChange={(e) => setCustomStatusInput(e.target.value)}
-                  placeholder="设定状态..."
+                  placeholder={t(
+                    "common:profilePopout.setStatusPlaceholder",
+                    "设定状态...",
+                  )}
                   className="w-full bg-transparent text-xs text-white placeholder-[#80848e] focus:outline-none pr-10"
                 />
                 <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -358,7 +389,10 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
                     type="submit"
                     disabled={isSavingStatus}
                     className="p-1 text-emerald-400 hover:text-emerald-300 disabled:opacity-40"
-                    title="保存状态 (Enter)"
+                    title={t(
+                      "common:profilePopout.saveStatus",
+                      "保存状态 (Enter)",
+                    )}
                   >
                     <Check className="w-3 h-3" />
                   </button>
@@ -369,7 +403,7 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
                       setCustomStatusInput(currentUser.customStatus || "");
                     }}
                     className="p-1 text-gray-400 hover:text-white"
-                    title="取消 (Esc)"
+                    title={t("common:profilePopout.cancelStatus", "取消 (Esc)")}
                   >
                     <X className="w-3 h-3" />
                   </button>
@@ -381,8 +415,14 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
                 data-testid="user-popout-custom-status-bubble"
                 title={
                   currentUser.customStatus
-                    ? `个性状态：${currentUser.customStatus} (点击修改)`
-                    : "点击设定自定义状态"
+                    ? t("common:profilePopout.customStatusTooltip", {
+                        status: currentUser.customStatus,
+                        defaultValue: `个性状态：${currentUser.customStatus} (点击修改)`,
+                      })
+                    : t(
+                        "common:profilePopout.setCustomStatus",
+                        "点击设定自定义状态",
+                      )
                 }
                 className="group relative bg-[#111214]/90 hover:bg-[#111214] border border-white/10 hover:border-white/20 rounded-2xl px-3 py-1.5 cursor-pointer text-xs text-[#dbdee1] flex items-center gap-1.5 transition shadow-sm max-w-full"
               >
@@ -398,7 +438,10 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
                       type="button"
                       onClick={handleClearCustomStatus}
                       className="opacity-0 group-hover:opacity-100 hover:text-rose-400 p-0.5 transition flex-shrink-0"
-                      title="清除此状态"
+                      title={t(
+                        "common:profilePopout.clearStatus",
+                        "清除此状态",
+                      )}
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -407,7 +450,10 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
                   <>
                     <Plus className="w-3 h-3 text-[#949ba4] flex-shrink-0" />
                     <span className="truncate text-[#949ba4] group-hover:text-[#dbdee1] transition">
-                      最佳的冷笑话？
+                      {t(
+                        "common:profilePopout.emptyStatusPrompt",
+                        "分享你的新鲜事...",
+                      )}
                     </span>
                   </>
                 )}
@@ -428,19 +474,19 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
             {/* Discord 风格身份标识小图标 */}
             <div className="flex items-center gap-1 flex-shrink-0">
               <span
-                title="Tescord 会员徽章"
+                title={t("common:badges.member", "Tescord 会员徽章")}
                 className="w-3.5 h-3.5 bg-emerald-500/20 text-emerald-400 rounded flex items-center justify-center p-0.5"
               >
                 <div className="w-2 h-2 rotate-45 bg-emerald-400" />
               </span>
               <span
-                title="早期探索者"
+                title={t("common:badges.earlyExplorer", "早期探索者")}
                 className="w-3.5 h-3.5 bg-[#5865f2]/20 text-[#5865f2] rounded flex items-center justify-center p-0.5 font-mono text-[9px] font-bold"
               >
                 #
               </span>
               <span
-                title="极客先锋"
+                title={t("common:badges.geekPioneer", "极客先锋")}
                 className="w-3.5 h-3.5 bg-purple-500/20 text-purple-300 rounded-full flex items-center justify-center p-0.5"
               >
                 <Sparkles className="w-2.5 h-2.5" />
@@ -459,7 +505,7 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
             >
               <div className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
                 <Gamepad2 className="w-3.5 h-3.5" />
-                <span>正在游玩</span>
+                <span>{t("common:activity.playing", "正在游玩")}</span>
               </div>
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-[#2b2d31] flex items-center justify-center flex-shrink-0 border border-white/5">
@@ -490,10 +536,15 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
           >
             <div className="flex items-center space-x-2.5">
               <Pencil className="w-4 h-4 text-discord-textMuted group-hover:text-white transition" />
-              <span>編輯個人資料</span>
+              <span>
+                {t("common:profilePopout.editProfile", "编辑个人资料")}
+              </span>
             </div>
-            <span className="bg-[#f23f43] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none shadow-sm">
-              新的
+            <span
+              data-testid="popout-badge-new"
+              className="bg-[#f23f43] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none shadow-sm"
+            >
+              {t("common:new", "新的")}
             </span>
           </button>
 
@@ -520,11 +571,11 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
           {/* 展开的状态选择列表 */}
           {isStatusSubmenuOpen && (
             <div className="pt-1 pb-0.5 px-1 space-y-1 bg-[#18191c]/80 rounded-lg border border-white/5 animate-in fade-in duration-100">
-              {(
-                Object.keys(STATUS_CONFIG) as (keyof typeof STATUS_CONFIG)[]
-              ).map((statusKey) => {
-                const config = STATUS_CONFIG[statusKey];
+              {STATUS_KEYS.map((statusKey) => {
+                const meta = STATUS_META[statusKey];
                 const isSelected = currentStatusKey === statusKey;
+                const label = t(meta.labelKey, meta.defaultLabel);
+                const desc = t(meta.descKey, meta.defaultDesc);
                 return (
                   <button
                     key={statusKey}
@@ -539,18 +590,18 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
                   >
                     <div className="flex items-center space-x-2">
                       <span
-                        className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${config.color}`}
+                        className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${meta.color}`}
                       />
                       <div className="flex flex-col text-left">
                         <span className="font-medium leading-none">
-                          {config.label}
+                          {label}
                         </span>
                         <span
                           className={`text-[10px] mt-0.5 ${
                             isSelected ? "text-white/80" : "text-[#949ba4]"
                           }`}
                         >
-                          {config.desc}
+                          {desc}
                         </span>
                       </div>
                     </div>
@@ -575,7 +626,7 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
           >
             <div className="flex items-center space-x-2.5">
               <UserCircle2 className="w-4 h-4 text-discord-textMuted group-hover:text-white transition" />
-              <span>切換帳號</span>
+              <span>{t("common:user.switchAccount", "切换账号")}</span>
             </div>
             <ChevronRight className="w-4 h-4 text-discord-textMuted group-hover:text-white transition" />
           </button>
@@ -592,12 +643,15 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
               <div className="w-4 h-4 rounded border border-discord-textMuted group-hover:border-white flex items-center justify-center text-[8px] font-black text-discord-textMuted group-hover:text-white tracking-tighter transition">
                 ID
               </div>
-              <span>複製使用者 ID</span>
+              <span>{t("common:user.copyUserId", "复制使用者 ID")}</span>
             </div>
             {copiedId ? (
-              <span className="text-emerald-400 text-xs font-semibold flex items-center gap-1 animate-in fade-in duration-100">
+              <span
+                data-testid="popout-copy-feedback"
+                className="text-emerald-400 text-xs font-semibold flex items-center gap-1 animate-in fade-in duration-100"
+              >
                 <Check className="w-3.5 h-3.5" />
-                已複製
+                {t("common:copied", "已复制")}
               </span>
             ) : null}
           </button>

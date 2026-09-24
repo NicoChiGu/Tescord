@@ -1,9 +1,7 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("双引擎 AI 降噪（RNNoise + DTLN）与三轨 A/B 录音试听全链路验收", () => {
-  test("完整验证双引擎 3 档切换、多轨试听对比、头像徽标感知与底栏快捷轮换", async ({
-    page,
-  }) => {
+test.describe("三引擎降噪与四轨 A/B 录音试听全链路验收", () => {
+  test("完整验证三引擎切换、试听入口与底栏快捷轮换", async ({ page }) => {
     const consoleErrors: string[] = [];
     page.on("console", (msg) => {
       if (msg.type() === "error") {
@@ -51,7 +49,7 @@ test.describe("双引擎 AI 降噪（RNNoise + DTLN）与三轨 A/B 录音试听
 
     // 2. 进入首个公会
     const serverButton = page
-      .getByRole("button", { name: /Tescord 极客总部|极客/i })
+      .getByRole("button", { name: /Tescord 极客总部|极客|小窝/i })
       .first();
     await expect(serverButton).toBeVisible({ timeout: 10000 });
     await serverButton.click();
@@ -63,35 +61,31 @@ test.describe("双引擎 AI 降噪（RNNoise + DTLN）与三轨 A/B 录音试听
     await expect(audioSettingsBtn).toBeVisible({ timeout: 5000 });
     await audioSettingsBtn.click();
 
-    // 4. 验证弹窗与双引擎卡片挂载
+    // 4. 验证弹窗与三个真实引擎卡片挂载
     const modalHeading = page.getByRole("heading", {
       name: /语音引擎与 RNNoise|降噪控制中心/i,
     });
     await expect(modalHeading).toBeVisible({ timeout: 5000 });
 
     // 验证标题与描述文字
-    await expect(
-      page.getByText(
-        /RNNoise \/ DTLN 双引擎神经网络深度降噪|RNNoise 神经网络深度降噪/i,
-      ),
-    ).toBeVisible();
+    await expect(page.getByText("本地降噪引擎", { exact: true })).toBeVisible();
 
     // 5. 验证 4 档分段卡片选择器
     const offCard = page.getByRole("button", { name: /直通原声|未降噪/i });
     const rnnoiseCard = page.getByRole("button", { name: /RNNoise 标准轻量/i });
     const dtlnCard = page.getByRole("button", { name: /DTLN 深度净化/i });
-    const dfn3Card = page.getByRole("button", { name: /DFNv3 旗舰声学/i });
+    const dfn3Card = page.getByRole("button", { name: /DeepFilterNet3/i });
 
     await expect(offCard).toBeVisible();
     await expect(rnnoiseCard).toBeVisible();
     await expect(dtlnCard).toBeVisible();
     await expect(dfn3Card).toBeVisible();
 
-    // 6. 测试切换至 DTLN 深度净化档位 (消机械键盘音)
+    // 6. 测试切换至 DTLN
     await dtlnCard.click();
     await expect(dtlnCard).toHaveClass(/border-discord-green/);
 
-    // 7. 测试切换至 DFNv3 旗舰全频档位 (48kHz 复数深度滤波)
+    // 7. 测试切换至 DeepFilterNet3
     await dfn3Card.click();
     await expect(dfn3Card).toHaveClass(/border-purple-500/);
 
@@ -124,7 +118,7 @@ test.describe("双引擎 AI 降噪（RNNoise + DTLN）与三轨 A/B 录音试听
 
     // 12. 进入语音频道
     const voiceChannelBtn = page
-      .getByRole("button", { name: /语音闲聊|开黑开麦|voice/i })
+      .locator('button[data-testid^="channel-button-"][title]')
       .first();
     await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
     await voiceChannelBtn.dblclick();

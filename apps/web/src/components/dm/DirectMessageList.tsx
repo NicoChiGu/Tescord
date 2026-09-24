@@ -1,32 +1,49 @@
 import React, { useState } from "react";
-import { Channel, User, UserStatus } from "@tescord/types";
-import { Plus, X, MessageSquare, Search, Loader2, Users } from "lucide-react";
+import { Channel, User, UserStatus, Guild } from "@tescord/types";
+import {
+  Plus,
+  X,
+  MessageSquare,
+  Search,
+  Loader2,
+  Users,
+  Pin,
+  BellOff,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { API_BASE } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { usePresenceStore } from "../../stores/usePresenceStore.js";
 import { useFriendStore } from "../../stores/useFriendStore.js";
+import { useSettingsStore } from "../../stores/useSettingsStore.js";
+import { UserContextMenu } from "../context-menu/UserContextMenu.js";
 
 interface DirectMessageListProps {
   channels: Channel[];
   selectedChannelId: string | null;
   currentUser: User;
+  guilds?: Guild[];
   isFriendsActive?: boolean;
   onSelectFriends?: () => void;
   onSelectChannel: (channel: Channel) => void;
   onCloseChannel: (channelId: string) => void;
   onChannelCreated?: (channel: Channel) => void;
+  onStartCall?: (userId: string) => void;
+  onOpenProfile?: (userId: string) => void;
 }
 
 export const DirectMessageList: React.FC<DirectMessageListProps> = ({
   channels,
   selectedChannelId,
   currentUser,
+  guilds,
   isFriendsActive,
   onSelectFriends,
   onSelectChannel,
   onCloseChannel,
   onChannelCreated,
+  onStartCall,
+  onOpenProfile,
 }) => {
   const { t } = useTranslation(["chat", "common"]);
   const { getAuthHeaders } = useAuthStore();
@@ -35,6 +52,17 @@ export const DirectMessageList: React.FC<DirectMessageListProps> = ({
   const [searchUsername, setSearchUsername] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+
+  const { pinnedDMs, userNotes, isUserMuted } = useSettingsStore();
+
+  const sortedChannels = React.useMemo(() => {
+    return [...channels].sort((a, b) => {
+      const aPinned = pinnedDMs?.includes(a.id) ? 1 : 0;
+      const bPinned = pinnedDMs?.includes(b.id) ? 1 : 0;
+      if (aPinned !== bPinned) return bPinned - aPinned;
+      return 0;
+    });
+  }, [channels, pinnedDMs]);
 
   // 获取状态颜色
   const getStatusColor = (status?: UserStatus) => {
@@ -131,7 +159,7 @@ export const DirectMessageList: React.FC<DirectMessageListProps> = ({
             <span>{t("chat:dm.friendsTab", { defaultValue: "好友" })}</span>
           </div>
           {useFriendStore.getState().getPendingCount() > 0 && (
-            <span className="px-1.5 py-0.2 text-[10px] font-bold bg-discord-red text-white rounded-full">
+            <span className="px-1.5 py-0.2 text-[10px] font-bold bg-[#f23f43] text-white rounded-full">
               {useFriendStore.getState().getPendingCount()}
             </span>
           )}
@@ -141,7 +169,7 @@ export const DirectMessageList: React.FC<DirectMessageListProps> = ({
           {t("chat:dm.sectionHeader", { defaultValue: "直接消息" })}
         </div>
 
-        {channels.map((channel) => {
+        {sortedChannels.map((channel) => {
           const otherUser = channel.recipients?.find(
             (r) => r.id !== currentUser.id,
           );
@@ -149,12 +177,14 @@ export const DirectMessageList: React.FC<DirectMessageListProps> = ({
             ? presences[otherUser.id]
             : undefined;
           const isSelected = selectedChannelId === channel.id;
-          const displayName = otherUser
+          const originalName = otherUser
             ? otherUser.displayName ||
               (otherUser.username.includes("#")
                 ? otherUser.username.split("#")[0]
                 : otherUser.username)
             : channel.name;
+          const note = otherUser ? userNotes[otherUser.id] : undefined;
+          const displayName = note || originalName;
           const status =
             realtimePresence?.status || otherUser?.status || "OFFLINE";
           const customStatus =
@@ -162,75 +192,101 @@ export const DirectMessageList: React.FC<DirectMessageListProps> = ({
               ? realtimePresence.customStatus
               : otherUser?.customStatus;
           const unread = channel.unreadCount || 0;
+          const isPinned = pinnedDMs?.includes(channel.id) || false;
+          const isMuted = otherUser ? isUserMuted(otherUser.id) : false;
 
           return (
-            <div
+            <UserContextMenu
               key={channel.id}
-              onClick={() => onSelectChannel(channel)}
-              className={`group relative flex items-center justify-between px-2 py-2 rounded-md cursor-pointer transition ${
-                isSelected
-                  ? "bg-[#35373c] text-white"
-                  : "text-discord-textMuted hover:bg-[#35373c]/60 hover:text-discord-textHeader"
-              }`}
-              data-testid={`dm-item-${channel.id}`}
+              targetUser={
+                otherUser || { id: channel.id, username: channel.name }
+              }
+              channelId={channel.id}
+              guilds={guilds}
+              onStartCall={onStartCall}
+              onOpenProfile={onOpenProfile}
+              onSendMessage={() => onSelectChannel(channel)}
             >
-              <div className="flex items-center space-x-3 min-w-0 flex-1">
-                {/* 头像 + 在线指示灯 */}
-                <div className="relative flex-shrink-0">
-                  {otherUser?.avatarUrl ? (
-                    <img
-                      src={otherUser.avatarUrl}
-                      alt={displayName}
-                      className="w-8 h-8 rounded-full object-cover"
+              <div
+                onClick={() => onSelectChannel(channel)}
+                className={`group relative flex items-center justify-between px-2 py-2 rounded-md cursor-pointer transition select-none ${
+                  isSelected
+                    ? "bg-[#35373c] text-white"
+                    : "text-discord-textMuted hover:bg-[#35373c]/60 hover:text-discord-textHeader"
+                }`}
+                data-testid={`dm-item-${channel.id}`}
+              >
+                <div className="flex items-center space-x-3 min-w-0 flex-1">
+                  {/* 头像 + 在线指示灯 */}
+                  <div className="relative flex-shrink-0">
+                    {otherUser?.avatarUrl ? (
+                      <img
+                        src={otherUser.avatarUrl}
+                        alt={displayName}
+                        className="w-8 h-8 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-discord-brand text-white flex items-center justify-center font-bold text-xs">
+                        {displayName.slice(0, 2).toUpperCase()}
+                      </div>
+                    )}
+                    <span
+                      className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-discord-channelList ${getStatusColor(
+                        status,
+                      )}`}
                     />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full bg-discord-brand text-white flex items-center justify-center font-bold text-xs">
-                      {displayName.slice(0, 2).toUpperCase()}
+                  </div>
+
+                  {/* 昵称与最后一条消息预览 */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center space-x-1.5">
+                      <p className="font-semibold text-sm truncate text-white">
+                        {displayName}
+                      </p>
+                      {note && (
+                        <span className="text-[11px] text-discord-textMuted truncate">
+                          ({originalName})
+                        </span>
+                      )}
                     </div>
+                    <p className="text-xs text-discord-textMuted truncate">
+                      {channel.lastMessage
+                        ? channel.lastMessage.content
+                        : customStatus ||
+                          t("chat:dm.clickToChat", {
+                            defaultValue: "点击开始私信沟通",
+                          })}
+                    </p>
+                  </div>
+                </div>
+
+                {/* 右侧置顶、静音、未读徽标或关闭 X 按钮 */}
+                <div className="flex items-center space-x-1 pl-2">
+                  {isPinned && (
+                    <Pin className="w-3.5 h-3.5 text-amber-400 fill-amber-400/20 shrink-0" />
                   )}
-                  <span
-                    className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-discord-channelList ${getStatusColor(
-                      status,
-                    )}`}
-                  />
-                </div>
-
-                {/* 昵称与最后一条消息预览 */}
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-sm truncate text-white">
-                    {displayName}
-                  </p>
-                  <p className="text-xs text-discord-textMuted truncate">
-                    {channel.lastMessage
-                      ? channel.lastMessage.content
-                      : customStatus ||
-                        t("chat:dm.clickToChat", {
-                          defaultValue: "点击开始私信沟通",
-                        })}
-                  </p>
+                  {isMuted && (
+                    <BellOff className="w-3.5 h-3.5 text-discord-textMuted shrink-0" />
+                  )}
+                  {unread > 0 && (
+                    <span className="bg-[#f23f43] text-white text-[10px] font-bold rounded-full px-1.5 py-0.2 group-hover:hidden">
+                      {unread > 99 ? "99+" : unread}
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onCloseChannel(channel.id);
+                    }}
+                    className="hidden group-hover:flex p-1 rounded hover:bg-[#404249] text-discord-textMuted hover:text-white transition"
+                    title={t("chat:dm.closeDM", { defaultValue: "关闭私信" })}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
-
-              {/* 右侧未读徽标或关闭 X 按钮 */}
-              <div className="flex items-center space-x-1 pl-2">
-                {unread > 0 && (
-                  <span className="bg-discord-brand text-white text-[10px] font-bold rounded-full px-1.5 py-0.2 group-hover:hidden">
-                    {unread > 99 ? "99+" : unread}
-                  </span>
-                )}
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onCloseChannel(channel.id);
-                  }}
-                  className="hidden group-hover:flex p-1 rounded hover:bg-[#404249] text-discord-textMuted hover:text-white transition"
-                  title={t("chat:dm.closeDM", { defaultValue: "关闭私信" })}
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
+            </UserContextMenu>
           );
         })}
 

@@ -16,6 +16,7 @@
   "refresh": "重新整理",
   "enabled": "已開啟",
   "disabled": "已關閉",
+  "new": "新的",
   "status": {
     "online": "線上",
     "idle": "閒置",
@@ -52,7 +53,8 @@
     "undeafen": "取消耳機靜音",
     "userSettings": "用戶設定",
     "copyUserId": "複製用戶 ID",
-    "viewProfile": "查看個人資料"
+    "viewProfile": "查看個人資料",
+    "switchAccount": "切換帳號"
   },
   "dialog": {
     "confirm": "確定",
@@ -78,6 +80,7 @@
     "defaultBio": "正在體驗 Tescord 🚀"
   },
   "profilePopout": {
+    "editProfile": "編輯個人資料",
     "sendDM": "發送私信給 @{{name}}",
     "addNote": "新增備註",
     "clickToAddNote": "點擊新增備註",
@@ -85,7 +88,23 @@
     "mutualServers": "共同所在的伺服器",
     "roles": "身分組",
     "registered": "註冊時間",
-    "customStatus": "自訂狀態"
+    "customStatus": "自訂狀態",
+    "setStatusPlaceholder": "設定狀態...",
+    "saveStatus": "儲存狀態 (Enter)",
+    "cancelStatus": "取消 (Esc)",
+    "customStatusTooltip": "自訂狀態：{{status}} (按一下修改)",
+    "setCustomStatus": "按一下設定自訂狀態",
+    "clearStatus": "清除此狀態",
+    "emptyStatusPrompt": "分享你的新鮮事..."
+  },
+  "badges": {
+    "verifiedClient": "Tescord 已驗證客戶端",
+    "member": "Tescord 會員徽章",
+    "earlyExplorer": "早期探索者",
+    "geekPioneer": "極客先鋒"
+  },
+  "activity": {
+    "playing": "正在遊玩"
   },
   "emptyWelcome": {
     "title": "歡迎來到 Tescord",

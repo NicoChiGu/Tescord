@@ -96,7 +96,7 @@ test.describe("多设备语音互斥接管与会话状态自动化验收 (Multi-
       '[data-testid="voice-transfer-notice"]',
     );
     await expect(transferNotice).toBeVisible({ timeout: 5000 });
-    await expect(transferNotice).toContainText("语音已转移至【桌面客户端】");
+    await expect(transferNotice).toContainText("语音已转移至 桌面客户端");
 
     // 8. 验证横幅中提供一键“在此设备重新连接”按钮
     const reclaimBtn = page.locator('[data-testid="reclaim-voice-btn"]');
@@ -121,7 +121,7 @@ test.describe("多设备语音互斥接管与会话状态自动化验收 (Multi-
     });
 
     await expect(transferNotice).toBeVisible({ timeout: 5000 });
-    await expect(transferNotice).toContainText("语音已转移至【Web 浏览器】");
+    await expect(transferNotice).toContainText("语音已转移至 Web 浏览器");
 
     const dismissBtn = page.locator(
       '[data-testid="dismiss-transfer-notice-btn"]',

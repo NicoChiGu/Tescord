@@ -13,9 +13,11 @@ import {
   screen,
   IpcMainEvent,
   IpcMainInvokeEvent,
+  utilityProcess,
 } from "electron";
 import path from "path";
 import fs from "fs";
+import { createHash } from "crypto";
 import http from "http";
 import https from "https";
 import {
@@ -25,6 +27,9 @@ import {
   SupportedLocale,
   DesktopWindowMode,
   DesktopWindowBounds,
+  DesktopAudioInferenceStart,
+  DesktopAudioInferenceStop,
+  DesktopAudioInferenceFailure,
 } from "@tescord/types";
 import { detectLocalNetwork, UPnPClient } from "./upnp.js";
 import { getDesktopLocale } from "./locales.js";
@@ -33,6 +38,9 @@ import { UpdateManager } from "./updater/update-manager.js";
 import { SplashWindow } from "./updater/splash.js";
 import { ProxyManager } from "./updater/proxy-manager.js";
 import { BUILD_CONFIG } from "./build-config.js";
+import { ToastManager } from "./toastManager.js";
+
+let toastManager: ToastManager | null = null;
 
 // 开发环境下忽略自签名证书错误 (配合 Vite basicSsl HTTPS 开发模式)
 if (process.env.NODE_ENV !== "production") {
@@ -76,6 +84,132 @@ if (process.platform === "win32") {
 }
 
 let mainWindow: BrowserWindow | null = null;
+const audioProcesses = new Map<
+  number,
+  Map<string, ReturnType<typeof utilityProcess.fork>>
+>();
+const DTLN_MODEL_HASHES = [
+  "22b91cae3855e5a0620e66a917ca6c82c58db0e842c770f58d86751c5e8d4ae3",
+  "e20c92f9233fccf29cddf86970d0d0161a03aebccc26d6f4d5639c4d5ec2e639",
+];
+const DFN3_MODEL_HASHES: Record<string, string> = {
+  "denoiser_model.onnx":
+    "b758c49d6708a5b7979e3de185705a8a4915076c862fb17b1b304d9a72b75cdc",
+  "meta.json":
+    "f069011a01849629ad23fbb1d00f4417cf106d5e316e3f7fbcba65cce3440818",
+  "initial-state-layout.json":
+    "53ba88f801e07015dc508ea2c1cc2c461c32ae32f992f5764a32ac46fb3bab1e",
+  "initial-states.f32":
+    "7664728d90e7b17655cf4d308d46d42fdea6c3a69c374e494164c7cb44d783fc",
+};
+
+ipcMain.on("audio-inference-start", (event, request: unknown) => {
+  const port = event.ports[0];
+  const sender = BrowserWindow.fromWebContents(event.sender);
+  if (
+    !port ||
+    !isTrustedIpcSender(event) ||
+    sender !== mainWindow ||
+    event.senderFrame !== event.sender.mainFrame ||
+    typeof request !== "object" ||
+    request === null ||
+    !["rnnoise", "dtln", "dfn3"].includes(
+      (request as { mode?: string }).mode ?? "",
+    ) ||
+    !/^[a-f0-9]{32}$/.test((request as { requestId?: string }).requestId ?? "")
+  ) {
+    port?.close();
+    return;
+  }
+  const parsed = request as DesktopAudioInferenceStart;
+  const ownerId = event.sender.id;
+  const active = audioProcesses.get(ownerId) ?? new Map();
+  const requestId = parsed.requestId;
+  if (active.size >= 4 || active.has(requestId)) {
+    const failure: DesktopAudioInferenceFailure = {
+      requestId,
+      reason: active.has(requestId)
+        ? "Duplicate audio inference session"
+        : "Too many audio inference sessions",
+    };
+    event.sender.send("audio-inference-error", failure);
+    port.close();
+    return;
+  }
+  const webDir = app.isPackaged
+    ? path.join(process.resourcesPath, "web", "dist")
+    : path.resolve(__dirname, "../../web/dist");
+  const mode = parsed.mode;
+  const modelDir = path.join(webDir, "models", mode);
+  let child: ReturnType<typeof utilityProcess.fork> | null = null;
+  try {
+    const assets =
+      mode === "rnnoise"
+        ? {}
+        : mode === "dtln"
+          ? {
+              "model_1.onnx": DTLN_MODEL_HASHES[0],
+              "model_2.onnx": DTLN_MODEL_HASHES[1],
+            }
+          : DFN3_MODEL_HASHES;
+    for (const [name, expected] of Object.entries(assets)) {
+      const bytes = fs.readFileSync(path.join(modelDir, name));
+      if (createHash("sha256").update(bytes).digest("hex") !== expected)
+        throw new Error(`${mode} model checksum mismatch: ${name}`);
+    }
+    child = utilityProcess.fork(
+      path.join(__dirname, "audio", "native-inference.mjs"),
+      [],
+      {
+        serviceName: `Tescord ${mode} inference`,
+      },
+    );
+    const launched = child;
+    active.set(requestId, launched);
+    audioProcesses.set(ownerId, active);
+    const onSenderDestroyed = () => launched.kill();
+    event.sender.once("destroyed", onSenderDestroyed);
+    launched.on("exit", (code) => {
+      if (!event.sender.isDestroyed())
+        event.sender.removeListener("destroyed", onSenderDestroyed);
+      if (active.get(requestId) === launched) active.delete(requestId);
+      if (!active.size) audioProcesses.delete(ownerId);
+      if (!event.sender.isDestroyed())
+        event.sender.send("audio-inference-exit", { requestId, code });
+    });
+    launched.postMessage({ mode, modelDir }, [port]);
+  } catch (error) {
+    child?.kill();
+    active.delete(requestId);
+    if (!active.size) audioProcesses.delete(ownerId);
+    console.error(`Failed to start ${mode} inference:`, error);
+    const failure: DesktopAudioInferenceFailure = {
+      requestId,
+      reason: String(error),
+    };
+    event.sender.send("audio-inference-error", failure);
+    port.close();
+  }
+});
+ipcMain.on("audio-inference-stop", (event, request: unknown) => {
+  const sender = BrowserWindow.fromWebContents(event.sender);
+  if (
+    !isTrustedIpcSender(event) ||
+    sender !== mainWindow ||
+    event.senderFrame !== event.sender.mainFrame ||
+    typeof request !== "object" ||
+    request === null ||
+    !/^[a-f0-9]{32}$/.test((request as { requestId?: string }).requestId ?? "")
+  )
+    return;
+  const { requestId } = request as DesktopAudioInferenceStop;
+  const active = audioProcesses.get(event.sender.id);
+  const child = active?.get(requestId);
+  if (!child) return;
+  active!.delete(requestId);
+  if (!active!.size) audioProcesses.delete(event.sender.id);
+  child.kill();
+});
 let authWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
@@ -1004,39 +1138,62 @@ ipcMain.handle("set-ptt-keybind", async (event, key: string) => {
   }
 });
 
-// 4. 原生桌面通知推送 (Native Notifications)
+// 4. 原生桌面通知与类似 Discord 的悬浮弹窗 (Desktop Notifications / Toast)
 ipcMain.handle(
   "show-desktop-notification",
   async (event, payload: DesktopNotificationPayload) => {
     if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
     try {
-      if (!Notification.isSupported()) {
-        return false;
+      if (!toastManager) {
+        toastManager = new ToastManager((channelId, guildId) => {
+          if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            if (!mainWindow.isVisible()) mainWindow.show();
+            mainWindow.focus();
+            mainWindow.webContents.send("desktop-notification-clicked", {
+              channelId,
+              guildId,
+            });
+          }
+        });
       }
 
-      const notification = new Notification({
-        title: payload.title || "Tescord 通知",
-        body: payload.body || "",
-        silent: !!payload.silent,
-      });
-
-      notification.on("click", () => {
-        if (mainWindow) {
-          if (mainWindow.isMinimized()) mainWindow.restore();
-          if (!mainWindow.isVisible()) mainWindow.show();
-          mainWindow.focus();
-          mainWindow.webContents.send("desktop-notification-clicked", {
-            channelId: payload.channelId,
-            guildId: payload.guildId,
-          });
-        }
-      });
-
-      notification.show();
+      toastManager.showToast(payload);
       return true;
     } catch (err) {
-      console.error("Failed to show desktop notification:", err);
-      return false;
+      console.warn(
+        "Failed to show custom toast, falling back to native notification:",
+        err,
+      );
+      try {
+        if (!Notification.isSupported()) return false;
+        const notification = new Notification({
+          title: payload.title || "Tescord 通知",
+          body: payload.body || "",
+          silent: !!payload.silent,
+        });
+
+        notification.on("click", () => {
+          if (mainWindow) {
+            if (mainWindow.isMinimized()) mainWindow.restore();
+            if (!mainWindow.isVisible()) mainWindow.show();
+            mainWindow.focus();
+            mainWindow.webContents.send("desktop-notification-clicked", {
+              channelId: payload.channelId,
+              guildId: payload.guildId,
+            });
+          }
+        });
+
+        notification.show();
+        return true;
+      } catch (nativeErr) {
+        console.error(
+          "Failed to show native notification fallback:",
+          nativeErr,
+        );
+        return false;
+      }
     }
   },
 );

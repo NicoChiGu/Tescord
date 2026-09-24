@@ -83,10 +83,14 @@ interface ChannelSidebarProps {
   guild: Guild | null;
   channels: Channel[];
   dmChannels?: Channel[];
+  guilds?: Guild[];
   isFriendsActive?: boolean;
   onSelectFriends?: () => void;
   onCloseDMChannel?: (channelId: string) => void;
   onDMChannelCreated?: (channel: Channel) => void;
+  onStartDMCall?: (userId: string) => void;
+  onOpenProfile?: (userId: string) => void;
+  onOpenInviteFriends?: (guild: Guild) => void;
   selectedChannelId: string;
   activeVoiceChannelId: string | null;
   activeVoiceChannelObj?: Channel | null;
@@ -400,12 +404,15 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
 
 export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   guild,
+  guilds,
   channels,
   dmChannels,
   isFriendsActive,
   onSelectFriends,
   onCloseDMChannel,
   onDMChannelCreated,
+  onStartDMCall,
+  onOpenProfile,
   selectedChannelId,
   activeVoiceChannelId,
   activeVoiceChannelObj,
@@ -450,6 +457,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   onSendMessage,
   onKickMember,
   onBanMember,
+  onOpenInviteFriends,
 }) => {
   const { t } = useTranslation(["voice", "common", "contextMenu"]);
   const [copiedInvite, setCopiedInvite] = useState<string | null>(null);
@@ -577,27 +585,15 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
     };
   }, []);
 
-  const handleCreateInvite = async (e: React.MouseEvent) => {
+  const handleOpenInviteModal = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!guild) return;
-    try {
-      const token = localStorage.getItem("tescord_access_token");
-      const res = await fetch(`${API_BASE}/api/guilds/${guild.id}/invites`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ maxUses: 10, expiresInHours: 24 }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        await navigator.clipboard.writeText(data.code);
-        setCopiedInvite(data.code);
-        setTimeout(() => setCopiedInvite(null), 3000);
-      }
-    } catch (err) {
-      console.error("Failed to create invite:", err);
+    if (onOpenInviteFriends) {
+      onOpenInviteFriends(guild);
+    } else {
+      window.dispatchEvent(
+        new CustomEvent("tescord:open-invite-modal", { detail: { guild } }),
+      );
     }
   };
 
@@ -922,11 +918,14 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
           channels={dmChannels || []}
           selectedChannelId={selectedChannelId}
           currentUser={currentUser}
+          guilds={guilds}
           isFriendsActive={isFriendsActive}
           onSelectFriends={onSelectFriends}
           onSelectChannel={onSelectChannel}
           onCloseChannel={(id) => onCloseDMChannel?.(id)}
           onChannelCreated={onDMChannelCreated}
+          onStartCall={onStartDMCall}
+          onOpenProfile={onOpenProfile}
         />
       )}
 
@@ -973,20 +972,13 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
               )}
               {canCreateInvite && (
                 <button
-                  onClick={handleCreateInvite}
+                  type="button"
+                  data-testid="sidebar-invite-friends-btn"
+                  onClick={handleOpenInviteModal}
                   className="p-1 rounded hover:bg-[#3f4147] text-discord-textMuted hover:text-white transition flex items-center space-x-1"
-                  title={t("contextMenu:server.invite")}
+                  title="生成并复制邀请码"
                 >
-                  {copiedInvite ? (
-                    <span className="flex items-center text-xs text-discord-green space-x-0.5">
-                      <Check className="w-3.5 h-3.5" />
-                      <span className="font-mono text-[10px]">
-                        {copiedInvite}
-                      </span>
-                    </span>
-                  ) : (
-                    <UserPlus className="w-4 h-4" />
-                  )}
+                  <UserPlus className="w-4 h-4" />
                 </button>
               )}
             </div>

@@ -17,6 +17,7 @@
   "refresh": "刷新",
   "enabled": "已开启",
   "disabled": "已关闭",
+  "new": "新的",
   "status": {
     "online": "在线",
     "idle": "闲置",
@@ -53,7 +54,8 @@
     "undeafen": "取消耳机静音",
     "userSettings": "用户设置",
     "copyUserId": "复制用户 ID",
-    "viewProfile": "查看个人资料"
+    "viewProfile": "查看个人资料",
+    "switchAccount": "切换账号"
   },
   "dialog": {
     "confirm": "确定",
@@ -87,7 +89,23 @@
     "mutualServers": "共同所在的服务器",
     "roles": "身份组",
     "registered": "注册时间",
-    "customStatus": "自定义状态"
+    "customStatus": "自定义状态",
+    "setStatusPlaceholder": "设定状态...",
+    "saveStatus": "保存状态 (Enter)",
+    "cancelStatus": "取消 (Esc)",
+    "customStatusTooltip": "个性状态：{{status}} (点击修改)",
+    "setCustomStatus": "点击设定自定义状态",
+    "clearStatus": "清除此状态",
+    "emptyStatusPrompt": "分享你的新鲜事..."
+  },
+  "badges": {
+    "verifiedClient": "Tescord 已验证客户端",
+    "member": "Tescord 会员徽章",
+    "earlyExplorer": "早期探索者",
+    "geekPioneer": "极客先锋"
+  },
+  "activity": {
+    "playing": "正在游玩"
   },
   "emptyWelcome": {
     "title": "欢迎来到 Tescord",

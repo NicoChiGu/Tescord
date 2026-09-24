@@ -56,26 +56,10 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
     }
   };
 
-  const handleCreateAndCopyInvite = async () => {
-    try {
-      const token = localStorage.getItem("tescord_access_token");
-      const res = await fetch(`${API_BASE}/api/guilds/${guild.id}/invites`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ maxUses: 10, expiresInHours: 24 }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        await navigator.clipboard.writeText(data.code);
-        setCopiedInvite(true);
-        setTimeout(() => setCopiedInvite(false), 2000);
-      }
-    } catch (err) {
-      console.error("Failed to create invite:", err);
-    }
+  const handleOpenInvite = () => {
+    window.dispatchEvent(
+      new CustomEvent("tescord:open-invite-modal", { detail: { guild } }),
+    );
   };
 
   return (
@@ -84,20 +68,12 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
       <ContextMenuContent className="w-56">
         {canCreateInvite && (
           <ContextMenuItem
-            onClick={handleCreateAndCopyInvite}
+            onClick={handleOpenInvite}
             className="text-discord-brand hover:text-white"
           >
             <div className="flex items-center space-x-2">
-              {copiedInvite ? (
-                <Check className="w-4 h-4 text-discord-green" />
-              ) : (
-                <UserPlus className="w-4 h-4" />
-              )}
-              <span>
-                {copiedInvite
-                  ? t("server:invites.copied")
-                  : t("contextMenu:server.invite")}
-              </span>
+              <UserPlus className="w-4 h-4" />
+              <span>{t("contextMenu:server.invite")}</span>
             </div>
           </ContextMenuItem>
         )}

@@ -42,7 +42,6 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
   isOpen,
   onClose,
   channel,
-  isNoiseSuppressionEnabled,
 }) => {
   const { t } = useTranslation(["voice", "common"]);
   const localStats = useNetworkStats();
@@ -115,10 +114,10 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
   const isPTTMode =
     (audioEngine.config.inputMode as string) === "PTT" ||
     (audioEngine.config.inputMode as string) === "PUSH_TO_TALK";
-  const noiseSuppressionActive =
-    isNoiseSuppressionEnabled !== undefined
-      ? isNoiseSuppressionEnabled
-      : audioEngine.config.noiseSuppression;
+  const effectiveNoiseLabel =
+    audioEngine.noiseStatus.effectiveMode === "off"
+      ? "直通"
+      : `${audioEngine.noiseStatus.effectiveMode.toUpperCase()} (${audioEngine.noiseStatus.backend})`;
 
   const getQualityBadge = (quality?: string) => {
     switch (quality) {
@@ -361,7 +360,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                         {t("voice:noiseSuppressionEngine")}
                       </span>
                       <span className="text-discord-green font-mono">
-                        {noiseSuppressionActive ? "RNNoise WASM" : "直通"}
+                        {effectiveNoiseLabel}
                       </span>
                     </div>
                   </div>
@@ -466,9 +465,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                 <div className="flex justify-between py-1 border-b border-[#35373c]">
                   <span className="text-discord-textMuted">神经网络降噪</span>
                   <span className="text-white font-mono">
-                    {noiseSuppressionActive
-                      ? "RNNoise WASM (480 采样点分帧)"
-                      : "已旁路直通"}
+                    {effectiveNoiseLabel}
                   </span>
                 </div>
                 <div className="flex justify-between py-1">
@@ -643,9 +640,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                     {t("voice:noiseSuppressionEngine")}
                   </span>
                   <span className="text-discord-green font-mono">
-                    {noiseSuppressionActive
-                      ? "RNNoise WASM (480 采样点深度神经网络)"
-                      : "已旁路直通"}
+                    {effectiveNoiseLabel}
                   </span>
                 </div>
 

@@ -54,6 +54,7 @@ export default {
           "brand-hover": "#4752c4",
           green: "#23a55a",
           danger: "#f23f43",
+          red: "#f23f43",
           textMuted: "#949ba4",
           textNormal: "#dbdee1",
           textHeader: "#f2f3f5",

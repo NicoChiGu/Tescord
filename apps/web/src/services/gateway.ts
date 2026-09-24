@@ -104,20 +104,67 @@ export class GatewayClient {
       this.cleanup();
       this.setConnectionState("disconnected");
 
-      const authExpiredCodes = [
-        GatewayCloseCode.TOKEN_EXPIRED,
+      // 1. 若为 TOKEN_EXPIRED (4001)，执行自愈流程：尝试用 Refresh Token 静默续期换票
+      if (
+        event.code === GatewayCloseCode.TOKEN_EXPIRED ||
+        event.code === 4001
+      ) {
+        console.warn(
+          `[GatewayClient] Closed with token expired (4001), initiating silent self-healing...`,
+        );
+        this.setConnectionState("reconnecting");
+        useAuthStore
+          .getState()
+          .refreshAuth()
+          .then((success) => {
+            if (success) {
+              const newToken = useAuthStore.getState().accessToken;
+              if (newToken) {
+                console.log(
+                  "[GatewayClient] Silent refresh succeeded, reconnecting with new token",
+                );
+                this.connect(newToken);
+                return;
+              }
+            }
+            // 刷新失败，说明 Refresh Token 也过期或被吊销，阻断并提示重新登录
+            this.emit(GatewayEvents.AUTH_SESSION_EXPIRED, {
+              code: event.code,
+              reason: event.reason,
+            });
+            useAuthStore
+              .getState()
+              .openReauthModal(
+                event.reason || "连接凭据已失效，请重新验证以恢复长连接",
+              );
+          })
+          .catch(() => {
+            this.emit(GatewayEvents.AUTH_SESSION_EXPIRED, {
+              code: event.code,
+              reason: event.reason,
+            });
+            useAuthStore
+              .getState()
+              .openReauthModal(
+                event.reason || "连接凭据已失效，请重新验证以恢复长连接",
+              );
+          });
+        return;
+      }
+
+      // 2. 若为不可恢复凭证错误（账号封禁 4003、会话吊销 4004、未授权 4002），阻断重连并弹窗
+      const fatalAuthCodes = [
         GatewayCloseCode.UNAUTHORIZED,
         GatewayCloseCode.ACCOUNT_BANNED,
         GatewayCloseCode.SESSION_INVALID,
-        4001,
         4002,
         4003,
         4004,
       ];
 
-      if (authExpiredCodes.includes(event.code)) {
+      if (fatalAuthCodes.includes(event.code)) {
         console.warn(
-          `[GatewayClient] Closed with auth expired code: ${event.code} (${event.reason})`,
+          `[GatewayClient] Closed with fatal auth code: ${event.code} (${event.reason})`,
         );
         this.emit(GatewayEvents.AUTH_SESSION_EXPIRED, {
           code: event.code,
@@ -194,13 +241,14 @@ export class GatewayClient {
       }
 
       case GatewayOpCode.INVALID_SESSION: {
-        console.warn("[GatewayClient] Received INVALID_SESSION from server");
+        console.warn(
+          "[GatewayClient] Received INVALID_SESSION from server, awaiting socket close resolution",
+        );
         this.cleanup();
         this.setConnectionState("disconnected");
         this.emit(GatewayEvents.AUTH_SESSION_EXPIRED, {
           reason: "INVALID_SESSION",
         });
-        useAuthStore.getState().openReauthModal("网关会话失效，请重新登录验证");
         break;
       }
 

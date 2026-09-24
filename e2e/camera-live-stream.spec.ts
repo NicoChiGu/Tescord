@@ -92,7 +92,7 @@ test.describe("语音频道摄像头直播（Webcam Live Streaming）与舞台�
 
     const sidebarCameraBtn = page.getByTestId("sidebar-toggle-video-btn");
     await expect(sidebarCameraBtn).toBeVisible({ timeout: 5000 });
-    await expect(sidebarCameraBtn).toContainText("开视频");
+    await expect(sidebarCameraBtn).toContainText("开启视频");
 
     // 初始状态下：成员卡片展示圆形头像，未挂载 video 标签
     const videoTileInitial = page.getByTestId(
@@ -107,7 +107,9 @@ test.describe("语音频道摄像头直播（Webcam Live Streaming）与舞台�
     await expect(centerCameraBtn).toHaveAttribute("title", "关闭摄像头", {
       timeout: 10000,
     });
-    await expect(sidebarCameraBtn).toContainText("关视频", { timeout: 10000 });
+    await expect(sidebarCameraBtn).toContainText("停用视频", {
+      timeout: 10000,
+    });
 
     // 6. 验证成员卡片平滑切换为视频视口 (包含 <video> 与镜像样式)
     const videoTile = page.getByTestId(
@@ -134,7 +136,7 @@ test.describe("语音频道摄像头直播（Webcam Live Streaming）与舞台�
 
     // 9. 通过左下角侧边栏快捷开关关闭摄像头
     await sidebarCameraBtn.click();
-    await expect(sidebarCameraBtn).toContainText("开视频", { timeout: 5000 });
+    await expect(sidebarCameraBtn).toContainText("开启视频", { timeout: 5000 });
     await expect(centerCameraBtn).toHaveAttribute("title", "打开摄像头", {
       timeout: 5000,
     });
