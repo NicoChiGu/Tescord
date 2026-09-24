@@ -70,9 +70,9 @@ test.describe("用户资料卡片重排版与图1/图2交互差异化验收 (Use
       await selfMemberItem.click();
       await expect(popoutLocator).toBeVisible({ timeout: 5000 });
 
-      // 1.1 校验图1核心元素：存在“編輯個人資料”按钮
+      // 1.1 校验图1核心元素：存在“编辑个人资料”按钮
       const editProfileBtn = popoutLocator.getByRole("button", {
-        name: /編輯個人資料/i,
+        name: /编辑个人资料|編輯個人資料/i,
       });
       await expect(editProfileBtn).toBeVisible();
 
@@ -89,9 +89,9 @@ test.describe("用户资料卡片重排版与图1/图2交互差异化验收 (Use
         await inlineInput.fill("正在测试图1卡片");
         await inlineInput.press("Enter");
         // 保存后变回展示气泡，且内容已更新
-        await expect(
-          popoutLocator.getByText("正在测试图1卡片"),
-        ).toBeVisible({ timeout: 5000 });
+        await expect(popoutLocator.getByText("正在测试图1卡片")).toBeVisible({
+          timeout: 5000,
+        });
       }
 
       // 关闭卡片 (再次点击该项折叠或按 ESC)
@@ -118,24 +118,27 @@ test.describe("用户资料卡片重排版与图1/图2交互差异化验收 (Use
     await expect(popoutLocator).toBeVisible({ timeout: 5000 });
 
     // 2.1 校验图2核心元素：共同服务器指示
-    const mutualGuilds = popoutLocator.getByText(/個伺服器/i);
+    const mutualGuilds = popoutLocator.getByText(/個伺服器|共同所在的服务器/i);
     await expect(mutualGuilds).toBeVisible();
 
-    // 2.2 校验图2核心元素：绝对不含自身的大按钮“編輯個人資料”
+    // 2.2 校验图2核心元素：绝对不含自身的大按钮“编辑个人资料”
     const editBtnOnOther = popoutLocator.getByRole("button", {
-      name: /編輯個人資料/i,
+      name: /编辑个人资料|編輯個人資料/i,
     });
     await expect(editBtnOnOther).toHaveCount(0);
 
     // 2.3 校验图2核心元素：右上角更多操作菜单
-    const moreBtn = popoutLocator.getByTitle("更多操作");
+    const moreBtn = popoutLocator.locator(
+      '[data-testid="user-profile-more-btn"]',
+    );
     await expect(moreBtn).toBeVisible();
     await moreBtn.click();
-    await expect(popoutLocator.getByText("@提及成员")).toBeVisible();
+    await expect(popoutLocator.getByText(/@?提及/i)).toBeVisible();
     await moreBtn.click(); // 再次点击折叠
 
-    // 2.4 校验图2核心元素：底部“傳訊息給 @用户”快捷输入框
-    const quickDMInput = popoutLocator.getByPlaceholder(/傳訊息給 @/i);
+    // 2.4 校验图2核心元素：底部“发送私信给 @用户”快捷输入框
+    const quickDMInput =
+      popoutLocator.getByPlaceholder(/发送私信给 @|傳訊息給 @/i);
     await expect(quickDMInput).toBeVisible();
 
     // 2.5 快捷私信测试：输入内容并回车，自动跳转至私信窗口

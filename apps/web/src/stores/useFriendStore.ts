@@ -24,7 +24,10 @@ interface FriendState {
   // Gateway event handlers
   onRelationshipAdd: (rel: Relationship) => void;
   onRelationshipUpdate: (rel: Relationship) => void;
-  onRelationshipRemove: (data: { userId: string; targetUserId: string }) => void;
+  onRelationshipRemove: (data: {
+    userId: string;
+    targetUserId: string;
+  }) => void;
 
   // Getters
   getPendingCount: () => number;
@@ -169,7 +172,8 @@ export const useFriendStore = create<FriendState>((set, get) => ({
     set((state) => ({
       relationships: state.relationships.filter(
         (r) =>
-          r.targetUserId !== data.targetUserId && r.userId !== data.targetUserId,
+          r.targetUserId !== data.targetUserId &&
+          r.userId !== data.targetUserId,
       ),
     }));
   },

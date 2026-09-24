@@ -46,7 +46,10 @@ export const ProfileCardPreview: React.FC<ProfileCardPreviewProps> = ({
     if (!activeGame?.timestamps?.start) return;
     const calculateElapsed = () => {
       const now = Date.now();
-      const diff = Math.max(1, Math.floor((now - activeGame.timestamps!.start!) / 60000));
+      const diff = Math.max(
+        1,
+        Math.floor((now - activeGame.timestamps!.start!) / 60000),
+      );
       setElapsedMinutes(diff);
     };
     calculateElapsed();
@@ -133,10 +136,16 @@ export const ProfileCardPreview: React.FC<ProfileCardPreviewProps> = ({
         >
           {/* 右上角勋章装饰 */}
           <div className="flex items-center gap-1.5 p-1 rounded-full bg-black/40 backdrop-blur-sm border border-white/10">
-            <span title="Tescord 特别徽章" className="flex items-center text-amber-300">
+            <span
+              title="Tescord 特别徽章"
+              className="flex items-center text-amber-300"
+            >
               <Sparkles className="w-3.5 h-3.5" />
             </span>
-            <span title="已认证用户" className="flex items-center text-[#5865f2]">
+            <span
+              title="已认证用户"
+              className="flex items-center text-[#5865f2]"
+            >
               <ShieldCheck className="w-3.5 h-3.5" />
             </span>
           </div>
@@ -163,19 +172,21 @@ export const ProfileCardPreview: React.FC<ProfileCardPreviewProps> = ({
           {(() => {
             const currentDiscriminator =
               user.discriminator ||
-              (user.username.includes("#") ? user.username.split("#")[1] : "00000");
+              (user.username.includes("#")
+                ? user.username.split("#")[1]
+                : "00000");
             const effectivePrefix =
               usernamePrefix !== undefined
                 ? usernamePrefix.trim()
                 : user.username.includes("#")
-                ? user.username.split("#")[0]
-                : user.username;
+                  ? user.username.split("#")[0]
+                  : user.username;
             const effectiveFullUsername = `${effectivePrefix}#${currentDiscriminator}`;
 
             const displayMain =
               displayName !== undefined && displayName !== null
-                ? (displayName.trim() || effectivePrefix)
-                : (user.displayName || effectivePrefix);
+                ? displayName.trim() || effectivePrefix
+                : user.displayName || effectivePrefix;
 
             return (
               <>
@@ -259,7 +270,9 @@ export const ProfileCardPreview: React.FC<ProfileCardPreviewProps> = ({
                 {bio ? (
                   bio
                 ) : (
-                  <span className="text-[#80848e] italic">这个人很神秘，什么都还没写...</span>
+                  <span className="text-[#80848e] italic">
+                    这个人很神秘，什么都还没写...
+                  </span>
                 )}
               </div>
             </div>
@@ -268,7 +281,10 @@ export const ProfileCardPreview: React.FC<ProfileCardPreviewProps> = ({
               <div className="flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-[#5865f2]" />
                 <span>
-                  注册于：{new Date(user.createdAt || Date.now()).toLocaleDateString("zh-CN")}
+                  注册于：
+                  {new Date(user.createdAt || Date.now()).toLocaleDateString(
+                    "zh-CN",
+                  )}
                 </span>
               </div>
             </div>

@@ -6,7 +6,9 @@ export interface MarkdownContext {
 }
 
 // Discord 风格剧透胶囊组件
-export const Spoiler: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+export const Spoiler: React.FC<{ children: React.ReactNode }> = ({
+  children,
+}) => {
   const [revealed, setRevealed] = useState(false);
   return (
     <span
@@ -43,7 +45,10 @@ const renderMention = (
       onClick={(e) => {
         e.stopPropagation();
         if (!isSpecial) {
-          ctx?.onMentionClick?.(username, e.currentTarget.getBoundingClientRect());
+          ctx?.onMentionClick?.(
+            username,
+            e.currentTarget.getBoundingClientRect(),
+          );
         }
       }}
       className={`inline-flex items-center px-1.5 py-0.5 mx-0.5 rounded text-[13px] font-medium transition select-none align-baseline ${
@@ -68,7 +73,8 @@ const renderMention = (
 const MENTION_REGEX = /^@([a-zA-Z0-9_\u4e00-\u9fa5]+)/;
 const CODE_INLINE_REGEX = /^`([^`\n]+)`/;
 const SPOILER_REGEX = /^\|\|([\s\S]+?)\|\|/;
-const BOLD_UNDERLINE_REGEX = /^__(?:\*\*([\s\S]+?)\*\*|([\s\S]+?))__(?![a-zA-Z0-9_\u4e00-\u9fa5])/;
+const BOLD_UNDERLINE_REGEX =
+  /^__(?:\*\*([\s\S]+?)\*\*|([\s\S]+?))__(?![a-zA-Z0-9_\u4e00-\u9fa5])/;
 const BOLD_REGEX = /^\*\*([\s\S]+?)\*\*/;
 const ITALIC_STAR_REGEX = /^\*([^\*\n]+)\*/;
 const ITALIC_UNDER_REGEX = /^_([^\_\n\s]+?)_(?![a-zA-Z0-9_\u4e00-\u9fa5])/;
@@ -110,9 +116,7 @@ function parseInline(
     match = remaining.match(SPOILER_REGEX);
     if (match) {
       nodes.push(
-        <Spoiler key={key}>
-          {parseInline(match[1], ctx, `${key}-sp`)}
-        </Spoiler>,
+        <Spoiler key={key}>{parseInline(match[1], ctx, `${key}-sp`)}</Spoiler>,
       );
       prevChar = remaining[match[0].length - 1];
       remaining = remaining.slice(match[0].length);
@@ -175,7 +179,10 @@ function parseInline(
         const inner = match[1] || match[2];
         const isBold = !!match[1];
         nodes.push(
-          <u key={key} className={isBold ? "font-bold text-discord-textHeader" : ""}>
+          <u
+            key={key}
+            className={isBold ? "font-bold text-discord-textHeader" : ""}
+          >
             {parseInline(inner, ctx, `${key}-u`)}
           </u>,
         );
@@ -316,7 +323,10 @@ export function parseFastMarkdown(
     if (line.startsWith("> ") || line === ">") {
       const quoteLines: string[] = [line.startsWith("> ") ? line.slice(2) : ""];
       i++;
-      while (i < lines.length && (lines[i].startsWith("> ") || lines[i] === ">")) {
+      while (
+        i < lines.length &&
+        (lines[i].startsWith("> ") || lines[i] === ">")
+      ) {
         quoteLines.push(lines[i].startsWith("> ") ? line.slice(2) : "");
         i++;
       }

@@ -103,10 +103,7 @@ export interface UpdateProfileDTO {
 }
 
 export type RelationshipType =
-  | "FRIEND"
-  | "PENDING_INCOMING"
-  | "PENDING_OUTGOING"
-  | "BLOCKED";
+  "FRIEND" | "PENDING_INCOMING" | "PENDING_OUTGOING" | "BLOCKED";
 
 export interface Relationship {
   id: string;
@@ -581,6 +578,7 @@ export interface Message {
   author: {
     id: string;
     username: string;
+    displayName?: string | null;
     avatarUrl?: string | null;
   };
   content: string;
@@ -904,12 +902,36 @@ export interface MuteDurationOption {
 }
 
 export const CHANNEL_MUTE_DURATION_OPTIONS: MuteDurationOption[] = [
-  { label: "15 分钟", durationMs: 15 * 60 * 1000, i18nKey: "contextMenu:channel.mute15m" },
-  { label: "1 小时", durationMs: 60 * 60 * 1000, i18nKey: "contextMenu:channel.mute1h" },
-  { label: "3 小时", durationMs: 3 * 60 * 60 * 1000, i18nKey: "contextMenu:channel.mute3h" },
-  { label: "8 小时", durationMs: 8 * 60 * 60 * 1000, i18nKey: "contextMenu:channel.mute8h" },
-  { label: "24 小时", durationMs: 24 * 60 * 60 * 1000, i18nKey: "contextMenu:channel.mute24h" },
-  { label: "直到重新开启", durationMs: null, i18nKey: "contextMenu:channel.muteUntilTurnedOn" },
+  {
+    label: "15 分钟",
+    durationMs: 15 * 60 * 1000,
+    i18nKey: "contextMenu:channel.mute15m",
+  },
+  {
+    label: "1 小时",
+    durationMs: 60 * 60 * 1000,
+    i18nKey: "contextMenu:channel.mute1h",
+  },
+  {
+    label: "3 小时",
+    durationMs: 3 * 60 * 60 * 1000,
+    i18nKey: "contextMenu:channel.mute3h",
+  },
+  {
+    label: "8 小时",
+    durationMs: 8 * 60 * 60 * 1000,
+    i18nKey: "contextMenu:channel.mute8h",
+  },
+  {
+    label: "24 小时",
+    durationMs: 24 * 60 * 60 * 1000,
+    i18nKey: "contextMenu:channel.mute24h",
+  },
+  {
+    label: "直到重新开启",
+    durationMs: null,
+    i18nKey: "contextMenu:channel.muteUntilTurnedOn",
+  },
 ];
 
 /**
@@ -2766,7 +2788,6 @@ export interface CreateGuildRequest {
   isPublic?: boolean;
   locale?: SupportedLocale;
 }
-
 
 // ==========================================
 // 20. 超级管理员与全平台治理契约 (Super Admin)

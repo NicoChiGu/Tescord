@@ -14,11 +14,17 @@ interface ChannelNavState {
   clearMemory: () => void;
 }
 
-function getStorageKey(userId: string | null, prefix = "tescord_channel_memory"): string {
+function getStorageKey(
+  userId: string | null,
+  prefix = "tescord_channel_memory",
+): string {
   return userId ? `${prefix}_${userId}` : `${prefix}_guest`;
 }
 
-function loadMemoryFromStorage(userId: string | null, prefix = "tescord_channel_memory"): Record<string, string> {
+function loadMemoryFromStorage(
+  userId: string | null,
+  prefix = "tescord_channel_memory",
+): Record<string, string> {
   try {
     if (typeof localStorage === "undefined") return {};
     const raw = localStorage.getItem(getStorageKey(userId, prefix));
@@ -28,17 +34,27 @@ function loadMemoryFromStorage(userId: string | null, prefix = "tescord_channel_
       return parsed as Record<string, string>;
     }
   } catch (e) {
-    console.warn(`[useChannelNavStore] Failed to load channel memory for ${prefix}`, e);
+    console.warn(
+      `[useChannelNavStore] Failed to load channel memory for ${prefix}`,
+      e,
+    );
   }
   return {};
 }
 
-function saveMemoryToStorage(userId: string | null, memory: Record<string, string>, prefix = "tescord_channel_memory") {
+function saveMemoryToStorage(
+  userId: string | null,
+  memory: Record<string, string>,
+  prefix = "tescord_channel_memory",
+) {
   try {
     if (typeof localStorage === "undefined") return;
     localStorage.setItem(getStorageKey(userId, prefix), JSON.stringify(memory));
   } catch (e) {
-    console.warn(`[useChannelNavStore] Failed to save channel memory for ${prefix}`, e);
+    console.warn(
+      `[useChannelNavStore] Failed to save channel memory for ${prefix}`,
+      e,
+    );
   }
 }
 
@@ -65,13 +81,19 @@ const initialUserId = getInitialUserId();
 export const useChannelNavStore = create<ChannelNavState>((set, get) => ({
   userId: initialUserId,
   lastVisitedChannels: loadMemoryFromStorage(initialUserId),
-  lastVisitedTextChannels: loadMemoryFromStorage(initialUserId, "tescord_text_channel_memory"),
+  lastVisitedTextChannels: loadMemoryFromStorage(
+    initialUserId,
+    "tescord_text_channel_memory",
+  ),
 
   setUserId: (userId: string | null) => {
     const currentUserId = get().userId;
     if (currentUserId === userId) return;
     const loadedChannels = loadMemoryFromStorage(userId);
-    const loadedTextChannels = loadMemoryFromStorage(userId, "tescord_text_channel_memory");
+    const loadedTextChannels = loadMemoryFromStorage(
+      userId,
+      "tescord_text_channel_memory",
+    );
     set({
       userId,
       lastVisitedChannels: loadedChannels,
@@ -125,7 +147,11 @@ export const useChannelNavStore = create<ChannelNavState>((set, get) => ({
     }
     if (guildId in currentTextMemory) {
       delete currentTextMemory[guildId];
-      saveMemoryToStorage(get().userId, currentTextMemory, "tescord_text_channel_memory");
+      saveMemoryToStorage(
+        get().userId,
+        currentTextMemory,
+        "tescord_text_channel_memory",
+      );
     }
     set({
       lastVisitedChannels: currentMemory,

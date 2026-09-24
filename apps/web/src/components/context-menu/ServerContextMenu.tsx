@@ -93,7 +93,11 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
               ) : (
                 <UserPlus className="w-4 h-4" />
               )}
-              <span>{copiedInvite ? t("server:invites.copied") : t("contextMenu:server.invite")}</span>
+              <span>
+                {copiedInvite
+                  ? t("server:invites.copied")
+                  : t("contextMenu:server.invite")}
+              </span>
             </div>
           </ContextMenuItem>
         )}
@@ -171,7 +175,9 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
             ) : (
               <Copy className="w-4 h-4 text-discord-textMuted" />
             )}
-            <span>{copiedId ? t("common:copied") : t("contextMenu:copyGuildId")}</span>
+            <span>
+              {copiedId ? t("common:copied") : t("contextMenu:copyGuildId")}
+            </span>
           </div>
         </ContextMenuItem>
       </ContextMenuContent>

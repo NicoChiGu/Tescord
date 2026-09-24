@@ -69,7 +69,7 @@ export function sendApiError(
   status: number,
   code: ErrorCode | string,
   message: string,
-  details?: Record<string, any>
+  details?: Record<string, any>,
 ) {
   return reply.status(status).send({
     code,
@@ -339,8 +339,14 @@ server.post("/api/auth/check-email", async (request, reply) => {
 server.post("/api/auth/register", async (request, reply) => {
   try {
     const body = request.body as RegisterDTO;
-    if (!body?.email || !body?.password || (!body?.username && !body?.nickname)) {
-      return reply.status(400).send({ error: "请完整填写昵称/用户名、邮箱和密码" });
+    if (
+      !body?.email ||
+      !body?.password ||
+      (!body?.username && !body?.nickname)
+    ) {
+      return reply
+        .status(400)
+        .send({ error: "请完整填写昵称/用户名、邮箱和密码" });
     }
     const result = await authService.register(body);
     return {
@@ -1191,12 +1197,22 @@ server.post("/api/guilds", async (request, reply) => {
     ? await prisma.user.findUnique({ where: { id: userId } })
     : null;
   if (!owner) {
-    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "创建服务器需要有效用户身份");
+    return sendApiError(
+      reply,
+      401,
+      ErrorCode.UNAUTHORIZED,
+      "创建服务器需要有效用户身份",
+    );
   }
 
   const { name, iconUrl } = (request.body || {}) as CreateGuildDTO;
   if (!name || !name.trim()) {
-    return sendApiError(reply, 400, ErrorCode.GUILD_NAME_REQUIRED, "服务器名称不能为空");
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.GUILD_NAME_REQUIRED,
+      "服务器名称不能为空",
+    );
   }
 
   // 根据客户端 locale 或 Accept-Language 决定默认频道与分类文案
@@ -1210,9 +1226,18 @@ server.post("/api/guilds", async (request, reply) => {
     defaultLocale = "ja-JP";
   } else if (lowerLocale.startsWith("en")) {
     defaultLocale = "en-US";
-  } else if (lowerLocale.startsWith("zh-hk") || lowerLocale.startsWith("zh-mo") || lowerLocale.includes("hk") || lowerLocale.includes("mo")) {
+  } else if (
+    lowerLocale.startsWith("zh-hk") ||
+    lowerLocale.startsWith("zh-mo") ||
+    lowerLocale.includes("hk") ||
+    lowerLocale.includes("mo")
+  ) {
     defaultLocale = "zh-HK";
-  } else if (lowerLocale.startsWith("zh-tw") || lowerLocale.includes("tw") || lowerLocale.includes("hant")) {
+  } else if (
+    lowerLocale.startsWith("zh-tw") ||
+    lowerLocale.includes("tw") ||
+    lowerLocale.includes("hant")
+  ) {
     defaultLocale = "zh-TW";
   }
 
@@ -3209,6 +3234,7 @@ server.get("/api/channels/:channelId/messages", async (request, reply) => {
         select: {
           id: true,
           username: true,
+          displayName: true,
           avatarUrl: true,
         },
       },
@@ -3234,12 +3260,12 @@ server.get("/api/channels/:channelId/messages", async (request, reply) => {
   if (replyToIds.length > 0) {
     const repliedMessages = await prisma.message.findMany({
       where: { id: { in: replyToIds } },
-      include: { author: { select: { username: true } } },
+      include: { author: { select: { username: true, displayName: true } } },
     });
     for (const rm of repliedMessages) {
       replyMap.set(rm.id, {
         id: rm.id,
-        authorName: rm.author.username,
+        authorName: rm.author.displayName || rm.author.username,
         content: rm.content.slice(0, 100),
       });
     }
@@ -3357,12 +3383,12 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
   if (replyToId) {
     const refMsg = await prisma.message.findUnique({
       where: { id: replyToId },
-      include: { author: { select: { username: true } } },
+      include: { author: { select: { username: true, displayName: true } } },
     });
     if (refMsg && refMsg.channelId === channelId) {
       replyToPreview = {
         id: refMsg.id,
-        authorName: refMsg.author.username,
+        authorName: refMsg.author.displayName || refMsg.author.username,
         content: refMsg.content.slice(0, 100),
       };
     }
@@ -3422,7 +3448,14 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
           : undefined,
       },
       include: {
-        author: { select: { id: true, username: true, avatarUrl: true } },
+        author: {
+          select: {
+            id: true,
+            username: true,
+            displayName: true,
+            avatarUrl: true,
+          },
+        },
         attachments: true,
       },
     });
@@ -3444,6 +3477,7 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
     author: {
       id: createdMessage.author.id,
       username: createdMessage.author.username,
+      displayName: createdMessage.author.displayName,
       avatarUrl: createdMessage.author.avatarUrl,
     },
     content: createdMessage.content,
@@ -4847,7 +4881,11 @@ server.patch(
       const body = request.body as { isRevoked?: boolean };
       const isRevoked = body.isRevoked !== false; // 默认作废
       const adminId = (request.user as any).sub;
-      return await registrationInviteService.setRevoked(code, isRevoked, adminId);
+      return await registrationInviteService.setRevoked(
+        code,
+        isRevoked,
+        adminId,
+      );
     } catch (err: any) {
       return reply.status(400).send({ error: err.message || "操作失败" });
     }

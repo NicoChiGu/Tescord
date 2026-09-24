@@ -12,7 +12,8 @@ let refreshSubscribers: Array<(token: string | null) => void> = [];
 const pendingReauthQueue: PendingRequest[] = [];
 
 // 保留原生 fetch 引用
-const originalFetch = typeof window !== "undefined" ? window.fetch.bind(window) : fetch;
+const originalFetch =
+  typeof window !== "undefined" ? window.fetch.bind(window) : fetch;
 
 /**
  * 唤醒所有等待静默刷新的并发请求
@@ -32,7 +33,10 @@ function subscribeTokenRefresh(cb: (token: string | null) => void) {
 /**
  * 更新 RequestInit 中的 Authorization 请求头
  */
-function cloneOptionsWithToken(init?: RequestInit, token?: string | null): RequestInit {
+function cloneOptionsWithToken(
+  init?: RequestInit,
+  token?: string | null,
+): RequestInit {
   const newInit: RequestInit = { ...(init || {}) };
   const headers = new Headers(newInit.headers || {});
   if (token) {
@@ -61,7 +65,9 @@ export function flushPendingRequests(newAccessToken: string) {
 /**
  * 用户切换账号或取消重新登录时，取消所有挂起的请求
  */
-export function cancelPendingRequests(reason: string = "Session expired and canceled") {
+export function cancelPendingRequests(
+  reason: string = "Session expired and canceled",
+) {
   while (pendingReauthQueue.length > 0) {
     const item = pendingReauthQueue.shift();
     if (!item) break;
@@ -76,7 +82,12 @@ export async function apiFetch(
   input: RequestInfo | URL,
   init?: RequestInit,
 ): Promise<Response> {
-  const urlStr = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+  const urlStr =
+    typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.toString()
+        : (input as Request).url;
 
   // 1. 若为鉴权接口本身（登录、注册、刷新、邮箱检查、注册状态），直接放行原生请求，防止循环拦截
   const isAuthEndpoint =
@@ -128,9 +139,7 @@ export async function apiFetch(
       subscribeTokenRefresh((newToken) => {
         if (newToken) {
           const updatedOptions = cloneOptionsWithToken(init, newToken);
-          originalFetch(input, updatedOptions)
-            .then(resolve)
-            .catch(reject);
+          originalFetch(input, updatedOptions).then(resolve).catch(reject);
         } else {
           // 刷新失败，转入重登挂起队列
           pendingReauthQueue.push({ url: input, init, resolve, reject });

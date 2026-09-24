@@ -45,7 +45,11 @@ class Dfn3WorkletProcessor extends AudioWorkletProcessor {
     // 1. 构建 32 通道 ERB (Equivalent Rectangular Bandwidth) 滤波器组
     // -------------------------------------------------------------
     this.numErbBands = 32;
-    this.erbBandLimits = this.initErbBandLimits(this.numErbBands, this.sampleRate, this.numBins);
+    this.erbBandLimits = this.initErbBandLimits(
+      this.numErbBands,
+      this.sampleRate,
+      this.numBins,
+    );
     this.noisePsdEstimate = new Float32Array(this.numErbBands).fill(0.0001);
     this.speechPsdEstimate = new Float32Array(this.numErbBands).fill(0.0001);
 
@@ -90,8 +94,8 @@ class Dfn3WorkletProcessor extends AudioWorkletProcessor {
   // 初始化 ERB 频带边界映射
   initErbBandLimits(numBands, sampleRate, numBins) {
     const limits = new Int32Array(numBands + 1);
-    const hzPerBin = (sampleRate / 2) / (numBins - 1); // ~100Hz / bin
-    
+    const hzPerBin = sampleRate / 2 / (numBins - 1); // ~100Hz / bin
+
     // Glasberg & Moore (1990) ERB 尺度频率转换
     const hzToErb = (hz) => 21.4 * Math.log10(0.00437 * hz + 1.0);
     const erbToHz = (erb) => (Math.pow(10, erb / 21.4) - 1.0) / 0.00437;
@@ -102,7 +106,10 @@ class Dfn3WorkletProcessor extends AudioWorkletProcessor {
 
     for (let b = 0; b <= numBands; b++) {
       const freq = erbToHz(minErb + b * stepErb);
-      const bin = Math.min(numBins - 1, Math.max(0, Math.round(freq / hzPerBin)));
+      const bin = Math.min(
+        numBins - 1,
+        Math.max(0, Math.round(freq / hzPerBin)),
+      );
       limits[b] = bin;
     }
     limits[0] = 0;
@@ -177,7 +184,9 @@ class Dfn3WorkletProcessor extends AudioWorkletProcessor {
       const end = Math.max(start + 1, this.erbBandLimits[b + 1]);
       let bandEnergy = 0;
       for (let k = start; k < end; k++) {
-        const p = this.specReal[k] * this.specReal[k] + this.specImag[k] * this.specImag[k];
+        const p =
+          this.specReal[k] * this.specReal[k] +
+          this.specImag[k] * this.specImag[k];
         bandEnergy += p;
       }
       erbEnergies[b] = bandEnergy / (end - start);
@@ -190,8 +199,10 @@ class Dfn3WorkletProcessor extends AudioWorkletProcessor {
       highFreqEnergy += erbEnergies[b];
     }
     const isTransientHit = highFreqEnergy > this.transientTracker * 3.5;
-    this.transientTracker = 0.92 * this.transientTracker + 0.08 * Math.max(0.0001, highFreqEnergy);
-    this.longTermEnergy = 0.98 * this.longTermEnergy + 0.02 * Math.max(0.0001, totalFrameEnergy);
+    this.transientTracker =
+      0.92 * this.transientTracker + 0.08 * Math.max(0.0001, highFreqEnergy);
+    this.longTermEnergy =
+      0.98 * this.longTermEnergy + 0.02 * Math.max(0.0001, totalFrameEnergy);
 
     // 4. MCRA 递归更新背景稳态噪声 PSD 并计算 ERB 粗增益 (Stage 1)
     const erbGains = new Float32Array(this.numErbBands);
@@ -209,7 +220,11 @@ class Dfn3WorkletProcessor extends AudioWorkletProcessor {
       }
 
       // 后验信噪比与维纳掩码计算
-      const snr = Math.max(0, (curEnergy - this.noisePsdEstimate[b]) / (this.noisePsdEstimate[b] + 1e-8));
+      const snr = Math.max(
+        0,
+        (curEnergy - this.noisePsdEstimate[b]) /
+          (this.noisePsdEstimate[b] + 1e-8),
+      );
       let gain = snr / (snr + 1.0); // 维纳掩码 Wiener Filter
 
       // 若检测到突发按键瞬态且不在人声共振带，加强瞬态衰减
@@ -251,7 +266,7 @@ class Dfn3WorkletProcessor extends AudioWorkletProcessor {
           const w0 = 0.45;
           const w1 = 0.22 * mask;
           const w2 = 0.15 * mask;
-          const w3 = 0.10 * mask;
+          const w3 = 0.1 * mask;
           const w4 = 0.08 * mask;
           const weights = [w0, w1, w2, w3, w4];
 
@@ -271,8 +286,10 @@ class Dfn3WorkletProcessor extends AudioWorkletProcessor {
         // 干湿声融合 (强度调节)
         const dryR = this.specReal[k];
         const dryI = this.specImag[k];
-        this.cleanReal[k] = dryR * (1.0 - this.intensity) + cleanR * this.intensity;
-        this.cleanImag[k] = dryI * (1.0 - this.intensity) + cleanI * this.intensity;
+        this.cleanReal[k] =
+          dryR * (1.0 - this.intensity) + cleanR * this.intensity;
+        this.cleanImag[k] =
+          dryI * (1.0 - this.intensity) + cleanI * this.intensity;
       }
     }
 
@@ -332,7 +349,8 @@ class Dfn3WorkletProcessor extends AudioWorkletProcessor {
 
       // 步长前进 240 点 (50% 重叠)
       this.inReadPos = (this.inReadPos + this.hopSize) % this.inBuffer.length;
-      this.outWritePos = (this.outWritePos + this.hopSize) % this.outBuffer.length;
+      this.outWritePos =
+        (this.outWritePos + this.hopSize) % this.outBuffer.length;
       break; // 每次 process 处理最多一帧以保证时延均衡
     }
 

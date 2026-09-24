@@ -124,10 +124,7 @@ class MessageDbService {
   /**
    * 从本地 IndexedDB 取出该频道最新的 N 条消息（默认 100 条，升序排列）
    */
-  async getLatestMessages(
-    channelId: string,
-    limit = 100,
-  ): Promise<Message[]> {
+  async getLatestMessages(channelId: string, limit = 100): Promise<Message[]> {
     try {
       const db = await this.getDB();
       const index = db

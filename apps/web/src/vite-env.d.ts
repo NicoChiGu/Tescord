@@ -39,7 +39,10 @@ interface ElectronAPI {
   getWindowType?: () => Promise<import("@tescord/types").DesktopWindowType>;
   setWindowMode?: (
     mode: import("@tescord/types").DesktopWindowMode,
-  ) => Promise<{ success: boolean; mode: import("@tescord/types").DesktopWindowMode }>;
+  ) => Promise<{
+    success: boolean;
+    mode: import("@tescord/types").DesktopWindowMode;
+  }>;
   getWindowMode?: () => Promise<import("@tescord/types").DesktopWindowMode>;
   onWindowModeChange?: (
     callback: (mode: import("@tescord/types").DesktopWindowMode) => void,
@@ -81,17 +84,22 @@ interface ElectronAPI {
   updater?: {
     getConfig: () => Promise<import("@tescord/types").UpdaterConfig>;
     checkForUpdates: () => Promise<import("@tescord/types").UpdateCheckResult>;
-    downloadAndApply: () => Promise<{ success: boolean; newVersion: string; error?: string }>;
+    downloadAndApply: () => Promise<{
+      success: boolean;
+      newVersion: string;
+      error?: string;
+    }>;
     restartToApply: () => Promise<void>;
     setCustomProxy: (proxyUrl: string) => Promise<boolean>;
     onProgress: (
       callback: (progress: import("@tescord/types").UpdateProgress) => void,
     ) => () => void;
-    onUpdateReady: (callback: (data: { version: string }) => void) => () => void;
+    onUpdateReady: (
+      callback: (data: { version: string }) => void,
+    ) => () => void;
   };
 }
 
 interface Window {
   electronAPI?: ElectronAPI;
 }
-

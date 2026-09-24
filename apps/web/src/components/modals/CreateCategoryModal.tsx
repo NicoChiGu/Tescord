@@ -67,7 +67,9 @@ export const CreateCategoryModal: React.FC<CreateCategoryModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(getErrorMessage(data) || t("modals:createCategory.failed"));
+        throw new Error(
+          getErrorMessage(data) || t("modals:createCategory.failed"),
+        );
       }
 
       const createdCategory: ChannelCategory = await res.json();

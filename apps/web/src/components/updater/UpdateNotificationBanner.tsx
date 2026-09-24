@@ -36,7 +36,9 @@ export const UpdateNotificationBanner: React.FC = () => {
         </div>
         <div className="flex-1 min-w-0 pr-1">
           <div className="text-xs font-bold text-white flex items-center gap-1.5">
-            <span>{t("common:updater.readyTitle", { version: readyVersion })}</span>
+            <span>
+              {t("common:updater.readyTitle", { version: readyVersion })}
+            </span>
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
           </div>
           <div className="text-[11px] text-gray-300 mt-1 leading-relaxed">

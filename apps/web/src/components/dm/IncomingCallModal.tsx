@@ -151,8 +151,8 @@ export const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
               encryption.status === "failed"
                 ? "text-red-300"
                 : encryption.status === "negotiating"
-                ? "text-amber-300"
-                : "text-discord-green"
+                  ? "text-amber-300"
+                  : "text-discord-green"
             }`}
             title={
               encryption.fingerprint
@@ -169,16 +169,16 @@ export const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
                   defaultValue: "已验证设备 · E2EE",
                 })
               : encryption.status === "tofu"
-              ? t("chat:dm.incomingCall.e2eeTofu", {
-                  defaultValue: "首次信任设备 · E2EE",
-                })
-              : encryption.status === "failed"
-              ? t("chat:dm.incomingCall.e2eeFailed", {
-                  defaultValue: "设备验证失败",
-                })
-              : t("chat:dm.incomingCall.e2eeNegotiating", {
-                  defaultValue: "正在验证设备密钥",
-                })}
+                ? t("chat:dm.incomingCall.e2eeTofu", {
+                    defaultValue: "首次信任设备 · E2EE",
+                  })
+                : encryption.status === "failed"
+                  ? t("chat:dm.incomingCall.e2eeFailed", {
+                      defaultValue: "设备验证失败",
+                    })
+                  : t("chat:dm.incomingCall.e2eeNegotiating", {
+                      defaultValue: "正在验证设备密钥",
+                    })}
           </p>
         </div>
 

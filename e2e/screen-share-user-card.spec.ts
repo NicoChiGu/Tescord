@@ -13,7 +13,10 @@ test.describe("直播屏幕分享与摄像头画面融合（画中画自由切�
 
     // 1. 注入用户鉴权状态与浏览器虚拟摄像头 + 屏幕分享 Canvas 双轨 Mock
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
+      localStorage.setItem(
+        "tescord_access_token",
+        localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token",
+      );
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
 
       if (navigator.mediaDevices) {
@@ -104,7 +107,9 @@ test.describe("直播屏幕分享与摄像头画面融合（画中画自由切�
     await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
     await voiceChannelBtn.dblclick();
 
-    const joinPromptBtn = page.getByRole("button", { name: /加入语音通话|在此设备重新连接/i }).first();
+    const joinPromptBtn = page
+      .getByRole("button", { name: /加入语音通话|在此设备重新连接/i })
+      .first();
     if (await joinPromptBtn.isVisible({ timeout: 2500 }).catch(() => false)) {
       await joinPromptBtn.click();
     }

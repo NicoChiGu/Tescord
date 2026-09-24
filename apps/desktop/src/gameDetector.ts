@@ -128,7 +128,9 @@ export class GameDetector {
   private currentActivity: Activity | null = null;
   private currentGameStartTime = 0;
   private currentIdentifier: string | null = null; // 标识当前游戏 (steam:appid 或 exe:name)
-  private onActivityChangeCallbacks: Array<(activity: Activity | null) => void> = [];
+  private onActivityChangeCallbacks: Array<
+    (activity: Activity | null) => void
+  > = [];
 
   // Steam 路径与库目录缓存
   private cachedSteamPath: string | null = null;
@@ -157,7 +159,9 @@ export class GameDetector {
     return this.currentActivity;
   }
 
-  public onActivityChange(callback: (activity: Activity | null) => void): () => void {
+  public onActivityChange(
+    callback: (activity: Activity | null) => void,
+  ): () => void {
     this.onActivityChangeCallbacks.push(callback);
     return () => {
       this.onActivityChangeCallbacks = this.onActivityChangeCallbacks.filter(
@@ -260,7 +264,11 @@ export class GameDetector {
           this.cachedLibraryFolders = [this.cachedSteamPath];
 
           // 解析 libraryfolders.vdf
-          const vdfPath = path.join(this.cachedSteamPath, "steamapps", "libraryfolders.vdf");
+          const vdfPath = path.join(
+            this.cachedSteamPath,
+            "steamapps",
+            "libraryfolders.vdf",
+          );
           if (fs.existsSync(vdfPath)) {
             const vdfContent = fs.readFileSync(vdfPath, "utf-8");
             const pathMatches = vdfContent.matchAll(/"path"\s+"([^"]+)"/g);
@@ -279,7 +287,11 @@ export class GameDetector {
 
       // 在所有库中查找 appmanifest_<appid>.acf
       for (const libDir of this.cachedLibraryFolders) {
-        const acfPath = path.join(libDir, "steamapps", `appmanifest_${appId}.acf`);
+        const acfPath = path.join(
+          libDir,
+          "steamapps",
+          `appmanifest_${appId}.acf`,
+        );
         if (fs.existsSync(acfPath)) {
           const acfContent = fs.readFileSync(acfPath, "utf-8");
           const nameMatch = acfContent.match(/"name"\s+"([^"]+)"/);
@@ -375,7 +387,11 @@ export class GameDetector {
         const lines = stdout.split(/\r?\n/);
         for (const line of lines) {
           if (!line.trim()) continue;
-          const firstCol = line.split(",")[0]?.replace(/^"|"$/g, "").trim().toLowerCase();
+          const firstCol = line
+            .split(",")[0]
+            ?.replace(/^"|"$/g, "")
+            .trim()
+            .toLowerCase();
           if (firstCol) {
             processSet.add(firstCol);
           }

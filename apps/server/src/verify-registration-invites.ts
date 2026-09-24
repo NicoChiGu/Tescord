@@ -32,15 +32,25 @@ async function runVerification() {
   });
 
   // 1. 验证公开注册策略端点
-  console.log("\n[Step 1] 验证公开注册状态接口 GET /api/auth/registration-status ...");
+  console.log(
+    "\n[Step 1] 验证公开注册状态接口 GET /api/auth/registration-status ...",
+  );
   const statusRes = await fetch(`${BASE_URL}/api/auth/registration-status`);
   assert(statusRes.ok, "公开端点应返回 200 OK");
   const statusData = await statusRes.json();
-  assert(statusData.allowRegistration === true, "初始状态下 allowRegistration 应为 true");
-  assert(statusData.requireInviteCode === false, "初始状态下 requireInviteCode 应为 false");
+  assert(
+    statusData.allowRegistration === true,
+    "初始状态下 allowRegistration 应为 true",
+  );
+  assert(
+    statusData.requireInviteCode === false,
+    "初始状态下 requireInviteCode 应为 false",
+  );
 
   // 2. 注册普通测试账号
-  console.log("\n[Step 2] 注册并登录普通用户，验证免邀请码自由注册与权限隔离...");
+  console.log(
+    "\n[Step 2] 注册并登录普通用户，验证免邀请码自由注册与权限隔离...",
+  );
   const normalRes = await fetch(`${BASE_URL}/api/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -56,20 +66,32 @@ async function runVerification() {
 
   // 3. 负向越权测试：普通用户访问超管邀请码接口
   console.log("\n[Step 3] 负向越权安全测试：普通用户访问超管管理端点...");
-  const forbiddenListRes = await fetch(`${BASE_URL}/api/admin/registration-invites`, {
-    headers: { Authorization: `Bearer ${normalToken}` },
-  });
-  assert(forbiddenListRes.status === 403, "普通用户访问 GET /api/admin/registration-invites 应返回 403 Forbidden");
-
-  const forbiddenCreateRes = await fetch(`${BASE_URL}/api/admin/registration-invites`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${normalToken}`,
+  const forbiddenListRes = await fetch(
+    `${BASE_URL}/api/admin/registration-invites`,
+    {
+      headers: { Authorization: `Bearer ${normalToken}` },
     },
-    body: JSON.stringify({ note: "非法生成", maxUses: 1 }),
-  });
-  assert(forbiddenCreateRes.status === 403, "普通用户访问 POST /api/admin/registration-invites 应返回 403 Forbidden");
+  );
+  assert(
+    forbiddenListRes.status === 403,
+    "普通用户访问 GET /api/admin/registration-invites 应返回 403 Forbidden",
+  );
+
+  const forbiddenCreateRes = await fetch(
+    `${BASE_URL}/api/admin/registration-invites`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${normalToken}`,
+      },
+      body: JSON.stringify({ note: "非法生成", maxUses: 1 }),
+    },
+  );
+  assert(
+    forbiddenCreateRes.status === 403,
+    "普通用户访问 POST /api/admin/registration-invites 应返回 403 Forbidden",
+  );
 
   // 4. 创建超级管理员账号
   console.log("\n[Step 4] 提权超级管理员并验证超管身份鉴权...");
@@ -100,7 +122,10 @@ async function runVerification() {
   });
   const loginData = await loginRes.json();
   const adminToken = loginData.accessToken || loginData.token;
-  assert(loginData.user.role === "SUPER_ADMIN", "超管登录返回的角色应为 SUPER_ADMIN");
+  assert(
+    loginData.user.role === "SUPER_ADMIN",
+    "超管登录返回的角色应为 SUPER_ADMIN",
+  );
 
   // 5. 超管配置开启“强制邀请码准入”
   console.log("\n[Step 5] 超级管理员在控制台开启“强制要求注册邀请码”...");
@@ -114,14 +139,24 @@ async function runVerification() {
   });
   assert(updateSettingRes.ok, "超管更新设置应返回 200 OK");
   const updatedSetting = await updateSettingRes.json();
-  assert(updatedSetting.requireInviteCode === true, "系统设置中的 requireInviteCode 应变为 true");
+  assert(
+    updatedSetting.requireInviteCode === true,
+    "系统设置中的 requireInviteCode 应变为 true",
+  );
 
-  const checkStatusRes = await fetch(`${BASE_URL}/api/auth/registration-status`);
+  const checkStatusRes = await fetch(
+    `${BASE_URL}/api/auth/registration-status`,
+  );
   const checkStatus = await checkStatusRes.json();
-  assert(checkStatus.requireInviteCode === true, "公开端点应同步反映 requireInviteCode: true");
+  assert(
+    checkStatus.requireInviteCode === true,
+    "公开端点应同步反映 requireInviteCode: true",
+  );
 
   // 6. 负向测试：未携带邀请码注册被阻断
-  console.log("\n[Step 6] 负向测试：开启邀请码强制后，未填邀请码注册应被拒绝...");
+  console.log(
+    "\n[Step 6] 负向测试：开启邀请码强制后，未填邀请码注册应被拒绝...",
+  );
   const noInviteRes = await fetch(`${BASE_URL}/api/auth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -149,22 +184,28 @@ async function runVerification() {
   });
   assert(fakeInviteRes.status === 400, "伪造邀请码注册应返回 400");
   const fakeErr = await fakeInviteRes.json();
-  assert(fakeErr.error.includes("无效或不存在"), "应明确提示邀请码无效或不存在");
+  assert(
+    fakeErr.error.includes("无效或不存在"),
+    "应明确提示邀请码无效或不存在",
+  );
 
   // 8. 超管生成单次使用邀请码
   console.log("\n[Step 8] 超管生成单次有效邀请码 (maxUses: 1)...");
-  const createInviteRes = await fetch(`${BASE_URL}/api/admin/registration-invites`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${adminToken}`,
+  const createInviteRes = await fetch(
+    `${BASE_URL}/api/admin/registration-invites`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        note: "单次内测邀请码",
+        maxUses: 1,
+        expiresInDays: 7,
+      }),
     },
-    body: JSON.stringify({
-      note: "单次内测邀请码",
-      maxUses: 1,
-      expiresInDays: 7,
-    }),
-  });
+  );
   assert(createInviteRes.ok, "超管创建邀请码应成功");
   const inviteData = await createInviteRes.json();
   const inviteCode1 = inviteData.code;
@@ -213,29 +254,35 @@ async function runVerification() {
   // 11. 超管生成自定义邀请码并作废
   console.log("\n[Step 11] 超管创建自定义邀请码并进行作废/恢复生命周期管理...");
   const customCode = `VIP-${timestamp.toString().slice(-6)}`;
-  const customCreateRes = await fetch(`${BASE_URL}/api/admin/registration-invites`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${adminToken}`,
+  const customCreateRes = await fetch(
+    `${BASE_URL}/api/admin/registration-invites`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({
+        customCode,
+        note: "特权邀请码",
+        maxUses: 5,
+      }),
     },
-    body: JSON.stringify({
-      customCode,
-      note: "特权邀请码",
-      maxUses: 5,
-    }),
-  });
+  );
   assert(customCreateRes.ok, "创建自定义邀请码应成功");
 
   // 作废该邀请码
-  const revokeRes = await fetch(`${BASE_URL}/api/admin/registration-invites/${customCode}/revoke`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${adminToken}`,
+  const revokeRes = await fetch(
+    `${BASE_URL}/api/admin/registration-invites/${customCode}/revoke`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ isRevoked: true }),
     },
-    body: JSON.stringify({ isRevoked: true }),
-  });
+  );
   assert(revokeRes.ok, "作废邀请码操作应成功");
   const revokedData = await revokeRes.json();
   assert(revokedData.isRevoked === true, "isRevoked 应为 true");
@@ -256,14 +303,17 @@ async function runVerification() {
   assert(tryRevokedErr.error.includes("作废"), "应提示邀请码已被作废");
 
   // 恢复激活邀请码
-  const restoreRes = await fetch(`${BASE_URL}/api/admin/registration-invites/${customCode}/revoke`, {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${adminToken}`,
+  const restoreRes = await fetch(
+    `${BASE_URL}/api/admin/registration-invites/${customCode}/revoke`,
+    {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ isRevoked: false }),
     },
-    body: JSON.stringify({ isRevoked: false }),
-  });
+  );
   assert(restoreRes.ok, "恢复激活邀请码应成功");
 
   // 恢复后成功注册
@@ -280,7 +330,9 @@ async function runVerification() {
   assert(restoredRegisterRes.ok, "恢复激活后应可成功注册");
 
   // 12. 负向测试：关闭系统注册总开关
-  console.log("\n[Step 12] 负向测试：关闭注册总开关 (allow_registration: false) 后阻断一切注册...");
+  console.log(
+    "\n[Step 12] 负向测试：关闭注册总开关 (allow_registration: false) 后阻断一切注册...",
+  );
   await fetch(`${BASE_URL}/api/admin/settings`, {
     method: "PATCH",
     headers: {
@@ -316,7 +368,9 @@ async function runVerification() {
   });
 
   console.log("\n==========================================");
-  console.log(`🎉 全部安全与业务断言 100% 通过！共完成 ${passedAssertions} 项严密断言！`);
+  console.log(
+    `🎉 全部安全与业务断言 100% 通过！共完成 ${passedAssertions} 项严密断言！`,
+  );
   console.log("==========================================");
 }
 

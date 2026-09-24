@@ -88,7 +88,9 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(getErrorMessage(data) || t("common:saveFailed", "更新频道失败"));
+        throw new Error(
+          getErrorMessage(data) || t("common:saveFailed", "更新频道失败"),
+        );
       }
 
       const updatedChannel: Channel = await res.json();
@@ -121,7 +123,9 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(getErrorMessage(data) || t("common:deleteFailed", "删除频道失败"));
+        throw new Error(
+          getErrorMessage(data) || t("common:deleteFailed", "删除频道失败"),
+        );
       }
 
       onChannelDeleted?.(channel.id);
@@ -259,7 +263,9 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
               {t("modals:editChannel.attributes")}
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-400">{t("modals:createChannel.typeLabel")}</span>
+              <span className="text-gray-400">
+                {t("modals:createChannel.typeLabel")}
+              </span>
               <span className="font-medium text-gray-200">
                 {isVoice
                   ? t("modals:editChannel.voiceTypeDesc")
@@ -267,7 +273,9 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
               </span>
             </div>
             <div className="flex items-center justify-between text-xs">
-              <span className="text-gray-400">{t("modals:createChannel.e2ee")}</span>
+              <span className="text-gray-400">
+                {t("modals:createChannel.e2ee")}
+              </span>
               {channel.isE2EE ? (
                 <div className="flex items-center gap-1.5 text-discord-green bg-[#23a55a18] px-2 py-0.5 rounded border border-discord-green/30">
                   <ShieldCheck className="w-3.5 h-3.5" />

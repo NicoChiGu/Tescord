@@ -43,12 +43,16 @@ test.describe("游戏状态自动侦测与全维度展示卡个性化 (Profiles 
           id: "usr_mock_profile_tester",
           username: "TescordGamer",
           status: data.status || "ONLINE",
-          customStatus: data.customStatus !== undefined ? data.customStatus : "探索未来 🚀",
+          customStatus:
+            data.customStatus !== undefined ? data.customStatus : "探索未来 🚀",
           bio: data.bio !== undefined ? data.bio : "热爱全栈与游戏开发",
-          bannerColor: data.bannerColor !== undefined ? data.bannerColor : "#5865f2",
+          bannerColor:
+            data.bannerColor !== undefined ? data.bannerColor : "#5865f2",
           bannerUrl: data.bannerUrl !== undefined ? data.bannerUrl : null,
-          themeColor: data.themeColor !== undefined ? data.themeColor : "#23a55a",
-          showActivity: data.showActivity !== undefined ? data.showActivity : true,
+          themeColor:
+            data.themeColor !== undefined ? data.themeColor : "#23a55a",
+          showActivity:
+            data.showActivity !== undefined ? data.showActivity : true,
           avatarUrl: null,
           createdAt: new Date().toISOString(),
         }),
@@ -87,7 +91,9 @@ test.describe("游戏状态自动侦测与全维度展示卡个性化 (Profiles 
     await expect(page.getByText("展示卡与个人资料 (Profiles)")).toBeVisible();
     await expect(page.getByText("展示卡横幅 (Profile Banner)")).toBeVisible();
     await expect(page.getByTestId("input-banner-url")).toBeVisible();
-    await expect(page.getByTestId("game-activity-settings-section")).toBeVisible();
+    await expect(
+      page.getByTestId("game-activity-settings-section"),
+    ).toBeVisible();
 
     // 5. 验证右侧 1:1 动态实时卡片预览区挂载
     await expect(page.getByText("预览效果 (PREVIEW)")).toBeVisible();
@@ -118,7 +124,9 @@ test.describe("游戏状态自动侦测与全维度展示卡个性化 (Profiles 
     // 8. 验证底部“未保存更改提示条”滑出
     const noticeBar = page.getByTestId("unsaved-changes-notice-bar");
     await expect(noticeBar).toBeVisible();
-    await expect(noticeBar.getByText("注意 — 您有未保存的更改！")).toBeVisible();
+    await expect(
+      noticeBar.getByText("注意 — 您有未保存的更改！"),
+    ).toBeVisible();
 
     // 9. 验证重置按钮功能
     const resetBtn = page.getByTestId("reset-profile-changes-btn");
@@ -128,7 +136,9 @@ test.describe("游戏状态自动侦测与全维度展示卡个性化 (Profiles 
 
     // 10. 验证修改横幅图片与保存流程
     const bannerUrlInput = page.getByTestId("input-banner-url");
-    await bannerUrlInput.fill("https://images.unsplash.com/photo-1550745165-9bc0b252726f");
+    await bannerUrlInput.fill(
+      "https://images.unsplash.com/photo-1550745165-9bc0b252726f",
+    );
 
     // 提示条再次出现
     await expect(noticeBar).toBeVisible();
@@ -145,6 +155,8 @@ test.describe("游戏状态自动侦测与全维度展示卡个性化 (Profiles 
     await closeBtn.click();
     await expect(modal).not.toBeVisible();
 
-    expect(consoleErrors.filter((e) => !e.includes("ResizeObserver"))).toEqual([]);
+    expect(consoleErrors.filter((e) => !e.includes("ResizeObserver"))).toEqual(
+      [],
+    );
   });
 });

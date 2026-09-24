@@ -69,7 +69,9 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(getErrorMessage(data) || t("modals:createChannel.failed"));
+        throw new Error(
+          getErrorMessage(data) || t("modals:createChannel.failed"),
+        );
       }
 
       const createdChannel: Channel = await res.json();

@@ -64,11 +64,21 @@ export const GlobalContextMenu: React.FC = () => {
   const menuEstimatedHeight = 280;
   const clampedX = Math.max(
     8,
-    Math.min(x, (typeof window !== "undefined" ? window.innerWidth : 1280) - menuWidth - 8),
+    Math.min(
+      x,
+      (typeof window !== "undefined" ? window.innerWidth : 1280) -
+        menuWidth -
+        8,
+    ),
   );
   const clampedY = Math.max(
     8,
-    Math.min(y, (typeof window !== "undefined" ? window.innerHeight : 800) - menuEstimatedHeight - 8),
+    Math.min(
+      y,
+      (typeof window !== "undefined" ? window.innerHeight : 800) -
+        menuEstimatedHeight -
+        8,
+    ),
   );
 
   return (
@@ -128,8 +138,15 @@ const MessageMenuItems: React.FC<MessageMenuItemsProps> = ({
   onClose,
 }) => {
   const { t } = useTranslation(["contextMenu", "common"]);
-  const { message, guild, onReply, onEdit, onDelete, onTogglePin, onAddReaction } =
-    data;
+  const {
+    message,
+    guild,
+    onReply,
+    onEdit,
+    onDelete,
+    onTogglePin,
+    onAddReaction,
+  } = data;
   const { canManageMessages } = usePermissions(guild);
 
   const isAuthor = currentUser?.id === message.authorId;
@@ -234,7 +251,11 @@ const MessageMenuItems: React.FC<MessageMenuItemsProps> = ({
                   : "text-discord-textMuted"
               }`}
             />
-            <span>{message.isPinned ? t("contextMenu:unpinMessage") : t("contextMenu:pinMessage")}</span>
+            <span>
+              {message.isPinned
+                ? t("contextMenu:unpinMessage")
+                : t("contextMenu:pinMessage")}
+            </span>
           </div>
         </div>
       )}
@@ -252,7 +273,9 @@ const MessageMenuItems: React.FC<MessageMenuItemsProps> = ({
           ) : (
             <Copy className="w-4 h-4 text-discord-textMuted" />
           )}
-          <span>{copiedText ? t("common:copied") : t("contextMenu:copyText")}</span>
+          <span>
+            {copiedText ? t("common:copied") : t("contextMenu:copyText")}
+          </span>
         </div>
       </div>
 
@@ -267,7 +290,9 @@ const MessageMenuItems: React.FC<MessageMenuItemsProps> = ({
           ) : (
             <Copy className="w-4 h-4 text-discord-textMuted" />
           )}
-          <span>{copiedId ? t("common:copied") : t("contextMenu:copyMessageId")}</span>
+          <span>
+            {copiedId ? t("common:copied") : t("contextMenu:copyMessageId")}
+          </span>
         </div>
       </div>
 
@@ -436,7 +461,9 @@ const UserMenuItems: React.FC<UserMenuItemsProps> = ({
           ) : (
             <Copy className="w-4 h-4 text-discord-textMuted" />
           )}
-          <span>{copiedId ? t("common:copied") : t("contextMenu:copyUserId")}</span>
+          <span>
+            {copiedId ? t("common:copied") : t("contextMenu:copyUserId")}
+          </span>
         </div>
       </div>
 
@@ -455,7 +482,11 @@ const UserMenuItems: React.FC<UserMenuItemsProps> = ({
             >
               <div className="flex items-center space-x-2">
                 <UserX className="w-4 h-4" />
-                <span>{t("contextMenu:kickUserNamed", { name: targetUser.username })}</span>
+                <span>
+                  {t("contextMenu:kickUserNamed", {
+                    name: targetUser.username,
+                  })}
+                </span>
               </div>
             </div>
           )}
@@ -470,7 +501,9 @@ const UserMenuItems: React.FC<UserMenuItemsProps> = ({
             >
               <div className="flex items-center space-x-2">
                 <ShieldAlert className="w-4 h-4" />
-                <span>{t("contextMenu:banUserNamed", { name: targetUser.username })}</span>
+                <span>
+                  {t("contextMenu:banUserNamed", { name: targetUser.username })}
+                </span>
               </div>
             </div>
           )}

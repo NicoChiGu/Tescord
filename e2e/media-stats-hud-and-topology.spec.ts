@@ -95,7 +95,9 @@ test.describe("媒体属性面板、传输速率与网络连接架构端到端�
 
     const connectionModeItem = page.getByText("连接架构:");
     await expect(connectionModeItem).toBeVisible();
-    await expect(connectionModeItem.locator("..").getByText("协商中")).toBeVisible();
+    await expect(
+      connectionModeItem.locator("..").getByText("协商中"),
+    ).toBeVisible();
 
     // 确保绝对没有误判为 P2P Direct
     const p2pDirectBug = page.getByText(/P2P Direct \(UDP \/ Host\)/);
@@ -117,7 +119,9 @@ test.describe("媒体属性面板、传输速率与网络连接架构端到端�
     await copyBtn.click();
 
     // 6. 验证容器内拖拽功能 (Draggable inside card)
-    const hudPanel = hudTitle.locator("xpath=ancestor::div[contains(@class, 'z-40')]");
+    const hudPanel = hudTitle.locator(
+      "xpath=ancestor::div[contains(@class, 'z-40')]",
+    );
     const initialBox = await hudPanel.boundingBox();
     expect(initialBox).not.toBeNull();
 
@@ -161,7 +165,9 @@ test.describe("媒体属性面板、传输速率与网络连接架构端到端�
 
     // 10. 验证通过右键菜单打开
     const stageCard = page
-      .locator('[data-testid^="participant-card-"], [data-testid^="participant-video-tile-"]')
+      .locator(
+        '[data-testid^="participant-card-"], [data-testid^="participant-video-tile-"]',
+      )
       .first();
     if (await stageCard.isVisible()) {
       await stageCard.click({ button: "right" });

@@ -34,7 +34,10 @@ export const EmptyGuildsWelcome: React.FC<EmptyGuildsWelcomeProps> = ({
           {t("common:emptyWelcome.title", "欢迎来到 Tescord")}
         </h1>
         <p className="text-sm md:text-base text-discord-textMuted max-w-lg mx-auto leading-relaxed">
-          {t("common:emptyWelcome.subtitle", "纯粹离线自治、高保真实时音视频与极客团队的即时通讯工作空间")}
+          {t(
+            "common:emptyWelcome.subtitle",
+            "纯粹离线自治、高保真实时音视频与极客团队的即时通讯工作空间",
+          )}
         </p>
       </div>
 
@@ -54,7 +57,10 @@ export const EmptyGuildsWelcome: React.FC<EmptyGuildsWelcomeProps> = ({
               {t("common:emptyWelcome.exploreTitle", "探索公开社区")}
             </h2>
             <p className="text-xs text-discord-textMuted leading-relaxed">
-              {t("common:emptyWelcome.exploreDesc", "加入各种各样的公开服务器，结识新朋友并畅聊技术")}
+              {t(
+                "common:emptyWelcome.exploreDesc",
+                "加入各种各样的公开服务器，结识新朋友并畅聊技术",
+              )}
             </p>
           </div>
 
@@ -83,7 +89,10 @@ export const EmptyGuildsWelcome: React.FC<EmptyGuildsWelcomeProps> = ({
               {t("common:emptyWelcome.createTitle", "创建你的第一个服务器")}
             </h2>
             <p className="text-xs text-discord-textMuted leading-relaxed">
-              {t("common:emptyWelcome.createDesc", "为你自己的团队、好友圈或游戏战队搭建专属私密空间")}
+              {t(
+                "common:emptyWelcome.createDesc",
+                "为你自己的团队、好友圈或游戏战队搭建专属私密空间",
+              )}
             </p>
           </div>
 

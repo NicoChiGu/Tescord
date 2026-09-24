@@ -4,7 +4,10 @@ test.describe("频道创建单向数据流与防重复/防强制跳频端到端�
   test.beforeEach(async ({ page }) => {
     // 注入 Mock Token 模拟已登录态
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
+      localStorage.setItem(
+        "tescord_access_token",
+        localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token",
+      );
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 
@@ -52,7 +55,9 @@ test.describe("频道创建单向数据流与防重复/防强制跳频端到端�
     await serverBtn.click();
 
     // 确认初始文字频道可见
-    const generalChannel = page.getByRole("button", { name: /general|常规/i }).first();
+    const generalChannel = page
+      .getByRole("button", { name: /general|常规/i })
+      .first();
     await expect(generalChannel).toBeVisible({ timeout: 5000 });
 
     // 2. 点击侧边栏文字频道旁的“创建频道”按钮

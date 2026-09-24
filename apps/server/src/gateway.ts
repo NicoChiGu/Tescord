@@ -256,6 +256,7 @@ export class GatewayManager {
                   select: {
                     id: true,
                     username: true,
+                    displayName: true,
                     avatarUrl: true,
                     status: true,
                     customStatus: true,
@@ -328,6 +329,7 @@ export class GatewayManager {
             user: {
               id: user.id,
               username: user.username,
+              displayName: user.displayName,
               avatarUrl: user.avatarUrl,
               status: effectiveStatus,
               customStatus: user.customStatus,

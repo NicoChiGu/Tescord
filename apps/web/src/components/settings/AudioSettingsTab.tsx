@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { audioEngine, TripleABTestResult, QuadABTestResult } from "../../services/audioEngine.js";
+import {
+  audioEngine,
+  TripleABTestResult,
+  QuadABTestResult,
+} from "../../services/audioEngine.js";
 import {
   NoiseSuppressionMode,
   VideoCodecType,
@@ -98,7 +102,9 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
   // A/B 降噪录音对比小工具状态
   const [isABTesting, setIsABTesting] = useState(false);
   const [abCountdown, setABCountdown] = useState(5);
-  const [abResult, setABResult] = useState<QuadABTestResult | TripleABTestResult | null>(null);
+  const [abResult, setABResult] = useState<
+    QuadABTestResult | TripleABTestResult | null
+  >(null);
   const [abError, setABError] = useState<string | null>(null);
 
   // 视频编解码器与硬件加速配置状态
@@ -300,7 +306,10 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
     const wasAlreadyRunning = audioEngine.isMicrophoneActive();
     if (!wasAlreadyRunning) {
       audioEngine.initMicrophone().catch((err) => {
-        console.warn("AudioSettingsTab: Failed to temporarily init microphone level test:", err);
+        console.warn(
+          "AudioSettingsTab: Failed to temporarily init microphone level test:",
+          err,
+        );
       });
     }
 
@@ -533,11 +542,16 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               className="w-full bg-[#1e1f22] border border-[#3f4147] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-discord-brand transition cursor-pointer"
             >
               {inputDevices.length === 0 && (
-                <option value="default">{t("settings:audioVideo.defaultInputDevice")}</option>
+                <option value="default">
+                  {t("settings:audioVideo.defaultInputDevice")}
+                </option>
               )}
               {inputDevices.map((d, index) => (
                 <option key={d.deviceId || index} value={d.deviceId}>
-                  {d.label || t("settings:audioVideo.inputDeviceIndex", { index: index + 1 })}
+                  {d.label ||
+                    t("settings:audioVideo.inputDeviceIndex", {
+                      index: index + 1,
+                    })}
                 </option>
               ))}
             </select>
@@ -597,11 +611,16 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               className="w-full bg-[#1e1f22] border border-[#3f4147] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-discord-brand transition cursor-pointer"
             >
               {outputDevices.length === 0 && (
-                <option value="default">{t("settings:audioVideo.defaultOutputDevice")}</option>
+                <option value="default">
+                  {t("settings:audioVideo.defaultOutputDevice")}
+                </option>
               )}
               {outputDevices.map((d, index) => (
                 <option key={d.deviceId || index} value={d.deviceId}>
-                  {d.label || t("settings:audioVideo.outputDeviceIndex", { index: index + 1 })}
+                  {d.label ||
+                    t("settings:audioVideo.outputDeviceIndex", {
+                      index: index + 1,
+                    })}
                 </option>
               ))}
             </select>
@@ -696,7 +715,8 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                 </p>
               </div>
               <span className="text-xs font-mono font-bold text-discord-green bg-discord-green/10 px-2 py-0.5 rounded">
-                {t("settings:audioVideo.vadThreshold")}: {config.vadSensitivity}%
+                {t("settings:audioVideo.vadThreshold")}: {config.vadSensitivity}
+                %
               </span>
             </div>
 
@@ -710,7 +730,9 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               <div
                 className="absolute top-0 bottom-0 w-1 bg-rose-500 z-10 shadow"
                 style={{ left: `${config.vadSensitivity}%` }}
-                title={t("settings:audioVideo.vadThresholdTooltip", { value: config.vadSensitivity })}
+                title={t("settings:audioVideo.vadThresholdTooltip", {
+                  value: config.vadSensitivity,
+                })}
               />
             </div>
 
@@ -752,7 +774,9 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                 >
                   {isRecordingKeybind
                     ? t("settings:audioVideo.pttRecording")
-                    : t("settings:audioVideo.pttKeybindCurrent", { key: config.pushToTalkKey || "Space" })}
+                    : t("settings:audioVideo.pttKeybindCurrent", {
+                        key: config.pushToTalkKey || "Space",
+                      })}
                 </button>
                 <span className="text-xs text-discord-textMuted">
                   {t("settings:audioVideo.pttKeybindTip")}
@@ -955,11 +979,16 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               className="w-full bg-[#1e1f22] border border-[#3f4147] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-discord-brand transition cursor-pointer"
             >
               {cameraDevices.length === 0 && (
-                <option value="default">{t("settings:audioVideo.defaultCameraDevice")}</option>
+                <option value="default">
+                  {t("settings:audioVideo.defaultCameraDevice")}
+                </option>
               )}
               {cameraDevices.map((d, index) => (
                 <option key={d.deviceId || index} value={d.deviceId}>
-                  {d.label || t("settings:audioVideo.cameraDeviceIndex", { index: index + 1 })}
+                  {d.label ||
+                    t("settings:audioVideo.cameraDeviceIndex", {
+                      index: index + 1,
+                    })}
                 </option>
               ))}
             </select>
@@ -1232,7 +1261,11 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             </div>
           </div>
           <div className="flex items-center gap-1.5 text-xs text-gray-400">
-            <span>{isAdvancedOpen ? t("settings:audioVideo.collapse") : t("settings:audioVideo.expandAdvanced")}</span>
+            <span>
+              {isAdvancedOpen
+                ? t("settings:audioVideo.collapse")
+                : t("settings:audioVideo.expandAdvanced")}
+            </span>
             {isAdvancedOpen ? (
               <ChevronUp className="w-4 h-4" />
             ) : (

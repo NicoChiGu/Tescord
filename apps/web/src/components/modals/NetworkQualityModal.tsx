@@ -17,7 +17,11 @@ import {
   HardDrive,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Channel, P2PNetworkDiagnostics, PeerLatencyReport } from "@tescord/types";
+import {
+  Channel,
+  P2PNetworkDiagnostics,
+  PeerLatencyReport,
+} from "@tescord/types";
 import { useNetworkStats } from "../../hooks/useNetworkStats.js";
 import { sframeManager } from "../../services/sframe.js";
 import { audioEngine } from "../../services/audioEngine.js";
@@ -51,9 +55,9 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
     useState<P2PNetworkDiagnostics | null>(null);
 
   // Mesh P2P 状态与延迟
-  const [peerLatencies, setPeerLatencies] = useState<Map<string, PeerLatencyReport>>(
-    () => voiceMeshManager.getAllPeerLatencies(),
-  );
+  const [peerLatencies, setPeerLatencies] = useState<
+    Map<string, PeerLatencyReport>
+  >(() => voiceMeshManager.getAllPeerLatencies());
   const [isMeshActive, setIsMeshActive] = useState<boolean>(() =>
     voiceMeshManager.getIsMeshActive(),
   );
@@ -138,8 +142,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
       default:
         return {
           label: "未知 (Unknown)",
-          className:
-            "text-discord-textMuted bg-white/5 border-white/10",
+          className: "text-discord-textMuted bg-white/5 border-white/10",
         };
     }
   };
@@ -272,7 +275,9 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                       往返延迟 RTT
                     </div>
                     <div className="text-lg font-bold text-discord-green font-mono">
-                      {typeof localStats?.rtt === "number" ? localStats.rtt : "未知"}{" "}
+                      {typeof localStats?.rtt === "number"
+                        ? localStats.rtt
+                        : "未知"}{" "}
                       {typeof localStats?.rtt === "number" && (
                         <span className="text-xs font-normal">ms</span>
                       )}
@@ -336,17 +341,25 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                   </div>
                   <div className="text-xs space-y-1">
                     <div className="flex justify-between text-[11px]">
-                      <span className="text-discord-textMuted">{t("voice:audioMode")}</span>
+                      <span className="text-discord-textMuted">
+                        {t("voice:audioMode")}
+                      </span>
                       <span className="text-emerald-400 font-mono">
-                        {isMeshActive ? t("voice:p2pMeshMode") : t("voice:sfuServerMode")}
+                        {isMeshActive
+                          ? t("voice:p2pMeshMode")
+                          : t("voice:sfuServerMode")}
                       </span>
                     </div>
                     <div className="flex justify-between text-[11px]">
-                      <span className="text-discord-textMuted">{t("voice:audioCodec")}</span>
+                      <span className="text-discord-textMuted">
+                        {t("voice:audioCodec")}
+                      </span>
                       <span className="text-white font-mono">Opus 48kHz</span>
                     </div>
                     <div className="flex justify-between text-[11px]">
-                      <span className="text-discord-textMuted">{t("voice:noiseSuppressionEngine")}</span>
+                      <span className="text-discord-textMuted">
+                        {t("voice:noiseSuppressionEngine")}
+                      </span>
                       <span className="text-discord-green font-mono">
                         {noiseSuppressionActive ? "RNNoise WASM" : "直通"}
                       </span>
@@ -368,7 +381,9 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                   </div>
                   <div className="text-xs space-y-1">
                     <div className="flex justify-between text-[11px]">
-                      <span className="text-discord-textMuted">{t("voice:videoStatus")}</span>
+                      <span className="text-discord-textMuted">
+                        {t("voice:videoStatus")}
+                      </span>
                       <span className="text-discord-brand font-mono">
                         {videoState === "broadcasting"
                           ? t("voice:videoStatusBroadcasting")
@@ -378,13 +393,17 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                       </span>
                     </div>
                     <div className="flex justify-between text-[11px]">
-                      <span className="text-discord-textMuted">{t("voice:videoCodec")}</span>
+                      <span className="text-discord-textMuted">
+                        {t("voice:videoCodec")}
+                      </span>
                       <span className="text-white font-mono">
                         {localStats?.videoCodec || "未知"}
                       </span>
                     </div>
                     <div className="flex justify-between text-[11px]">
-                      <span className="text-discord-textMuted">{t("voice:videoMode")}</span>
+                      <span className="text-discord-textMuted">
+                        {t("voice:videoMode")}
+                      </span>
                       <span className="text-emerald-400 font-mono">
                         {p2pDiagnostics?.transmissionMode === "sfu"
                           ? t("voice:sfuServerMode")
@@ -490,7 +509,9 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
 
                   <div className="text-xs space-y-1.5">
                     <div className="flex justify-between py-1 border-b border-[#35373c]">
-                      <span className="text-discord-textMuted">NAT 穿透类型</span>
+                      <span className="text-discord-textMuted">
+                        NAT 穿透类型
+                      </span>
                       <span className="text-white font-mono flex items-center gap-1.5">
                         <span
                           className={`w-2 h-2 rounded-full ${
@@ -527,8 +548,16 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                           活跃候选对类型
                         </span>
                         <span className="text-emerald-300 font-mono text-[11px]">
-                          {p2pDiagnostics.activeCandidatePair.localCandidateType} ⟷{" "}
-                          {p2pDiagnostics.activeCandidatePair.remoteCandidateType} (
+                          {
+                            p2pDiagnostics.activeCandidatePair
+                              .localCandidateType
+                          }{" "}
+                          ⟷{" "}
+                          {
+                            p2pDiagnostics.activeCandidatePair
+                              .remoteCandidateType
+                          }{" "}
+                          (
                           {p2pDiagnostics.activeCandidatePair.protocol.toUpperCase()}
                           )
                         </span>
@@ -552,7 +581,8 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                       {t("voice:fallbackToSFUActive")}
                     </div>
                     <div className="text-[11px] text-amber-300/80 mt-0.5">
-                      {fallbackReason || "P2P 穿透协商受阻或节点网络变动，已自动平滑降级回退至 LiveKit SFU 服务器，保障语音通话不中断。"}
+                      {fallbackReason ||
+                        "P2P 穿透协商受阻或节点网络变动，已自动平滑降级回退至 LiveKit SFU 服务器，保障语音通话不中断。"}
                     </div>
                   </div>
                 </div>
@@ -563,7 +593,9 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                     <span>{t("voice:fallbackNormal")}</span>
                   </div>
                   <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-mono">
-                    {isMeshActive ? t("voice:p2pMeshMode") : t("voice:sfuServerMode")}
+                    {isMeshActive
+                      ? t("voice:p2pMeshMode")
+                      : t("voice:sfuServerMode")}
                   </span>
                 </div>
               )}
@@ -576,7 +608,9 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                 </div>
 
                 <div className="flex justify-between py-1 border-b border-[#35373c]">
-                  <span className="text-discord-textMuted">{t("voice:audioMode")}</span>
+                  <span className="text-discord-textMuted">
+                    {t("voice:audioMode")}
+                  </span>
                   <span className="text-emerald-400 font-mono">
                     {isMeshActive
                       ? `${t("voice:p2pMeshMode")} (${peerLatencies.size} 节点)`
@@ -585,14 +619,18 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                 </div>
 
                 <div className="flex justify-between py-1 border-b border-[#35373c]">
-                  <span className="text-discord-textMuted">{t("voice:audioCodec")}</span>
+                  <span className="text-discord-textMuted">
+                    {t("voice:audioCodec")}
+                  </span>
                   <span className="text-white font-mono">
                     Opus 48kHz (高保真全频带立体声)
                   </span>
                 </div>
 
                 <div className="flex justify-between py-1 border-b border-[#35373c]">
-                  <span className="text-discord-textMuted">{t("voice:audioBitrate")}</span>
+                  <span className="text-discord-textMuted">
+                    {t("voice:audioBitrate")}
+                  </span>
                   <span className="text-discord-brand font-mono">
                     {typeof localStats?.bitrate === "number"
                       ? `${localStats.bitrate} kbps`
@@ -601,7 +639,9 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                 </div>
 
                 <div className="flex justify-between py-1 border-b border-[#35373c]">
-                  <span className="text-discord-textMuted">{t("voice:noiseSuppressionEngine")}</span>
+                  <span className="text-discord-textMuted">
+                    {t("voice:noiseSuppressionEngine")}
+                  </span>
                   <span className="text-discord-green font-mono">
                     {noiseSuppressionActive
                       ? "RNNoise WASM (480 采样点深度神经网络)"
@@ -635,10 +675,13 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
 
                 {channel?.isE2EE && (
                   <div className="flex justify-between py-1">
-                    <span className="text-discord-textMuted">{t("voice:sframeStream")}</span>
+                    <span className="text-discord-textMuted">
+                      {t("voice:sframeStream")}
+                    </span>
                     <span className="text-emerald-400 font-mono text-[11px]">
                       已加密 {sframeStats.framesEncrypted} 帧 / 已解密{" "}
-                      {sframeStats.framesDecrypted} 帧 (拦截: {sframeStats.framesDroppedReplay})
+                      {sframeStats.framesDecrypted} 帧 (拦截:{" "}
+                      {sframeStats.framesDroppedReplay})
                     </span>
                   </div>
                 )}
@@ -650,29 +693,35 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                   <div className="font-bold text-discord-textHeader mb-1 flex items-center justify-between">
                     <span className="flex items-center space-x-1.5">
                       <Network className="w-3.5 h-3.5 text-discord-brand" />
-                      <span>{t("voice:peerCount")} ({peerLatencies.size})</span>
+                      <span>
+                        {t("voice:peerCount")} ({peerLatencies.size})
+                      </span>
                     </span>
-                    <span className="text-[11px] text-discord-textMuted">点对点独立 RTT</span>
+                    <span className="text-[11px] text-discord-textMuted">
+                      点对点独立 RTT
+                    </span>
                   </div>
                   <div className="space-y-1.5 pt-1">
-                    {Array.from(peerLatencies.entries()).map(([peerId, rep]) => (
-                      <div
-                        key={peerId}
-                        className="flex items-center justify-between bg-[#1e1f22] px-3 py-1.5 rounded-lg border border-[#2b2d31]"
-                      >
-                        <span className="text-discord-textNormal font-mono text-[11px]">
-                          Peer: {peerId.slice(0, 8)}...
-                        </span>
-                        <div className="flex items-center gap-3 font-mono text-[11px]">
-                          <span className="text-discord-green font-bold">
-                            {rep.rtt > 0 ? `${rep.rtt} ms` : "未知"}
+                    {Array.from(peerLatencies.entries()).map(
+                      ([peerId, rep]) => (
+                        <div
+                          key={peerId}
+                          className="flex items-center justify-between bg-[#1e1f22] px-3 py-1.5 rounded-lg border border-[#2b2d31]"
+                        >
+                          <span className="text-discord-textNormal font-mono text-[11px]">
+                            Peer: {peerId.slice(0, 8)}...
                           </span>
-                          <span className="text-discord-textMuted text-[10px]">
-                            {rep.connectionType}
-                          </span>
+                          <div className="flex items-center gap-3 font-mono text-[11px]">
+                            <span className="text-discord-green font-bold">
+                              {rep.rtt > 0 ? `${rep.rtt} ms` : "未知"}
+                            </span>
+                            <span className="text-discord-textMuted text-[10px]">
+                              {rep.connectionType}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ),
+                    )}
                   </div>
                 </div>
               )}
@@ -706,7 +755,9 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                 </div>
 
                 <div className="flex justify-between py-1 border-b border-[#35373c]">
-                  <span className="text-discord-textMuted">{t("voice:videoMode")}</span>
+                  <span className="text-discord-textMuted">
+                    {t("voice:videoMode")}
+                  </span>
                   <span className="text-discord-brand font-mono">
                     {p2pDiagnostics?.transmissionMode === "sfu"
                       ? t("voice:sfuServerMode")
@@ -717,17 +768,19 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                 </div>
 
                 <div className="flex justify-between py-1 border-b border-[#35373c]">
-                  <span className="text-discord-textMuted">{t("voice:videoCodec")}</span>
+                  <span className="text-discord-textMuted">
+                    {t("voice:videoCodec")}
+                  </span>
                   <span className="text-white font-mono flex items-center gap-1.5">
                     <Cpu className="w-3.5 h-3.5 text-discord-brand" />
-                    <span>
-                      {localStats?.videoCodec || "未知"}
-                    </span>
+                    <span>{localStats?.videoCodec || "未知"}</span>
                   </span>
                 </div>
 
                 <div className="flex justify-between py-1 border-b border-[#35373c]">
-                  <span className="text-discord-textMuted">{t("voice:hardwareAcceleration")}</span>
+                  <span className="text-discord-textMuted">
+                    {t("voice:hardwareAcceleration")}
+                  </span>
                   <span className="text-emerald-400 font-mono flex items-center gap-1">
                     <HardDrive className="w-3.5 h-3.5" />
                     <span>Intel QSV / WebCodecs / NVENC 畅通</span>
@@ -735,7 +788,9 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                 </div>
 
                 <div className="flex justify-between py-1 border-b border-[#35373c]">
-                  <span className="text-discord-textMuted">{t("voice:videoResolutionFps")}</span>
+                  <span className="text-discord-textMuted">
+                    {t("voice:videoResolutionFps")}
+                  </span>
                   <span className="text-white font-mono">
                     {localStats?.videoResolution || "未知"}
                     {localStats?.videoFramerate
@@ -745,7 +800,9 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                 </div>
 
                 <div className="flex justify-between py-1">
-                  <span className="text-discord-textMuted">{t("voice:videoBitrate")}</span>
+                  <span className="text-discord-textMuted">
+                    {t("voice:videoBitrate")}
+                  </span>
                   <span className="text-emerald-400 font-mono">
                     {typeof localStats?.videoBitrate === "number"
                       ? `${localStats.videoBitrate} kbps`
@@ -783,7 +840,9 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
 
                   <div className="text-xs space-y-1.5">
                     <div className="flex justify-between py-1 border-b border-[#35373c]">
-                      <span className="text-discord-textMuted">{t("voice:natType")}</span>
+                      <span className="text-discord-textMuted">
+                        {t("voice:natType")}
+                      </span>
                       <span className="text-white font-mono flex items-center gap-1.5">
                         <span
                           className={`w-2 h-2 rounded-full ${
@@ -820,8 +879,16 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                           {t("voice:activeCandidatePair")}
                         </span>
                         <span className="text-emerald-300 font-mono text-[11px]">
-                          {p2pDiagnostics.activeCandidatePair.localCandidateType} ⟷{" "}
-                          {p2pDiagnostics.activeCandidatePair.remoteCandidateType} (
+                          {
+                            p2pDiagnostics.activeCandidatePair
+                              .localCandidateType
+                          }{" "}
+                          ⟷{" "}
+                          {
+                            p2pDiagnostics.activeCandidatePair
+                              .remoteCandidateType
+                          }{" "}
+                          (
                           {p2pDiagnostics.activeCandidatePair.protocol.toUpperCase()}
                           )
                         </span>

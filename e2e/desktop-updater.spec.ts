@@ -16,8 +16,6 @@ test.describe("客户端更新服务与 gh-proxy 加速端到端验收", () => {
 
     // 注入模拟的 electronAPI 对象以测试桌面端专属更新能力
     await page.addInitScript(() => {
-
-
       let progressCb: any = null;
       let readyCb: any = null;
       let mockProxy = "";
@@ -41,7 +39,11 @@ test.describe("客户端更新服务与 gh-proxy 加速端到端验收", () => {
         closeWindow: async () => {},
         isWindowMaximized: async () => false,
         onWindowMaximizedChange: () => () => {},
-        getGPUInfo: async () => ({ isIntel: false, isNvidia: true, isAmd: false }),
+        getGPUInfo: async () => ({
+          isIntel: false,
+          isNvidia: true,
+          isAmd: false,
+        }),
         network: {
           detectLocalNetwork: async () => ({
             ipv4List: ["192.168.1.100"],
@@ -73,7 +75,8 @@ test.describe("客户端更新服务与 gh-proxy 加速端到端验收", () => {
               minHostVersion: "0.1.0",
               webPackageUrl: "tescord-web-v0.2.0.zip",
               webPackageSha256: "abc1234567890",
-              changelog: "### 🚀 新增功能\n- 支持轻量 Web 增量免安装更新！\n- 支持 gh-proxy 阶梯加速",
+              changelog:
+                "### 🚀 新增功能\n- 支持轻量 Web 增量免安装更新！\n- 支持 gh-proxy 阶梯加速",
               mandatory: false,
             },
           }),
@@ -164,9 +167,10 @@ test.describe("客户端更新服务与 gh-proxy 加速端到端验收", () => {
 
     // 6. 验证展示检测到的新版本与增量更新提示
     await expect(page.getByText("发现新版本: v0.2.0")).toBeVisible();
-    await expect(page.getByText("增量免安装更新", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("增量免安装更新", { exact: true }),
+    ).toBeVisible();
     await expect(page.getByText("支持轻量 Web 增量免安装更新！")).toBeVisible();
-
 
     // 7. 点击立即下载增量更新
     const downloadBtn = page.getByRole("button", {
@@ -177,7 +181,9 @@ test.describe("客户端更新服务与 gh-proxy 加速端到端验收", () => {
 
     // 8. 验证就绪状态及重启按钮
     await expect(page.getByText("新版本已在本地解压就绪！")).toBeVisible();
-    await expect(page.getByRole("button", { name: /立即重启应用/i })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /立即重启应用/i }),
+    ).toBeVisible();
   });
 
   test("当后台静默接收到增量更新就绪事件时，应当在页面右下角浮出温和重启提醒横幅", async ({
@@ -192,15 +198,15 @@ test.describe("客户端更新服务与 gh-proxy 加速端到端验收", () => {
       (window as any).__triggerMockUpdateReady("0.2.0");
     });
 
-
     // 验证右下角浮出悬浮通知横幅
     await expect(page.getByText("新版本 v0.2.0 已就绪")).toBeVisible();
     await expect(
-      page.getByText("免安装增量更新已在后台下载完毕，点击重启即可秒级载入新特性！")
+      page.getByText(
+        "免安装增量更新已在后台下载完毕，点击重启即可秒级载入新特性！",
+      ),
     ).toBeVisible();
 
     const restartBtn = page.getByRole("button", { name: /立即重启/i });
     await expect(restartBtn).toBeVisible();
   });
-
 });

@@ -52,15 +52,14 @@ export const MaintenanceAdminBanner: React.FC<MaintenanceAdminBannerProps> = ({
         <span className="flex h-5 w-5 items-center justify-center rounded-full bg-black/20 text-black">
           <ShieldAlert className="h-3.5 w-3.5" />
         </span>
-        <span className="font-bold">
-          {t("common:maintenance.adminBadge")}
-        </span>
+        <span className="font-bold">{t("common:maintenance.adminBadge")}</span>
         <span className="hidden sm:inline opacity-90">
           {t("common:maintenance.adminDesc")}
         </span>
         {announcement && (
           <span className="hidden md:inline rounded bg-black/15 px-2 py-0.5 text-[11px] font-normal">
-            {t("common:maintenance.announcement")}{announcement}
+            {t("common:maintenance.announcement")}
+            {announcement}
           </span>
         )}
       </div>

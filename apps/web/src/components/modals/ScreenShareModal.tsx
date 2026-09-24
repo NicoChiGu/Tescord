@@ -369,7 +369,9 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
                         {opt.id.toUpperCase()}
                       </span>
                       <span className="text-[9px] opacity-75">
-                        {!isAllowed ? t("modals:screenShare.exceedsScreen") : `${opt.height}P`}
+                        {!isAllowed
+                          ? t("modals:screenShare.exceedsScreen")
+                          : `${opt.height}P`}
                       </span>
                     </button>
                   );

@@ -27,19 +27,21 @@ test.describe("端到端双棘轮加密频道消息收发与查看验收 (E2EE C
     await expect(page.locator("#root")).toBeVisible();
 
     // 1. 切换至加密频道 crypto-vault (chn_default_text_02)
-    const cryptoChannelItem = page.locator(
-      'text="crypto-vault"',
-    ).first();
+    const cryptoChannelItem = page.locator('text="crypto-vault"').first();
     await expect(cryptoChannelItem).toBeVisible({ timeout: 15000 });
     await cryptoChannelItem.click();
 
     // 2. 验证侧边栏频道项不显示 E2EE 字样
-    const channelBtn = page.locator('[data-testid="channel-button-crypto-vault"]');
+    const channelBtn = page.locator(
+      '[data-testid="channel-button-crypto-vault"]',
+    );
     await expect(channelBtn).toBeVisible();
     await expect(channelBtn).not.toContainText("E2EE");
 
     // 3. 验证 Header 呈现精简的“端加密”按钮
-    const e2eeHeaderBtn = page.locator('[data-testid="chat-header-e2ee-badge"]');
+    const e2eeHeaderBtn = page.locator(
+      '[data-testid="chat-header-e2ee-badge"]',
+    );
     await expect(e2eeHeaderBtn).toBeVisible({ timeout: 10000 });
     await expect(e2eeHeaderBtn).toContainText("端加密");
 
@@ -82,7 +84,9 @@ test.describe("端到端双棘轮加密频道消息收发与查看验收 (E2EE C
     await chatInput.press("Enter");
 
     // 6. 验证网络请求：已成功发出且包含加密信封，非 400 拒绝
-    await expect.poll(() => interceptedResponseStatus, { timeout: 10000 }).toBe(200);
+    await expect
+      .poll(() => interceptedResponseStatus, { timeout: 10000 })
+      .toBe(200);
     expect(interceptedRequest).not.toBeNull();
     expect(interceptedRequest.isEncrypted).toBe(true);
 

@@ -4,7 +4,10 @@ test.describe("真实用户在线状态 (Online Presence / Status) 端到端全�
   test.beforeEach(async ({ page }) => {
     // 注入已登录 Token 会话
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
+      localStorage.setItem(
+        "tescord_access_token",
+        localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token",
+      );
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 
@@ -240,7 +243,9 @@ test.describe("真实用户在线状态 (Online Presence / Status) 端到端全�
     await dmHomeBtn.click();
 
     // 左侧呈现私信列表
-    const aliceDmItem = page.locator('[data-testid="dm-item-dm_channel_alice"]');
+    const aliceDmItem = page.locator(
+      '[data-testid="dm-item-dm_channel_alice"]',
+    );
     await expect(aliceDmItem).toBeVisible({ timeout: 10000 });
 
     // 验证初始状态灯为在线绿色 (bg-discord-green)

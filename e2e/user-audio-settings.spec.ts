@@ -6,7 +6,10 @@ test.describe("个人设置中心与全新“音频”菜单交互验收", () =>
   }) => {
     // 注入 Mock Token
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
+      localStorage.setItem(
+        "tescord_access_token",
+        localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token",
+      );
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 
@@ -103,7 +106,9 @@ test.describe("个人设置中心与全新“音频”菜单交互验收", () =>
     // 5. 验证导航栏无缝切换至【个人资料】
     await profileTabBtn.click();
     await expect(profileTabBtn).toHaveClass(/bg-white\/10/);
-    await expect(page.getByText(/展示卡与个人资料|个人资料/i).first()).toBeVisible();
+    await expect(
+      page.getByText(/展示卡与个人资料|个人资料/i).first(),
+    ).toBeVisible();
     await expect(page.getByText("在线状态 (Presence)")).toBeVisible();
     await expect(
       page.getByText("自定义个性签名 (Custom Status)"),
@@ -121,13 +126,17 @@ test.describe("个人设置中心与全新“音频”菜单交互验收", () =>
       .or(page.getByTitle(/点击打开个人卡片|点击打开设置/i));
     await expect(userPanelBtn).toBeVisible();
     await userPanelBtn.click({ button: "right" });
-    const contextSettingsItem = page.getByRole("menuitem", { name: /个人设置/i });
+    const contextSettingsItem = page.getByRole("menuitem", {
+      name: /个人设置/i,
+    });
     await expect(contextSettingsItem).toBeVisible();
     await contextSettingsItem.click();
 
     await expect(settingsModal).toBeVisible();
     await expect(profileTabBtn).toHaveClass(/bg-white\/10/);
-    await expect(page.getByText(/展示卡与个人资料|个人资料/i).first()).toBeVisible();
+    await expect(
+      page.getByText(/展示卡与个人资料|个人资料/i).first(),
+    ).toBeVisible();
 
     // 8. 验证按键盘 ESC 键也能正常关闭
     await page.keyboard.press("Escape");

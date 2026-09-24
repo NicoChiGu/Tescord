@@ -5,6 +5,7 @@
   "delete": "删除",
   "close": "关闭",
   "edit": "编辑",
+  "moreActions": "更多操作",
   "copy": "复制",
   "copied": "已复制",
   "retry": "重试",
@@ -78,6 +79,7 @@
     "defaultBio": "正在体验 Tescord 🚀"
   },
   "profilePopout": {
+    "editProfile": "编辑个人资料",
     "sendDM": "发送私信给 @{{name}}",
     "addNote": "添加备注",
     "clickToAddNote": "点击添加备注",

@@ -42,7 +42,9 @@ test.describe("Tescord 多国语言 (i18n: zh-CN / zh-TW / zh-HK / en-US / ja-JP
     await expect(
       page.getByRole("heading", { name: /Welcome to Tescord/i }),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: /^Continue$/i })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /^Continue$/i }),
+    ).toBeVisible();
 
     // 1.3 切换至 日本語
     await langSelector.click();
@@ -54,9 +56,7 @@ test.describe("Tescord 多国语言 (i18n: zh-CN / zh-TW / zh-HK / en-US / ja-JP
     await expect(
       page.getByRole("heading", { name: /Tescord へようこそ/i }),
     ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: /^次へ$/i }),
-    ).toBeVisible();
+    await expect(page.getByRole("button", { name: /^次へ$/i })).toBeVisible();
 
     // 1.4 切换至 繁體中文（台灣）
     await langSelector.click();
@@ -202,14 +202,19 @@ test.describe("Tescord 多国语言 (i18n: zh-CN / zh-TW / zh-HK / en-US / ja-JP
     await page.getByTestId("tab-audio-btn").click();
     await expect(page.getByText("デバイス設定")).toBeVisible();
     await expect(page.getByText("入力デバイス (マイク)")).toBeVisible();
-    await expect(page.getByText("出力デバイス (ヘッドフォン/スピーカー)")).toBeVisible();
+    await expect(
+      page.getByText("出力デバイス (ヘッドフォン/スピーカー)"),
+    ).toBeVisible();
 
     // 2.9 关闭设置弹窗，验证主界面好友与私信组件在日文下的完整呈现
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("user-settings-modal")).not.toBeVisible();
-    await expect(page.getByRole("button", { name: "フレンドに追加" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "オンライン", exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "フレンドに追加" }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "オンライン", exact: true }),
+    ).toBeVisible();
     await expect(page.getByRole("button", { name: "保留中" })).toBeVisible();
   });
 });
-

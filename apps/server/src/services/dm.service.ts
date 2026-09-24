@@ -48,7 +48,8 @@ export class DMService {
       }),
     ]);
     if (!caller || caller.isBanned) throw new Error("当前账号不可用");
-    if (!recipient || recipient.isBanned) throw new Error("目标用户不存在或不可用");
+    if (!recipient || recipient.isBanned)
+      throw new Error("目标用户不存在或不可用");
     if (caller.id === recipient.id) throw new Error("无法与自己建立私信会话");
 
     const dmKey = this.dmKey(caller.id, recipient.id);
@@ -60,7 +61,10 @@ export class DMService {
         include: { author: true },
       },
     };
-    let channel = await prisma.channel.findUnique({ where: { dmKey }, include });
+    let channel = await prisma.channel.findUnique({
+      where: { dmKey },
+      include,
+    });
 
     if (!channel) {
       const isFriend = await prisma.relationship.findFirst({
@@ -74,7 +78,8 @@ export class DMService {
         caller.role === "SUPER_ADMIN" ||
         Boolean(isFriend) ||
         (await this.hasSharedGuild(caller.id, recipient.id));
-      if (!allowed) throw new Error("仅允许好友或同一服务器成员之间首次建立私信");
+      if (!allowed)
+        throw new Error("仅允许好友或同一服务器成员之间首次建立私信");
       try {
         channel = await prisma.channel.create({
           data: {
@@ -90,10 +95,16 @@ export class DMService {
           include,
         });
       } catch (error) {
-        if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") {
+        if (
+          !(error instanceof Prisma.PrismaClientKnownRequestError) ||
+          error.code !== "P2002"
+        ) {
           throw error;
         }
-        channel = await prisma.channel.findUnique({ where: { dmKey }, include });
+        channel = await prisma.channel.findUnique({
+          where: { dmKey },
+          include,
+        });
       }
     }
     if (!channel) throw new Error("私信会话创建失败");
@@ -149,10 +160,7 @@ export class DMService {
             },
           },
         },
-        orderBy: [
-          { channel: { updatedAt: "desc" } },
-          { channelId: "desc" },
-        ],
+        orderBy: [{ channel: { updatedAt: "desc" } }, { channelId: "desc" }],
       }),
     ]);
 
@@ -177,7 +185,12 @@ export class DMService {
             sequence: { gt: row.lastReadSequence },
           },
         });
-        return this.formatDMChannel(row.channel, userId, unreadCount, presences);
+        return this.formatDMChannel(
+          row.channel,
+          userId,
+          unreadCount,
+          presences,
+        );
       }),
     );
     return {
@@ -217,25 +230,34 @@ export class DMService {
       select: { nextMessageSequence: true },
     });
     if (!channel) throw new Error("私信会话不存在或无权访问");
-    const boundedSequence = Math.min(requestedSequence, channel.nextMessageSequence);
-    const { lastReadSequence, unreadCount } = await prisma.$transaction(async (tx) => {
-      await tx.channelRecipient.updateMany({
-        where: { channelId, userId, lastReadSequence: { lt: boundedSequence } },
-        data: { lastReadSequence: boundedSequence, lastReadAt: new Date() },
-      });
-      const recipient = await tx.channelRecipient.findUniqueOrThrow({
-        where: { channelId_userId: { channelId, userId } },
-        select: { lastReadSequence: true },
-      });
-      const unreadCount = await tx.message.count({
-        where: {
-          channelId,
-          authorId: { not: userId },
-          sequence: { gt: recipient.lastReadSequence },
-        },
-      });
-      return { lastReadSequence: recipient.lastReadSequence, unreadCount };
-    });
+    const boundedSequence = Math.min(
+      requestedSequence,
+      channel.nextMessageSequence,
+    );
+    const { lastReadSequence, unreadCount } = await prisma.$transaction(
+      async (tx) => {
+        await tx.channelRecipient.updateMany({
+          where: {
+            channelId,
+            userId,
+            lastReadSequence: { lt: boundedSequence },
+          },
+          data: { lastReadSequence: boundedSequence, lastReadAt: new Date() },
+        });
+        const recipient = await tx.channelRecipient.findUniqueOrThrow({
+          where: { channelId_userId: { channelId, userId } },
+          select: { lastReadSequence: true },
+        });
+        const unreadCount = await tx.message.count({
+          where: {
+            channelId,
+            authorId: { not: userId },
+            sequence: { gt: recipient.lastReadSequence },
+          },
+        });
+        return { lastReadSequence: recipient.lastReadSequence, unreadCount };
+      },
+    );
     gatewayManager.sendToUser(userId, {
       op: GatewayOpCode.DISPATCH,
       t: GatewayEvents.DM_CHANNEL_UPDATE,
@@ -258,7 +280,8 @@ export class DMService {
       where: { id: channelId },
       select: { type: true, recipients: { select: { userId: true } } },
     });
-    if (!channel || channel.type !== "DM" || channel.recipients.length !== 2) return [];
+    if (!channel || channel.type !== "DM" || channel.recipients.length !== 2)
+      return [];
     return channel.recipients.map((item) => item.userId);
   }
 
@@ -318,6 +341,7 @@ export class DMService {
           author: {
             id: rawMessage.author.id,
             username: rawMessage.author.username,
+            displayName: rawMessage.author.displayName,
             avatarUrl: rawMessage.author.avatarUrl,
           },
           content: rawMessage.content,

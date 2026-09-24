@@ -10,10 +10,7 @@ async function main() {
 
   const user = await prisma.user.findFirst({
     where: {
-      OR: [
-        { username: username.trim() },
-        { email: username.trim() },
-      ],
+      OR: [{ username: username.trim() }, { email: username.trim() }],
     },
   });
 
@@ -23,7 +20,9 @@ async function main() {
   }
 
   if (user.role === "SUPER_ADMIN") {
-    console.log(`ℹ️ 用户【${user.username}】已经是超级管理员，未修改封禁状态。`);
+    console.log(
+      `ℹ️ 用户【${user.username}】已经是超级管理员，未修改封禁状态。`,
+    );
     process.exit(0);
   }
 
@@ -39,13 +38,18 @@ async function main() {
         action: "ADMIN_GRANT_SCRIPT",
         targetType: "USER",
         targetId: user.id,
-        detailsJson: JSON.stringify({ username: user.username, previousRole: user.role }),
+        detailsJson: JSON.stringify({
+          username: user.username,
+          previousRole: user.role,
+        }),
       },
     });
     return promoted;
   });
 
-  console.log(`✅ 成功将用户【${updated.username}】(${updated.email}) 提升为超级管理员；封禁状态保持不变，旧会话已撤销。`);
+  console.log(
+    `✅ 成功将用户【${updated.username}】(${updated.email}) 提升为超级管理员；封禁状态保持不变，旧会话已撤销。`,
+  );
   process.exit(0);
 }
 

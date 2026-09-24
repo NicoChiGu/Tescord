@@ -56,7 +56,10 @@ async function main() {
     },
   });
 
-  console.log("POST /api/auth/login (Alice) -> status:", aliceLoginRes.statusCode);
+  console.log(
+    "POST /api/auth/login (Alice) -> status:",
+    aliceLoginRes.statusCode,
+  );
   if (aliceLoginRes.statusCode !== 200) {
     throw new Error(`Alice 登录失败: ${aliceLoginRes.body}`);
   }
@@ -74,7 +77,9 @@ async function main() {
     throw new Error(`Alice /api/auth/me 失败: ${aliceMeRes.body}`);
   }
 
-  console.log("\n🎉 所有真实鉴权链路测试全部 PASS！未再出现任何 401 会话失效问题！");
+  console.log(
+    "\n🎉 所有真实鉴权链路测试全部 PASS！未再出现任何 401 会话失效问题！",
+  );
   await server.close();
   process.exit(0);
 }

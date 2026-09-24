@@ -34,7 +34,6 @@ import { SplashWindow } from "./updater/splash.js";
 import { ProxyManager } from "./updater/proxy-manager.js";
 import { BUILD_CONFIG } from "./build-config.js";
 
-
 // 开发环境下忽略自签名证书错误 (配合 Vite basicSsl HTTPS 开发模式)
 if (process.env.NODE_ENV !== "production") {
   app.commandLine.appendSwitch("ignore-certificate-errors");
@@ -59,10 +58,7 @@ app.commandLine.appendSwitch("enable-accelerated-video-encode");
 app.commandLine.appendSwitch("ignore-gpu-blocklist");
 app.commandLine.appendSwitch("enable-gpu-rasterization");
 app.commandLine.appendSwitch("enable-zero-copy");
-app.commandLine.appendSwitch(
-  "disable-features",
-  "CalculateNativeWinOcclusion",
-);
+app.commandLine.appendSwitch("disable-features", "CalculateNativeWinOcclusion");
 
 // 1. 单例进程保护 (Single Instance Lock)
 const gotTheLock = app.requestSingleInstanceLock();
@@ -157,14 +153,20 @@ function savePersistedLocale(locale: SupportedLocale): void {
           existing = JSON.parse(fs.readFileSync(p, "utf-8"));
         } catch {}
       }
-      fs.writeFileSync(p, JSON.stringify({ ...existing, locale }, null, 2), "utf-8");
+      fs.writeFileSync(
+        p,
+        JSON.stringify({ ...existing, locale }, null, 2),
+        "utf-8",
+      );
     }
   } catch {}
 }
 
 let currentLocale: SupportedLocale = loadPersistedLocale();
 
-let currentWindowMode: DesktopWindowMode = loadHasAuthSession() ? "main" : "auth";
+let currentWindowMode: DesktopWindowMode = loadHasAuthSession()
+  ? "main"
+  : "auth";
 
 function getWindowStatePath(): string {
   try {
@@ -232,8 +234,16 @@ const isSafeExternalUrl = (raw: string) => {
 };
 
 const isTrustedIpcSender = (event: IpcMainInvokeEvent | IpcMainEvent) => {
-  const isFromMain = Boolean(mainWindow && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents);
-  const isFromAuth = Boolean(authWindow && !authWindow.isDestroyed() && event.sender === authWindow.webContents);
+  const isFromMain = Boolean(
+    mainWindow &&
+    !mainWindow.isDestroyed() &&
+    event.sender === mainWindow.webContents,
+  );
+  const isFromAuth = Boolean(
+    authWindow &&
+    !authWindow.isDestroyed() &&
+    event.sender === authWindow.webContents,
+  );
   if (!isFromMain && !isFromAuth) return false;
   try {
     const senderUrl = event.senderFrame?.url;
@@ -290,7 +300,8 @@ function setupWindowHandlers(win: BrowserWindow, _isAuth: boolean) {
         {
           label: t.openInBrowser,
           click: () => {
-            if (isSafeExternalUrl(params.linkURL)) void shell.openExternal(params.linkURL);
+            if (isSafeExternalUrl(params.linkURL))
+              void shell.openExternal(params.linkURL);
           },
         },
       );
@@ -310,7 +321,8 @@ function setupWindowHandlers(win: BrowserWindow, _isAuth: boolean) {
         {
           label: t.inspectElement,
           click: () => {
-            if (!win.isDestroyed()) win.webContents.inspectElement(params.x, params.y);
+            if (!win.isDestroyed())
+              win.webContents.inspectElement(params.x, params.y);
           },
         },
         {
@@ -335,7 +347,12 @@ function setupWindowHandlers(win: BrowserWindow, _isAuth: boolean) {
     try {
       const target = new URL(targetUrl);
       const current = currentUrl ? new URL(currentUrl) : null;
-      if (current && target.origin === current.origin && target.protocol === current.protocol) return;
+      if (
+        current &&
+        target.origin === current.origin &&
+        target.protocol === current.protocol
+      )
+        return;
     } catch {}
     event.preventDefault();
     if (isSafeExternalUrl(targetUrl)) void shell.openExternal(targetUrl);
@@ -396,8 +413,12 @@ function createAuthWindow(targetEntryPath?: string): BrowserWindow {
 
   const primaryDisplay = screen.getPrimaryDisplay();
   const workArea = primaryDisplay.workArea;
-  const x = Math.round(workArea.x + (workArea.width - AUTH_WINDOW_CONFIG.width) / 2);
-  const y = Math.round(workArea.y + (workArea.height - AUTH_WINDOW_CONFIG.height) / 2);
+  const x = Math.round(
+    workArea.x + (workArea.width - AUTH_WINDOW_CONFIG.width) / 2,
+  );
+  const y = Math.round(
+    workArea.y + (workArea.height - AUTH_WINDOW_CONFIG.height) / 2,
+  );
 
   authWindow = new BrowserWindow({
     width: AUTH_WINDOW_CONFIG.width,
@@ -466,11 +487,21 @@ function createMainWindow(targetEntryPath?: string): BrowserWindow {
   let targetWidth = MAIN_WINDOW_CONFIG.width;
   let targetHeight = MAIN_WINDOW_CONFIG.height;
 
-  if (savedMainBounds && savedMainBounds.width >= 600 && savedMainBounds.height >= 500) {
+  if (
+    savedMainBounds &&
+    savedMainBounds.width >= 600 &&
+    savedMainBounds.height >= 500
+  ) {
     targetWidth = Math.max(savedMainBounds.width, MAIN_WINDOW_CONFIG.minWidth);
-    targetHeight = Math.max(savedMainBounds.height, MAIN_WINDOW_CONFIG.minHeight);
+    targetHeight = Math.max(
+      savedMainBounds.height,
+      MAIN_WINDOW_CONFIG.minHeight,
+    );
 
-    if (typeof savedMainBounds.x === "number" && typeof savedMainBounds.y === "number") {
+    if (
+      typeof savedMainBounds.x === "number" &&
+      typeof savedMainBounds.y === "number"
+    ) {
       const isInAnyDisplay = displays.some((d) => {
         const wa = d.workArea;
         return (
@@ -485,18 +516,30 @@ function createMainWindow(targetEntryPath?: string): BrowserWindow {
         targetX = savedMainBounds.x;
         targetY = savedMainBounds.y;
       } else {
-        targetX = Math.round(primaryWorkArea.x + (primaryWorkArea.width - targetWidth) / 2);
-        targetY = Math.round(primaryWorkArea.y + (primaryWorkArea.height - targetHeight) / 2);
+        targetX = Math.round(
+          primaryWorkArea.x + (primaryWorkArea.width - targetWidth) / 2,
+        );
+        targetY = Math.round(
+          primaryWorkArea.y + (primaryWorkArea.height - targetHeight) / 2,
+        );
       }
     } else {
-      targetX = Math.round(primaryWorkArea.x + (primaryWorkArea.width - targetWidth) / 2);
-      targetY = Math.round(primaryWorkArea.y + (primaryWorkArea.height - targetHeight) / 2);
+      targetX = Math.round(
+        primaryWorkArea.x + (primaryWorkArea.width - targetWidth) / 2,
+      );
+      targetY = Math.round(
+        primaryWorkArea.y + (primaryWorkArea.height - targetHeight) / 2,
+      );
     }
   } else {
     targetWidth = Math.min(MAIN_WINDOW_CONFIG.width, primaryWorkArea.width);
     targetHeight = Math.min(MAIN_WINDOW_CONFIG.height, primaryWorkArea.height);
-    targetX = Math.round(primaryWorkArea.x + (primaryWorkArea.width - targetWidth) / 2);
-    targetY = Math.round(primaryWorkArea.y + (primaryWorkArea.height - targetHeight) / 2);
+    targetX = Math.round(
+      primaryWorkArea.x + (primaryWorkArea.width - targetWidth) / 2,
+    );
+    targetY = Math.round(
+      primaryWorkArea.y + (primaryWorkArea.height - targetHeight) / 2,
+    );
   }
 
   mainWindow = new BrowserWindow({
@@ -544,7 +587,13 @@ function createMainWindow(targetEntryPath?: string): BrowserWindow {
   });
 
   const recordBounds = () => {
-    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isMaximized() || mainWindow.isMinimized()) return;
+    if (
+      !mainWindow ||
+      mainWindow.isDestroyed() ||
+      mainWindow.isMaximized() ||
+      mainWindow.isMinimized()
+    )
+      return;
     const b = mainWindow.getBounds();
     if (b.width >= 600 && b.height >= 500) {
       savedMainBounds = {
@@ -860,60 +909,63 @@ function setupSystemTray() {
 }
 
 // 2. 注册屏幕与窗口采集 IPC 处理 (支持应用图标与类型区分)
-ipcMain.handle("get-desktop-sources", async (event): Promise<DesktopSource[]> => {
-  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
-  const sources = await desktopCapturer.getSources({
-    types: ["window", "screen"],
-    thumbnailSize: { width: 480, height: 270 },
-    fetchWindowIcons: true,
-  });
+ipcMain.handle(
+  "get-desktop-sources",
+  async (event): Promise<DesktopSource[]> => {
+    if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+    const sources = await desktopCapturer.getSources({
+      types: ["window", "screen"],
+      thumbnailSize: { width: 480, height: 270 },
+      fetchWindowIcons: true,
+    });
 
-  const displays = screen.getAllDisplays();
-  const primaryDisplay = screen.getPrimaryDisplay();
+    const displays = screen.getAllDisplays();
+    const primaryDisplay = screen.getPrimaryDisplay();
 
-  return sources.map((s, idx) => {
-    let displayDimensions: { width: number; height: number } | undefined;
+    return sources.map((s, idx) => {
+      let displayDimensions: { width: number; height: number } | undefined;
 
-    if (s.id.startsWith("screen")) {
-      const displayId = (s as any).display_id;
-      const matchedDisplay = displays.find(
-        (d) => d.id.toString() === displayId,
-      );
-      const targetDisplay = matchedDisplay || displays[idx] || primaryDisplay;
-      if (targetDisplay) {
-        displayDimensions = {
-          width: Math.round(
-            targetDisplay.bounds.width * (targetDisplay.scaleFactor || 1),
-          ),
-          height: Math.round(
-            targetDisplay.bounds.height * (targetDisplay.scaleFactor || 1),
-          ),
-        };
+      if (s.id.startsWith("screen")) {
+        const displayId = (s as any).display_id;
+        const matchedDisplay = displays.find(
+          (d) => d.id.toString() === displayId,
+        );
+        const targetDisplay = matchedDisplay || displays[idx] || primaryDisplay;
+        if (targetDisplay) {
+          displayDimensions = {
+            width: Math.round(
+              targetDisplay.bounds.width * (targetDisplay.scaleFactor || 1),
+            ),
+            height: Math.round(
+              targetDisplay.bounds.height * (targetDisplay.scaleFactor || 1),
+            ),
+          };
+        }
+      } else {
+        if (primaryDisplay) {
+          displayDimensions = {
+            width: Math.round(
+              primaryDisplay.bounds.width * (primaryDisplay.scaleFactor || 1),
+            ),
+            height: Math.round(
+              primaryDisplay.bounds.height * (primaryDisplay.scaleFactor || 1),
+            ),
+          };
+        }
       }
-    } else {
-      if (primaryDisplay) {
-        displayDimensions = {
-          width: Math.round(
-            primaryDisplay.bounds.width * (primaryDisplay.scaleFactor || 1),
-          ),
-          height: Math.round(
-            primaryDisplay.bounds.height * (primaryDisplay.scaleFactor || 1),
-          ),
-        };
-      }
-    }
 
-    return {
-      id: s.id,
-      name: s.name,
-      thumbnail: s.thumbnail.toDataURL(),
-      type: s.id.startsWith("screen") ? "screen" : "window",
-      appIcon:
-        s.appIcon && !s.appIcon.isEmpty() ? s.appIcon.toDataURL() : undefined,
-      displayDimensions,
-    };
-  });
-});
+      return {
+        id: s.id,
+        name: s.name,
+        thumbnail: s.thumbnail.toDataURL(),
+        type: s.id.startsWith("screen") ? "screen" : "window",
+        appIcon:
+          s.appIcon && !s.appIcon.isEmpty() ? s.appIcon.toDataURL() : undefined,
+        displayDimensions,
+      };
+    });
+  },
+);
 
 // 3. 注册按键说话 (PTT) 系统级热键
 ipcMain.handle("set-ptt-keybind", async (event, key: string) => {
@@ -1100,7 +1152,12 @@ ipcMain.handle("desktop-detect-local-network", async () => {
 ipcMain.handle(
   "desktop-upnp-map-port",
   async (event, port: number, protocol?: "UDP" | "TCP") => {
-    if (!isTrustedIpcSender(event) || !Number.isInteger(port) || port < 1024 || port > 65535) {
+    if (
+      !isTrustedIpcSender(event) ||
+      !Number.isInteger(port) ||
+      port < 1024 ||
+      port > 65535
+    ) {
       throw new Error("Invalid UPnP request");
     }
     return await UPnPClient.mapPort(port, protocol || "UDP");
@@ -1110,7 +1167,12 @@ ipcMain.handle(
 ipcMain.handle(
   "desktop-upnp-unmap-port",
   async (event, port: number, protocol?: "UDP" | "TCP") => {
-    if (!isTrustedIpcSender(event) || !Number.isInteger(port) || port < 1024 || port > 65535) {
+    if (
+      !isTrustedIpcSender(event) ||
+      !Number.isInteger(port) ||
+      port < 1024 ||
+      port > 65535
+    ) {
       throw new Error("Invalid UPnP request");
     }
     return await UPnPClient.unmapPort(port, protocol || "UDP");
@@ -1154,11 +1216,14 @@ ipcMain.handle("get-detected-game", async (event) => {
   return gameDetector.getCurrentActivity();
 });
 
-ipcMain.handle("set-game-detection-enabled", async (event, enabled: boolean) => {
-  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
-  gameDetector.setEnabled(Boolean(enabled));
-  return true;
-});
+ipcMain.handle(
+  "set-game-detection-enabled",
+  async (event, enabled: boolean) => {
+    if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+    gameDetector.setEnabled(Boolean(enabled));
+    return true;
+  },
+);
 
 ipcMain.handle("get-game-detection-enabled", async (event) => {
   if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
@@ -1224,23 +1289,35 @@ async function startApplicationWithSplash(): Promise<void> {
       splashWindow.updateStatus({ text: dLoc.splashCheckingUpdates });
       try {
         const check = await updateManager.checkForUpdates();
-        if (check.hasUpdate && !check.isHostUpdateRequired && check.latestVersion) {
+        if (
+          check.hasUpdate &&
+          !check.isHostUpdateRequired &&
+          check.latestVersion
+        ) {
           splashWindow.updateStatus({
-            text: dLoc.splashFoundUpdate.replace("{{version}}", check.latestVersion),
+            text: dLoc.splashFoundUpdate.replace(
+              "{{version}}",
+              check.latestVersion,
+            ),
             showProgress: true,
             percent: 5,
           });
 
-          const applyRes = await updateManager.downloadAndApplyWebUpdate((prog) => {
-            splashWindow?.updateStatus({
-              text:
-                prog.state === "extracting"
-                  ? dLoc.splashExtracting
-                  : dLoc.splashDownloading.replace("{{percent}}", String(prog.percent)),
-              percent: prog.percent,
-              showProgress: true,
-            });
-          });
+          const applyRes = await updateManager.downloadAndApplyWebUpdate(
+            (prog) => {
+              splashWindow?.updateStatus({
+                text:
+                  prog.state === "extracting"
+                    ? dLoc.splashExtracting
+                    : dLoc.splashDownloading.replace(
+                        "{{percent}}",
+                        String(prog.percent),
+                      ),
+                percent: prog.percent,
+                showProgress: true,
+              });
+            },
+          );
 
           if (applyRes.success) {
             splashWindow.updateStatus({
@@ -1306,11 +1383,19 @@ function startBackgroundUpdateChecker(): void {
     try {
       console.log("⏱️ [Updater] 触发后台静默更新检测...");
       const check = await updateManager.checkForUpdates();
-      if (check.hasUpdate && !check.isHostUpdateRequired && check.latestVersion) {
-        console.log(`⬇️ [Updater] 后台检测到增量更新 v${check.latestVersion}，开始静默下载...`);
+      if (
+        check.hasUpdate &&
+        !check.isHostUpdateRequired &&
+        check.latestVersion
+      ) {
+        console.log(
+          `⬇️ [Updater] 后台检测到增量更新 v${check.latestVersion}，开始静默下载...`,
+        );
         const applyRes = await updateManager.downloadAndApplyWebUpdate();
         if (applyRes.success) {
-          console.log(`✨ [Updater] 增量包已静默准备就绪: v${check.latestVersion}`);
+          console.log(
+            `✨ [Updater] 增量包已静默准备就绪: v${check.latestVersion}`,
+          );
           mainWindow?.webContents.send("updater-update-ready", {
             version: check.latestVersion,
           });
@@ -1379,4 +1464,3 @@ app.on("window-all-closed", () => {
     app.quit();
   }
 });
-

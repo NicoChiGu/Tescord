@@ -175,10 +175,12 @@ test.describe("4项核心缺陷与体验优化验收 (Four Core Fixes E2E)", () 
     await expect(floatingBanner).not.toBeVisible();
 
     // 滚动至顶部较旧消息
-    await page.locator('[data-testid="chat-scroll-container"]').evaluate((el) => {
-      el.scrollTop = 0;
-      el.dispatchEvent(new Event("scroll"));
-    });
+    await page
+      .locator('[data-testid="chat-scroll-container"]')
+      .evaluate((el) => {
+        el.scrollTop = 0;
+        el.dispatchEvent(new Event("scroll"));
+      });
 
     // 验证横幅显现且文案为“您正在查看较旧的消息”与“跳到最新”
     await expect(floatingBanner).toBeVisible({ timeout: 5000 });
@@ -222,7 +224,9 @@ test.describe("4项核心缺陷与体验优化验收 (Four Core Fixes E2E)", () 
 
     // 2. 检查文字频道记忆已写入 localStorage
     const savedMemory = await page.evaluate(() => {
-      return localStorage.getItem("tescord_text_channel_memory_e2e_tester_user");
+      return localStorage.getItem(
+        "tescord_text_channel_memory_e2e_tester_user",
+      );
     });
     expect(savedMemory).toBeTruthy();
     expect(savedMemory).toContain("c_text_2");
@@ -245,9 +249,18 @@ test.describe("4项核心缺陷与体验优化验收 (Four Core Fixes E2E)", () 
         },
         version: 0,
       };
-      localStorage.setItem("tescord_user_settings", JSON.stringify(existingSettings));
-      localStorage.setItem("tescord_selected_audio_input_id", "mock_local_mic_uuid_123");
-      localStorage.setItem("tescord_selected_audio_output_id", "mock_local_speaker_uuid_456");
+      localStorage.setItem(
+        "tescord_user_settings",
+        JSON.stringify(existingSettings),
+      );
+      localStorage.setItem(
+        "tescord_selected_audio_input_id",
+        "mock_local_mic_uuid_123",
+      );
+      localStorage.setItem(
+        "tescord_selected_audio_output_id",
+        "mock_local_speaker_uuid_456",
+      );
     });
 
     await page.goto("/");
@@ -258,9 +271,15 @@ test.describe("4项核心缺陷与体验优化验收 (Four Core Fixes E2E)", () 
       return raw ? JSON.parse(raw) : null;
     });
 
-    expect(currentSettings?.state?.audio?.inputDeviceId).toBe("mock_local_mic_uuid_123");
-    expect(currentSettings?.state?.audio?.outputDeviceId).toBe("mock_local_speaker_uuid_456");
-    expect(currentSettings?.state?.video?.cameraDeviceId).toBe("mock_local_cam_uuid_789");
+    expect(currentSettings?.state?.audio?.inputDeviceId).toBe(
+      "mock_local_mic_uuid_123",
+    );
+    expect(currentSettings?.state?.audio?.outputDeviceId).toBe(
+      "mock_local_speaker_uuid_456",
+    );
+    expect(currentSettings?.state?.video?.cameraDeviceId).toBe(
+      "mock_local_cam_uuid_789",
+    );
   });
 
   test("4. 未读分流跳转：存在未读消息且视口脱离底部时，悬浮横幅展示'您有未读消息'与'跳转至未读'", async ({
@@ -274,9 +293,13 @@ test.describe("4项核心缺陷与体验优化验收 (Four Core Fixes E2E)", () 
         if (!db.objectStoreNames.contains("messages")) {
           const msgStore = db.createObjectStore("messages", { keyPath: "id" });
           msgStore.createIndex("by_channel", "channelId", { unique: false });
-          msgStore.createIndex("by_channel_sequence", ["channelId", "sequence"], {
-            unique: false,
-          });
+          msgStore.createIndex(
+            "by_channel_sequence",
+            ["channelId", "sequence"],
+            {
+              unique: false,
+            },
+          );
           msgStore.createIndex("by_created_at", "createdAt", { unique: false });
         }
         if (!db.objectStoreNames.contains("channel_meta")) {
@@ -317,10 +340,12 @@ test.describe("4项核心缺陷与体验优化验收 (Four Core Fixes E2E)", () 
     await channel1.click();
 
     // 向上滚动以脱离底部并显现未读悬浮横幅
-    await page.locator('[data-testid="chat-scroll-container"]').evaluate((el) => {
-      el.scrollTop = 0;
-      el.dispatchEvent(new Event("scroll"));
-    });
+    await page
+      .locator('[data-testid="chat-scroll-container"]')
+      .evaluate((el) => {
+        el.scrollTop = 0;
+        el.dispatchEvent(new Event("scroll"));
+      });
 
     // 验证未读状态下横幅显现且展示对应文案与按钮
     const floatingBanner = page.locator(".animate-slide-down");
@@ -334,4 +359,3 @@ test.describe("4项核心缺陷与体验优化验收 (Four Core Fixes E2E)", () 
     await expect(unreadTargetMsg).toBeInViewport({ timeout: 5000 });
   });
 });
-

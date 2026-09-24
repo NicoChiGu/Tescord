@@ -38,7 +38,10 @@ test.describe("Discord 风格左下角当前用户弹窗卡片 (CurrentUserPopou
           id: "usr_mock_jackey_id_12345",
           username: "JackeyTERA",
           status: data.status || "ONLINE",
-          customStatus: data.customStatus !== undefined ? data.customStatus : "最佳的冷笑话？",
+          customStatus:
+            data.customStatus !== undefined
+              ? data.customStatus
+              : "最佳的冷笑话？",
           avatarUrl: null,
           createdAt: new Date().toISOString(),
         }),
@@ -53,7 +56,9 @@ test.describe("Discord 风格左下角当前用户弹窗卡片 (CurrentUserPopou
     const uncaughtErrors: string[] = [];
     page.on("pageerror", (err) => uncaughtErrors.push(err.message));
 
-    await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page
+      .context()
+      .grantPermissions(["clipboard-read", "clipboard-write"]);
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.goto("/");
 
@@ -73,7 +78,9 @@ test.describe("Discord 风格左下角当前用户弹窗卡片 (CurrentUserPopou
     await expect(popoutCard).toHaveCount(1);
 
     // 校验卡片内的用户名与个性状态气泡
-    await expect(popoutCard.getByText("JackeyTERA", { exact: true })).toBeVisible();
+    await expect(
+      popoutCard.getByText("JackeyTERA", { exact: true }),
+    ).toBeVisible();
     await expect(popoutCard.getByText("@JackeyTERA")).toBeVisible();
     await expect(
       page.getByTestId("user-popout-custom-status-bubble"),
@@ -131,7 +138,9 @@ test.describe("Discord 风格左下角当前用户弹窗卡片 (CurrentUserPopou
     const dndItem = page.getByTestId("popout-status-item-DND");
     await expect(dndItem).toBeVisible({ timeout: 3000 });
     await expect(page.getByTestId("popout-status-item-IDLE")).toBeVisible();
-    await expect(page.getByTestId("popout-status-item-INVISIBLE")).toBeVisible();
+    await expect(
+      page.getByTestId("popout-status-item-INVISIBLE"),
+    ).toBeVisible();
 
     // 选择“请勿打扰”
     await dndItem.click();

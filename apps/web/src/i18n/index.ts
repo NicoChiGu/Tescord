@@ -176,29 +176,27 @@ const getInitialLanguage = (): SupportedLocale => {
 
 const initialLang = getInitialLanguage();
 
-i18n
-  .use(initReactI18next)
-  .init({
-    resources,
-    lng: initialLang,
-    fallbackLng: "zh-CN",
-    defaultNS,
-    ns: [
-      "common",
-      "auth",
-      "settings",
-      "chat",
-      "voice",
-      "server",
-      "contextMenu",
-      "modals",
-      "admin",
-      "errors",
-    ],
-    interpolation: {
-      escapeValue: false, // React 已经自带 XSS 防护
-    },
-  });
+i18n.use(initReactI18next).init({
+  resources,
+  lng: initialLang,
+  fallbackLng: "zh-CN",
+  defaultNS,
+  ns: [
+    "common",
+    "auth",
+    "settings",
+    "chat",
+    "voice",
+    "server",
+    "contextMenu",
+    "modals",
+    "admin",
+    "errors",
+  ],
+  interpolation: {
+    escapeValue: false, // React 已经自带 XSS 防护
+  },
+});
 
 // 响应语言变动：同步 html lang 属性、localStorage 并通知 Electron 主进程
 i18n.on("languageChanged", (lang: string) => {
@@ -241,7 +239,9 @@ export function getErrorMessage(err: any): string {
   if (!err) return i18n.t("errors:UNKNOWN_ERROR");
 
   // 1. 如果包含标准 code (如 ErrorCode.GUILD_NAME_REQUIRED)
-  const code = err.code || (typeof err === "string" && err.startsWith("ERR_") ? err : null);
+  const code =
+    err.code ||
+    (typeof err === "string" && err.startsWith("ERR_") ? err : null);
   if (code && i18n.exists(`errors:${code}`)) {
     return i18n.t(`errors:${code}`);
   }

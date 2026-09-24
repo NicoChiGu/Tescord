@@ -50,7 +50,12 @@ export class AdminService {
     const search = query.search?.trim();
     const where: any = {
       ...(search
-        ? { OR: [{ username: { contains: search } }, { email: { contains: search } }] }
+        ? {
+            OR: [
+              { username: { contains: search } },
+              { email: { contains: search } },
+            ],
+          }
         : {}),
       ...(query.role ? { role: query.role } : {}),
       ...(typeof query.banned === "boolean" ? { isBanned: query.banned } : {}),
@@ -81,7 +86,10 @@ export class AdminService {
     userId: string,
     dto: AdminUpdateUserDTO,
   ): Promise<AdminUpdateUserResult> {
-    if (actorId === userId && (dto.isBanned === true || (dto.role && dto.role !== "SUPER_ADMIN"))) {
+    if (
+      actorId === userId &&
+      (dto.isBanned === true || (dto.role && dto.role !== "SUPER_ADMIN"))
+    ) {
       throw new Error("不能封禁自己或移除自己的超级管理员身份");
     }
     const temporaryPassword = dto.resetPassword
@@ -99,7 +107,8 @@ export class AdminService {
         const activeSuperAdmins = await tx.user.count({
           where: { role: "SUPER_ADMIN", isBanned: false },
         });
-        if (activeSuperAdmins <= 1) throw new Error("必须保留至少一名未封禁的超级管理员");
+        if (activeSuperAdmins <= 1)
+          throw new Error("必须保留至少一名未封禁的超级管理员");
       }
 
       const passwordHash = temporaryPassword
@@ -109,10 +118,10 @@ export class AdminService {
         where: { id: userId },
         data: {
           ...(dto.role ? { role: dto.role } : {}),
-          ...(typeof dto.isBanned === "boolean" ? { isBanned: dto.isBanned } : {}),
-          ...(passwordHash
-            ? { passwordHash, mustChangePassword: true }
+          ...(typeof dto.isBanned === "boolean"
+            ? { isBanned: dto.isBanned }
             : {}),
+          ...(passwordHash ? { passwordHash, mustChangePassword: true } : {}),
           sessionVersion: { increment: 1 },
         },
         include: { _count: { select: { memberships: true, messages: true } } },
@@ -193,7 +202,8 @@ export class AdminService {
         include: { members: { select: { userId: true } } },
       });
       if (!guild) throw new Error("服务器不存在");
-      if (guild.name !== nameConfirmation) throw new Error("服务器名称确认不匹配");
+      if (guild.name !== nameConfirmation)
+        throw new Error("服务器名称确认不匹配");
       await tx.platformAuditLog.create({
         data: {
           actorId,
@@ -201,7 +211,9 @@ export class AdminService {
           targetType: "GUILD",
           targetId: guild.id,
           targetName: guild.name,
-          detailsJson: JSON.stringify({ affectedMemberCount: guild.members.length }),
+          detailsJson: JSON.stringify({
+            affectedMemberCount: guild.members.length,
+          }),
         },
       });
       await tx.guild.delete({ where: { id: guildId } });
@@ -236,7 +248,10 @@ export class AdminService {
         actorId,
         action: "SYSTEM_BROADCAST",
         targetType: "SYSTEM",
-        detailsJson: JSON.stringify({ severity: payload.severity, title: payload.title }),
+        detailsJson: JSON.stringify({
+          severity: payload.severity,
+          title: payload.title,
+        }),
       },
     });
     gatewayManager.broadcast({
@@ -249,7 +264,9 @@ export class AdminService {
 
   async getSettings(): Promise<SystemSettingsDTO> {
     const settings = await prisma.systemSetting.findMany();
-    const map = new Map(settings.map((setting) => [setting.key, setting.value]));
+    const map = new Map(
+      settings.map((setting) => [setting.key, setting.value]),
+    );
     return {
       allowRegistration: map.get("allow_registration") !== "false",
       requireInviteCode: map.get("require_invite_code") === "true",

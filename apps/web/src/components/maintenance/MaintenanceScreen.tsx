@@ -1,6 +1,13 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Wrench, RefreshCw, Radio, ShieldAlert, LogOut, CheckCircle2 } from "lucide-react";
+import {
+  Wrench,
+  RefreshCw,
+  Radio,
+  ShieldAlert,
+  LogOut,
+  CheckCircle2,
+} from "lucide-react";
 import { useMaintenanceStore } from "../../stores/useMaintenanceStore.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { API_BASE } from "../../config.js";

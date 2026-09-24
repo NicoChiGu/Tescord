@@ -166,7 +166,9 @@ export const RolesTab: React.FC<RolesTabProps> = ({
     if (!selectedRole || !canDeleteSelectedRole) return;
     const confirmed = await dialog.confirm({
       title: t("server:roles.deleteConfirmTitle"),
-      description: t("server:roles.deleteConfirmDesc", { name: selectedRole.name }),
+      description: t("server:roles.deleteConfirmDesc", {
+        name: selectedRole.name,
+      }),
       variant: "danger",
       confirmText: t("server:roles.deleteRole"),
     });
@@ -264,9 +266,7 @@ export const RolesTab: React.FC<RolesTabProps> = ({
             {!canEditSelectedRole && (
               <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs">
                 <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>
-                  {t("server:roles.hierarchyWarning")}
-                </span>
+                <span>{t("server:roles.hierarchyWarning")}</span>
               </div>
             )}
 
@@ -498,7 +498,9 @@ export const RolesTab: React.FC<RolesTabProps> = ({
                 onClick={handleSave}
                 className="px-5 py-2 rounded-lg bg-[#248046] hover:bg-[#1a6334] disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-semibold shadow transition-all"
               >
-                {isSaving ? t("server:overview.saving") : t("server:overview.saveChanges")}
+                {isSaving
+                  ? t("server:overview.saving")
+                  : t("server:overview.saveChanges")}
               </button>
             </div>
           </div>

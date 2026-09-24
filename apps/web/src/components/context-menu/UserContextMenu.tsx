@@ -62,9 +62,21 @@ const STATUS_CONFIG: Record<
   Exclude<UserStatus, "OFFLINE">,
   { labelKey: string; defaultLabel: string; color: string }
 > = {
-  ONLINE: { labelKey: "common:status.online", defaultLabel: "在线", color: "bg-emerald-500" },
-  IDLE: { labelKey: "common:status.idle", defaultLabel: "离开", color: "bg-amber-500" },
-  DND: { labelKey: "common:status.dnd", defaultLabel: "请勿打扰", color: "bg-rose-500" },
+  ONLINE: {
+    labelKey: "common:status.online",
+    defaultLabel: "在线",
+    color: "bg-emerald-500",
+  },
+  IDLE: {
+    labelKey: "common:status.idle",
+    defaultLabel: "离开",
+    color: "bg-amber-500",
+  },
+  DND: {
+    labelKey: "common:status.dnd",
+    defaultLabel: "请勿打扰",
+    color: "bg-rose-500",
+  },
   INVISIBLE: {
     labelKey: "common:status.invisible",
     defaultLabel: "隐身",
@@ -111,11 +123,13 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
       }
 
       // 订阅底层全局音量变动，确保与中间卡片滑块以及其他位置的改动双向同步
-      const unsubscribe = livekitService.onParticipantVolumeChange((identity, newVol) => {
-        if (identity === targetUser.id) {
-          setVolume(newVol);
-        }
-      });
+      const unsubscribe = livekitService.onParticipantVolumeChange(
+        (identity, newVol) => {
+          if (identity === targetUser.id) {
+            setVolume(newVol);
+          }
+        },
+      );
 
       return () => {
         unsubscribe();
@@ -191,7 +205,12 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
                   <span
                     className={`w-2 h-2 rounded-full mr-1.5 ${STATUS_CONFIG[statusKey].color}`}
                   />
-                  <span>{t(STATUS_CONFIG[statusKey].labelKey, STATUS_CONFIG[statusKey].defaultLabel)}</span>
+                  <span>
+                    {t(
+                      STATUS_CONFIG[statusKey].labelKey,
+                      STATUS_CONFIG[statusKey].defaultLabel,
+                    )}
+                  </span>
                 </ContextMenuRadioItem>
               ))}
             </ContextMenuRadioGroup>
@@ -231,7 +250,11 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
                 ) : (
                   <Copy className="w-4 h-4 text-discord-textMuted" />
                 )}
-                <span>{copiedId ? t("common:copied", "已复制") : t("common:user.copyUserId", "复制用户 ID")}</span>
+                <span>
+                  {copiedId
+                    ? t("common:copied", "已复制")
+                    : t("common:user.copyUserId", "复制用户 ID")}
+                </span>
               </div>
             </ContextMenuItem>
           </>
@@ -286,7 +309,9 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
               >
                 <div className="flex items-center space-x-2">
                   <Info className="w-4 h-4 text-discord-brand" />
-                  <span>{t("voice:statsHUD", "媒体属性与详细统计 (Stats)")}</span>
+                  <span>
+                    {t("voice:statsHUD", "媒体属性与详细统计 (Stats)")}
+                  </span>
                 </div>
               </ContextMenuItem>
             )}
@@ -356,7 +381,9 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
                     ) : (
                       <VolumeX className="w-4 h-4 text-discord-textMuted" />
                     )}
-                    <span>{volume === 0 ? t("unmuteUser") : t("muteUser")}</span>
+                    <span>
+                      {volume === 0 ? t("unmuteUser") : t("muteUser")}
+                    </span>
                   </div>
                 </ContextMenuItem>
               </>
@@ -401,7 +428,11 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
                 ) : (
                   <Copy className="w-4 h-4 text-discord-textMuted" />
                 )}
-                <span>{copiedId ? t("common:copied", "已复制") : t("common:user.copyUserId", "复制用户 ID")}</span>
+                <span>
+                  {copiedId
+                    ? t("common:copied", "已复制")
+                    : t("common:user.copyUserId", "复制用户 ID")}
+                </span>
               </div>
             </ContextMenuItem>
           </>

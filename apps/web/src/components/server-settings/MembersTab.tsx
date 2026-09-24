@@ -182,7 +182,9 @@ export const MembersTab: React.FC<MembersTabProps> = ({
             {t("server:members.title")} ({guild.members?.length || 0})
           </h2>
           <p className="text-xs text-gray-400">
-            {t("server:members.membersCount", { count: guild.members?.length || 0 })}
+            {t("server:members.membersCount", {
+              count: guild.members?.length || 0,
+            })}
           </p>
         </div>
 
@@ -280,7 +282,8 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                     )}
                   </div>
                   <div className="text-[11px] text-gray-400 mt-0.5">
-                    {t("server:members.table.joined")}：{new Date(m.joinedAt).toLocaleDateString()}
+                    {t("server:members.table.joined")}：
+                    {new Date(m.joinedAt).toLocaleDateString()}
                   </div>
                 </div>
               </div>

@@ -171,7 +171,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
   // 严格遵循：若未处于聚焦放大状态，绝不允许显示 HUD
   const isHUDVisible = Boolean(
     isSpotlight &&
-      (showStatsHUD !== undefined ? showStatsHUD : internalShowStatsHUD),
+    (showStatsHUD !== undefined ? showStatsHUD : internalShowStatsHUD),
   );
 
   const handleToggleHUD = () => {
@@ -786,7 +786,9 @@ interface VoiceRoomAreaProps {
   onStopScreenShare?: () => void;
   onToggleVideo?: () => void;
   onToggleNoiseSuppression: () => void;
-  onSelectNoiseSuppressionMode?: (mode: "off" | "rnnoise" | "dtln" | "dfn3") => void;
+  onSelectNoiseSuppressionMode?: (
+    mode: "off" | "rnnoise" | "dtln" | "dfn3",
+  ) => void;
   onLeave: () => void;
   onJoin?: () => void;
   onCancelJoin?: () => void;
@@ -946,7 +948,9 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
   );
 
   // 纯语音 Mesh P2P 点对点各成员独立延迟状态
-  const [peerLatencies, setPeerLatencies] = useState<Map<string, PeerLatencyReport>>(new Map());
+  const [peerLatencies, setPeerLatencies] = useState<
+    Map<string, PeerLatencyReport>
+  >(new Map());
 
   useEffect(() => {
     const unsub = voiceMeshManager.onLatencyUpdate((reports) => {
@@ -1919,7 +1923,8 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                       data-testid="noise-option-rnnoise"
                       onClick={() => handleSelectNoiseMode("rnnoise")}
                       className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
-                        isNoiseSuppressionEnabled && noiseSuppressionMode === "rnnoise"
+                        isNoiseSuppressionEnabled &&
+                        noiseSuppressionMode === "rnnoise"
                           ? "bg-discord-brand/20 text-white font-semibold"
                           : "text-gray-300 hover:bg-white/5 hover:text-white"
                       }`}
@@ -1928,12 +1933,15 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                         <Sparkles className="w-3.5 h-3.5 text-discord-brand" />
                         <div className="text-left">
                           <div className="text-xs">RNNoise 标准轻量</div>
-                          <div className="text-[10px] text-discord-textMuted">平稳风噪底噪 (推荐)</div>
+                          <div className="text-[10px] text-discord-textMuted">
+                            平稳风噪底噪 (推荐)
+                          </div>
                         </div>
                       </div>
-                      {isNoiseSuppressionEnabled && noiseSuppressionMode === "rnnoise" && (
-                        <Check className="w-3.5 h-3.5 text-discord-brand shrink-0" />
-                      )}
+                      {isNoiseSuppressionEnabled &&
+                        noiseSuppressionMode === "rnnoise" && (
+                          <Check className="w-3.5 h-3.5 text-discord-brand shrink-0" />
+                        )}
                     </button>
 
                     {/* 选项 2: DTLN */}
@@ -1942,7 +1950,8 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                       data-testid="noise-option-dtln"
                       onClick={() => handleSelectNoiseMode("dtln")}
                       className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
-                        isNoiseSuppressionEnabled && noiseSuppressionMode === "dtln"
+                        isNoiseSuppressionEnabled &&
+                        noiseSuppressionMode === "dtln"
                           ? "bg-discord-green/20 text-white font-semibold"
                           : "text-gray-300 hover:bg-white/5 hover:text-white"
                       }`}
@@ -1951,12 +1960,15 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                         <Zap className="w-3.5 h-3.5 text-discord-green" />
                         <div className="text-left">
                           <div className="text-xs">DTLN 深度净化</div>
-                          <div className="text-[10px] text-discord-textMuted">专攻消机械键盘音</div>
+                          <div className="text-[10px] text-discord-textMuted">
+                            专攻消机械键盘音
+                          </div>
                         </div>
                       </div>
-                      {isNoiseSuppressionEnabled && noiseSuppressionMode === "dtln" && (
-                        <Check className="w-3.5 h-3.5 text-discord-green shrink-0" />
-                      )}
+                      {isNoiseSuppressionEnabled &&
+                        noiseSuppressionMode === "dtln" && (
+                          <Check className="w-3.5 h-3.5 text-discord-green shrink-0" />
+                        )}
                     </button>
 
                     {/* 选项 3: DFNv3 */}
@@ -1965,7 +1977,8 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                       data-testid="noise-option-dfn3"
                       onClick={() => handleSelectNoiseMode("dfn3")}
                       className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
-                        isNoiseSuppressionEnabled && noiseSuppressionMode === "dfn3"
+                        isNoiseSuppressionEnabled &&
+                        noiseSuppressionMode === "dfn3"
                           ? "bg-purple-500/20 text-white font-semibold"
                           : "text-gray-300 hover:bg-white/5 hover:text-white"
                       }`}
@@ -1974,12 +1987,15 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                         <Radio className="w-3.5 h-3.5 text-purple-400" />
                         <div className="text-left">
                           <div className="text-xs">DFNv3 旗舰声学</div>
-                          <div className="text-[10px] text-discord-textMuted">48kHz 全频复数滤波</div>
+                          <div className="text-[10px] text-discord-textMuted">
+                            48kHz 全频复数滤波
+                          </div>
                         </div>
                       </div>
-                      {isNoiseSuppressionEnabled && noiseSuppressionMode === "dfn3" && (
-                        <Check className="w-3.5 h-3.5 text-purple-400 shrink-0" />
-                      )}
+                      {isNoiseSuppressionEnabled &&
+                        noiseSuppressionMode === "dfn3" && (
+                          <Check className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                        )}
                     </button>
 
                     {/* 选项 4: 关闭直通 */}
@@ -1988,7 +2004,8 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                       data-testid="noise-option-off"
                       onClick={() => handleSelectNoiseMode("off")}
                       className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
-                        !isNoiseSuppressionEnabled || noiseSuppressionMode === "off"
+                        !isNoiseSuppressionEnabled ||
+                        noiseSuppressionMode === "off"
                           ? "bg-rose-500/20 text-white font-semibold"
                           : "text-gray-300 hover:bg-white/5 hover:text-white"
                       }`}
@@ -1997,10 +2014,13 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                         <VolumeX className="w-3.5 h-3.5 text-rose-400" />
                         <div className="text-left">
                           <div className="text-xs">直通原声 (未降噪)</div>
-                          <div className="text-[10px] text-discord-textMuted">关闭算法降噪</div>
+                          <div className="text-[10px] text-discord-textMuted">
+                            关闭算法降噪
+                          </div>
                         </div>
                       </div>
-                      {(!isNoiseSuppressionEnabled || noiseSuppressionMode === "off") && (
+                      {(!isNoiseSuppressionEnabled ||
+                        noiseSuppressionMode === "off") && (
                         <Check className="w-3.5 h-3.5 text-rose-400 shrink-0" />
                       )}
                     </button>

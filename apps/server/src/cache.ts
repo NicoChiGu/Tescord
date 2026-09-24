@@ -16,7 +16,10 @@ export interface ICacheStore {
   batchGetPresences(userIds: string[]): Promise<Map<string, UserPresence>>;
   getAllOnlineUsers(): Promise<string[]>;
   publish(channel: string, message: string): Promise<void>;
-  subscribe(channel: string, callback: (message: string) => void): Promise<void>;
+  subscribe(
+    channel: string,
+    callback: (message: string) => void,
+  ): Promise<void>;
 }
 
 function normalizePresence(
@@ -94,11 +97,17 @@ export class MemoryCacheStore implements ICacheStore {
     const presence = this.presences.get(userId);
     if (presence) {
       presence.lastActiveAt = new Date().toISOString();
-      await this.set(`presence:${userId}`, JSON.stringify(presence), ttlSeconds);
+      await this.set(
+        `presence:${userId}`,
+        JSON.stringify(presence),
+        ttlSeconds,
+      );
     }
   }
 
-  async batchGetPresences(userIds: string[]): Promise<Map<string, UserPresence>> {
+  async batchGetPresences(
+    userIds: string[],
+  ): Promise<Map<string, UserPresence>> {
     const result = new Map<string, UserPresence>();
     for (const id of userIds) {
       const presence = await this.getUserPresence(id);
@@ -126,13 +135,19 @@ export class MemoryCacheStore implements ICacheStore {
         try {
           callback(message);
         } catch (err) {
-          console.error(`[MemoryCacheStore] Subscriber error on channel ${channel}:`, err);
+          console.error(
+            `[MemoryCacheStore] Subscriber error on channel ${channel}:`,
+            err,
+          );
         }
       }
     }
   }
 
-  async subscribe(channel: string, callback: (message: string) => void): Promise<void> {
+  async subscribe(
+    channel: string,
+    callback: (message: string) => void,
+  ): Promise<void> {
     if (!this.subscribers.has(channel)) {
       this.subscribers.set(channel, new Set());
     }
@@ -187,7 +202,9 @@ export class DualCacheStore implements ICacheStore {
         this.redis.connect().catch(() => {
           this.isRedisAvailable = false;
           if (!this.redisInitAttempted) {
-            console.warn("[Cache] Redis initial connection failed. Using in-memory store.");
+            console.warn(
+              "[Cache] Redis initial connection failed. Using in-memory store.",
+            );
             this.redisInitAttempted = true;
           }
         });
@@ -297,7 +314,9 @@ export class DualCacheStore implements ICacheStore {
     }
   }
 
-  async batchGetPresences(userIds: string[]): Promise<Map<string, UserPresence>> {
+  async batchGetPresences(
+    userIds: string[],
+  ): Promise<Map<string, UserPresence>> {
     const result = new Map<string, UserPresence>();
     if (userIds.length === 0) return result;
 
@@ -345,7 +364,10 @@ export class DualCacheStore implements ICacheStore {
     }
   }
 
-  async subscribe(channel: string, callback: (message: string) => void): Promise<void> {
+  async subscribe(
+    channel: string,
+    callback: (message: string) => void,
+  ): Promise<void> {
     await this.memory.subscribe(channel, callback);
   }
 }

@@ -151,7 +151,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             )}
             <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex flex-col items-center justify-center transition-opacity text-white">
               <Camera className="w-6 h-6 mb-1" />
-              <span className="text-[10px] font-bold">{t("server:overview.changeIcon")}</span>
+              <span className="text-[10px] font-bold">
+                {t("server:overview.changeIcon")}
+              </span>
             </div>
             <input
               type="file"
@@ -175,7 +177,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         <div className="md:col-span-2 space-y-5">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-gray-300 mb-2">
-              {t("server:overview.nameLabel")} <span className="text-rose-500">*</span>
+              {t("server:overview.nameLabel")}{" "}
+              <span className="text-rose-500">*</span>
             </label>
             <input
               type="text"
@@ -246,7 +249,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
       <div className="border-t border-white/10 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <span className="text-xs text-gray-400">{t("server:overview.guildIdLabel")}</span>
+          <span className="text-xs text-gray-400">
+            {t("server:overview.guildIdLabel")}
+          </span>
           <code className="text-xs bg-[#1e1f22] px-2 py-1 rounded text-gray-300 border border-white/5 select-all">
             {guild.id}
           </code>
@@ -285,7 +290,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
               disabled={isSaving}
               className="px-4 py-1.5 rounded-md bg-[#248046] hover:bg-[#1a6334] text-white text-xs font-semibold shadow transition-colors"
             >
-              {isSaving ? t("server:overview.saving") : t("server:overview.saveChanges")}
+              {isSaving
+                ? t("server:overview.saving")
+                : t("server:overview.saveChanges")}
             </button>
           </div>
         )}

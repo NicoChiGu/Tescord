@@ -38,8 +38,10 @@ export default {
         "indeterminate-bar":
           "indeterminate-bar 1.2s cubic-bezier(0.4, 0, 0.2, 1) infinite",
         shake: "shake 0.45s ease-in-out",
-        "auth-step": "auth-step-in 240ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
-        "auth-field": "auth-field-in 240ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
+        "auth-step":
+          "auth-step-in 240ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
+        "auth-field":
+          "auth-field-in 240ms cubic-bezier(0.16, 1, 0.3, 1) forwards",
       },
       colors: {
         discord: {

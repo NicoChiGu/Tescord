@@ -32,7 +32,10 @@ test.describe("Web 登录界面步进式流转、shake 错误动效与阻止默�
     // 监听导航事件，断言提交表单不会触发浏览器默认的页面重载
     let pageReloaded = false;
     page.on("framenavigated", (frame) => {
-      if (frame === page.mainFrame() && frame.url().includes("about:blank") === false) {
+      if (
+        frame === page.mainFrame() &&
+        frame.url().includes("about:blank") === false
+      ) {
         // 初始页面加载之后的意外导航检测
       }
     });
@@ -136,9 +139,7 @@ test.describe("Web 登录界面步进式流转、shake 错误动效与阻止默�
     await expect(page.locator(".border-rose-500")).toHaveCount(0);
 
     await submitBtn.click();
-    await expect(
-      page.getByText(/请输入有效的邮箱地址/)
-    ).toBeVisible();
+    await expect(page.getByText(/请输入有效的邮箱地址/)).toBeVisible();
     await expect(page.locator(".animate-shake")).toBeVisible();
     await expect(page.locator(".border-rose-500")).toBeVisible();
     expect(checkEmailRequests).toBe(0);
@@ -146,9 +147,7 @@ test.describe("Web 登录界面步进式流转、shake 错误动效与阻止默�
     // 3. 再次输入带 @ 但没有顶级域名的非法邮箱 (如: user@domain)
     await emailInput.fill("user@domain");
     await submitBtn.click();
-    await expect(
-      page.getByText(/请输入有效的邮箱地址/)
-    ).toBeVisible();
+    await expect(page.getByText(/请输入有效的邮箱地址/)).toBeVisible();
     expect(checkEmailRequests).toBe(0);
 
     // 4. 输入标准格式邮箱，成功放行通过前端校验并向后端发起验证

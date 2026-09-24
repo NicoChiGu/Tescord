@@ -56,10 +56,11 @@ export const AuthModal: React.FC = () => {
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
 
   // 全站公开注册策略状态
-  const [registrationPolicy, setRegistrationPolicy] = useState<RegistrationStatusResponse>({
-    allowRegistration: true,
-    requireInviteCode: false,
-  });
+  const [registrationPolicy, setRegistrationPolicy] =
+    useState<RegistrationStatusResponse>({
+      allowRegistration: true,
+      requireInviteCode: false,
+    });
 
   const { t, i18n } = useTranslation(["auth", "common"]);
   const currentLocale = normalizeLocale(i18n.language);
@@ -81,7 +82,8 @@ export const AuthModal: React.FC = () => {
       .catch(() => {});
 
     try {
-      const search = typeof window !== "undefined" ? window.location.search : "";
+      const search =
+        typeof window !== "undefined" ? window.location.search : "";
       if (search) {
         const params = new URLSearchParams(search);
         const code = params.get("invite");
@@ -335,7 +337,10 @@ export const AuthModal: React.FC = () => {
           });
         if (msg.includes("邀请码") || msg.toLowerCase().includes("invite")) {
           triggerFieldError("inviteCode", msg);
-        } else if (msg.includes("密码") || msg.toLowerCase().includes("password")) {
+        } else if (
+          msg.includes("密码") ||
+          msg.toLowerCase().includes("password")
+        ) {
           triggerFieldError("password", msg);
         } else {
           setFieldErrors({ general: msg });
@@ -374,7 +379,8 @@ export const AuthModal: React.FC = () => {
   const { title, subtitle } = getTitleAndSubtitle();
 
   const getButtonText = () => {
-    if (phase === "EMAIL") return t("common:continue", { defaultValue: "继续" });
+    if (phase === "EMAIL")
+      return t("common:continue", { defaultValue: "继续" });
     if (phase === "PASSWORD") return t("auth:login", { defaultValue: "登录" });
     return t("auth:registerAndLogin", { defaultValue: "注册并登录" });
   };
@@ -399,8 +405,8 @@ export const AuthModal: React.FC = () => {
             >
               <Globe className="w-3.5 h-3.5" />
               <span>
-                {SUPPORTED_LOCALES.find((l) => l.code === currentLocale)?.nativeName ||
-                  "Language"}
+                {SUPPORTED_LOCALES.find((l) => l.code === currentLocale)
+                  ?.nativeName || "Language"}
               </span>
               <ChevronDown className="w-3 h-3 text-gray-400" />
             </button>
@@ -442,9 +448,7 @@ export const AuthModal: React.FC = () => {
             <h2 className="text-2xl font-bold text-white tracking-tight">
               {title}
             </h2>
-            <p className="text-sm text-gray-400 mt-1">
-              {subtitle}
-            </p>
+            <p className="text-sm text-gray-400 mt-1">{subtitle}</p>
           </div>
         </div>
 
@@ -505,8 +509,8 @@ export const AuthModal: React.FC = () => {
                   fieldErrors.email
                     ? "text-rose-400"
                     : phase !== "EMAIL" && isEmailVerified
-                    ? "text-gray-500"
-                    : "text-gray-400"
+                      ? "text-gray-500"
+                      : "text-gray-400"
                 }`}
               />
               <input
@@ -526,8 +530,8 @@ export const AuthModal: React.FC = () => {
                   fieldErrors.email
                     ? "border border-rose-500 ring-2 ring-rose-500/20 bg-[#1e1f22] text-white"
                     : phase !== "EMAIL" && isEmailVerified
-                    ? "bg-[#1e1f22]/70 text-gray-400 cursor-not-allowed border border-white/5 opacity-80 select-none"
-                    : "bg-[#1e1f22] text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
+                      ? "bg-[#1e1f22]/70 text-gray-400 cursor-not-allowed border border-white/5 opacity-80 select-none"
+                      : "bg-[#1e1f22] text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
                 }`}
               />
             </div>
@@ -759,7 +763,10 @@ export const AuthModal: React.FC = () => {
             {isSubmitting ? (
               <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             ) : (
-              <div key={phase} className="flex items-center gap-2 animate-auth-step">
+              <div
+                key={phase}
+                className="flex items-center gap-2 animate-auth-step"
+              >
                 <span>{getButtonText()}</span>
                 <ArrowRight className="w-4 h-4" />
               </div>

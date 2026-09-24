@@ -20,7 +20,10 @@ test("真实 Chromium PeerConnection 直连产生媒体字节、解码帧和一�
     remoteVideo.srcObject = remoteStream;
     document.body.appendChild(remoteVideo);
 
-    const waitFor = async (predicate: () => boolean | Promise<boolean>, timeoutMs = 12_000) => {
+    const waitFor = async (
+      predicate: () => boolean | Promise<boolean>,
+      timeoutMs = 12_000,
+    ) => {
       const deadline = Date.now() + timeoutMs;
       while (Date.now() < deadline) {
         if (await predicate()) return;
@@ -46,7 +49,9 @@ test("真实 Chromium PeerConnection 直连产生媒体字节、解码帧和一�
         remoteStream.addTrack(event.track);
         void remoteVideo.play().catch(() => undefined);
       };
-      localStream.getTracks().forEach((track) => sender.addTrack(track, localStream));
+      localStream
+        .getTracks()
+        .forEach((track) => sender.addTrack(track, localStream));
 
       await sender.setLocalDescription(await sender.createOffer());
       await waitForIceGathering(sender);
@@ -120,14 +125,14 @@ test("真实 Chromium PeerConnection 直连产生媒体字节、解码帧和一�
 
         return Boolean(
           outbound &&
-            inbound &&
-            outbound.bytesSent > 0 &&
-            inbound.bytesReceived > 0 &&
-            (inbound.framesDecoded || 0) > 0 &&
-            sendCodec &&
-            receiveCodec &&
-            localCandidateType &&
-            remoteCandidateType,
+          inbound &&
+          outbound.bytesSent > 0 &&
+          inbound.bytesReceived > 0 &&
+          (inbound.framesDecoded || 0) > 0 &&
+          sendCodec &&
+          receiveCodec &&
+          localCandidateType &&
+          remoteCandidateType,
         );
       });
 

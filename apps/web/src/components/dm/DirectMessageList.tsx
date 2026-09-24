@@ -145,7 +145,9 @@ export const DirectMessageList: React.FC<DirectMessageListProps> = ({
           const otherUser = channel.recipients?.find(
             (r) => r.id !== currentUser.id,
           );
-          const realtimePresence = otherUser ? presences[otherUser.id] : undefined;
+          const realtimePresence = otherUser
+            ? presences[otherUser.id]
+            : undefined;
           const isSelected = selectedChannelId === channel.id;
           const displayName = otherUser
             ? otherUser.displayName ||
@@ -153,7 +155,8 @@ export const DirectMessageList: React.FC<DirectMessageListProps> = ({
                 ? otherUser.username.split("#")[0]
                 : otherUser.username)
             : channel.name;
-          const status = realtimePresence?.status || otherUser?.status || "OFFLINE";
+          const status =
+            realtimePresence?.status || otherUser?.status || "OFFLINE";
           const customStatus =
             realtimePresence?.customStatus !== undefined
               ? realtimePresence.customStatus
@@ -241,8 +244,7 @@ export const DirectMessageList: React.FC<DirectMessageListProps> = ({
             </p>
             <p className="text-[11px] text-[#949ba4]">
               {t("chat:dm.emptyActiveDesc", {
-                defaultValue:
-                  "点击右上角 + 或在服务器成员列表中右键发起私信",
+                defaultValue: "点击右上角 + 或在服务器成员列表中右键发起私信",
               })}
             </p>
           </div>
@@ -309,7 +311,9 @@ export const DirectMessageList: React.FC<DirectMessageListProps> = ({
                   disabled={creating || !searchUsername.trim()}
                   className="px-4 py-1.5 bg-discord-brand hover:bg-[#4752c4] disabled:opacity-50 text-white text-xs font-semibold rounded flex items-center space-x-1"
                 >
-                  {creating && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />}
+                  {creating && (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                  )}
                   <span>
                     {t("chat:dm.createModal.submit", {
                       defaultValue: "建立私信",

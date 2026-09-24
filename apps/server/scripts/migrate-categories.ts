@@ -44,7 +44,9 @@ async function main() {
         }
       }
     } else {
-      console.log(`公会 ${guild.name} 已存在 ${guild.categories.length} 个分类，跳过。`);
+      console.log(
+        `公会 ${guild.name} 已存在 ${guild.categories.length} 个分类，跳过。`,
+      );
     }
   }
   console.log("✅ 频道分类迁移完成！");

@@ -11,6 +11,7 @@ import {
   MentionAutocomplete,
   MentionCandidate,
 } from "./MentionAutocomplete.js";
+import { getUserDisplayName } from "../../utils/userDisplay.js";
 
 export interface MentionInputHandle {
   focus: () => void;
@@ -280,7 +281,7 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
         const user = m.user;
         if (!user) return;
 
-        const displayName = m.nickname || user.username;
+        const displayName = getUserDisplayName(user, m);
         const username = user.username;
 
         // 匹配昵称或用户名

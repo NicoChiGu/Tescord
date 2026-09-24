@@ -119,7 +119,9 @@ export const useDialogStore = create<DialogState>((set, get) => ({
 }));
 
 export const dialog = {
-  confirm: (options: ConfirmDialogOptions) => useDialogStore.getState().confirm(options),
-  prompt: (options: PromptDialogOptions) => useDialogStore.getState().prompt(options),
+  confirm: (options: ConfirmDialogOptions) =>
+    useDialogStore.getState().confirm(options),
+  prompt: (options: PromptDialogOptions) =>
+    useDialogStore.getState().prompt(options),
   close: () => useDialogStore.getState().close(),
 };

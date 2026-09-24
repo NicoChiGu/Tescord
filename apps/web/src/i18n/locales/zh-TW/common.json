@@ -78,6 +78,7 @@
     "defaultBio": "正在體驗 Tescord 🚀"
   },
   "profilePopout": {
+    "editProfile": "編輯個人資料",
     "sendDM": "發送私訊給 @{{name}}",
     "addNote": "新增備註",
     "clickToAddNote": "按一下新增備註",

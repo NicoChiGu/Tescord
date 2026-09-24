@@ -34,9 +34,7 @@ test.describe("用户信息卡片 (UserProfilePopout) 全局单例互斥显示 E
     }
 
     // 3. 定位聊天消息中的作者头像与右侧成员列表中的成员项
-    const chatAvatar = page
-      .locator('[data-profile-trigger^="chat-"]')
-      .first();
+    const chatAvatar = page.locator('[data-profile-trigger^="chat-"]').first();
     await expect(chatAvatar).toBeVisible({ timeout: 10000 });
 
     const memberItem = page.locator("[data-member-item]").first();

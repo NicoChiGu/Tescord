@@ -3,10 +3,18 @@ import { test, expect } from "@playwright/test";
 test.describe("管理员维护模式（Maintenance Mode）全链路与 WebSocket 响应端到端验收", () => {
   test.beforeEach(async ({ page }) => {
     await page.route("**/api/e2ee/devices", (route) =>
-      route.fulfill({ status: 200, contentType: "application/json", body: "{}" }),
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: "{}",
+      }),
     );
     await page.route("**/api/e2ee/keys/prekey", (route) =>
-      route.fulfill({ status: 200, contentType: "application/json", body: "{}" }),
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: "{}",
+      }),
     );
     await page.route("**/api/channels/*/read", (route) =>
       route.fulfill({
@@ -16,10 +24,18 @@ test.describe("管理员维护模式（Maintenance Mode）全链路与 WebSocket
       }),
     );
     await page.route("**/api/discovery/guilds", (route) =>
-      route.fulfill({ status: 200, contentType: "application/json", body: "[]" }),
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: "[]",
+      }),
     );
     await page.route("**/api/health", (route) =>
-      route.fulfill({ status: 200, contentType: "application/json", body: '{"status":"ok"}' }),
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: '{"status":"ok"}',
+      }),
     );
   });
 
@@ -97,7 +113,9 @@ test.describe("管理员维护模式（Maintenance Mode）全链路与 WebSocket
 
     // 初始状态下正常加载并显示主界面，维护覆盖层不可见
     await expect(page.locator("body")).toBeVisible();
-    await expect(page.locator('[data-testid="maintenance-screen"]')).not.toBeVisible();
+    await expect(
+      page.locator('[data-testid="maintenance-screen"]'),
+    ).not.toBeVisible();
 
     // 模拟服务端通过网关广播推送维护模式开启
     await page.evaluate(() => {
@@ -112,16 +130,22 @@ test.describe("管理员维护模式（Maintenance Mode）全链路与 WebSocket
     });
 
     // 验证全屏维护页面立即浮现
-    const maintenanceScreen = page.locator('[data-testid="maintenance-screen"]');
+    const maintenanceScreen = page.locator(
+      '[data-testid="maintenance-screen"]',
+    );
     await expect(maintenanceScreen).toBeVisible({ timeout: 5000 });
 
     // 验证维护公告与长连接提示
     await expect(maintenanceScreen).toContainText("系统正在维护升级");
     await expect(maintenanceScreen).toContainText("平台正在进行数据库架构演练");
-    await expect(maintenanceScreen).toContainText("实时长连接通道已建立，维护结束后将自动秒级恢复");
+    await expect(maintenanceScreen).toContainText(
+      "实时长连接通道已建立，维护结束后将自动秒级恢复",
+    );
 
     // 验证点击“检查系统状态”按钮有反应
-    const checkBtn = maintenanceScreen.locator("button:has-text('检查系统状态')");
+    const checkBtn = maintenanceScreen.locator(
+      "button:has-text('检查系统状态')",
+    );
     await expect(checkBtn).toBeVisible();
     await checkBtn.click();
 
@@ -233,17 +257,22 @@ test.describe("管理员维护模式（Maintenance Mode）全链路与 WebSocket
     });
 
     // 验证超级管理员不会看到全屏维护页面
-    await expect(page.locator('[data-testid="maintenance-screen"]')).not.toBeVisible();
+    await expect(
+      page.locator('[data-testid="maintenance-screen"]'),
+    ).not.toBeVisible();
 
     // 验证顶部出现超级管理员专属运维警示横幅
-    const adminBanner = page.locator('[data-testid="maintenance-admin-banner"]');
+    const adminBanner = page.locator(
+      '[data-testid="maintenance-admin-banner"]',
+    );
     await expect(adminBanner).toBeVisible({ timeout: 5000 });
     await expect(adminBanner).toContainText("[运维模式进行中]");
 
     // 点击一键解除维护
     await page.evaluate(() => {
       const anyWin = window as any;
-      if (anyWin.useAuthStore) anyWin.useAuthStore.getState().closeReauthModal();
+      if (anyWin.useAuthStore)
+        anyWin.useAuthStore.getState().closeReauthModal();
     });
     const disableBtn = adminBanner.locator("button:has-text('一键解除维护')");
     await expect(disableBtn).toBeVisible();

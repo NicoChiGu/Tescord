@@ -33,11 +33,15 @@ export const ForcedPasswordChangeModal: React.FC = () => {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok) {
-        throw new Error(getErrorMessage(result) || t("modals:forcedPasswordChange.failed"));
+        throw new Error(
+          getErrorMessage(result) || t("modals:forcedPasswordChange.failed"),
+        );
       }
       logout();
     } catch (cause: any) {
-      setError(getErrorMessage(cause) || t("modals:forcedPasswordChange.failed"));
+      setError(
+        getErrorMessage(cause) || t("modals:forcedPasswordChange.failed"),
+      );
     } finally {
       setSaving(false);
     }
@@ -92,7 +96,9 @@ export const ForcedPasswordChangeModal: React.FC = () => {
           autoComplete="new-password"
           value={confirmation}
           onChange={(e) => setConfirmation(e.target.value)}
-          placeholder={t("modals:forcedPasswordChange.confirmPasswordPlaceholder")}
+          placeholder={t(
+            "modals:forcedPasswordChange.confirmPasswordPlaceholder",
+          )}
           className="w-full rounded bg-[#1e1f22] p-3 text-white outline-none ring-discord-brand focus:ring-2"
         />
         <div className="flex justify-end gap-2">

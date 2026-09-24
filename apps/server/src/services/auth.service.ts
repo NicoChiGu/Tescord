@@ -32,10 +32,7 @@ export class AuthService {
     const input = email.trim();
     const existing = await prisma.user.findFirst({
       where: {
-        OR: [
-          { email: input.toLowerCase() },
-          { username: input },
-        ],
+        OR: [{ email: input.toLowerCase() }, { username: input }],
       },
       select: { id: true },
     });
@@ -65,7 +62,8 @@ export class AuthService {
       bannerUrl: u.bannerUrl || null,
       bannerColor: u.bannerColor || null,
       themeColor: u.themeColor || null,
-      showActivity: u.showActivity !== undefined ? Boolean(u.showActivity) : true,
+      showActivity:
+        u.showActivity !== undefined ? Boolean(u.showActivity) : true,
       role: (u.role as any) || "USER",
       isBanned: u.isBanned || false,
       mustChangePassword: u.mustChangePassword || false,
@@ -190,7 +188,10 @@ export class AuthService {
         finalDiscriminator = tag;
       }
     } else if (!finalUsername) {
-      const baseName = (dto.email.split("@")[0].trim() || "User").replace(/#/g, "");
+      const baseName = (dto.email.split("@")[0].trim() || "User").replace(
+        /#/g,
+        "",
+      );
       const tag = Math.floor(10000 + Math.random() * 90000);
       finalUsername = `${baseName}#${tag}`;
       finalDiscriminator = String(tag);
@@ -198,7 +199,8 @@ export class AuthService {
     } else {
       if (finalUsername.includes("#")) {
         const parts = finalUsername.split("#");
-        finalDiscriminator = parts[1] || String(Math.floor(10000 + Math.random() * 90000));
+        finalDiscriminator =
+          parts[1] || String(Math.floor(10000 + Math.random() * 90000));
         finalDisplayName = parts[0];
       } else {
         finalDiscriminator = String(Math.floor(10000 + Math.random() * 90000));
@@ -384,16 +386,16 @@ export class AuthService {
       ...(dto.bannerColor !== undefined
         ? { bannerColor: dto.bannerColor }
         : {}),
-      ...(dto.themeColor !== undefined
-        ? { themeColor: dto.themeColor }
-        : {}),
+      ...(dto.themeColor !== undefined ? { themeColor: dto.themeColor } : {}),
       ...(dto.showActivity !== undefined
         ? { showActivity: dto.showActivity }
         : {}),
     };
 
     if (dto.displayName !== undefined) {
-      dataToUpdate.displayName = dto.displayName ? dto.displayName.trim() : null;
+      dataToUpdate.displayName = dto.displayName
+        ? dto.displayName.trim()
+        : null;
     }
 
     if (dto.username !== undefined && dto.username.trim()) {

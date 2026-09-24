@@ -42,10 +42,16 @@ async function main() {
 
     try {
       if (!username) {
-        username = await askQuestion(rl, "👉 请输入超级管理员用户名 (例如: admin): ");
+        username = await askQuestion(
+          rl,
+          "👉 请输入超级管理员用户名 (例如: admin): ",
+        );
       }
       if (!email) {
-        email = await askQuestion(rl, "👉 请输入管理员电子邮箱 (例如: admin@example.com): ");
+        email = await askQuestion(
+          rl,
+          "👉 请输入管理员电子邮箱 (例如: admin@example.com): ",
+        );
       }
       if (!password) {
         password = await askQuestion(rl, "👉 请输入密码 (长度至少 6 位): ");
@@ -84,7 +90,9 @@ async function main() {
   const passwordHash = await bcrypt.hash(password, salt);
 
   if (existingUser) {
-    console.log(`ℹ️ 检测到已存在匹配账号【${existingUser.username}】(${existingUser.email})，正在提升为超级管理员并更新密码...`);
+    console.log(
+      `ℹ️ 检测到已存在匹配账号【${existingUser.username}】(${existingUser.email})，正在提升为超级管理员并更新密码...`,
+    );
 
     const updated = await prisma.$transaction(async (tx) => {
       const user = await tx.user.update({

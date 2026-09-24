@@ -13,7 +13,10 @@ test.describe("Discord 风格摄像头设备选择与视频预览全链路验收
 
     // 1. 注入 Mock 用户鉴权状态与多摄像头设备 Mock
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
+      localStorage.setItem(
+        "tescord_access_token",
+        localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token",
+      );
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
 
       // Mock 多硬件摄像头设备列表

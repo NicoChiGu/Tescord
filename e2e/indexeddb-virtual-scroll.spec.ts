@@ -17,23 +17,26 @@ test.describe("客户端 IndexedDB 本地秒开、虚拟视口与未读红线滚
     page,
   }) => {
     // 首次进入时正常返回 1 条消息
-    await page.route("**/api/channels/chn_default_text_01/messages*", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify([
-          {
-            id: "msg_swr_cached_001",
-            channelId: "chn_default_text_01",
-            content: "【已持久化到 IndexedDB 的本地历史缓存】",
-            sequence: 1,
-            authorId: "usr_default_admin",
-            author: { id: "usr_default_admin", username: "Jackey" },
-            createdAt: new Date().toISOString(),
-          },
-        ]),
-      });
-    });
+    await page.route(
+      "**/api/channels/chn_default_text_01/messages*",
+      (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([
+            {
+              id: "msg_swr_cached_001",
+              channelId: "chn_default_text_01",
+              content: "【已持久化到 IndexedDB 的本地历史缓存】",
+              sequence: 1,
+              authorId: "usr_default_admin",
+              author: { id: "usr_default_admin", username: "Jackey" },
+              createdAt: new Date().toISOString(),
+            },
+          ]),
+        });
+      },
+    );
 
     await page.goto("/");
 
@@ -104,13 +107,16 @@ test.describe("客户端 IndexedDB 本地秒开、虚拟视口与未读红线滚
       createdAt: new Date(Date.now() - (100 - i) * 60000).toISOString(),
     }));
 
-    await page.route("**/api/channels/chn_default_text_01/messages*", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(mock100Messages),
-      });
-    });
+    await page.route(
+      "**/api/channels/chn_default_text_01/messages*",
+      (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(mock100Messages),
+        });
+      },
+    );
 
     await page.goto("/");
     const serverBtn = page
@@ -150,13 +156,16 @@ test.describe("客户端 IndexedDB 本地秒开、虚拟视口与未读红线滚
       createdAt: new Date(Date.now() - (60 - i) * 60000).toISOString(),
     }));
 
-    await page.route("**/api/channels/chn_default_text_01/messages*", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(mock60Messages),
-      });
-    });
+    await page.route(
+      "**/api/channels/chn_default_text_01/messages*",
+      (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(mock60Messages),
+        });
+      },
+    );
 
     await page.goto("/");
     const serverBtn = page
@@ -181,7 +190,9 @@ test.describe("客户端 IndexedDB 本地秒开、虚拟视口与未读红线滚
     // 触发滚动事件
     await page.waitForTimeout(100);
 
-    const scrollTopBefore = await scrollContainer.evaluate((el) => el.scrollTop);
+    const scrollTopBefore = await scrollContainer.evaluate(
+      (el) => el.scrollTop,
+    );
     expect(scrollTopBefore).toBeGreaterThan(100);
 
     // 2. 切换到 crypto-vault 频道
@@ -204,24 +215,27 @@ test.describe("客户端 IndexedDB 本地秒开、虚拟视口与未读红线滚
     page,
   }) => {
     // 1. 设置极速响应（30ms），模拟 IndexedDB 本地秒开或极快局域网响应
-    await page.route("**/api/channels/chn_default_text_01/messages*", async (route) => {
-      await page.waitForTimeout(30);
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify([
-          {
-            id: "msg_fast_001",
-            channelId: "chn_default_text_01",
-            sequence: 1,
-            content: "【极速加载消息】",
-            authorId: "usr_default_admin",
-            author: { id: "usr_default_admin", username: "Jackey" },
-            createdAt: new Date().toISOString(),
-          },
-        ]),
-      });
-    });
+    await page.route(
+      "**/api/channels/chn_default_text_01/messages*",
+      async (route) => {
+        await page.waitForTimeout(30);
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([
+            {
+              id: "msg_fast_001",
+              channelId: "chn_default_text_01",
+              sequence: 1,
+              content: "【极速加载消息】",
+              authorId: "usr_default_admin",
+              author: { id: "usr_default_admin", username: "Jackey" },
+              createdAt: new Date().toISOString(),
+            },
+          ]),
+        });
+      },
+    );
 
     await page.goto("/");
     const serverBtn = page
@@ -237,7 +251,9 @@ test.describe("客户端 IndexedDB 本地秒开、虚拟视口与未读红线滚
     const skeleton = page.locator('[data-testid="chat-message-skeleton-list"]');
 
     // 核心断言 1：极速返回（< 100ms）的情况下，骨架屏绝对不闪烁显示
-    await expect(page.getByText("【极速加载消息】")).toBeVisible({ timeout: 3000 });
+    await expect(page.getByText("【极速加载消息】")).toBeVisible({
+      timeout: 3000,
+    });
     await expect(skeleton).not.toBeVisible();
 
     // 2. 模拟切换至冷频道 crypto-vault，且网络延迟 250ms（超过 100ms 阈值）
@@ -305,13 +321,16 @@ test.describe("客户端 IndexedDB 本地秒开、虚拟视口与未读红线滚
       createdAt: new Date(Date.now() - (15 - i) * 60000).toISOString(),
     }));
 
-    await page.route("**/api/channels/chn_default_text_01/messages*", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(mock15Messages),
-      });
-    });
+    await page.route(
+      "**/api/channels/chn_default_text_01/messages*",
+      (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(mock15Messages),
+        });
+      },
+    );
 
     await page.goto("/");
     const serverBtn = page
@@ -406,13 +425,16 @@ test.describe("客户端 IndexedDB 本地秒开、虚拟视口与未读红线滚
       },
     ];
 
-    await page.route("**/api/channels/chn_default_text_01/messages*", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(variedMessages),
-      });
-    });
+    await page.route(
+      "**/api/channels/chn_default_text_01/messages*",
+      (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(variedMessages),
+        });
+      },
+    );
 
     await page.goto("/");
     const serverBtn = page
@@ -453,4 +475,3 @@ test.describe("客户端 IndexedDB 本地秒开、虚拟视口与未读红线滚
     }
   });
 });
-

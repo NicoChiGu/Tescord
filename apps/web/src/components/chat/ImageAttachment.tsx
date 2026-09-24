@@ -14,7 +14,9 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
   onPreview,
   className = "",
 }) => {
-  const [status, setStatus] = useState<"loading" | "loaded" | "error">("loading");
+  const [status, setStatus] = useState<"loading" | "loaded" | "error">(
+    "loading",
+  );
   const [retryCount, setRetryCount] = useState(0);
   const imgRef = useRef<HTMLImageElement | null>(null);
 

@@ -198,7 +198,9 @@ export const InputContextMenu: React.FC<InputContextMenuProps> = ({
                 <Bold className="w-4 h-4 text-discord-textMuted" />
                 <span>{t("contextMenu:input.bold")}</span>
               </div>
-              <ContextMenuShortcut>**{t("contextMenu:input.placeholderText")}**</ContextMenuShortcut>
+              <ContextMenuShortcut>
+                **{t("contextMenu:input.placeholderText")}**
+              </ContextMenuShortcut>
             </ContextMenuItem>
 
             <ContextMenuItem onClick={() => handleFormat("||", "||")}>
@@ -206,7 +208,9 @@ export const InputContextMenu: React.FC<InputContextMenuProps> = ({
                 <EyeOff className="w-4 h-4 text-discord-textMuted" />
                 <span>{t("contextMenu:input.spoiler")}</span>
               </div>
-              <ContextMenuShortcut>||{t("contextMenu:input.placeholderText")}||</ContextMenuShortcut>
+              <ContextMenuShortcut>
+                ||{t("contextMenu:input.placeholderText")}||
+              </ContextMenuShortcut>
             </ContextMenuItem>
 
             <ContextMenuItem onClick={() => handleFormat("`", "`")}>
@@ -214,7 +218,9 @@ export const InputContextMenu: React.FC<InputContextMenuProps> = ({
                 <Code className="w-4 h-4 text-discord-textMuted" />
                 <span>{t("contextMenu:input.inlineCode")}</span>
               </div>
-              <ContextMenuShortcut>`{t("contextMenu:input.codePlaceholder")}`</ContextMenuShortcut>
+              <ContextMenuShortcut>
+                `{t("contextMenu:input.codePlaceholder")}`
+              </ContextMenuShortcut>
             </ContextMenuItem>
           </ContextMenuSubContent>
         </ContextMenuSub>

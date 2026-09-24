@@ -1573,7 +1573,10 @@ export class LiveKitService {
       try {
         await (this.playbackAudioContext as any).setSinkId(targetSink);
       } catch (e) {
-        console.warn("[LiveKit] Failed to setSinkId on playbackAudioContext:", e);
+        console.warn(
+          "[LiveKit] Failed to setSinkId on playbackAudioContext:",
+          e,
+        );
       }
     }
 
@@ -1594,11 +1597,17 @@ export class LiveKitService {
     }
 
     // 3. 同步 LiveKit room 的 active device（若支持）
-    if (this.room && typeof (this.room as any).switchActiveDevice === "function") {
+    if (
+      this.room &&
+      typeof (this.room as any).switchActiveDevice === "function"
+    ) {
       try {
         await (this.room as any).switchActiveDevice("audiooutput", targetSink);
       } catch (e) {
-        console.warn("[LiveKit] room.switchActiveDevice audiooutput failed:", e);
+        console.warn(
+          "[LiveKit] room.switchActiveDevice audiooutput failed:",
+          e,
+        );
       }
     }
 

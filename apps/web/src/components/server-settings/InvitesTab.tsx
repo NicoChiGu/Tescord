@@ -54,7 +54,8 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
   const handleDeleteInvite = async (code: string) => {
     const confirmed = await dialog.confirm({
       title: t("server:invites.revoke"),
-      description: "确定要作废该邀请码吗？作废后使用该链接的新用户将无法加入服务器。",
+      description:
+        "确定要作废该邀请码吗？作废后使用该链接的新用户将无法加入服务器。",
       variant: "warning",
       confirmText: t("server:invites.revoke"),
     });
@@ -131,7 +132,9 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
       {/* 创建表单面板 */}
       {isCreating && (
         <div className="rounded-xl bg-[#1e1f22] p-5 border border-white/10 space-y-4 animate-in slide-in-from-top-2">
-          <h3 className="text-sm font-bold text-white">{t("server:invites.configTitle")}</h3>
+          <h3 className="text-sm font-bold text-white">
+            {t("server:invites.configTitle")}
+          </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-gray-300 mb-1.5">
@@ -163,12 +166,24 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
                 className="w-full bg-[#2b2d31] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#5865f2]"
               >
                 <option value={0}>{t("server:invites.unlimitedUses")}</option>
-                <option value={1}>{t("server:invites.usesCount", { count: 1 })}</option>
-                <option value={5}>{t("server:invites.usesCount", { count: 5 })}</option>
-                <option value={10}>{t("server:invites.usesCount", { count: 10 })}</option>
-                <option value={25}>{t("server:invites.usesCount", { count: 25 })}</option>
-                <option value={50}>{t("server:invites.usesCount", { count: 50 })}</option>
-                <option value={100}>{t("server:invites.usesCount", { count: 100 })}</option>
+                <option value={1}>
+                  {t("server:invites.usesCount", { count: 1 })}
+                </option>
+                <option value={5}>
+                  {t("server:invites.usesCount", { count: 5 })}
+                </option>
+                <option value={10}>
+                  {t("server:invites.usesCount", { count: 10 })}
+                </option>
+                <option value={25}>
+                  {t("server:invites.usesCount", { count: 25 })}
+                </option>
+                <option value={50}>
+                  {t("server:invites.usesCount", { count: 50 })}
+                </option>
+                <option value={100}>
+                  {t("server:invites.usesCount", { count: 100 })}
+                </option>
               </select>
             </div>
           </div>
@@ -248,7 +263,9 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
                       <span className="flex items-center gap-1">
                         <Users className="w-3.5 h-3.5 text-gray-500" />
                         {t("server:invites.table.uses")}：{inv.uses} /{" "}
-                        {inv.maxUses && inv.maxUses > 0 ? inv.maxUses : t("server:invites.permanent")}
+                        {inv.maxUses && inv.maxUses > 0
+                          ? inv.maxUses
+                          : t("server:invites.permanent")}
                       </span>
 
                       <span className="flex items-center gap-1">
@@ -260,7 +277,10 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
                       </span>
 
                       {inv.inviter && (
-                        <span>{t("server:invites.table.creator")}：{inv.inviter.username}</span>
+                        <span>
+                          {t("server:invites.table.creator")}：
+                          {inv.inviter.username}
+                        </span>
                       )}
                     </div>
                   </div>

@@ -63,7 +63,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   const [users, setUsers] = useState<AdminUserItem[]>([]);
   const [userSearch, setUserSearch] = useState("");
   const [resetPwdUserId, setResetPwdUserId] = useState<string | null>(null);
-  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
+  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(
+    null,
+  );
 
   // 3. 公会管理数据
   const [guilds, setGuilds] = useState<AdminGuildItem[]>([]);
@@ -85,7 +87,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   const [isCreateInviteModalOpen, setIsCreateInviteModalOpen] = useState(false);
   const [newInviteNote, setNewInviteNote] = useState("");
   const [newInviteMaxUses, setNewInviteMaxUses] = useState(1);
-  const [newInviteExpiresInDays, setNewInviteExpiresInDays] = useState<number | null>(7);
+  const [newInviteExpiresInDays, setNewInviteExpiresInDays] = useState<
+    number | null
+  >(7);
   const [newInviteCustomCode, setNewInviteCustomCode] = useState("");
   const [isCreatingInvite, setIsCreatingInvite] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -110,7 +114,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
         const res = await fetch(`${API_BASE}/api/admin/overview`, { headers });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          throw new Error(getErrorMessage(data) || t("admin:overview.loadFailed"));
+          throw new Error(
+            getErrorMessage(data) || t("admin:overview.loadFailed"),
+          );
         }
         setStats(await res.json());
       } else if (tab === "USERS") {
@@ -131,7 +137,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
         const res = await fetch(url, { headers });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          throw new Error(getErrorMessage(data) || t("admin:guilds.loadFailed"));
+          throw new Error(
+            getErrorMessage(data) || t("admin:guilds.loadFailed"),
+          );
         }
         const data = await res.json();
         setGuilds(Array.isArray(data) ? data : data.items || []);
@@ -142,7 +150,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
         const res = await fetch(url, { headers });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          throw new Error(getErrorMessage(data) || t("admin:invites.loadFailed"));
+          throw new Error(
+            getErrorMessage(data) || t("admin:invites.loadFailed"),
+          );
         }
         const data = await res.json();
         setInvites(data.invites || []);
@@ -150,7 +160,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
         const res = await fetch(`${API_BASE}/api/admin/settings`, { headers });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
-          throw new Error(getErrorMessage(data) || t("admin:system.loadFailed"));
+          throw new Error(
+            getErrorMessage(data) || t("admin:system.loadFailed"),
+          );
         }
         setSettings(await res.json());
       }
@@ -194,7 +206,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(getErrorMessage(data) || t("common:saveFailed", "操作失败"));
+        throw new Error(
+          getErrorMessage(data) || t("common:saveFailed", "操作失败"),
+        );
       }
       showSuccess(
         targetUser.isBanned
@@ -208,7 +222,10 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   };
 
   // 用户操作：修改角色
-  const handleChangeRole = async (targetUser: AdminUserItem, newRole: SystemRole) => {
+  const handleChangeRole = async (
+    targetUser: AdminUserItem,
+    newRole: SystemRole,
+  ) => {
     try {
       const res = await fetch(`${API_BASE}/api/admin/users/${targetUser.id}`, {
         method: "PATCH",
@@ -220,7 +237,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(getErrorMessage(data) || t("common:saveFailed", "更新角色失败"));
+        throw new Error(
+          getErrorMessage(data) || t("common:saveFailed", "更新角色失败"),
+        );
       }
       showSuccess(t("admin:users.roleUpdated", { role: newRole }));
       loadTabData("USERS");
@@ -254,7 +273,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(getErrorMessage(data) || t("admin:users.resetPwdFailed"));
+        throw new Error(
+          getErrorMessage(data) || t("admin:users.resetPwdFailed"),
+        );
       }
       const result = await res.json();
       setTemporaryPassword(result.temporaryPassword || null);
@@ -286,7 +307,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(getErrorMessage(data) || t("admin:guilds.disbandFailed"));
+        throw new Error(
+          getErrorMessage(data) || t("admin:guilds.disbandFailed"),
+        );
       }
       showSuccess(t("admin:guilds.disbandSuccess"));
       loadTabData("GUILDS");
@@ -317,7 +340,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(getErrorMessage(data) || t("admin:system.broadcastFailed"));
+        throw new Error(
+          getErrorMessage(data) || t("admin:system.broadcastFailed"),
+        );
       }
       showSuccess(t("admin:system.broadcastPushed"));
       setBroadcastTitle("");
@@ -340,7 +365,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(getErrorMessage(data) || t("admin:system.settingsFailed"));
+        throw new Error(
+          getErrorMessage(data) || t("admin:system.settingsFailed"),
+        );
       }
       if (settings.maintenanceMode) {
         useMaintenanceStore.getState().setMaintenance({
@@ -376,7 +403,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(getErrorMessage(data) || t("admin:invites.createFailed"));
+        throw new Error(
+          getErrorMessage(data) || t("admin:invites.createFailed"),
+        );
       }
       showSuccess(t("admin:invites.createSuccess", { code: data.code }));
       setIsCreateInviteModalOpen(false);
@@ -424,9 +453,16 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
       );
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(getErrorMessage(data) || t("common:saveFailed", "操作失败"));
+        throw new Error(
+          getErrorMessage(data) || t("common:saveFailed", "操作失败"),
+        );
       }
-      showSuccess(t("admin:invites.actionSuccess", { code: invite.code, action: actionText }));
+      showSuccess(
+        t("admin:invites.actionSuccess", {
+          code: invite.code,
+          action: actionText,
+        }),
+      );
       loadTabData("INVITES");
     } catch (err: any) {
       setError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
@@ -454,7 +490,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
       );
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(getErrorMessage(data) || t("common:deleteFailed", "删除失败"));
+        throw new Error(
+          getErrorMessage(data) || t("common:deleteFailed", "删除失败"),
+        );
       }
       showSuccess(t("admin:invites.deleteSuccess", { code: invite.code }));
       loadTabData("INVITES");
@@ -606,7 +644,10 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                 <AlertTriangle className="w-4 h-4" />
                 <span>{error}</span>
               </span>
-              <button onClick={() => setError(null)} className="hover:underline">
+              <button
+                onClick={() => setError(null)}
+                className="hover:underline"
+              >
                 {t("common:close")}
               </button>
             </div>
@@ -720,7 +761,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       </p>
                       <p className="text-2xl font-black text-white">
                         {stats.memoryUsageMb}{" "}
-                        <span className="text-sm font-normal text-discord-textMuted">MB</span>
+                        <span className="text-sm font-normal text-discord-textMuted">
+                          MB
+                        </span>
                       </p>
                     </div>
                   </div>
@@ -783,7 +826,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-discord-textMuted">{u.email}</p>
+                          <p className="text-xs text-discord-textMuted">
+                            {u.email}
+                          </p>
                         </div>
                       </div>
 
@@ -792,7 +837,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           {t("admin:users.guildCount")} <b>{u.guildCount}</b>
                         </span>
                         <span>
-                          {t("admin:users.messageCount")} <b>{u.messageCount}</b>
+                          {t("admin:users.messageCount")}{" "}
+                          <b>{u.messageCount}</b>
                         </span>
                       </div>
 
@@ -908,7 +954,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     placeholder={t("admin:guilds.searchPlaceholder")}
                     value={guildSearch}
                     onChange={(e) => setGuildSearch(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && loadTabData("GUILDS")}
+                    onKeyDown={(e) =>
+                      e.key === "Enter" && loadTabData("GUILDS")
+                    }
                     className="bg-transparent text-white text-sm outline-none flex-1 placeholder:text-discord-textMuted"
                   />
                   <button
@@ -938,9 +986,15 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                           </div>
                         )}
                         <div>
-                          <p className="font-semibold text-white text-sm">{g.name}</p>
+                          <p className="font-semibold text-white text-sm">
+                            {g.name}
+                          </p>
                           <p className="text-xs text-discord-textMuted">
-                            {t("admin:guilds.owner")} <b>{g.ownerName}</b> | {t("admin:guilds.memberCount")} <b>{g.memberCount}</b> | {t("admin:guilds.channelCount")} <b>{g.channelCount}</b>
+                            {t("admin:guilds.owner")} <b>{g.ownerName}</b> |{" "}
+                            {t("admin:guilds.memberCount")}{" "}
+                            <b>{g.memberCount}</b> |{" "}
+                            {t("admin:guilds.channelCount")}{" "}
+                            <b>{g.channelCount}</b>
                           </p>
                         </div>
                       </div>
@@ -978,7 +1032,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       placeholder={t("admin:invites.searchPlaceholder")}
                       value={inviteSearch}
                       onChange={(e) => setInviteSearch(e.target.value)}
-                      onKeyDown={(e) => e.key === "Enter" && loadTabData("INVITES")}
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && loadTabData("INVITES")
+                      }
                       className="bg-transparent text-white text-sm outline-none flex-1 placeholder:text-discord-textMuted"
                     />
                     <button
@@ -1053,7 +1109,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                                 {t("admin:invites.usageProgress")}{" "}
                                 <b className="text-white">
                                   {inv.uses} /{" "}
-                                  {inv.maxUses === 0 ? t("admin:invites.unlimited") : inv.maxUses}
+                                  {inv.maxUses === 0
+                                    ? t("admin:invites.unlimited")
+                                    : inv.maxUses}
                                 </b>
                               </span>
                               <span>
@@ -1066,7 +1124,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                               </span>
                               {inv.createdByName && (
                                 <span>
-                                  {t("admin:invites.creator")} <b>{inv.createdByName}</b>
+                                  {t("admin:invites.creator")}{" "}
+                                  <b>{inv.createdByName}</b>
                                 </span>
                               )}
                             </div>
@@ -1155,7 +1214,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       </label>
                       <input
                         type="text"
-                        placeholder={t("admin:system.broadcastTitlePlaceholder")}
+                        placeholder={t(
+                          "admin:system.broadcastTitlePlaceholder",
+                        )}
                         value={broadcastTitle}
                         onChange={(e) => setBroadcastTitle(e.target.value)}
                         className="w-full bg-[#1e1f22] p-2 rounded border border-[#3f4147] text-white text-sm outline-none"
@@ -1169,12 +1230,20 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         </label>
                         <select
                           value={broadcastSeverity}
-                          onChange={(e: any) => setBroadcastSeverity(e.target.value)}
+                          onChange={(e: any) =>
+                            setBroadcastSeverity(e.target.value)
+                          }
                           className="w-full bg-[#1e1f22] p-2 rounded border border-[#3f4147] text-white text-sm outline-none"
                         >
-                          <option value="INFO">{t("admin:system.severityInfo")}</option>
-                          <option value="WARNING">{t("admin:system.severityWarning")}</option>
-                          <option value="CRITICAL">{t("admin:system.severityCritical")}</option>
+                          <option value="INFO">
+                            {t("admin:system.severityInfo")}
+                          </option>
+                          <option value="WARNING">
+                            {t("admin:system.severityWarning")}
+                          </option>
+                          <option value="CRITICAL">
+                            {t("admin:system.severityCritical")}
+                          </option>
                         </select>
                       </div>
                     </div>
@@ -1185,7 +1254,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       </label>
                       <textarea
                         rows={3}
-                        placeholder={t("admin:system.broadcastContentPlaceholder")}
+                        placeholder={t(
+                          "admin:system.broadcastContentPlaceholder",
+                        )}
                         value={broadcastContent}
                         onChange={(e) => setBroadcastContent(e.target.value)}
                         className="w-full bg-[#1e1f22] p-2 rounded border border-[#3f4147] text-white text-sm outline-none resize-none"
@@ -1224,7 +1295,10 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         type="checkbox"
                         checked={settings.allowRegistration}
                         onChange={(e) =>
-                          setSettings({ ...settings, allowRegistration: e.target.checked })
+                          setSettings({
+                            ...settings,
+                            allowRegistration: e.target.checked,
+                          })
                         }
                         className="sr-only peer"
                       />
@@ -1247,7 +1321,10 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         checked={!!settings.requireInviteCode}
                         disabled={!settings.allowRegistration}
                         onChange={(e) =>
-                          setSettings({ ...settings, requireInviteCode: e.target.checked })
+                          setSettings({
+                            ...settings,
+                            requireInviteCode: e.target.checked,
+                          })
                         }
                         className="sr-only peer"
                       />
@@ -1269,7 +1346,10 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         type="checkbox"
                         checked={!!settings.maintenanceMode}
                         onChange={(e) =>
-                          setSettings({ ...settings, maintenanceMode: e.target.checked })
+                          setSettings({
+                            ...settings,
+                            maintenanceMode: e.target.checked,
+                          })
                         }
                         className="sr-only peer"
                       />
@@ -1285,10 +1365,15 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       rows={2}
                       value={settings.systemAnnouncement || ""}
                       onChange={(e) =>
-                        setSettings({ ...settings, systemAnnouncement: e.target.value })
+                        setSettings({
+                          ...settings,
+                          systemAnnouncement: e.target.value,
+                        })
                       }
                       className="w-full bg-[#1e1f22] p-2 rounded border border-[#3f4147] text-white text-sm outline-none resize-none"
-                      placeholder={t("admin:system.maintenanceNoticePlaceholder")}
+                      placeholder={t(
+                        "admin:system.maintenanceNoticePlaceholder",
+                      )}
                     />
                   </div>
 
@@ -1407,7 +1492,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                   type="text"
                   placeholder={t("admin:invites.modal.customCodePlaceholder")}
                   value={newInviteCustomCode}
-                  onChange={(e) => setNewInviteCustomCode(e.target.value.toUpperCase())}
+                  onChange={(e) =>
+                    setNewInviteCustomCode(e.target.value.toUpperCase())
+                  }
                   className="w-full bg-[#1e1f22] p-2.5 rounded-lg border border-[#3f4147] text-white text-sm uppercase font-mono tracking-wider outline-none focus:border-discord-brand transition"
                 />
               </div>

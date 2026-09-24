@@ -60,7 +60,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   reauthReason: null,
   lastActiveUser: (() => {
     try {
-      const saved = typeof localStorage !== "undefined" ? localStorage.getItem("tescord_last_user") : null;
+      const saved =
+        typeof localStorage !== "undefined"
+          ? localStorage.getItem("tescord_last_user")
+          : null;
       return saved ? JSON.parse(saved) : null;
     } catch {
       return null;

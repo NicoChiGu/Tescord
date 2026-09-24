@@ -72,6 +72,7 @@ import { voiceMeshManager } from "../services/p2p/VoiceMeshManager.js";
 import { p2pStreamManager } from "../services/p2p/P2PStreamManager.js";
 import { DirectMessageList } from "./dm/DirectMessageList.js";
 import { CurrentUserPopout } from "./profile/CurrentUserPopout.js";
+import { getUserDisplayName } from "../utils/userDisplay.js";
 
 export interface VoiceTransferNotice {
   targetPlatform: string;
@@ -624,9 +625,10 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   };
 
   const qualityColor = getQualityColor(networkStats?.quality);
-  const currentRtt = typeof networkStats?.rtt === "number" && networkStats.rtt > 0
-    ? networkStats.rtt
-    : null;
+  const currentRtt =
+    typeof networkStats?.rtt === "number" && networkStats.rtt > 0
+      ? networkStats.rtt
+      : null;
 
   // 拖拽悬浮项与克隆状态（用于实时平滑占位与无延迟跟随）
   const [activeItem, setActiveItem] = useState<
@@ -834,22 +836,19 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
 
       try {
         const token = localStorage.getItem("tescord_access_token");
-        await fetch(
-          `${API_BASE}/api/guilds/${guild.id}/categories/positions`,
-          {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({
-              categories: indexedCategories.map((c) => ({
-                id: c.id,
-                position: c.position,
-              })),
-            }),
+        await fetch(`${API_BASE}/api/guilds/${guild.id}/categories/positions`, {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
-        );
+          body: JSON.stringify({
+            categories: indexedCategories.map((c) => ({
+              id: c.id,
+              position: c.position,
+            })),
+          }),
+        });
       } catch (e) {
         console.error("Failed to reorder categories:", e);
       }
@@ -905,7 +904,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
     easing: "cubic-bezier(0.18, 0.67, 0.6, 1.22)",
   };
 
-  const categories = clonedCategories || (guild?.categories || []);
+  const categories = clonedCategories || guild?.categories || [];
   const currentChannels = clonedChannels || channels;
 
   // 顶层未分类频道
@@ -981,7 +980,9 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                   {copiedInvite ? (
                     <span className="flex items-center text-xs text-discord-green space-x-0.5">
                       <Check className="w-3.5 h-3.5" />
-                      <span className="font-mono text-[10px]">{copiedInvite}</span>
+                      <span className="font-mono text-[10px]">
+                        {copiedInvite}
+                      </span>
                     </span>
                   ) : (
                     <UserPlus className="w-4 h-4" />
@@ -1000,148 +1001,157 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
           data-testid="channel-list-scroll-container"
           className="flex-1 overflow-y-auto px-2 py-3 space-y-3"
         >
-        <DndContext
-          sensors={sensors}
-          collisionDetection={customCollisionDetection}
-          onDragStart={handleDragStart}
-          onDragOver={handleDragOver}
-          onDragEnd={handleDragEnd}
-          onDragCancel={handleDragCancel}
-        >
-          {/* 1. 顶层未分类频道 (直接罗列于顶层，无需折叠头) */}
-          {uncategorizedChannels.length > 0 && (
+          <DndContext
+            sensors={sensors}
+            collisionDetection={customCollisionDetection}
+            onDragStart={handleDragStart}
+            onDragOver={handleDragOver}
+            onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
+          >
+            {/* 1. 顶层未分类频道 (直接罗列于顶层，无需折叠头) */}
+            {uncategorizedChannels.length > 0 && (
+              <SortableContext
+                items={uncategorizedChannels.map((c) => `chn_${c.id}`)}
+                strategy={verticalListSortingStrategy}
+              >
+                <div
+                  className="space-y-[2px]"
+                  data-testid="uncategorized-channels-group"
+                >
+                  {uncategorizedChannels.map((channel) => (
+                    <SortableChannelItem
+                      key={channel.id}
+                      channel={channel}
+                      guild={guild}
+                      selectedChannelId={selectedChannelId}
+                      activeVoiceChannelId={activeVoiceChannelId}
+                      participants={getChannelParticipants(channel.id)}
+                      canManageChannels={canManageChannels}
+                      currentUser={currentUser}
+                      isSpeaking={isSpeaking}
+                      activeSpeakers={activeSpeakers}
+                      peerLatencies={peerLatencies}
+                      t={t}
+                      onSelectChannel={onSelectChannel}
+                      onJoinVoiceChannel={onJoinVoiceChannel}
+                      onEditChannel={onEditChannel}
+                      onDeleteChannel={onDeleteChannel}
+                      onMarkChannelAsRead={onMarkChannelAsRead}
+                      onMention={onMention}
+                      onOpenUserProfile={onOpenUserProfile}
+                      onSendMessage={onSendMessage}
+                      onOpenUserSettings={onOpenUserSettings}
+                      onOpenSettings={onOpenSettings}
+                      onKickMember={onKickMember}
+                      onBanMember={onBanMember}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            )}
+
+            {/* 2. 动态分类列表 */}
             <SortableContext
-              items={uncategorizedChannels.map((c) => `chn_${c.id}`)}
+              items={categories.map((cat) => `cat_${cat.id}`)}
               strategy={verticalListSortingStrategy}
             >
-              <div className="space-y-[2px]" data-testid="uncategorized-channels-group">
-                {uncategorizedChannels.map((channel) => (
-                  <SortableChannelItem
-                    key={channel.id}
-                    channel={channel}
-                    guild={guild}
-                    selectedChannelId={selectedChannelId}
-                    activeVoiceChannelId={activeVoiceChannelId}
-                    participants={getChannelParticipants(channel.id)}
-                    canManageChannels={canManageChannels}
-                    currentUser={currentUser}
-                    isSpeaking={isSpeaking}
-                    activeSpeakers={activeSpeakers}
-                    peerLatencies={peerLatencies}
-                    t={t}
-                    onSelectChannel={onSelectChannel}
-                    onJoinVoiceChannel={onJoinVoiceChannel}
-                    onEditChannel={onEditChannel}
-                    onDeleteChannel={onDeleteChannel}
-                    onMarkChannelAsRead={onMarkChannelAsRead}
-                    onMention={onMention}
-                    onOpenUserProfile={onOpenUserProfile}
-                    onSendMessage={onSendMessage}
-                    onOpenUserSettings={onOpenUserSettings}
-                    onOpenSettings={onOpenSettings}
-                    onKickMember={onKickMember}
-                    onBanMember={onBanMember}
-                  />
-                ))}
+              <div className="space-y-4">
+                {categories.map((category) => {
+                  const isCollapsed = !!collapsedCategories[category.id];
+                  const categoryChannels = currentChannels
+                    .filter((c) => c.parentId === category.id)
+                    .sort((a, b) => a.position - b.position);
+
+                  return (
+                    <SortableCategorySection
+                      key={category.id}
+                      category={category}
+                      guild={guild}
+                      isCollapsed={isCollapsed}
+                      canManageChannels={canManageChannels}
+                      onToggleCollapse={() =>
+                        toggleCategoryCollapse(category.id)
+                      }
+                      onOpenCreateChannel={() =>
+                        onOpenCreateChannel?.(category)
+                      }
+                      onEditCategory={onEditCategory}
+                      onDeleteCategory={onDeleteCategory}
+                    >
+                      {!isCollapsed && (
+                        <SortableContext
+                          items={categoryChannels.map((c) => `chn_${c.id}`)}
+                          strategy={verticalListSortingStrategy}
+                        >
+                          <div
+                            className="space-y-[2px] mt-0.5"
+                            data-testid={`category-channels-${category.id}`}
+                          >
+                            {categoryChannels.map((channel) => (
+                              <SortableChannelItem
+                                key={channel.id}
+                                channel={channel}
+                                guild={guild}
+                                selectedChannelId={selectedChannelId}
+                                activeVoiceChannelId={activeVoiceChannelId}
+                                participants={getChannelParticipants(
+                                  channel.id,
+                                )}
+                                canManageChannels={canManageChannels}
+                                currentUser={currentUser}
+                                isSpeaking={isSpeaking}
+                                activeSpeakers={activeSpeakers}
+                                peerLatencies={peerLatencies}
+                                t={t}
+                                onSelectChannel={onSelectChannel}
+                                onJoinVoiceChannel={onJoinVoiceChannel}
+                                onEditChannel={onEditChannel}
+                                onDeleteChannel={onDeleteChannel}
+                                onMarkChannelAsRead={onMarkChannelAsRead}
+                                onMention={onMention}
+                                onOpenUserProfile={onOpenUserProfile}
+                                onSendMessage={onSendMessage}
+                                onOpenUserSettings={onOpenUserSettings}
+                                onOpenSettings={onOpenSettings}
+                                onKickMember={onKickMember}
+                                onBanMember={onBanMember}
+                              />
+                            ))}
+                          </div>
+                        </SortableContext>
+                      )}
+                    </SortableCategorySection>
+                  );
+                })}
               </div>
             </SortableContext>
-          )}
 
-          {/* 2. 动态分类列表 */}
-          <SortableContext
-            items={categories.map((cat) => `cat_${cat.id}`)}
-            strategy={verticalListSortingStrategy}
-          >
-            <div className="space-y-4">
-              {categories.map((category) => {
-                const isCollapsed = !!collapsedCategories[category.id];
-                const categoryChannels = currentChannels
-                  .filter((c) => c.parentId === category.id)
-                  .sort((a, b) => a.position - b.position);
-
-                return (
-                  <SortableCategorySection
-                    key={category.id}
-                    category={category}
-                    guild={guild}
-                    isCollapsed={isCollapsed}
-                    canManageChannels={canManageChannels}
-                    onToggleCollapse={() => toggleCategoryCollapse(category.id)}
-                    onOpenCreateChannel={() => onOpenCreateChannel?.(category)}
-                    onEditCategory={onEditCategory}
-                    onDeleteCategory={onDeleteCategory}
-                  >
-                    {!isCollapsed && (
-                      <SortableContext
-                        items={categoryChannels.map((c) => `chn_${c.id}`)}
-                        strategy={verticalListSortingStrategy}
-                      >
-                        <div
-                          className="space-y-[2px] mt-0.5"
-                          data-testid={`category-channels-${category.id}`}
-                        >
-                          {categoryChannels.map((channel) => (
-                            <SortableChannelItem
-                              key={channel.id}
-                              channel={channel}
-                              guild={guild}
-                              selectedChannelId={selectedChannelId}
-                              activeVoiceChannelId={activeVoiceChannelId}
-                              participants={getChannelParticipants(channel.id)}
-                              canManageChannels={canManageChannels}
-                              currentUser={currentUser}
-                              isSpeaking={isSpeaking}
-                              activeSpeakers={activeSpeakers}
-                              peerLatencies={peerLatencies}
-                              t={t}
-                              onSelectChannel={onSelectChannel}
-                              onJoinVoiceChannel={onJoinVoiceChannel}
-                              onEditChannel={onEditChannel}
-                              onDeleteChannel={onDeleteChannel}
-                              onMarkChannelAsRead={onMarkChannelAsRead}
-                              onMention={onMention}
-                              onOpenUserProfile={onOpenUserProfile}
-                              onSendMessage={onSendMessage}
-                              onOpenUserSettings={onOpenUserSettings}
-                              onOpenSettings={onOpenSettings}
-                              onKickMember={onKickMember}
-                              onBanMember={onBanMember}
-                            />
-                          ))}
-                        </div>
-                      </SortableContext>
-                    )}
-                  </SortableCategorySection>
-                );
-              })}
-            </div>
-          </SortableContext>
-
-          {/* 3. 悬浮跟手幽灵图层 (DragOverlay)：消除滞后，丝滑 60fps 实时贴手 */}
-          <DragOverlay dropAnimation={dropAnimation}>
-            {activeItem?.type === "channel" ? (
-              <div className="flex items-center px-2 py-1.5 rounded-md text-sm font-medium bg-[#2b2d31] text-white shadow-2xl ring-1 ring-discord-brand/60 rotate-1 scale-[1.02] cursor-grabbing opacity-95 pointer-events-none">
-                {activeItem.channel.type === "VOICE" ? (
-                  <Volume2 className="w-4 h-4 mr-1.5 text-discord-green flex-shrink-0" />
-                ) : activeItem.channel.isE2EE ? (
-                  <div className="relative mr-1.5 flex-shrink-0">
-                    <Hash className="w-4 h-4 text-discord-textMuted" />
-                    <Lock className="w-2.5 h-2.5 text-discord-green absolute -top-0.5 -right-1" />
-                  </div>
-                ) : (
-                  <Hash className="w-4 h-4 mr-1.5 text-discord-textMuted flex-shrink-0" />
-                )}
-                <span className="truncate">{activeItem.channel.name}</span>
-              </div>
-            ) : activeItem?.type === "category" ? (
-              <div className="flex items-center space-x-1 px-2.5 py-1.5 rounded-md text-xs font-bold text-white uppercase tracking-wider bg-[#2b2d31] shadow-2xl ring-1 ring-discord-brand/60 rotate-1 scale-[1.02] cursor-grabbing opacity-95 pointer-events-none">
-                <ChevronDown className="w-3.5 h-3.5 flex-shrink-0 text-discord-textMuted" />
-                <span className="truncate">{activeItem.category.name}</span>
-              </div>
-            ) : null}
-          </DragOverlay>
-        </DndContext>
-      </div>
+            {/* 3. 悬浮跟手幽灵图层 (DragOverlay)：消除滞后，丝滑 60fps 实时贴手 */}
+            <DragOverlay dropAnimation={dropAnimation}>
+              {activeItem?.type === "channel" ? (
+                <div className="flex items-center px-2 py-1.5 rounded-md text-sm font-medium bg-[#2b2d31] text-white shadow-2xl ring-1 ring-discord-brand/60 rotate-1 scale-[1.02] cursor-grabbing opacity-95 pointer-events-none">
+                  {activeItem.channel.type === "VOICE" ? (
+                    <Volume2 className="w-4 h-4 mr-1.5 text-discord-green flex-shrink-0" />
+                  ) : activeItem.channel.isE2EE ? (
+                    <div className="relative mr-1.5 flex-shrink-0">
+                      <Hash className="w-4 h-4 text-discord-textMuted" />
+                      <Lock className="w-2.5 h-2.5 text-discord-green absolute -top-0.5 -right-1" />
+                    </div>
+                  ) : (
+                    <Hash className="w-4 h-4 mr-1.5 text-discord-textMuted flex-shrink-0" />
+                  )}
+                  <span className="truncate">{activeItem.channel.name}</span>
+                </div>
+              ) : activeItem?.type === "category" ? (
+                <div className="flex items-center space-x-1 px-2.5 py-1.5 rounded-md text-xs font-bold text-white uppercase tracking-wider bg-[#2b2d31] shadow-2xl ring-1 ring-discord-brand/60 rotate-1 scale-[1.02] cursor-grabbing opacity-95 pointer-events-none">
+                  <ChevronDown className="w-3.5 h-3.5 flex-shrink-0 text-discord-textMuted" />
+                  <span className="truncate">{activeItem.category.name}</span>
+                </div>
+              ) : null}
+            </DragOverlay>
+          </DndContext>
+        </div>
       )}
 
       {/* 底部连接控制面板 (接入语音连接中或已连接时显示) */}
@@ -1169,7 +1179,9 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                   : voiceMeshManager.getIsMeshActive()
                     ? `${t("voice:p2pMeshMode")} (${peerLatencies.size})`
                     : t("voice:sfuServerMode");
-                const isBroadcasting = p2pStreamManager.isBroadcasting(activeVoiceChannel?.id);
+                const isBroadcasting = p2pStreamManager.isBroadcasting(
+                  activeVoiceChannel?.id,
+                );
                 const isWatching = !!p2pStreamManager.getRemoteStream();
                 const videoMode = isBroadcasting
                   ? `${t("voice:videoStatusBroadcasting")} (${p2pStreamManager.getTargetVideoCodec().toUpperCase()})`
@@ -1285,14 +1297,22 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                   ? "bg-discord-green text-white hover:bg-discord-green/90 shadow-sm"
                   : "bg-discord-sidebar hover:bg-discord-hover text-discord-textNormal"
               }`}
-              title={isVideoEnabled ? t("voice:turnOffCamera") : t("voice:turnOnCamera")}
+              title={
+                isVideoEnabled
+                  ? t("voice:turnOffCamera")
+                  : t("voice:turnOnCamera")
+              }
             >
               {isVideoEnabled ? (
                 <VideoOff className="w-3.5 h-3.5" />
               ) : (
                 <Video className="w-3.5 h-3.5" />
               )}
-              <span>{isVideoEnabled ? t("voice:disableVideo") : t("voice:enableVideo")}</span>
+              <span>
+                {isVideoEnabled
+                  ? t("voice:disableVideo")
+                  : t("voice:enableVideo")}
+              </span>
             </button>
             <button
               onClick={() => {
@@ -1313,14 +1333,22 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                   ? "bg-discord-brand text-white hover:bg-discord-brand-hover shadow-sm"
                   : "bg-discord-sidebar hover:bg-discord-hover text-discord-textNormal"
               }`}
-              title={isScreenSharing ? t("voice:stopScreenShare") : t("voice:screenShare")}
+              title={
+                isScreenSharing
+                  ? t("voice:stopScreenShare")
+                  : t("voice:screenShare")
+              }
             >
               {isScreenSharing ? (
                 <ScreenShareOff className="w-3.5 h-3.5" />
               ) : (
                 <ScreenShare className="w-3.5 h-3.5" />
               )}
-              <span>{isScreenSharing ? t("voice:stopScreenShare") : t("voice:screenShare")}</span>
+              <span>
+                {isScreenSharing
+                  ? t("voice:stopScreenShare")
+                  : t("voice:screenShare")}
+              </span>
             </button>
           </div>
         </div>
@@ -1415,8 +1443,11 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
               />
             </div>
             <div className="flex flex-col truncate">
-              <span className="text-xs font-semibold text-discord-textHeader truncate group-hover:underline">
-                {currentUser.username}
+              <span
+                className="text-xs font-semibold text-discord-textHeader truncate group-hover:underline"
+                title={currentUser.username}
+              >
+                {getUserDisplayName(currentUser)}
               </span>
               <span className="text-[10px] text-discord-textMuted truncate flex items-center gap-1">
                 <span>
@@ -1580,7 +1611,9 @@ const SortableCategorySection: React.FC<SortableCategorySectionProps> = ({
               }}
               className="p-0.5 opacity-70 hover:opacity-100 hover:text-discord-textHeader transition text-discord-textMuted"
               title={t("contextMenu:server.createChannel")}
-              aria-label={t("voice:createChannelInCategory", { name: category.name })}
+              aria-label={t("voice:createChannelInCategory", {
+                name: category.name,
+              })}
             >
               <Plus className="w-3.5 h-3.5" />
             </button>

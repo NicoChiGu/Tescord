@@ -174,7 +174,9 @@ export const TitleBar: React.FC<TitleBarProps> = ({ forceMode }) => {
               type="button"
               data-testid="window-maximize-btn"
               onClick={handleToggleMaximize}
-              title={isMaximized ? t("titleBar.restore") : t("titleBar.maximize")}
+              title={
+                isMaximized ? t("titleBar.restore") : t("titleBar.maximize")
+              }
               aria-label={
                 isMaximized ? t("titleBar.restore") : t("titleBar.maximize")
               }

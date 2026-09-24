@@ -17,6 +17,7 @@ import {
 import { resolveServerUrl } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { gatewayClient } from "../../services/gateway.js";
+import { getUserDisplayName, formatUserTag } from "../../utils/userDisplay.js";
 
 interface CurrentUserPopoutProps {
   isOpen: boolean;
@@ -151,7 +152,14 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, onClose, triggerRef, isEditingStatus, isStatusSubmenuOpen, currentUser.customStatus]);
+  }, [
+    isOpen,
+    onClose,
+    triggerRef,
+    isEditingStatus,
+    isStatusSubmenuOpen,
+    currentUser.customStatus,
+  ]);
 
   // 进入自定义状态编辑时自动聚焦输入框
   useEffect(() => {
@@ -269,10 +277,13 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
   };
 
   const currentStatusKey = (
-    currentUser.status === "OFFLINE" ? "INVISIBLE" : currentUser.status || "ONLINE"
+    currentUser.status === "OFFLINE"
+      ? "INVISIBLE"
+      : currentUser.status || "ONLINE"
   ) as Exclude<UserStatus, "OFFLINE">;
 
-  const currentStatusInfo = STATUS_CONFIG[currentStatusKey] || STATUS_CONFIG.ONLINE;
+  const currentStatusInfo =
+    STATUS_CONFIG[currentStatusKey] || STATUS_CONFIG.ONLINE;
 
   return ReactDOM.createPortal(
     <div
@@ -408,13 +419,12 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
         {/* 3. 昵称、用户名与徽章 */}
         <div className="px-4 pt-3 pb-2">
           <div className="text-[17px] font-bold text-white leading-tight truncate">
-            {currentUser.displayName ||
-              (currentUser.username.includes("#")
-                ? currentUser.username.split("#")[0]
-                : currentUser.username)}
+            {getUserDisplayName(currentUser)}
           </div>
           <div className="text-xs text-[#949ba4] font-medium mt-0.5 flex items-center gap-1.5">
-            <span className="truncate">@{currentUser.username}</span>
+            <span className="truncate">
+              {formatUserTag(currentUser.username)}
+            </span>
             {/* Discord 风格身份标识小图标 */}
             <div className="flex items-center gap-1 flex-shrink-0">
               <span

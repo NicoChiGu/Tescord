@@ -111,7 +111,11 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
             ) : (
               <Hash className="w-4 h-4 text-discord-textMuted" />
             )}
-            <span>{isVoice ? t("server:roles.perm.connect") : t("contextMenu:channel.switchToChannel")}</span>
+            <span>
+              {isVoice
+                ? t("server:roles.perm.connect")
+                : t("contextMenu:channel.switchToChannel")}
+            </span>
           </div>
         </ContextMenuItem>
 
@@ -137,7 +141,11 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
               ) : (
                 <UserPlus className="w-4 h-4" />
               )}
-              <span>{copiedInvite ? t("server:invites.copied") : t("contextMenu:server.invite")}</span>
+              <span>
+                {copiedInvite
+                  ? t("server:invites.copied")
+                  : t("contextMenu:server.invite")}
+              </span>
             </div>
           </ContextMenuItem>
         )}
@@ -225,7 +233,9 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
             ) : (
               <Copy className="w-4 h-4 text-discord-textMuted" />
             )}
-            <span>{copiedId ? t("common:copied") : t("contextMenu:copyChannelId")}</span>
+            <span>
+              {copiedId ? t("common:copied") : t("contextMenu:copyChannelId")}
+            </span>
           </div>
         </ContextMenuItem>
 

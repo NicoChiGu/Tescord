@@ -80,45 +80,75 @@ export class SFrameManager {
   }
 
   public attachSender(sender: RTCRtpSender): void {
-    const encodedSender = sender as RTCRtpSender & { createEncodedStreams?: () => { readable: ReadableStream<any>; writable: WritableStream<any> } };
-    if (!encodedSender.createEncodedStreams) throw new Error("当前浏览器不支持 P2P Insertable Streams E2EE");
+    const encodedSender = sender as RTCRtpSender & {
+      createEncodedStreams?: () => {
+        readable: ReadableStream<any>;
+        writable: WritableStream<any>;
+      };
+    };
+    if (!encodedSender.createEncodedStreams)
+      throw new Error("当前浏览器不支持 P2P Insertable Streams E2EE");
     const { readable, writable } = encodedSender.createEncodedStreams();
     const transform = new TransformStream({
       transform: async (frame: any, controller) => {
         try {
           const encrypted = await this.encryptFrame(new Uint8Array(frame.data));
-          frame.data = encrypted.buffer.slice(encrypted.byteOffset, encrypted.byteOffset + encrypted.byteLength);
+          frame.data = encrypted.buffer.slice(
+            encrypted.byteOffset,
+            encrypted.byteOffset + encrypted.byteLength,
+          );
           controller.enqueue(frame);
         } catch (error) {
-          this.lastError = error instanceof Error ? error.message : "P2P 帧加密失败";
+          this.lastError =
+            error instanceof Error ? error.message : "P2P 帧加密失败";
           this.emitStats();
         }
       },
     });
-    readable.pipeThrough(transform).pipeTo(writable).catch((error) => {
-      this.lastError = error instanceof Error ? error.message : "P2P 发送加密管线失败";
-      this.emitStats();
-    });
+    readable
+      .pipeThrough(transform)
+      .pipeTo(writable)
+      .catch((error) => {
+        this.lastError =
+          error instanceof Error ? error.message : "P2P 发送加密管线失败";
+        this.emitStats();
+      });
   }
 
   public attachReceiver(receiver: RTCRtpReceiver): void {
-    const encodedReceiver = receiver as RTCRtpReceiver & { createEncodedStreams?: () => { readable: ReadableStream<any>; writable: WritableStream<any> } };
-    if (!encodedReceiver.createEncodedStreams) throw new Error("当前浏览器不支持 P2P Insertable Streams E2EE");
+    const encodedReceiver = receiver as RTCRtpReceiver & {
+      createEncodedStreams?: () => {
+        readable: ReadableStream<any>;
+        writable: WritableStream<any>;
+      };
+    };
+    if (!encodedReceiver.createEncodedStreams)
+      throw new Error("当前浏览器不支持 P2P Insertable Streams E2EE");
     const { readable, writable } = encodedReceiver.createEncodedStreams();
     // 每个接收器拥有独立计数空间；不同远端发送者允许从相同 counter 起步。
     const replayFilter = new SFrameReplayFilter(128);
     const transform = new TransformStream({
       transform: async (frame: any, controller) => {
-        const decrypted = await this.decryptFrame(new Uint8Array(frame.data), replayFilter);
+        const decrypted = await this.decryptFrame(
+          new Uint8Array(frame.data),
+          replayFilter,
+        );
         if (!decrypted) return;
-        frame.data = decrypted.buffer.slice(decrypted.byteOffset, decrypted.byteOffset + decrypted.byteLength);
+        frame.data = decrypted.buffer.slice(
+          decrypted.byteOffset,
+          decrypted.byteOffset + decrypted.byteLength,
+        );
         controller.enqueue(frame);
       },
     });
-    readable.pipeThrough(transform).pipeTo(writable).catch((error) => {
-      this.lastError = error instanceof Error ? error.message : "P2P 接收解密管线失败";
-      this.emitStats();
-    });
+    readable
+      .pipeThrough(transform)
+      .pipeTo(writable)
+      .catch((error) => {
+        this.lastError =
+          error instanceof Error ? error.message : "P2P 接收解密管线失败";
+        this.emitStats();
+      });
   }
 
   // 对待推流的音频帧注入 SFrame 头并执行 AES-GCM 加密

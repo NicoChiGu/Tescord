@@ -31,7 +31,7 @@ interface ServerSettingsModalProps {
 }
 
 type TabType =
-  | "overview" | "roles" | "members" | "invites" | "bans" | "audit-log";
+  "overview" | "roles" | "members" | "invites" | "bans" | "audit-log";
 
 export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
   isOpen,

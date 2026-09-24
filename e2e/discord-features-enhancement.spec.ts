@@ -3,7 +3,10 @@ import { test, expect } from "@playwright/test";
 test.describe("Discord 级体验增强核心交互验证 (问题2/3/4/5/6)", () => {
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
+      localStorage.setItem(
+        "tescord_access_token",
+        localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token",
+      );
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
 
       if (navigator.mediaDevices) {
@@ -138,7 +141,11 @@ test.describe("Discord 级体验增强核心交互验证 (问题2/3/4/5/6)", () 
     await serverBtn.click();
 
     // 默认已选中首个频道或点击进入文字频道
-    const channelBtn = page.getByRole("button", { name: /日常闲聊|general|常规|crypto-vault|对齐信道/i }).first();
+    const channelBtn = page
+      .getByRole("button", {
+        name: /日常闲聊|general|常规|crypto-vault|对齐信道/i,
+      })
+      .first();
     if (await channelBtn.isVisible()) {
       await channelBtn.click();
     }
@@ -240,7 +247,9 @@ test.describe("Discord 级体验增强核心交互验证 (问题2/3/4/5/6)", () 
     await voiceBtn.dblclick();
 
     // 验证加入语音房间成功
-    const leaveVoiceBtn = page.getByRole("button", { name: "断开连接" }).first();
+    const leaveVoiceBtn = page
+      .getByRole("button", { name: "断开连接" })
+      .first();
     await expect(leaveVoiceBtn).toBeVisible({ timeout: 8000 });
 
     // 1. 启动屏幕直播推流

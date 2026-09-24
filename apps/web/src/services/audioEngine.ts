@@ -431,7 +431,9 @@ export class AudioEngine {
 
       this.dfn3Node = new Dfn3WorkletNode(this.audioContext);
       this.isDfn3Ready = true;
-      console.log("✅ DFNv3 (DeepFilterNet3) 48kHz 全频复数深度滤波 AudioWorklet 引擎加载完成");
+      console.log(
+        "✅ DFNv3 (DeepFilterNet3) 48kHz 全频复数深度滤波 AudioWorklet 引擎加载完成",
+      );
       return true;
     } catch (err) {
       console.warn("⚠️ DFNv3 AudioWorklet 加载回退:", err);
@@ -1024,10 +1026,7 @@ export class AudioEngine {
     durationSec: number = 5,
     onCountdown?: (remainingSec: number) => void,
   ): Promise<ABTestResult> {
-    const quad = await this.recordQuadABComparison(
-      durationSec,
-      onCountdown,
-    );
+    const quad = await this.recordQuadABComparison(durationSec, onCountdown);
     const mode = this.config.noiseSuppressionMode;
     const isDfn3 = mode === "dfn3";
     const isDtln = mode === "dtln";

@@ -85,7 +85,9 @@ export class RelationshipService {
     });
 
     if (!target) {
-      throw new Error("找不到符合该识别码的用户，请检查拼写并确保包含 #5位数字");
+      throw new Error(
+        "找不到符合该识别码的用户，请检查拼写并确保包含 #5位数字",
+      );
     }
 
     if (target.id === userId) {
@@ -139,7 +141,9 @@ export class RelationshipService {
           update: { type: "FRIEND" },
         }),
         prisma.relationship.upsert({
-          where: { userId_targetUserId: { userId: target.id, targetUserId: userId } },
+          where: {
+            userId_targetUserId: { userId: target.id, targetUserId: userId },
+          },
           create: { userId: target.id, targetUserId: userId, type: "FRIEND" },
           update: { type: "FRIEND" },
         }),
@@ -150,7 +154,9 @@ export class RelationshipService {
         include: { targetUser: true },
       });
       const targetRel = await prisma.relationship.findUnique({
-        where: { userId_targetUserId: { userId: target.id, targetUserId: userId } },
+        where: {
+          userId_targetUserId: { userId: target.id, targetUserId: userId },
+        },
         include: { targetUser: true },
       });
 
@@ -197,8 +203,14 @@ export class RelationshipService {
         update: { type: "PENDING_OUTGOING" },
       }),
       prisma.relationship.upsert({
-        where: { userId_targetUserId: { userId: target.id, targetUserId: userId } },
-        create: { userId: target.id, targetUserId: userId, type: "PENDING_INCOMING" },
+        where: {
+          userId_targetUserId: { userId: target.id, targetUserId: userId },
+        },
+        create: {
+          userId: target.id,
+          targetUserId: userId,
+          type: "PENDING_INCOMING",
+        },
         update: { type: "PENDING_INCOMING" },
       }),
     ]);
@@ -208,7 +220,9 @@ export class RelationshipService {
       include: { targetUser: true },
     });
     const targetRel = await prisma.relationship.findUnique({
-      where: { userId_targetUserId: { userId: target.id, targetUserId: userId } },
+      where: {
+        userId_targetUserId: { userId: target.id, targetUserId: userId },
+      },
       include: { targetUser: true },
     });
 
@@ -270,7 +284,9 @@ export class RelationshipService {
         data: { type: "FRIEND" },
       }),
       prisma.relationship.update({
-        where: { userId_targetUserId: { userId: targetUserId, targetUserId: userId } },
+        where: {
+          userId_targetUserId: { userId: targetUserId, targetUserId: userId },
+        },
         data: { type: "FRIEND" },
       }),
     ]);
@@ -280,7 +296,9 @@ export class RelationshipService {
       include: { targetUser: true },
     });
     const targetRel = await prisma.relationship.findUnique({
-      where: { userId_targetUserId: { userId: targetUserId, targetUserId: userId } },
+      where: {
+        userId_targetUserId: { userId: targetUserId, targetUserId: userId },
+      },
       include: { targetUser: true },
     });
 

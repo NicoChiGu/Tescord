@@ -30,16 +30,24 @@ async function runTests() {
       nickname: "NickMaster",
     });
     const userA = regA.user;
-    console.log(`- 用户 A: id=${userA.id}, username=${userA.username}, displayName=${userA.displayName}, tag=${userA.discriminator}`);
+    console.log(
+      `- 用户 A: id=${userA.id}, username=${userA.username}, displayName=${userA.displayName}, tag=${userA.discriminator}`,
+    );
 
     if (userA.displayName !== "NickMaster") {
-      throw new Error(`预期 displayName 为 NickMaster，实际为 ${userA.displayName}`);
+      throw new Error(
+        `预期 displayName 为 NickMaster，实际为 ${userA.displayName}`,
+      );
     }
     if (!userA.discriminator || userA.discriminator.length !== 5) {
-      throw new Error(`预期 discriminator 为 5 位数字，实际为 ${userA.discriminator}`);
+      throw new Error(
+        `预期 discriminator 为 5 位数字，实际为 ${userA.discriminator}`,
+      );
     }
     if (!userA.username.endsWith(`#${userA.discriminator}`)) {
-      throw new Error(`预期 username 以 #${userA.discriminator} 结尾，实际为 ${userA.username}`);
+      throw new Error(
+        `预期 username 以 #${userA.discriminator} 结尾，实际为 ${userA.username}`,
+      );
     }
 
     const regB = await authService.register({
@@ -48,20 +56,30 @@ async function runTests() {
       nickname: "TeraBlade",
     });
     const userB = regB.user;
-    console.log(`- 用户 B: id=${userB.id}, username=${userB.username}, displayName=${userB.displayName}, tag=${userB.discriminator}`);
+    console.log(
+      `- 用户 B: id=${userB.id}, username=${userB.username}, displayName=${userB.displayName}, tag=${userB.discriminator}`,
+    );
 
     // 2. 测试修改显示昵称与识别码前缀
-    console.log("【测试 2】测试修改显示昵称 (随时修改) 与识别码前缀 (保留数字 tag)");
+    console.log(
+      "【测试 2】测试修改显示昵称 (随时修改) 与识别码前缀 (保留数字 tag)",
+    );
     const updatedA = await authService.updateProfile(userA.id, {
       displayName: "GrandNick",
       username: "ProNick",
     });
-    console.log(`- 用户 A 更新后: displayName=${updatedA.displayName}, username=${updatedA.username}, tag=${updatedA.discriminator}`);
+    console.log(
+      `- 用户 A 更新后: displayName=${updatedA.displayName}, username=${updatedA.username}, tag=${updatedA.discriminator}`,
+    );
     if (updatedA.displayName !== "GrandNick") {
-      throw new Error(`预期更新后 displayName 为 GrandNick，实际为 ${updatedA.displayName}`);
+      throw new Error(
+        `预期更新后 displayName 为 GrandNick，实际为 ${updatedA.displayName}`,
+      );
     }
     if (updatedA.username !== `ProNick#${userA.discriminator}`) {
-      throw new Error(`预期更新后 username 为 ProNick#${userA.discriminator}，实际为 ${updatedA.username}`);
+      throw new Error(
+        `预期更新后 username 为 ProNick#${userA.discriminator}，实际为 ${updatedA.username}`,
+      );
     }
 
     // 3. 负向测试好友申请
@@ -77,7 +95,10 @@ async function runTests() {
 
     // 3.2 格式非法（仅纯数字标签）
     try {
-      await relationshipService.sendFriendRequest(userA.id, `#${userB.discriminator}`);
+      await relationshipService.sendFriendRequest(
+        userA.id,
+        `#${userB.discriminator}`,
+      );
       throw new Error("负向测试失败：纯数字标签未被拦截");
     } catch (err: any) {
       if (!err.message.includes("完整的用户标识")) throw err;
@@ -95,7 +116,10 @@ async function runTests() {
 
     // 3.4 用户不存在
     try {
-      await relationshipService.sendFriendRequest(userA.id, "NonExistent#99999");
+      await relationshipService.sendFriendRequest(
+        userA.id,
+        "NonExistent#99999",
+      );
       throw new Error("负向测试失败：不存在的用户未被拦截");
     } catch (err: any) {
       if (!err.message.includes("找不到符合该识别码的用户")) throw err;
@@ -106,23 +130,35 @@ async function runTests() {
     console.log("【测试 4】大小写不敏感匹配发送好友申请");
     // 用户 B 的 username 是 TeraBlade#xxxxx，A 输入全小写 terablade#xxxxx
     const lowerIdentifier = `terablade#${userB.discriminator}`;
-    const relOut = await relationshipService.sendFriendRequest(userA.id, lowerIdentifier);
+    const relOut = await relationshipService.sendFriendRequest(
+      userA.id,
+      lowerIdentifier,
+    );
     if (relOut.type !== "PENDING_OUTGOING") {
-      throw new Error(`预期单向申请状态为 PENDING_OUTGOING，实际为 ${relOut.type}`);
+      throw new Error(
+        `预期单向申请状态为 PENDING_OUTGOING，实际为 ${relOut.type}`,
+      );
     }
     console.log("- PASS: 大小写不敏感发送申请成功，状态为 PENDING_OUTGOING");
 
     // 5. 互发申请自动直接结为好友
     console.log("【测试 5】双方互发好友申请自动结为好友");
     // B 此时也向 A 发送申请：输入 pronick#xxxx
-    const autoRel = await relationshipService.sendFriendRequest(userB.id, `pronick#${userA.discriminator}`);
+    const autoRel = await relationshipService.sendFriendRequest(
+      userB.id,
+      `pronick#${userA.discriminator}`,
+    );
     if (autoRel.type !== "FRIEND") {
       throw new Error(`预期互发申请自动结为 FRIEND，实际为 ${autoRel.type}`);
     }
     const relationshipsA = await relationshipService.getRelationships(userA.id);
-    const friendRecordForA = relationshipsA.find((r) => r.targetUserId === userB.id);
+    const friendRecordForA = relationshipsA.find(
+      (r) => r.targetUserId === userB.id,
+    );
     if (friendRecordForA?.type !== "FRIEND") {
-      throw new Error(`预期用户 A 的关系列表中状态为 FRIEND，实际为 ${friendRecordForA?.type}`);
+      throw new Error(
+        `预期用户 A 的关系列表中状态为 FRIEND，实际为 ${friendRecordForA?.type}`,
+      );
     }
     console.log("- PASS: 互发申请自动合并结为好友成功！");
 
@@ -132,7 +168,9 @@ async function runTests() {
     if (!dmChannel || dmChannel.type !== "DM") {
       throw new Error("预期好友之间能成功建立私信通道");
     }
-    console.log(`- PASS: 好友成功突破同服限制建立私信 (dmChannelId=${dmChannel.id})`);
+    console.log(
+      `- PASS: 好友成功突破同服限制建立私信 (dmChannelId=${dmChannel.id})`,
+    );
 
     // 7. 解除好友与私信限制重置
     console.log("【测试 7】解除好友关系与非好友跨服私信拦截");

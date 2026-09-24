@@ -2,15 +2,32 @@ import "../src/env.js";
 import { prisma } from "../src/db.js";
 
 async function main() {
-  const [usersWithoutRole, dmChannels, orphanRecipients, sequenceCollisions] = await Promise.all([
-    prisma.user.count({ where: { OR: [{ role: "" }, { role: { notIn: ["USER", "ADMIN", "SUPER_ADMIN"] } }] } }),
-    prisma.channel.findMany({
-      where: { type: "DM" },
-      select: { id: true, dmKey: true, recipients: { select: { userId: true } }, _count: { select: { messages: true } } },
-    }),
-    prisma.$queryRaw<Array<{ count: bigint }>>`SELECT COUNT(*) AS count FROM ChannelRecipient cr LEFT JOIN User u ON u.id = cr.userId LEFT JOIN Channel c ON c.id = cr.channelId WHERE u.id IS NULL OR c.id IS NULL`,
-    prisma.$queryRaw<Array<{ channelId: string; sequence: number; count: bigint }>>`SELECT channelId, sequence, COUNT(*) AS count FROM Message GROUP BY channelId, sequence HAVING COUNT(*) > 1`,
-  ]);
+  const [usersWithoutRole, dmChannels, orphanRecipients, sequenceCollisions] =
+    await Promise.all([
+      prisma.user.count({
+        where: {
+          OR: [
+            { role: "" },
+            { role: { notIn: ["USER", "ADMIN", "SUPER_ADMIN"] } },
+          ],
+        },
+      }),
+      prisma.channel.findMany({
+        where: { type: "DM" },
+        select: {
+          id: true,
+          dmKey: true,
+          recipients: { select: { userId: true } },
+          _count: { select: { messages: true } },
+        },
+      }),
+      prisma.$queryRaw<
+        Array<{ count: bigint }>
+      >`SELECT COUNT(*) AS count FROM ChannelRecipient cr LEFT JOIN User u ON u.id = cr.userId LEFT JOIN Channel c ON c.id = cr.channelId WHERE u.id IS NULL OR c.id IS NULL`,
+      prisma.$queryRaw<
+        Array<{ channelId: string; sequence: number; count: bigint }>
+      >`SELECT channelId, sequence, COUNT(*) AS count FROM Message GROUP BY channelId, sequence HAVING COUNT(*) > 1`,
+    ]);
 
   const dmByPair = new Map<string, string[]>();
   const malformed: string[] = [];

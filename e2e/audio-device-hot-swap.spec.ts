@@ -17,7 +17,10 @@ test.describe("语音输入配置热切换与无缝推流验收 (Audio Input Hot
 
     // 1. 注入 Mock 鉴权状态与多麦克风硬件设备
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
+      localStorage.setItem(
+        "tescord_access_token",
+        localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token",
+      );
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
 
       const fakeMics = [

@@ -70,17 +70,16 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   };
 
   return (
-    <BaseModal
-      isOpen={true}
-      onClose={onCancel}
-      title={title}
-      icon={getIcon()}
-    >
+    <BaseModal isOpen={true} onClose={onCancel} title={title} icon={getIcon()}>
       <div className="space-y-4" onKeyDown={handleKeyDown}>
         {/* 说明内容 */}
         {description && (
           <div className="text-sm text-gray-300 leading-relaxed">
-            {typeof description === "string" ? <p>{description}</p> : description}
+            {typeof description === "string" ? (
+              <p>{description}</p>
+            ) : (
+              description
+            )}
           </div>
         )}
 
@@ -89,7 +88,11 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs px-3.5 py-2.5 rounded-xl flex items-start gap-2.5">
             <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0 text-rose-400" />
             <div className="leading-relaxed">
-              {dangerWarning || t("common:dialog.dangerWarning", "此操作具有破坏性且无法撤销！")}
+              {dangerWarning ||
+                t(
+                  "common:dialog.dangerWarning",
+                  "此操作具有破坏性且无法撤销！",
+                )}
             </div>
           </div>
         )}
@@ -108,8 +111,15 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 
             <div className="space-y-1.5">
               <label className="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center justify-between">
-                <span>{t("common:dialog.securityCodePrompt", "请输入上方显示的 4 位安全验证码以继续：")}</span>
-                <span className="text-gray-500 font-normal">{inputCode.length}/4</span>
+                <span>
+                  {t(
+                    "common:dialog.securityCodePrompt",
+                    "请输入上方显示的 4 位安全验证码以继续：",
+                  )}
+                </span>
+                <span className="text-gray-500 font-normal">
+                  {inputCode.length}/4
+                </span>
               </label>
               <input
                 type="text"
@@ -117,7 +127,9 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
                 inputMode="numeric"
                 maxLength={4}
                 value={inputCode}
-                onChange={(e) => setInputCode(e.target.value.replace(/\D/g, ""))}
+                onChange={(e) =>
+                  setInputCode(e.target.value.replace(/\D/g, ""))
+                }
                 placeholder="4 位验证码"
                 className="w-full bg-[#1e1f22] border border-white/10 rounded-lg px-3.5 py-2.5 text-center text-lg font-mono font-bold tracking-widest text-white placeholder-gray-500 focus:outline-none focus:border-red-500 transition-colors"
                 autoFocus

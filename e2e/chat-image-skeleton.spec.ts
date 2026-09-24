@@ -84,7 +84,11 @@ test.describe("聊天消息图片加载骨架屏与优雅容错验收 (Chat Imag
 
     // 7. 保存骨架屏加载中阶段截图
     await page.screenshot({
-      path: path.join(process.cwd(), "test-results", "chat-image-skeleton-loading.png"),
+      path: path.join(
+        process.cwd(),
+        "test-results",
+        "chat-image-skeleton-loading.png",
+      ),
     });
 
     // 8. 核心断言 2：1200ms 过去图片加载完成后，骨架屏必须完全关闭并消失
@@ -97,7 +101,11 @@ test.describe("聊天消息图片加载骨架屏与优雅容错验收 (Chat Imag
 
     // 10. 保存加载完成截图
     await page.screenshot({
-      path: path.join(process.cwd(), "test-results", "chat-image-skeleton-loaded.png"),
+      path: path.join(
+        process.cwd(),
+        "test-results",
+        "chat-image-skeleton-loaded.png",
+      ),
     });
 
     // 11. 核心断言 4：点击图片打开全屏大图预览灯箱 (Lightbox)，按 ESC 平滑关闭
@@ -185,7 +193,11 @@ test.describe("聊天消息图片加载骨架屏与优雅容错验收 (Chat Imag
 
     // 保存错误态截图
     await page.screenshot({
-      path: path.join(process.cwd(), "test-results", "chat-image-skeleton-error.png"),
+      path: path.join(
+        process.cwd(),
+        "test-results",
+        "chat-image-skeleton-error.png",
+      ),
     });
 
     // 恢复正常网络响应
@@ -202,14 +214,16 @@ test.describe("聊天消息图片加载骨架屏与优雅容错验收 (Chat Imag
     await expect(renderedImg).toBeVisible({ timeout: 10000 });
     await renderedImg.scrollIntoViewIfNeeded();
 
-
-
     // 移开鼠标指针到页面空白区域，确保解除悬停蒙层
     await page.locator("body").hover({ position: { x: 10, y: 10 } });
 
     // 保存重试恢复成功截图
     await page.screenshot({
-      path: path.join(process.cwd(), "test-results", "chat-image-skeleton-retry-success.png"),
+      path: path.join(
+        process.cwd(),
+        "test-results",
+        "chat-image-skeleton-retry-success.png",
+      ),
     });
 
     const criticalErrors = consoleErrors.filter(

@@ -161,7 +161,9 @@ test.describe("附件上传与发信授权验收 (Attachment Upload & Message Se
     await expect(pendingPreview).not.toBeVisible({ timeout: 10000 });
 
     // 5. 验证聊天流中成功渲染了纯附件卡片（通过 alt 属性查找）
-    const renderedImg = page.locator('img[alt="e2e_pure_attachment.png"]').first();
+    const renderedImg = page
+      .locator('img[alt="e2e_pure_attachment.png"]')
+      .first();
     await expect(renderedImg).toBeVisible({ timeout: 10000 });
 
     // 6. 保存纯附件验收截图

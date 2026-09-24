@@ -122,7 +122,11 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
                     : "text-discord-textMuted"
                 }`}
               />
-              <span>{message.isPinned ? t("contextMenu:unpinMessage") : t("contextMenu:pinMessage")}</span>
+              <span>
+                {message.isPinned
+                  ? t("contextMenu:unpinMessage")
+                  : t("contextMenu:pinMessage")}
+              </span>
             </div>
           </ContextMenuItem>
         )}
@@ -136,7 +140,9 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
             ) : (
               <Copy className="w-4 h-4 text-discord-textMuted" />
             )}
-            <span>{copiedText ? t("common:copied") : t("contextMenu:copyText")}</span>
+            <span>
+              {copiedText ? t("common:copied") : t("contextMenu:copyText")}
+            </span>
           </div>
         </ContextMenuItem>
 
@@ -147,7 +153,9 @@ export const MessageContextMenu: React.FC<MessageContextMenuProps> = ({
             ) : (
               <Copy className="w-4 h-4 text-discord-textMuted" />
             )}
-            <span>{copiedId ? t("common:copied") : t("contextMenu:copyMessageId")}</span>
+            <span>
+              {copiedId ? t("common:copied") : t("contextMenu:copyMessageId")}
+            </span>
           </div>
         </ContextMenuItem>
 

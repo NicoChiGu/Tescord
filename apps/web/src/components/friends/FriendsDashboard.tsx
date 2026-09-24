@@ -89,7 +89,8 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
     if (!trimmed.includes("#")) {
       setAddErrorMsg(
         t("chat:friends.errors.missingTag", {
-          defaultValue: "缺少数字标签！请输入完整的用户识别码，例如：用户名#12345",
+          defaultValue:
+            "缺少数字标签！请输入完整的用户识别码，例如：用户名#12345",
         }),
       );
       return;
@@ -97,7 +98,8 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
     if (trimmed.startsWith("#")) {
       setAddErrorMsg(
         t("chat:friends.errors.missingUsername", {
-          defaultValue: "缺少用户名称！请输入完整的用户识别码，例如：用户名#12345",
+          defaultValue:
+            "缺少用户名称！请输入完整的用户识别码，例如：用户名#12345",
         }),
       );
       return;
@@ -105,7 +107,8 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
     if (!/^.+#[0-9]{5}$/.test(trimmed)) {
       setAddErrorMsg(
         t("chat:friends.errors.invalidFormat", {
-          defaultValue: "识别码格式不正确，标签必须为 5 位数字，例如：Nick#12345",
+          defaultValue:
+            "识别码格式不正确，标签必须为 5 位数字，例如：Nick#12345",
         }),
       );
       return;
@@ -261,7 +264,9 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
           <button
             onClick={() => onStartDM(friend.id)}
             className="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-[#35373c] text-discord-textMuted hover:text-white flex items-center justify-center transition shadow-sm"
-            title={t("chat:friends.actions.sendMessage", { defaultValue: "发送消息" })}
+            title={t("chat:friends.actions.sendMessage", {
+              defaultValue: "发送消息",
+            })}
           >
             <MessageSquare className="w-4 h-4" />
           </button>
@@ -269,7 +274,9 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
             <button
               onClick={() => onStartCall(friend.id)}
               className="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-[#35373c] text-discord-textMuted hover:text-white flex items-center justify-center transition shadow-sm"
-              title={t("chat:friends.actions.voiceCall", { defaultValue: "语音呼叫" })}
+              title={t("chat:friends.actions.voiceCall", {
+                defaultValue: "语音呼叫",
+              })}
             >
               <Phone className="w-4 h-4" />
             </button>
@@ -282,7 +289,9 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
                 )
               }
               className="w-9 h-9 rounded-full bg-[#2b2d31] hover:bg-[#35373c] text-discord-textMuted hover:text-white flex items-center justify-center transition shadow-sm"
-              title={t("chat:friends.actions.moreOptions", { defaultValue: "更多选项" })}
+              title={t("chat:friends.actions.moreOptions", {
+                defaultValue: "更多选项",
+              })}
             >
               <MoreVertical className="w-4 h-4" />
             </button>
@@ -364,7 +373,9 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
                   : "text-discord-textMuted hover:bg-[#35373c]/50 hover:text-discord-textHeader"
               }`}
             >
-              <span>{t("chat:friends.tabs.pending", { defaultValue: "待处理" })}</span>
+              <span>
+                {t("chat:friends.tabs.pending", { defaultValue: "待处理" })}
+              </span>
               {pendingCount > 0 && (
                 <span className="px-1.5 py-0.2 text-[10px] font-bold bg-discord-red text-white rounded-full">
                   {pendingCount}
@@ -407,8 +418,8 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
                 addErrorMsg
                   ? "border-rose-500"
                   : addSuccessMsg
-                  ? "border-discord-green"
-                  : "border-black/50 focus-within:border-discord-brand"
+                    ? "border-discord-green"
+                    : "border-black/50 focus-within:border-discord-brand"
               }`}
             >
               <input
@@ -431,7 +442,9 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
               >
                 {addLoading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                 <span>
-                  {t("chat:friends.add.submit", { defaultValue: "发送好友申请" })}
+                  {t("chat:friends.add.submit", {
+                    defaultValue: "发送好友申请",
+                  })}
                 </span>
               </button>
             </form>
@@ -450,7 +463,9 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
             <div className="mt-8 border-t border-[#1f2023] pt-6 flex flex-col items-center justify-center text-center opacity-60">
               <UserPlus className="w-12 h-12 text-zinc-500 mb-2" />
               <div className="text-sm font-semibold text-zinc-300">
-                {t("chat:friends.add.emptyTitle", { defaultValue: "结识新伙伴" })}
+                {t("chat:friends.add.emptyTitle", {
+                  defaultValue: "结识新伙伴",
+                })}
               </div>
               <div className="text-xs text-zinc-500 max-w-sm mt-1">
                 {t("chat:friends.add.emptyDesc", {

@@ -45,7 +45,9 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
   // A/B 降噪录音对比小工具状态 (升级为四轨并排对比)
   const [isABTesting, setIsABTesting] = useState(false);
   const [abCountdown, setABCountdown] = useState(5);
-  const [abResult, setABResult] = useState<QuadABTestResult | TripleABTestResult | null>(null);
+  const [abResult, setABResult] = useState<
+    QuadABTestResult | TripleABTestResult | null
+  >(null);
   const [abError, setABError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -238,7 +240,8 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
             </div>
 
             <p className="text-xs text-discord-textMuted mb-3 leading-relaxed">
-              支持在独立的 AudioWorklet 隔离线程中运行 RNN / LSTM / 复数深度滤波神经网络。RNNoise 专注极速底噪滤除，DTLN
+              支持在独立的 AudioWorklet 隔离线程中运行 RNN / LSTM /
+              复数深度滤波神经网络。RNNoise 专注极速底噪滤除，DTLN
               专注消键盘音，DFNv3 提供 48kHz 全频带广播级高保真降噪。
             </p>
 

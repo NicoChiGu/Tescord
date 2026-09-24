@@ -6,6 +6,7 @@ import { UserContextMenu } from "./context-menu/UserContextMenu.js";
 import { useUserProfilePopoutStore } from "../stores/useUserProfilePopoutStore.js";
 import { usePresenceStore } from "../stores/usePresenceStore.js";
 import { resolveServerUrl } from "../config.js";
+import { getUserDisplayName } from "../utils/userDisplay.js";
 
 interface MemberListProps {
   guild: Guild | null;
@@ -77,7 +78,9 @@ export const MemberList: React.FC<MemberListProps> = ({
               username: currentUser.username,
               avatarUrl: currentUser.avatarUrl,
               status: currentUser.status,
-              customStatus: currentUser.customStatus || t("common:memberList.defaultBio", "正在体验 Tescord 🚀"),
+              customStatus:
+                currentUser.customStatus ||
+                t("common:memberList.defaultBio", "正在体验 Tescord 🚀"),
               bio: currentUser.bio,
               isOwner: true,
               rawUser: currentUser,
@@ -289,13 +292,17 @@ export const MemberList: React.FC<MemberListProps> = ({
                             ? "bg-amber-500"
                             : m.status === "DND"
                               ? "bg-rose-500"
-                              : m.status === "INVISIBLE" && m.id === currentUser.id
+                              : m.status === "INVISIBLE" &&
+                                  m.id === currentUser.id
                                 ? "border-gray-400 bg-transparent"
                                 : "bg-gray-400"
                       }`}
                       title={
                         m.status === "INVISIBLE" && m.id === currentUser.id
-                          ? t("common:memberList.invisibleSelf", "隐身 (仅自己可见)")
+                          ? t(
+                              "common:memberList.invisibleSelf",
+                              "隐身 (仅自己可见)",
+                            )
                           : m.status
                       }
                     />
@@ -307,14 +314,13 @@ export const MemberList: React.FC<MemberListProps> = ({
                         className="text-xs font-semibold truncate group-hover:text-white transition-colors"
                         style={{ color: m.color || undefined }}
                       >
-                        {m.nickname ||
-                          m.rawUser.displayName ||
-                          (m.username.includes("#")
-                            ? m.username.split("#")[0]
-                            : m.username)}
+                        {getUserDisplayName(m.rawUser, m)}
                       </span>
                       {m.isOwner && (
-                        <span title={t("common:memberList.owner", "服务器所有者")} className="flex-shrink-0">
+                        <span
+                          title={t("common:memberList.owner", "服务器所有者")}
+                          className="flex-shrink-0"
+                        >
                           <Crown className="w-3.5 h-3.5 text-amber-400" />
                         </span>
                       )}

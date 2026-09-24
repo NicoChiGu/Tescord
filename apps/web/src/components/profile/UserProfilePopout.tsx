@@ -31,6 +31,7 @@ import { useAuthStore } from "../../stores/useAuthStore.js";
 import { usePresenceStore } from "../../stores/usePresenceStore.js";
 import { useSettingsStore } from "../../stores/useSettingsStore.js";
 import { gatewayClient } from "../../services/gateway.js";
+import { getUserDisplayName, formatUserTag } from "../../utils/userDisplay.js";
 
 interface UserProfilePopoutProps {
   isOpen: boolean;
@@ -93,7 +94,8 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
   // 用户私有备注 (Discord 规范：仅在查看他人时生效)
   const userNotes = useSettingsStore((s) => s.userNotes);
   const setUserNote = useSettingsStore((s) => s.setUserNote);
-  const currentUserNote = (!isSelf && userNotes ? userNotes[user.id] : "") || "";
+  const currentUserNote =
+    (!isSelf && userNotes ? userNotes[user.id] : "") || "";
 
   const [isEditingNote, setIsEditingNote] = useState(false);
   const [noteInput, setNoteInput] = useState(currentUserNote);
@@ -363,7 +365,9 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
       case "DND":
         return "bg-[#f23f43]";
       case "INVISIBLE":
-        return isSelf ? "border-2 border-[#80848e] bg-transparent" : "bg-[#80848e]";
+        return isSelf
+          ? "border-2 border-[#80848e] bg-transparent"
+          : "bg-[#80848e]";
       default:
         return "bg-[#80848e]";
     }
@@ -465,7 +469,11 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
                 type="button"
                 onClick={handleCopyId}
                 className="w-7 h-7 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-sm text-gray-300 hover:text-white flex items-center justify-center transition"
-                title={copied ? t("common:copied", "已复制") : t("common:user.copyUserId", "复制用户 ID")}
+                title={
+                  copied
+                    ? t("common:copied", "已复制")
+                    : t("common:user.copyUserId", "复制用户 ID")
+                }
               >
                 {copied ? (
                   <Check className="w-3.5 h-3.5 text-emerald-400" />
@@ -479,9 +487,10 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
             <div className="relative">
               <button
                 type="button"
+                data-testid="user-profile-more-btn"
                 onClick={() => setIsMoreMenuOpen(!isMoreMenuOpen)}
                 className="w-7 h-7 rounded-full bg-black/40 hover:bg-black/60 backdrop-blur-sm text-gray-300 hover:text-white flex items-center justify-center transition"
-                title={t("common:edit", "更多操作")}
+                title={t("common:moreActions", "更多操作")}
               >
                 <MoreHorizontal className="w-4 h-4" />
               </button>
@@ -495,7 +504,11 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
                     className="w-full px-2.5 py-1.5 rounded hover:bg-[#35373c] text-left text-gray-200 flex items-center gap-2 transition"
                   >
                     <Copy className="w-3.5 h-3.5 text-gray-400" />
-                    <span>{copied ? t("common:copied", "已复制") : t("common:user.copyUserId", "复制用户 ID")}</span>
+                    <span>
+                      {copied
+                        ? t("common:copied", "已复制")
+                        : t("common:user.copyUserId", "复制用户 ID")}
+                    </span>
                   </button>
 
                   {!isSelf && (
@@ -520,7 +533,9 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
                           className="w-full px-2.5 py-1.5 rounded hover:bg-[#35373c] text-left text-gray-200 flex items-center gap-2 transition"
                         >
                           <MessageSquare className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>{t("contextMenu:sendMessage", "发送私信")}</span>
+                          <span>
+                            {t("contextMenu:sendMessage", "发送私信")}
+                          </span>
                         </button>
                       )}
 
@@ -538,7 +553,9 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
                               className="w-full px-2.5 py-1.5 rounded hover:bg-rose-500/20 text-left text-rose-400 flex items-center gap-2 transition"
                             >
                               <UserMinus className="w-3.5 h-3.5" />
-                              <span>{t("contextMenu:kickUser", "踢出成员")}</span>
+                              <span>
+                                {t("contextMenu:kickUser", "踢出成员")}
+                              </span>
                             </button>
                           )}
                           {onBanMember && (
@@ -552,7 +569,9 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
                               className="w-full px-2.5 py-1.5 rounded hover:bg-rose-500/20 text-left text-rose-400 flex items-center gap-2 transition"
                             >
                               <Ban className="w-3.5 h-3.5" />
-                              <span>{t("contextMenu:banUser", "封禁成员")}</span>
+                              <span>
+                                {t("contextMenu:banUser", "封禁成员")}
+                              </span>
                             </button>
                           )}
                         </>
@@ -666,11 +685,7 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
               className="text-lg font-bold text-white leading-tight truncate hover:underline cursor-pointer"
               style={{ color: highestColor || undefined }}
             >
-              {member?.nickname ||
-                user.displayName ||
-                (user.username.includes("#")
-                  ? user.username.split("#")[0]
-                  : user.username)}
+              {getUserDisplayName(user, member)}
             </h4>
             {!isSelf && (
               <button
@@ -698,22 +713,31 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
 
           {/* 用户名 + 徽章 */}
           <div className="flex items-center gap-1.5 text-xs text-[#949ba4] font-medium mt-0.5">
-            <span>@{user.username}</span>
+            <span>{formatUserTag(user.username)}</span>
 
             {/* 徽章集合 */}
             <div className="flex items-center gap-1 ml-0.5">
               {isOwner && (
-                <span title="服务器所有者" className="text-amber-400 flex items-center">
+                <span
+                  title="服务器所有者"
+                  className="text-amber-400 flex items-center"
+                >
                   <Crown className="w-3.5 h-3.5 fill-amber-400/30" />
                 </span>
               )}
               {user.role === "SUPER_ADMIN" && (
-                <span title="系统超级管理员" className="text-rose-400 flex items-center">
+                <span
+                  title="系统超级管理员"
+                  className="text-rose-400 flex items-center"
+                >
                   <ShieldCheck className="w-3.5 h-3.5" />
                 </span>
               )}
               {user.role === "ADMIN" && (
-                <span title="平台管理员" className="text-[#5865f2] flex items-center">
+                <span
+                  title="平台管理员"
+                  className="text-[#5865f2] flex items-center"
+                >
                   <ShieldCheck className="w-3.5 h-3.5" />
                 </span>
               )}
@@ -764,7 +788,8 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
                           {Math.max(
                             1,
                             Math.floor(
-                              (Date.now() - user.activities[0].timestamps.start) /
+                              (Date.now() -
+                                user.activities[0].timestamps.start) /
                                 60000,
                             ),
                           )}{" "}
@@ -781,7 +806,10 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
           {!isSelf && (
             <div className="flex items-center gap-2 text-xs text-[#dbdee1] py-0.5 font-medium">
               <Server className="w-4 h-4 text-[#949ba4] flex-shrink-0" />
-              <span>{mutualGuildsCount} {t("common:profilePopout.mutualServers", "共同所在的服务器")}</span>
+              <span>
+                {mutualGuildsCount}{" "}
+                {t("common:profilePopout.mutualServers", "共同所在的服务器")}
+              </span>
             </div>
           )}
 
@@ -807,7 +835,11 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
                   type="button"
                   onClick={() => setIsRolesExpanded(!isRolesExpanded)}
                   className="inline-flex items-center gap-1 bg-[#2b2d31] hover:bg-[#35373c] text-xs px-2 py-1 rounded-full text-[#949ba4] hover:text-white border border-white/5 transition font-semibold"
-                  title={isRolesExpanded ? t("common:back", "收起") : t("common:next", "展开")}
+                  title={
+                    isRolesExpanded
+                      ? t("common:back", "收起")
+                      : t("common:next", "展开")
+                  }
                 >
                   {isRolesExpanded ? (
                     <>
@@ -847,7 +879,9 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
                   <Calendar className="w-3 h-3 text-emerald-400" />
                   <span>
                     {t("server:members.table.joined", "加入时间：")}{" "}
-                    {new Date(member.joinedAt).toLocaleDateString(i18n.language)}
+                    {new Date(member.joinedAt).toLocaleDateString(
+                      i18n.language,
+                    )}
                   </span>
                 </div>
               )}
@@ -894,12 +928,18 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
                       }
                     }}
                     maxLength={256}
-                    placeholder={t("common:profilePopout.clickToAddNote", "点击添加备注")}
+                    placeholder={t(
+                      "common:profilePopout.clickToAddNote",
+                      "点击添加备注",
+                    )}
                     className="w-full bg-[#1e1f22] text-xs text-[#dbdee1] placeholder-[#80848e] rounded-md p-2 border border-[#5865f2] focus:outline-none resize-none leading-relaxed shadow-inner"
                     rows={2}
                   />
                   <div className="flex items-center justify-between text-[10px] text-[#80848e]">
-                    <span>Enter: {t("common:save", "保存")} / Esc: {t("common:cancel", "取消")}</span>
+                    <span>
+                      Enter: {t("common:save", "保存")} / Esc:{" "}
+                      {t("common:cancel", "取消")}
+                    </span>
                     <span>{noteInput.length}/256</span>
                   </div>
                 </div>
@@ -911,7 +951,10 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
                     setIsEditingNote(true);
                   }}
                   className="cursor-pointer group/note hover:bg-white/5 p-1.5 rounded-md transition min-h-[28px] flex items-center"
-                  title={t("common:profilePopout.clickToAddNote", "点击添加备注")}
+                  title={t(
+                    "common:profilePopout.clickToAddNote",
+                    "点击添加备注",
+                  )}
                 >
                   {currentUserNote ? (
                     <div className="text-[#dbdee1] leading-relaxed whitespace-pre-wrap break-words">
@@ -934,6 +977,7 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
             /* 【图1】编辑个人资料大按钮 */
             <button
               type="button"
+              data-testid="user-profile-edit-btn"
               onClick={() => {
                 onClose();
                 onOpenSettings?.();
@@ -941,7 +985,9 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
               className="w-full py-2.5 px-3 rounded-lg bg-[#5865f2] hover:bg-[#4752c4] text-white text-xs font-semibold flex items-center justify-center gap-2 transition shadow shadow-indigo-500/20 active:scale-[0.99]"
             >
               <Pencil className="w-3.5 h-3.5" />
-              <span>{t("settings:profile", "编辑个人资料")}</span>
+              <span>
+                {t("common:profilePopout.editProfile", "编辑个人资料")}
+              </span>
             </button>
           ) : (
             /* 【图2】傳訊息給 @用户 快捷私信输入框 (回车发送并自动跳转私信会话) */
@@ -953,7 +999,9 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
                 type="text"
                 value={quickMessage}
                 onChange={(e) => setQuickMessage(e.target.value)}
-                placeholder={t("common:profilePopout.sendDM", { name: member?.nickname || user.username })}
+                placeholder={t("common:profilePopout.sendDM", {
+                  name: member?.nickname || user.username,
+                })}
                 className="w-full bg-transparent text-xs text-white placeholder-[#80848e] focus:outline-none pr-14"
               />
               <div className="absolute right-2.5 flex items-center gap-1.5 text-[#949ba4]">

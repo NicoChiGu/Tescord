@@ -4,7 +4,10 @@ test.describe("Tescord 五大音视频与状态同步核心能力 E2E 自动化�
   test.beforeEach(async ({ page }) => {
     // 注入用户鉴权与 Mock 媒体流
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
+      localStorage.setItem(
+        "tescord_access_token",
+        localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token",
+      );
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
 
       // Mock Web Audio
@@ -122,7 +125,10 @@ test.describe("Tescord 五大音视频与状态同步核心能力 E2E 自动化�
             "user-friend-1": 175,
           },
         };
-        localStorage.setItem("tescord_user_settings", JSON.stringify({ state: updatedSettings, version: 0 }));
+        localStorage.setItem(
+          "tescord_user_settings",
+          JSON.stringify({ state: updatedSettings, version: 0 }),
+        );
       }
     });
 
@@ -164,16 +170,23 @@ test.describe("Tescord 五大音视频与状态同步核心能力 E2E 自动化�
 
         // 测试存储写入与范围钳制
         const initialVol = 150;
-        localStorage.setItem("tescord_user_volumes", JSON.stringify({ [testUserId]: initialVol }));
-        const stored = JSON.parse(localStorage.getItem("tescord_user_volumes") || "{}");
+        localStorage.setItem(
+          "tescord_user_volumes",
+          JSON.stringify({ [testUserId]: initialVol }),
+        );
+        const stored = JSON.parse(
+          localStorage.getItem("tescord_user_volumes") || "{}",
+        );
         return { success: true, volume: stored[testUserId] };
       }
 
       const testUserId = "user-alice-123";
       let capturedVol = -1;
-      const unsub = livekit.onParticipantVolumeChange((id: string, vol: number) => {
-        if (id === testUserId) capturedVol = vol;
-      });
+      const unsub = livekit.onParticipantVolumeChange(
+        (id: string, vol: number) => {
+          if (id === testUserId) capturedVol = vol;
+        },
+      );
 
       // 调整为 168%
       livekit.setParticipantVolume(testUserId, 168);
@@ -199,7 +212,7 @@ test.describe("Tescord 五大音视频与状态同步核心能力 E2E 自动化�
     const codecDetectResult = await page.evaluate(async () => {
       // 模拟 WebCodecs / Electron 显卡探测支持
       let isWebCodecsAvailable = typeof VideoEncoder !== "undefined";
-      
+
       // 读取或验证 detectSupportedVideoCodecs
       return {
         webCodecsSupported: isWebCodecsAvailable,
@@ -210,9 +223,7 @@ test.describe("Tescord 五大音视频与状态同步核心能力 E2E 自动化�
     expect(codecDetectResult).toBeDefined();
   });
 
-  test("4. P2P 直播推流首选编码器保持（打破 VP8 锁定）", async ({
-    page,
-  }) => {
+  test("4. P2P 直播推流首选编码器保持（打破 VP8 锁定）", async ({ page }) => {
     await page.goto("/");
     await page.waitForLoadState("domcontentloaded");
 
@@ -239,9 +250,7 @@ test.describe("Tescord 五大音视频与状态同步核心能力 E2E 自动化�
     expect(p2pCodecTest.targetCodec).toBe("h265");
   });
 
-  test("5. 纯语音 Mesh P2P 延迟统计与双维度展示指标", async ({
-    page,
-  }) => {
+  test("5. 纯语音 Mesh P2P 延迟统计与双维度展示指标", async ({ page }) => {
     await page.goto("/");
     await page.waitForLoadState("domcontentloaded");
 

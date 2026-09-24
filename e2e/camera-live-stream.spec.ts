@@ -13,7 +13,10 @@ test.describe("语音频道摄像头直播（Webcam Live Streaming）与舞台�
 
     // 1. 注入用户鉴权状态与浏览器虚拟摄像头 Mock
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
+      localStorage.setItem(
+        "tescord_access_token",
+        localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token",
+      );
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
 
       // Mock 虚拟摄像头视频流 (基于 HTML5 Canvas captureStream)

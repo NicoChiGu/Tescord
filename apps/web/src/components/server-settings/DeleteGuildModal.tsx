@@ -85,9 +85,7 @@ export const DeleteGuildModal: React.FC<DeleteGuildModalProps> = ({
           </p>
           <div className="bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs px-3.5 py-2.5 rounded-xl flex items-start gap-2">
             <ShieldAlert className="w-4 h-4 mt-0.5 shrink-0 text-rose-400" />
-            <span>
-              {t("server:deleteModal.warning")}
-            </span>
+            <span>{t("server:deleteModal.warning")}</span>
           </div>
         </div>
 
@@ -105,7 +103,9 @@ export const DeleteGuildModal: React.FC<DeleteGuildModalProps> = ({
           <div className="space-y-1.5">
             <label className="text-xs font-bold uppercase tracking-wider text-gray-300 flex items-center justify-between">
               <span>{t("common:dialog.securityCodePrompt")}</span>
-              <span className="text-gray-500 font-normal">{inputCode.length}/4</span>
+              <span className="text-gray-500 font-normal">
+                {inputCode.length}/4
+              </span>
             </label>
             <input
               type="text"
@@ -143,7 +143,9 @@ export const DeleteGuildModal: React.FC<DeleteGuildModalProps> = ({
                 : "bg-rose-900/40 text-gray-400 cursor-not-allowed"
             }`}
           >
-            {isDeleting ? t("server:deleteModal.submitting") : t("server:deleteModal.confirmBtn")}
+            {isDeleting
+              ? t("server:deleteModal.submitting")
+              : t("server:deleteModal.confirmBtn")}
           </button>
         </div>
       </div>

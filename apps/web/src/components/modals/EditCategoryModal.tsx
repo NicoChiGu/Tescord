@@ -72,7 +72,9 @@ export const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(getErrorMessage(data) || t("common:saveFailed", "更新分类失败"));
+        throw new Error(
+          getErrorMessage(data) || t("common:saveFailed", "更新分类失败"),
+        );
       }
 
       const updatedCategory: ChannelCategory = await res.json();
@@ -105,7 +107,9 @@ export const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(getErrorMessage(data) || t("common:deleteFailed", "删除分类失败"));
+        throw new Error(
+          getErrorMessage(data) || t("common:deleteFailed", "删除分类失败"),
+        );
       }
 
       onCategoryDeleted?.(category.id);
@@ -195,8 +199,8 @@ export const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
                   {isDeleting
                     ? t("modals:editCategory.deleting")
                     : confirmDelete
-                    ? t("modals:editCategory.confirmDelete")
-                    : t("modals:editCategory.deleteCategory")}
+                      ? t("modals:editCategory.confirmDelete")
+                      : t("modals:editCategory.deleteCategory")}
                 </button>
               </div>
             </div>
@@ -213,7 +217,9 @@ export const EditCategoryModal: React.FC<EditCategoryModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || !name.trim() || name.trim() === category.name}
+              disabled={
+                isSubmitting || !name.trim() || name.trim() === category.name
+              }
               className="px-5 py-2 text-sm font-medium bg-discord-blurple hover:bg-discord-blurpleHover text-white rounded transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
               data-testid="save-category-btn"
             >

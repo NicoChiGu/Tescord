@@ -14,7 +14,9 @@ export class RegistrationInviteService {
     if (customCode && customCode.trim()) {
       const code = customCode.trim().toUpperCase();
       if (!/^[A-Z0-9_-]{4,32}$/.test(code)) {
-        throw new Error("自定义邀请码格式不合规（限 4-32 位大写字母、数字、下划线或连字符）");
+        throw new Error(
+          "自定义邀请码格式不合规（限 4-32 位大写字母、数字、下划线或连字符）",
+        );
       }
       const existing = await prisma.registrationInvite.findUnique({
         where: { code },
@@ -48,11 +50,16 @@ export class RegistrationInviteService {
     adminId: string,
   ): Promise<RegistrationInviteDTO> {
     const code = await this.generateUniqueCode(dto.customCode);
-    const maxUses = typeof dto.maxUses === "number" && dto.maxUses >= 0 ? Math.floor(dto.maxUses) : 1;
-    
+    const maxUses =
+      typeof dto.maxUses === "number" && dto.maxUses >= 0
+        ? Math.floor(dto.maxUses)
+        : 1;
+
     let expiresAt: Date | null = null;
     if (dto.expiresInDays && dto.expiresInDays > 0) {
-      expiresAt = new Date(Date.now() + dto.expiresInDays * 24 * 60 * 60 * 1000);
+      expiresAt = new Date(
+        Date.now() + dto.expiresInDays * 24 * 60 * 60 * 1000,
+      );
     }
 
     const invite = await prisma.$transaction(async (tx) => {
@@ -125,10 +132,7 @@ export class RegistrationInviteService {
 
     if (options.search && options.search.trim()) {
       const q = options.search.trim();
-      where.OR = [
-        { code: { contains: q } },
-        { note: { contains: q } },
-      ];
+      where.OR = [{ code: { contains: q } }, { note: { contains: q } }];
     }
 
     if (options.status) {
@@ -136,10 +140,7 @@ export class RegistrationInviteService {
         where.isRevoked = true;
       } else if (options.status === "active") {
         where.isRevoked = false;
-        where.OR = [
-          { expiresAt: null },
-          { expiresAt: { gt: now } },
-        ];
+        where.OR = [{ expiresAt: null }, { expiresAt: { gt: now } }];
         // maxUses === 0 或 uses < maxUses
       } else if (options.status === "expired") {
         where.isRevoked = false;
@@ -186,7 +187,11 @@ export class RegistrationInviteService {
   /**
    * 变更邀请码作废/激活状态
    */
-  public async setRevoked(code: string, isRevoked: boolean, adminId: string): Promise<RegistrationInviteDTO> {
+  public async setRevoked(
+    code: string,
+    isRevoked: boolean,
+    adminId: string,
+  ): Promise<RegistrationInviteDTO> {
     const existing = await prisma.registrationInvite.findUnique({
       where: { code },
       include: { createdBy: { select: { username: true } } },
@@ -205,7 +210,9 @@ export class RegistrationInviteService {
       await tx.platformAuditLog.create({
         data: {
           actorId: adminId,
-          action: isRevoked ? "REGISTRATION_INVITE_REVOKE" : "REGISTRATION_INVITE_RESTORE",
+          action: isRevoked
+            ? "REGISTRATION_INVITE_REVOKE"
+            : "REGISTRATION_INVITE_RESTORE",
           targetType: "REGISTRATION_INVITE",
           targetId: code,
           detailsJson: JSON.stringify({ isRevoked }),
@@ -232,7 +239,10 @@ export class RegistrationInviteService {
   /**
    * 删除邀请码
    */
-  public async deleteInvite(code: string, adminId: string): Promise<{ success: boolean }> {
+  public async deleteInvite(
+    code: string,
+    adminId: string,
+  ): Promise<{ success: boolean }> {
     const existing = await prisma.registrationInvite.findUnique({
       where: { code },
     });

@@ -73,7 +73,10 @@ class PreheatManager {
       this.activeCount++;
       this.fetchAndCacheChannel(task.channelId)
         .catch((err) =>
-          console.warn(`[PreheatManager] Failed to preheat #${task.channelId}:`, err),
+          console.warn(
+            `[PreheatManager] Failed to preheat #${task.channelId}:`,
+            err,
+          ),
         )
         .finally(() => {
           this.activeCount--;

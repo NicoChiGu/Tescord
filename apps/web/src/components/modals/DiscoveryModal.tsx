@@ -64,7 +64,10 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(getErrorMessage(data) || t("common:loadFailed", "获取公开社区列表失败"));
+        throw new Error(
+          getErrorMessage(data) ||
+            t("common:loadFailed", "获取公开社区列表失败"),
+        );
       }
       const data: PublicGuild[] = await res.json();
       setPublicGuilds(data);
@@ -233,7 +236,9 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
               {isLoadingGuilds && (
                 <div className="py-12 flex flex-col items-center justify-center text-discord-textMuted gap-2">
                   <Loader2 className="w-6 h-6 animate-spin text-discord-brand" />
-                  <span className="text-xs">{t("modals:discovery.loading")}</span>
+                  <span className="text-xs">
+                    {t("modals:discovery.loading")}
+                  </span>
                 </div>
               )}
 
@@ -278,7 +283,9 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
                           <div className="flex items-center gap-1.5 text-discord-textMuted text-[11px]">
                             <Users className="w-3.5 h-3.5" />
                             <span>
-                              {t("modals:discovery.membersCount", { count: g.memberCount })}
+                              {t("modals:discovery.membersCount", {
+                                count: g.memberCount,
+                              })}
                             </span>
                           </div>
 

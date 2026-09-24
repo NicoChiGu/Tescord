@@ -13,7 +13,10 @@ test.describe("屏幕分享伴音异常与自动优雅降级 (NotReadableError A
 
     // 1. Mock 鉴权、网关与底层 getDisplayMedia 音频源故障模拟
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
+      localStorage.setItem(
+        "tescord_access_token",
+        localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token",
+      );
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
 
       (window as any).__getDisplayMediaCalls = [];

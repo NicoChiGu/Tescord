@@ -52,7 +52,9 @@ export const AboutUpdatesTab: React.FC = () => {
           setIsReadyToRestart(true);
         } else if (prog.state === "error") {
           setIsDownloading(false);
-          setErrorMessage(prog.error || t("settings:updates.downloadFailed", "下载更新失败"));
+          setErrorMessage(
+            prog.error || t("settings:updates.downloadFailed", "下载更新失败"),
+          );
         }
       },
     );
@@ -82,7 +84,9 @@ export const AboutUpdatesTab: React.FC = () => {
         setErrorMessage(res.error);
       }
     } catch (err: any) {
-      setErrorMessage(err.message || t("settings:updates.checkError", "更新检查遇到异常"));
+      setErrorMessage(
+        err.message || t("settings:updates.checkError", "更新检查遇到异常"),
+      );
     } finally {
       setIsChecking(false);
     }
@@ -97,10 +101,15 @@ export const AboutUpdatesTab: React.FC = () => {
       if (res.success) {
         setIsReadyToRestart(true);
       } else {
-        setErrorMessage(res.error || t("settings:updates.applyFailed", "增量更新应用失败"));
+        setErrorMessage(
+          res.error || t("settings:updates.applyFailed", "增量更新应用失败"),
+        );
       }
     } catch (err: any) {
-      setErrorMessage(err.message || t("settings:updates.downloadDeltaFailed", "下载增量更新失败"));
+      setErrorMessage(
+        err.message ||
+          t("settings:updates.downloadDeltaFailed", "下载增量更新失败"),
+      );
     } finally {
       setIsDownloading(false);
     }
@@ -121,7 +130,11 @@ export const AboutUpdatesTab: React.FC = () => {
       const updated = await window.electronAPI.updater.getConfig();
       setConfig(updated);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : t("settings:updates.invalidProxy", "代理地址无效"));
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : t("settings:updates.invalidProxy", "代理地址无效"),
+      );
     }
   };
 
@@ -131,14 +144,22 @@ export const AboutUpdatesTab: React.FC = () => {
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <Zap className="w-6 h-6 text-[#5865f2]" />
-            <span>{t("settings:updates.webEnvironmentTitle", "版本与环境 (About)")}</span>
+            <span>
+              {t("settings:updates.webEnvironmentTitle", "版本与环境 (About)")}
+            </span>
           </h2>
           <p className="text-xs text-discord-textMuted mt-1">
-            {t("settings:updates.webEnvironmentDesc", "当前处于标准 Web 浏览器环境。客户端自动更新与 gh-proxy 加速仅在 Electron 桌面端生效。")}
+            {t(
+              "settings:updates.webEnvironmentDesc",
+              "当前处于标准 Web 浏览器环境。客户端自动更新与 gh-proxy 加速仅在 Electron 桌面端生效。",
+            )}
           </p>
         </div>
         <div className="rounded-xl bg-[#2b2d31] p-5 border border-white/5 text-gray-300 text-xs">
-          {t("settings:updates.webDesktopTip", "您可通过下载并安装 Tescord 桌面客户端享受 Discord 拟态无边框窗口、独立进程音频低延迟优化与自动静默增量更新体验。")}
+          {t(
+            "settings:updates.webDesktopTip",
+            "您可通过下载并安装 Tescord 桌面客户端享受 Discord 拟态无边框窗口、独立进程音频低延迟优化与自动静默增量更新体验。",
+          )}
         </div>
       </div>
     );
@@ -149,10 +170,15 @@ export const AboutUpdatesTab: React.FC = () => {
       <div>
         <h2 className="text-xl font-bold text-white flex items-center gap-2">
           <Zap className="w-6 h-6 text-[#5865f2]" />
-          <span>{t("settings:updates.updatesTitle", "客户端版本与更新 (Updates)")}</span>
+          <span>
+            {t("settings:updates.updatesTitle", "客户端版本与更新 (Updates)")}
+          </span>
         </h2>
         <p className="text-xs text-discord-textMuted mt-1">
-          {t("settings:updates.updatesSubtitle", "Tescord 采用类 Discord 的双轨热更新机制，日常功能更新秒级无感生效，通过 gh-proxy 阶梯加速直连 GitHub Releases。")}
+          {t(
+            "settings:updates.updatesSubtitle",
+            "Tescord 采用类 Discord 的双轨热更新机制，日常功能更新秒级无感生效，通过 gh-proxy 阶梯加速直连 GitHub Releases。",
+          )}
         </p>
       </div>
 
@@ -185,7 +211,11 @@ export const AboutUpdatesTab: React.FC = () => {
             <RefreshCw
               className={`w-3.5 h-3.5 ${isChecking ? "animate-spin" : ""}`}
             />
-            <span>{isChecking ? t("settings:updates.checking", "正在检测更新...") : t("settings:updates.checkUpdates", "检查更新")}</span>
+            <span>
+              {isChecking
+                ? t("settings:updates.checking", "正在检测更新...")
+                : t("settings:updates.checkUpdates", "检查更新")}
+            </span>
           </button>
         </div>
 
@@ -194,9 +224,16 @@ export const AboutUpdatesTab: React.FC = () => {
           <div className="bg-[#1e1f22]/70 rounded-xl p-3 border border-white/5 flex items-center gap-3">
             <GitBranch className="w-5 h-5 text-gray-400 shrink-0" />
             <div className="min-w-0">
-              <div className="text-[10px] text-gray-400">{t("settings:updates.targetRepo", "GitHub 目标仓库")}</div>
+              <div className="text-[10px] text-gray-400">
+                {t("settings:updates.targetRepo", "GitHub 目标仓库")}
+              </div>
               <div className="font-semibold text-white truncate">
-                {config?.gitRepo ? config.gitRepo : t("settings:updates.notConfigured", "未配置 (构建时未注入)")}
+                {config?.gitRepo
+                  ? config.gitRepo
+                  : t(
+                      "settings:updates.notConfigured",
+                      "未配置 (构建时未注入)",
+                    )}
               </div>
             </div>
           </div>
@@ -204,17 +241,26 @@ export const AboutUpdatesTab: React.FC = () => {
           <div className="bg-[#1e1f22]/70 rounded-xl p-3 border border-white/5 flex items-center gap-3">
             <Server className="w-5 h-5 text-gray-400 shrink-0" />
             <div className="min-w-0">
-              <div className="text-[10px] text-gray-400">{t("settings:updates.serviceStatus", "更新服务状态")}</div>
+              <div className="text-[10px] text-gray-400">
+                {t("settings:updates.serviceStatus", "更新服务状态")}
+              </div>
               <div className="font-semibold truncate flex items-center gap-1.5">
                 {config?.enabled ? (
                   <>
                     <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span className="text-emerald-400">{t("settings:updates.statusReady", "自动检测已就绪")}</span>
+                    <span className="text-emerald-400">
+                      {t("settings:updates.statusReady", "自动检测已就绪")}
+                    </span>
                   </>
                 ) : (
                   <>
                     <span className="w-2 h-2 rounded-full bg-amber-500" />
-                    <span className="text-amber-400">{t("settings:updates.statusDisabled", "未启用 (无远程仓库)")}</span>
+                    <span className="text-amber-400">
+                      {t(
+                        "settings:updates.statusDisabled",
+                        "未启用 (无远程仓库)",
+                      )}
+                    </span>
                   </>
                 )}
               </div>
@@ -233,7 +279,10 @@ export const AboutUpdatesTab: React.FC = () => {
                 {t("settings:updates.readyTitle", "新版本已在本地解压就绪！")}
               </div>
               <div className="text-xs text-gray-300 mt-0.5">
-                {t("settings:updates.readyDesc", "增量包已成功校验并生效至本地，点击按钮立即体验新特性。")}
+                {t(
+                  "settings:updates.readyDesc",
+                  "增量包已成功校验并生效至本地，点击按钮立即体验新特性。",
+                )}
               </div>
             </div>
           </div>
@@ -287,7 +336,10 @@ export const AboutUpdatesTab: React.FC = () => {
                 </div>
                 {checkResult.isHostUpdateRequired ? (
                   <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-amber-500/20 text-amber-300">
-                    {t("settings:updates.requireFullInstaller", "需要安装包更新")}
+                    {t(
+                      "settings:updates.requireFullInstaller",
+                      "需要安装包更新",
+                    )}
                   </span>
                 ) : (
                   <span className="text-[11px] px-2 py-0.5 rounded-full font-medium bg-emerald-500/20 text-emerald-300">
@@ -307,7 +359,10 @@ export const AboutUpdatesTab: React.FC = () => {
                   <div className="text-xs text-amber-300 flex items-center gap-1.5">
                     <AlertTriangle className="w-4 h-4 shrink-0" />
                     <span>
-                      {t("settings:updates.fullInstallerNotice", "该版本包含原生底层改动，建议前往 Releases 下载完整安装包。")}
+                      {t(
+                        "settings:updates.fullInstallerNotice",
+                        "该版本包含原生底层改动，建议前往 Releases 下载完整安装包。",
+                      )}
                     </span>
                   </div>
                   <a
@@ -316,7 +371,9 @@ export const AboutUpdatesTab: React.FC = () => {
                     rel="noreferrer"
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white/10 hover:bg-white/20 text-white transition-colors"
                   >
-                    <span>{t("settings:updates.downloadInstaller", "下载安装包")}</span>
+                    <span>
+                      {t("settings:updates.downloadInstaller", "下载安装包")}
+                    </span>
                     <ExternalLink className="w-3.5 h-3.5" />
                   </a>
                 </div>
@@ -328,7 +385,12 @@ export const AboutUpdatesTab: React.FC = () => {
                     className="flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold bg-[#5865f2] hover:bg-[#4752c4] text-white transition-all cursor-pointer shadow-md"
                   >
                     <Download className="w-3.5 h-3.5" />
-                    <span>{t("settings:updates.downloadDelta", "立即下载并应用增量更新 (5~15MB)")}</span>
+                    <span>
+                      {t(
+                        "settings:updates.downloadDelta",
+                        "立即下载并应用增量更新 (5~15MB)",
+                      )}
+                    </span>
                   </button>
                 </div>
               )}
@@ -336,7 +398,9 @@ export const AboutUpdatesTab: React.FC = () => {
           ) : (
             <div className="flex items-center gap-2 text-xs text-gray-300">
               <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <span>{t("settings:updates.upToDate", "当前已是最新版本，无需更新。")}</span>
+              <span>
+                {t("settings:updates.upToDate", "当前已是最新版本，无需更新。")}
+              </span>
             </div>
           )}
         </div>
@@ -354,11 +418,17 @@ export const AboutUpdatesTab: React.FC = () => {
         <div className="flex items-center gap-2">
           <Sliders className="w-4 h-4 text-[#5865f2]" />
           <h3 className="text-sm font-bold text-white">
-            {t("settings:updates.proxyConfigTitle", "GitHub Releases 加速代理配置")}
+            {t(
+              "settings:updates.proxyConfigTitle",
+              "GitHub Releases 加速代理配置",
+            )}
           </h3>
         </div>
         <p className="text-xs text-discord-textMuted">
-          {t("settings:updates.proxyConfigDesc", "在网络受限或大陆环境下，客户端默认采用阶梯自动降级路由：优先走高速代理，失败平滑回退，保障更新绝不卡死。")}
+          {t(
+            "settings:updates.proxyConfigDesc",
+            "在网络受限或大陆环境下，客户端默认采用阶梯自动降级路由：优先走高速代理，失败平滑回退，保障更新绝不卡死。",
+          )}
         </p>
 
         {/* 阶梯路由指示器 */}
@@ -366,7 +436,9 @@ export const AboutUpdatesTab: React.FC = () => {
           <div className="flex items-center justify-between text-gray-300">
             <span className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
-              <span>{t("settings:updates.priority1", "第一优先级 (默认推荐)")}</span>
+              <span>
+                {t("settings:updates.priority1", "第一优先级 (默认推荐)")}
+              </span>
             </span>
             <code className="text-[11px] text-gray-400 font-mono">
               https://v6.gh-proxy.org/
@@ -375,7 +447,9 @@ export const AboutUpdatesTab: React.FC = () => {
           <div className="flex items-center justify-between text-gray-300">
             <span className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-blue-400" />
-              <span>{t("settings:updates.priority2", "第二优先级 (备用镜像)")}</span>
+              <span>
+                {t("settings:updates.priority2", "第二优先级 (备用镜像)")}
+              </span>
             </span>
             <code className="text-[11px] text-gray-400 font-mono">
               https://gh-proxy.com/
@@ -402,7 +476,10 @@ export const AboutUpdatesTab: React.FC = () => {
               type="text"
               value={customProxyInput}
               onChange={(e) => setCustomProxyInput(e.target.value)}
-              placeholder={t("settings:updates.proxyPlaceholder", "例如 https://gh-proxy.net/ 或留空采用默认阶梯")}
+              placeholder={t(
+                "settings:updates.proxyPlaceholder",
+                "例如 https://gh-proxy.net/ 或留空采用默认阶梯",
+              )}
               className="flex-1 bg-[#1e1f22] border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-[#5865f2]"
             />
             <button
@@ -410,11 +487,16 @@ export const AboutUpdatesTab: React.FC = () => {
               onClick={handleSaveProxy}
               className="px-4 py-2 rounded-lg text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
             >
-              {proxySaveSuccess ? t("settings:updates.saved", "已保存！") : t("settings:updates.save", t("common:save", "保存"))}
+              {proxySaveSuccess
+                ? t("settings:updates.saved", "已保存！")
+                : t("settings:updates.save", t("common:save", "保存"))}
             </button>
           </div>
           <p className="text-[11px] text-gray-500">
-            {t("settings:updates.customProxyTip", "若您部署了自建 gh-proxy 或其他反向代理加速镜像，可填写于此，系统将优先走您的专用通道。")}
+            {t(
+              "settings:updates.customProxyTip",
+              "若您部署了自建 gh-proxy 或其他反向代理加速镜像，可填写于此，系统将优先走您的专用通道。",
+            )}
           </p>
         </div>
       </div>

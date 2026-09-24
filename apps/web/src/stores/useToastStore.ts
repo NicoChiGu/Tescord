@@ -10,9 +10,7 @@ export interface ToastItem {
 }
 
 export type ToastMessageInput =
-  | string
-  | { key: string; params?: Record<string, any> }
-  | any;
+  string | { key: string; params?: Record<string, any> } | any;
 
 function resolveMessage(input: ToastMessageInput): string {
   if (!input) return "";
@@ -35,13 +33,21 @@ function resolveMessage(input: ToastMessageInput): string {
 
 interface ToastState {
   toasts: ToastItem[];
-  showToast: (message: ToastMessageInput, type?: ToastType, duration?: number) => void;
+  showToast: (
+    message: ToastMessageInput,
+    type?: ToastType,
+    duration?: number,
+  ) => void;
   removeToast: (id: string) => void;
 }
 
 export const useToastStore = create<ToastState>((set) => ({
   toasts: [],
-  showToast: (messageInput: ToastMessageInput, type: ToastType = "info", duration = 3000) => {
+  showToast: (
+    messageInput: ToastMessageInput,
+    type: ToastType = "info",
+    duration = 3000,
+  ) => {
     const id = Math.random().toString(36).substring(2, 9);
     const message = resolveMessage(messageInput);
     set((state) => ({
@@ -68,4 +74,3 @@ export const toast = {
   error: (msg: ToastMessageInput, duration?: number) =>
     useToastStore.getState().showToast(msg, "error", duration),
 };
-

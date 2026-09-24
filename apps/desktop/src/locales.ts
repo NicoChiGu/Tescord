@@ -178,6 +178,8 @@ export const desktopLocales: Record<SupportedLocale, DesktopLocaleStrings> = {
   },
 };
 
-export function getDesktopLocale(locale: SupportedLocale = "zh-CN"): DesktopLocaleStrings {
+export function getDesktopLocale(
+  locale: SupportedLocale = "zh-CN",
+): DesktopLocaleStrings {
   return desktopLocales[locale] || desktopLocales["zh-CN"];
 }

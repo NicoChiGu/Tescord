@@ -26,11 +26,15 @@ test.describe("Tescord Web 端到端冒烟与核心交互验收", () => {
     });
     await expect(loginHeading).toBeVisible({ timeout: 10000 });
 
-    const continueButton = page.getByRole("button", { name: /继\s*续|登\s*录/i });
+    const continueButton = page.getByRole("button", {
+      name: /继\s*续|登\s*录/i,
+    });
     await expect(continueButton).toBeVisible();
 
     // 验证邮箱输入表单正常挂载
-    const emailInput = page.locator('input[type="email"], input[type="text"]').first();
+    const emailInput = page
+      .locator('input[type="email"], input[type="text"]')
+      .first();
     await expect(emailInput).toBeVisible();
 
     // 生产构建环境下，验证快捷预设账号已被彻底隐藏/剔除，确保生产安全

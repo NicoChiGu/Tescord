@@ -10,7 +10,8 @@ test.describe("用户身份解耦、图1样式还原与好友系统 (Friends & I
       );
       localStorage.setItem(
         "tescord_refresh_token",
-        localStorage.getItem("tescord_e2e_refresh_token") || "mock_refresh_token",
+        localStorage.getItem("tescord_e2e_refresh_token") ||
+          "mock_refresh_token",
       );
       localStorage.setItem(
         "tescord_last_user",
@@ -134,7 +135,9 @@ test.describe("用户身份解耦、图1样式还原与好友系统 (Friends & I
           route.fulfill({
             status: 400,
             contentType: "application/json",
-            body: JSON.stringify({ error: "请输入完整的用户标识，例如 用户名#12345" }),
+            body: JSON.stringify({
+              error: "请输入完整的用户标识，例如 用户名#12345",
+            }),
           });
           return;
         }
@@ -172,15 +175,20 @@ test.describe("用户身份解耦、图1样式还原与好友系统 (Friends & I
         body: JSON.stringify({
           id: "usr_mock_terata",
           username: data.username ? `${data.username}#70712` : "TERATA#70712",
-          displayName: data.displayName !== undefined ? data.displayName : "TERATA",
+          displayName:
+            data.displayName !== undefined ? data.displayName : "TERATA",
           discriminator: "70712",
           status: data.status || "ONLINE",
-          customStatus: data.customStatus !== undefined ? data.customStatus : null,
+          customStatus:
+            data.customStatus !== undefined ? data.customStatus : null,
           bio: data.bio !== undefined ? data.bio : null,
-          bannerColor: data.bannerColor !== undefined ? data.bannerColor : "#5865f2",
+          bannerColor:
+            data.bannerColor !== undefined ? data.bannerColor : "#5865f2",
           bannerUrl: data.bannerUrl !== undefined ? data.bannerUrl : null,
-          themeColor: data.themeColor !== undefined ? data.themeColor : "#e5a93c",
-          showActivity: data.showActivity !== undefined ? data.showActivity : true,
+          themeColor:
+            data.themeColor !== undefined ? data.themeColor : "#e5a93c",
+          showActivity:
+            data.showActivity !== undefined ? data.showActivity : true,
           avatarUrl: null,
           createdAt: "2026-09-24T00:00:00.000Z",
         }),
@@ -225,22 +233,30 @@ test.describe("用户身份解耦、图1样式还原与好友系统 (Friends & I
     // 负向 1：仅输入纯昵称
     await addInput.fill("Nick");
     await submitBtn.click();
-    await expect(page.getByText("缺少数字标签！请输入完整的用户识别码")).toBeVisible();
+    await expect(
+      page.getByText("缺少数字标签！请输入完整的用户识别码"),
+    ).toBeVisible();
 
     // 负向 2：仅输入纯标签
     await addInput.fill("#12312");
     await submitBtn.click();
-    await expect(page.getByText("缺少用户名称！请输入完整的用户识别码")).toBeVisible();
+    await expect(
+      page.getByText("缺少用户名称！请输入完整的用户识别码"),
+    ).toBeVisible();
 
     // 负向 3：数字标签位数不对
     await addInput.fill("Nick#123");
     await submitBtn.click();
-    await expect(page.getByText("识别码格式不正确，标签必须为 5 位数字")).toBeVisible();
+    await expect(
+      page.getByText("识别码格式不正确，标签必须为 5 位数字"),
+    ).toBeVisible();
 
     // 正向：输入完整正确的识别码
     await addInput.fill("Nick#12312");
     await submitBtn.click();
-    await expect(page.getByText("好友申请已成功发送给 Nick#12312！")).toBeVisible();
+    await expect(
+      page.getByText("好友申请已成功发送给 Nick#12312！"),
+    ).toBeVisible();
 
     expect(consoleErrors).toHaveLength(0);
   });
@@ -272,8 +288,12 @@ test.describe("用户身份解耦、图1样式还原与好友系统 (Friends & I
     await displayNameInput.fill("TERATA_PRO");
 
     // 2.5 检查右侧 1:1 动态实时卡片（图1 效果：主大字 TERATA_PRO，副 @TERATA#70712）
-    await expect(page.getByTestId("profile-preview-display-name")).toHaveText("TERATA_PRO");
-    await expect(page.getByTestId("profile-preview-sub-identifier")).toHaveText("@TERATA#70712");
+    await expect(page.getByTestId("profile-preview-display-name")).toHaveText(
+      "TERATA_PRO",
+    );
+    await expect(page.getByTestId("profile-preview-sub-identifier")).toHaveText(
+      "@TERATA#70712",
+    );
 
     // 2.6 出现未保存更改条并保存
     const noticeBar = page.getByTestId("unsaved-changes-notice-bar");

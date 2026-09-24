@@ -2698,10 +2698,7 @@ export const App: React.FC = () => {
       if (targetTextChannel?.guildId) {
         useChannelNavStore
           .getState()
-          .recordChannelVisit(
-            targetTextChannel.guildId,
-            targetTextChannel.id,
-          );
+          .recordChannelVisit(targetTextChannel.guildId, targetTextChannel.id);
         useChannelNavStore
           .getState()
           .recordTextChannelVisit(

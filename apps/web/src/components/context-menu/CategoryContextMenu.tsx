@@ -9,7 +9,15 @@ import {
   ContextMenuTrigger,
 } from "../ui/context-menu.js";
 import { usePermissions } from "../../hooks/usePermissions.js";
-import { Plus, Edit3, Trash2, Copy, Check, ChevronDown, ChevronRight } from "lucide-react";
+import {
+  Plus,
+  Edit3,
+  Trash2,
+  Copy,
+  Check,
+  ChevronDown,
+  ChevronRight,
+} from "lucide-react";
 
 interface CategoryContextMenuProps {
   category: ChannelCategory;
@@ -49,7 +57,10 @@ export const CategoryContextMenu: React.FC<CategoryContextMenuProps> = ({
   return (
     <ContextMenu>
       <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
-      <ContextMenuContent className="w-52" data-testid={`category-context-menu-${category.id}`}>
+      <ContextMenuContent
+        className="w-52"
+        data-testid={`category-context-menu-${category.id}`}
+      >
         {canManageChannels && (
           <ContextMenuItem
             onClick={() => onCreateChannel?.(category)}
@@ -73,7 +84,11 @@ export const CategoryContextMenu: React.FC<CategoryContextMenuProps> = ({
             ) : (
               <ChevronDown className="w-4 h-4 text-discord-textMuted" />
             )}
-            <span>{isCollapsed ? t("contextMenu:category.expand") : t("contextMenu:category.collapse")}</span>
+            <span>
+              {isCollapsed
+                ? t("contextMenu:category.expand")
+                : t("contextMenu:category.collapse")}
+            </span>
           </div>
         </ContextMenuItem>
 
@@ -87,7 +102,9 @@ export const CategoryContextMenu: React.FC<CategoryContextMenuProps> = ({
             ) : (
               <Copy className="w-4 h-4 text-discord-textMuted" />
             )}
-            <span>{copiedId ? t("common:copied") : t("contextMenu:category.copyId")}</span>
+            <span>
+              {copiedId ? t("common:copied") : t("contextMenu:category.copyId")}
+            </span>
           </div>
         </ContextMenuItem>
 

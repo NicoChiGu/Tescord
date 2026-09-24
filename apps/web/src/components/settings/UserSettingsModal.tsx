@@ -30,7 +30,6 @@ import { ProfileCardPreview } from "../profile/ProfileCardPreview.js";
 
 export type UserSettingsTabType = "profile" | "audio" | "language" | "updates";
 
-
 interface UserSettingsModalProps {
   isOpen: boolean;
   initialTab?: UserSettingsTabType;
@@ -114,8 +113,12 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   const [activeTab, setActiveTab] = useState<UserSettingsTabType>(initialTab);
 
   // 资料与展示卡表单状态
-  const userPrefix = user?.username.includes("#") ? user.username.split("#")[0] : user?.username || "";
-  const userTag = user?.discriminator || (user?.username.includes("#") ? user.username.split("#")[1] : "00000");
+  const userPrefix = user?.username.includes("#")
+    ? user.username.split("#")[0]
+    : user?.username || "";
+  const userTag =
+    user?.discriminator ||
+    (user?.username.includes("#") ? user.username.split("#")[1] : "00000");
 
   const [displayName, setDisplayName] = useState(user?.displayName || "");
   const [usernamePrefix, setUsernamePrefix] = useState(userPrefix);
@@ -126,7 +129,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   const [bannerColor, setBannerColor] = useState(user?.bannerColor || "");
   const [bannerUrl, setBannerUrl] = useState(user?.bannerUrl || "");
   const [themeColor, setThemeColor] = useState(user?.themeColor || "");
-  const [showActivity, setShowActivity] = useState(user?.showActivity !== false);
+  const [showActivity, setShowActivity] = useState(
+    user?.showActivity !== false,
+  );
 
   // 游戏侦测状态与活动
   const [detectedGame, setDetectedGame] = useState<Activity | null>(null);
@@ -143,7 +148,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   const hasChanges = useMemo(() => {
     if (!user) return false;
     const initialDisplayName = user.displayName || "";
-    const initialPrefix = user.username.includes("#") ? user.username.split("#")[0] : user.username;
+    const initialPrefix = user.username.includes("#")
+      ? user.username.split("#")[0]
+      : user.username;
     const initialStatus = user.status || "ONLINE";
     const initialCustomStatus = user.customStatus || "";
     const initialBio = user.bio || "";
@@ -182,7 +189,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   // 重置表单状态至当前已保存值
   const handleResetChanges = () => {
     if (!user) return;
-    const currentPrefix = user.username.includes("#") ? user.username.split("#")[0] : user.username;
+    const currentPrefix = user.username.includes("#")
+      ? user.username.split("#")[0]
+      : user.username;
     setDisplayName(user.displayName || "");
     setUsernamePrefix(currentPrefix);
     setStatus(user.status || "ONLINE");
@@ -209,7 +218,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   useEffect(() => {
     if (!isElectron) return;
     window.electronAPI?.getAutoLaunch().then((val) => setIsAutoLaunch(val));
-    window.electronAPI?.getDetectedGame?.().then((game) => setDetectedGame(game || null));
+    window.electronAPI
+      ?.getDetectedGame?.()
+      .then((game) => setDetectedGame(game || null));
 
     const cleanup = window.electronAPI?.onGameActivityChanged?.((game) => {
       setDetectedGame(game);
@@ -260,7 +271,10 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (err: any) {
-      toast.error(err?.message || t("settings:saveProfileError", "保存个人资料失败，请重试"));
+      toast.error(
+        err?.message ||
+          t("settings:saveProfileError", "保存个人资料失败，请重试"),
+      );
     } finally {
       setIsSaving(false);
     }
@@ -269,7 +283,10 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   const handleLogout = async () => {
     const confirmed = await dialog.confirm({
       title: t("auth:logoutConfirmTitle", "退出登录"),
-      description: t("auth:logoutConfirmDesc", "确定要退出当前账号吗？退出后您需要重新验证身份并登录。"),
+      description: t(
+        "auth:logoutConfirmDesc",
+        "确定要退出当前账号吗？退出后您需要重新验证身份并登录。",
+      ),
       variant: "warning",
       confirmText: t("auth:logoutConfirmTitle", "退出登录"),
     });
@@ -376,7 +393,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                   </div>
                   <div className="px-2.5 py-2 rounded-lg text-xs text-gray-300 bg-[#1e1f22]/50 border border-white/5 space-y-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px]">{t("settings:autoLaunch")}</span>
+                      <span className="text-[11px]">
+                        {t("settings:autoLaunch")}
+                      </span>
                       <input
                         type="checkbox"
                         checked={isAutoLaunch}
@@ -441,7 +460,8 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                     <span>展示卡与个人资料 (Profiles)</span>
                   </h2>
                   <p className="text-xs text-discord-textMuted mt-1">
-                    在此个性化您的个人信息展示卡外观，设置游戏侦测状态，并随时通过右侧 1:1 卡片查看实时预览。
+                    在此个性化您的个人信息展示卡外观，设置游戏侦测状态，并随时通过右侧
+                    1:1 卡片查看实时预览。
                   </p>
                 </div>
 
@@ -511,11 +531,17 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                           用户识别码 (Unique Identifier)
                         </label>
                         <div className="flex items-center bg-[#1e1f22] rounded-xl border border-white/5 focus-within:ring-2 focus-within:ring-[#5865f2] px-3 py-2">
-                          <span className="text-gray-400 text-sm font-mono mr-1 select-none">@</span>
+                          <span className="text-gray-400 text-sm font-mono mr-1 select-none">
+                            @
+                          </span>
                           <input
                             type="text"
                             value={usernamePrefix}
-                            onChange={(e) => setUsernamePrefix(e.target.value.replace(/#/g, ""))}
+                            onChange={(e) =>
+                              setUsernamePrefix(
+                                e.target.value.replace(/#/g, ""),
+                              )
+                            }
                             data-testid="profile-username-prefix-input"
                             className="flex-1 bg-transparent text-white text-sm focus:outline-none"
                             placeholder="用户名"
@@ -528,7 +554,11 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                           </span>
                         </div>
                         <p className="text-[11px] text-gray-400">
-                          识别码前缀可自由定制；后面的 5 位数字标签 <span className="font-mono text-zinc-300">#{userTag}</span> 为终身唯一绑定不可更改。
+                          识别码前缀可自由定制；后面的 5 位数字标签{" "}
+                          <span className="font-mono text-zinc-300">
+                            #{userTag}
+                          </span>{" "}
+                          为终身唯一绑定不可更改。
                         </p>
                       </div>
                     </div>
@@ -589,7 +619,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
 
                       {/* 经典预设色板 */}
                       <div className="space-y-1.5">
-                        <div className="text-[11px] text-gray-400">预设纯色主题：</div>
+                        <div className="text-[11px] text-gray-400">
+                          预设纯色主题：
+                        </div>
                         <div className="flex flex-wrap gap-2 items-center">
                           {PRESET_BANNER_COLORS.map((c) => (
                             <button

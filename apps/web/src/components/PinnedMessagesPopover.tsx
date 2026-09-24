@@ -9,6 +9,7 @@ import {
   MessageSquare,
   Image as ImageIcon,
 } from "lucide-react";
+import { getUserDisplayName } from "../utils/userDisplay.js";
 
 interface PinnedMessagesPopoverProps {
   channelName: string;
@@ -125,11 +126,19 @@ export const PinnedMessagesPopover: React.FC<PinnedMessagesPopoverProps> = ({
                         msg.author?.avatarUrl ||
                         "https://api.dicebear.com/7.x/bottts/svg?seed=user"
                       }
-                      alt={msg.author?.username || t("common:memberList.defaultUser", "用户")}
+                      alt={getUserDisplayName(
+                        msg.author,
+                        null,
+                        t("common:memberList.defaultUser", "用户"),
+                      )}
                       className="w-6 h-6 rounded-full flex-shrink-0"
                     />
                     <span className="font-semibold text-xs text-discord-textHeader truncate">
-                      {msg.author?.username || t("common:memberList.defaultUser", "用户")}
+                      {getUserDisplayName(
+                        msg.author,
+                        null,
+                        t("common:memberList.defaultUser", "用户"),
+                      )}
                     </span>
                     <span className="text-[10px] text-discord-textMuted font-mono flex-shrink-0">
                       {formatTime(msg.createdAt)}

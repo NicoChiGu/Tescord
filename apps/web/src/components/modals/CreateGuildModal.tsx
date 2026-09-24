@@ -62,7 +62,9 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(getErrorMessage(data) || t("modals:createGuild.failed"));
+        throw new Error(
+          getErrorMessage(data) || t("modals:createGuild.failed"),
+        );
       }
 
       const createdGuild: Guild = await res.json();

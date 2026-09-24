@@ -120,7 +120,8 @@ export class P2PStreamManager {
 
   public isBroadcasting(channelId?: string): boolean {
     if (!this.localStream) return false;
-    if (!this.currentUserId || this.streamOwnerId !== this.currentUserId) return false;
+    if (!this.currentUserId || this.streamOwnerId !== this.currentUserId)
+      return false;
     if (channelId && this.activeChannelId !== channelId) return false;
     return true;
   }
@@ -327,15 +328,19 @@ export class P2PStreamManager {
       const alreadyAdded = senders.some((s) => s.track?.id === track.id);
       if (!alreadyAdded) {
         const sender = pc.addTrack(track, streamToOffer);
-        if (sframeManager.getStats().enabled) sframeManager.attachSender(sender);
+        if (sframeManager.getStats().enabled)
+          sframeManager.attachSender(sender);
       }
     }
 
     // 1. 设置目标视频编解码器优先级 (优先使用用户选择的 H.264 / AV1 / H.265 / VP9，打破 Chromium 默认锁定 VP8)
-    const videoTransceiver = pc.getTransceivers().find(
-      (t) =>
-        t.sender.track?.kind === "video" || t.receiver.track?.kind === "video",
-    );
+    const videoTransceiver = pc
+      .getTransceivers()
+      .find(
+        (t) =>
+          t.sender.track?.kind === "video" ||
+          t.receiver.track?.kind === "video",
+      );
     if (videoTransceiver && "setCodecPreferences" in videoTransceiver) {
       if (
         typeof RTCRtpSender !== "undefined" &&
@@ -363,7 +368,9 @@ export class P2PStreamManager {
 
     // 2. 限制推流目标码率 (maxBitrate)
     if (this.targetBitrate) {
-      const videoSender = pc.getSenders().find((s) => s.track?.kind === "video");
+      const videoSender = pc
+        .getSenders()
+        .find((s) => s.track?.kind === "video");
       if (videoSender) {
         try {
           const params = videoSender.getParameters();
@@ -619,7 +626,9 @@ export class P2PStreamManager {
     pc = new RTCPeerConnection({
       iceServers: this.currentIceServers,
       iceCandidatePoolSize: 2,
-      ...(sframeManager.getStats().enabled ? { encodedInsertableStreams: true } : {}),
+      ...(sframeManager.getStats().enabled
+        ? { encodedInsertableStreams: true }
+        : {}),
     } as RTCConfiguration);
 
     pc.onicecandidate = (event) => {
@@ -650,7 +659,8 @@ export class P2PStreamManager {
     };
 
     pc.ontrack = (event) => {
-      if (sframeManager.getStats().enabled) sframeManager.attachReceiver(event.receiver);
+      if (sframeManager.getStats().enabled)
+        sframeManager.attachReceiver(event.receiver);
       console.info("🎉 收到远程媒体轨:", event.track.kind);
       const incomingStream = event.streams[0] || new MediaStream([event.track]);
       this.remoteStream = incomingStream;
@@ -773,7 +783,8 @@ export class P2PStreamManager {
         const exists = senders.some((s) => s.track?.id === track.id);
         if (!exists) {
           const sender = pc.addTrack(track, fullStream);
-          if (sframeManager.getStats().enabled) sframeManager.attachSender(sender);
+          if (sframeManager.getStats().enabled)
+            sframeManager.attachSender(sender);
         }
       }
     }
@@ -887,9 +898,17 @@ export class P2PStreamManager {
             }
           }
 
-          if (stat.type === "inbound-rtp" && stat.kind === "video" && !stat.isRemote) {
+          if (
+            stat.type === "inbound-rtp" &&
+            stat.kind === "video" &&
+            !stat.isRemote
+          ) {
             const codec = stat.codecId ? report.get(stat.codecId) : null;
-            if (codec?.mimeType && !/rtx|red|ulpfec|flexfec/i.test(codec.mimeType)) actualReceiveCodec = codec.mimeType;
+            if (
+              codec?.mimeType &&
+              !/rtx|red|ulpfec|flexfec/i.test(codec.mimeType)
+            )
+              actualReceiveCodec = codec.mimeType;
             if (stat.bytesReceived) totalBytesReceived += stat.bytesReceived;
             if (typeof stat.jitter === "number")
               jitter = `${(stat.jitter * 1000).toFixed(1)}ms`;
@@ -905,9 +924,17 @@ export class P2PStreamManager {
             }
           }
 
-          if (stat.type === "outbound-rtp" && stat.kind === "video" && !stat.isRemote) {
+          if (
+            stat.type === "outbound-rtp" &&
+            stat.kind === "video" &&
+            !stat.isRemote
+          ) {
             const codec = stat.codecId ? report.get(stat.codecId) : null;
-            if (codec?.mimeType && !/rtx|red|ulpfec|flexfec/i.test(codec.mimeType)) actualSendCodec = codec.mimeType;
+            if (
+              codec?.mimeType &&
+              !/rtx|red|ulpfec|flexfec/i.test(codec.mimeType)
+            )
+              actualSendCodec = codec.mimeType;
             if (stat.bytesSent) totalBytesSent += stat.bytesSent;
             if (stat.framesEncoded !== undefined) {
               decodedFrames = `Encoded: ${stat.framesEncoded} frames`;
@@ -934,20 +961,23 @@ export class P2PStreamManager {
     const topology: ConnectionTopology = isRelay
       ? "P2P_TREE_RELAY"
       : "P2P_DIRECT";
-    const connectionMode = !selectedPairFound || !candidateType || !ipVersion
-      ? "协商中"
-      : isRelay
-      ? `P2P Tree Relay (${protocol} / 树状分发)`
-      : candidateType === "host"
-        ? `P2P Direct (${protocol} / Host ${ipVersion})`
-        : candidateType === "srflx"
-          ? `P2P Direct (${protocol} / STUN ${ipVersion})`
-          : `P2P Relay (${protocol} / TURN ${ipVersion})`;
+    const connectionMode =
+      !selectedPairFound || !candidateType || !ipVersion
+        ? "协商中"
+        : isRelay
+          ? `P2P Tree Relay (${protocol} / 树状分发)`
+          : candidateType === "host"
+            ? `P2P Direct (${protocol} / Host ${ipVersion})`
+            : candidateType === "srflx"
+              ? `P2P Direct (${protocol} / STUN ${ipVersion})`
+              : `P2P Relay (${protocol} / TURN ${ipVersion})`;
 
     return {
       participantIdentity: targetPeerId,
       isLocal: isPublisher,
-      mimeType: [actualSendCodec, actualReceiveCodec].filter(Boolean).join(" / ") || "未知",
+      mimeType:
+        [actualSendCodec, actualReceiveCodec].filter(Boolean).join(" / ") ||
+        "未知",
       playerCore: "WebRTC P2P Stream Engine",
       videoInfo,
       audioInfo: "由 WebRTC 协商（未单独采集）",
@@ -983,7 +1013,9 @@ export class P2PStreamManager {
       actualReceiveCodec,
       codecFallbackReason:
         (actualSendCodec || actualReceiveCodec) &&
-        !(actualSendCodec || actualReceiveCodec)?.toLowerCase().includes(this.targetVideoCodec.toLowerCase())
+        !(actualSendCodec || actualReceiveCodec)
+          ?.toLowerCase()
+          .includes(this.targetVideoCodec.toLowerCase())
           ? "对端能力或浏览器协商导致编码降级"
           : undefined,
       transportVerified:

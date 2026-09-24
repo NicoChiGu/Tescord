@@ -132,18 +132,36 @@ export const AuditLogTab: React.FC<AuditLogTabProps> = ({ guild }) => {
             className="bg-[#1e1f22] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#5865f2]"
           >
             <option value="ALL">{t("server:auditLog.filterAll")}</option>
-            <option value={AuditLogAction.GUILD_UPDATE}>{t("server:auditLog.actions.guildUpdate")}</option>
-            <option value={AuditLogAction.ROLE_CREATE}>{t("server:auditLog.actions.roleCreate")}</option>
-            <option value={AuditLogAction.ROLE_UPDATE}>{t("server:auditLog.actions.roleUpdate")}</option>
-            <option value={AuditLogAction.ROLE_DELETE}>{t("server:auditLog.actions.roleDelete")}</option>
-            <option value={AuditLogAction.MEMBER_KICK}>{t("server:auditLog.actions.memberKick")}</option>
-            <option value={AuditLogAction.MEMBER_BAN_ADD}>{t("server:auditLog.actions.memberBanAdd")}</option>
-            <option value={AuditLogAction.MEMBER_BAN_REMOVE}>{t("server:auditLog.actions.memberBanRemove")}</option>
+            <option value={AuditLogAction.GUILD_UPDATE}>
+              {t("server:auditLog.actions.guildUpdate")}
+            </option>
+            <option value={AuditLogAction.ROLE_CREATE}>
+              {t("server:auditLog.actions.roleCreate")}
+            </option>
+            <option value={AuditLogAction.ROLE_UPDATE}>
+              {t("server:auditLog.actions.roleUpdate")}
+            </option>
+            <option value={AuditLogAction.ROLE_DELETE}>
+              {t("server:auditLog.actions.roleDelete")}
+            </option>
+            <option value={AuditLogAction.MEMBER_KICK}>
+              {t("server:auditLog.actions.memberKick")}
+            </option>
+            <option value={AuditLogAction.MEMBER_BAN_ADD}>
+              {t("server:auditLog.actions.memberBanAdd")}
+            </option>
+            <option value={AuditLogAction.MEMBER_BAN_REMOVE}>
+              {t("server:auditLog.actions.memberBanRemove")}
+            </option>
             <option value={AuditLogAction.MEMBER_ROLE_UPDATE}>
               {t("server:auditLog.actions.memberRoleUpdate")}
             </option>
-            <option value={AuditLogAction.INVITE_DELETE}>{t("server:auditLog.actions.inviteDelete")}</option>
-            <option value="GUILD_OWNERSHIP_TRANSFER">{t("server:auditLog.actions.guildOwnershipTransfer")}</option>
+            <option value={AuditLogAction.INVITE_DELETE}>
+              {t("server:auditLog.actions.inviteDelete")}
+            </option>
+            <option value="GUILD_OWNERSHIP_TRANSFER">
+              {t("server:auditLog.actions.guildOwnershipTransfer")}
+            </option>
           </select>
         </div>
       </div>
@@ -168,7 +186,9 @@ export const AuditLogTab: React.FC<AuditLogTabProps> = ({ guild }) => {
         <div className="rounded-xl bg-[#2b2d31]/40 border border-white/5 divide-y divide-white/5 overflow-hidden">
           {logs.map((log) => {
             const meta = ACTION_DESCRIPTIONS[log.action];
-            const actionLabel = meta?.i18nKey ? t(meta.i18nKey) : meta?.label || log.action;
+            const actionLabel = meta?.i18nKey
+              ? t(meta.i18nKey)
+              : meta?.label || log.action;
             const actionColor = meta?.color || "bg-gray-500/20 text-gray-300";
 
             return (

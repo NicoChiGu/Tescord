@@ -30,7 +30,9 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
   const [copied, setCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const hudRef = useRef<HTMLDivElement>(null);
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(
+    null,
+  );
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef<{
     pointerX: number;
@@ -44,8 +46,7 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
 
     const fetchStats = async () => {
       try {
-        const s =
-          await mediaStatsService.getDetailedStats(participantIdentity);
+        const s = await mediaStatsService.getDetailedStats(participantIdentity);
         if (isMounted) {
           setStats(s);
         }
@@ -87,7 +88,11 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.removeEventListener("pointerdown", handleDocumentPointerDown, true);
+      document.removeEventListener(
+        "pointerdown",
+        handleDocumentPointerDown,
+        true,
+      );
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [onClose]);
@@ -105,8 +110,14 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
       const parentRect = parentEl.getBoundingClientRect();
       const hudRect = hudRef.current.getBoundingClientRect();
       const padding = 8;
-      const maxX = Math.max(padding, parentRect.width - hudRect.width - padding);
-      const maxY = Math.max(padding, parentRect.height - hudRect.height - padding);
+      const maxX = Math.max(
+        padding,
+        parentRect.width - hudRect.width - padding,
+      );
+      const maxY = Math.max(
+        padding,
+        parentRect.height - hudRect.height - padding,
+      );
 
       setPosition((prev) => {
         if (!prev) return null;
@@ -221,8 +232,7 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
   const handleManualRefresh = async () => {
     setIsRefreshing(true);
     try {
-      const s =
-        await mediaStatsService.getDetailedStats(participantIdentity);
+      const s = await mediaStatsService.getDetailedStats(participantIdentity);
       setStats(s);
     } finally {
       setTimeout(() => setIsRefreshing(false), 400);

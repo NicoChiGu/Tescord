@@ -79,14 +79,18 @@ test.describe("服务器频道记忆与首次进入默认频道 (Channel Memory 
     // 自动清理创建的测试公会，保持数据库纯净
     if (authToken) {
       if (guildAId) {
-        await request.delete(`/api/guilds/${guildAId}`, {
-          headers: { Authorization: `Bearer ${authToken}` },
-        }).catch(() => undefined);
+        await request
+          .delete(`/api/guilds/${guildAId}`, {
+            headers: { Authorization: `Bearer ${authToken}` },
+          })
+          .catch(() => undefined);
       }
       if (guildBId) {
-        await request.delete(`/api/guilds/${guildBId}`, {
-          headers: { Authorization: `Bearer ${authToken}` },
-        }).catch(() => undefined);
+        await request
+          .delete(`/api/guilds/${guildBId}`, {
+            headers: { Authorization: `Bearer ${authToken}` },
+          })
+          .catch(() => undefined);
       }
     }
   });

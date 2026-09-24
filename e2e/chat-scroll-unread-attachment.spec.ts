@@ -55,21 +55,27 @@ test.describe("消息滚动记忆、新消息红线消除与多类型附件上�
     });
 
     // 拦截 general 与 crypto-vault 频道的历史消息以提供可控的测试数据
-    await page.route("**/api/channels/chn_default_text_01/messages*", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(mockMessagesGeneral),
-      });
-    });
+    await page.route(
+      "**/api/channels/chn_default_text_01/messages*",
+      (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(mockMessagesGeneral),
+        });
+      },
+    );
 
-    await page.route("**/api/channels/chn_default_text_02/messages*", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(mockMessagesCrypto),
-      });
-    });
+    await page.route(
+      "**/api/channels/chn_default_text_02/messages*",
+      (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(mockMessagesCrypto),
+        });
+      },
+    );
   });
 
   test("1. 消息滚动记忆纯物理恢复：切换离开再返回时精确还原离开时的 scrollTop", async ({
@@ -105,7 +111,9 @@ test.describe("消息滚动记忆、新消息红线消除与多类型附件上�
     // 等待滚动位置缓存保存完成
     await page.waitForTimeout(300);
 
-    const recordedScrollTop = await scrollContainer.evaluate((el) => el.scrollTop);
+    const recordedScrollTop = await scrollContainer.evaluate(
+      (el) => el.scrollTop,
+    );
     expect(recordedScrollTop).toBeGreaterThanOrEqual(350);
 
     // 3. 切换到 crypto-vault 频道
@@ -128,7 +136,9 @@ test.describe("消息滚动记忆、新消息红线消除与多类型附件上�
     await page.waitForTimeout(500);
 
     // 核心断言：切回后滚动条位置应精准还原到离开时的 offset (允许虚拟列表测量微小公差 ±40px)，绝不能被重置到底部或 0
-    const restoredScrollTop = await scrollContainer.evaluate((el) => el.scrollTop);
+    const restoredScrollTop = await scrollContainer.evaluate(
+      (el) => el.scrollTop,
+    );
     expect(restoredScrollTop).toBeGreaterThanOrEqual(300);
     expect(restoredScrollTop).toBeLessThan(700);
   });
@@ -147,11 +157,14 @@ test.describe("消息滚动记忆、新消息红线消除与多类型附件上�
     // 注入已读游标：让 crypto-vault 频道的已读序列号停留在 20（消息 21-25 属于新消息）
     await page.evaluate(async () => {
       if ((window as any).__tescord_messageDb) {
-        await (window as any).__tescord_messageDb.saveChannelMeta("chn_default_text_02", {
-          lastReadSequence: 20,
-          scrollTop: 0,
-          isNearBottom: false,
-        });
+        await (window as any).__tescord_messageDb.saveChannelMeta(
+          "chn_default_text_02",
+          {
+            lastReadSequence: 20,
+            scrollTop: 0,
+            isNearBottom: false,
+          },
+        );
       }
     });
 
@@ -160,7 +173,9 @@ test.describe("消息滚动记忆、新消息红线消除与多类型附件上�
     await cryptoChannelBtn.click();
 
     // 验证初始状态下红线呈现（“以下是新消息”）
-    const unreadDivider = page.locator('[data-testid="unread-message-divider"]');
+    const unreadDivider = page.locator(
+      '[data-testid="unread-message-divider"]',
+    );
     await expect(unreadDivider).toBeVisible({ timeout: 8000 });
     await expect(unreadDivider).toContainText("以下是新消息");
 
@@ -185,10 +200,14 @@ test.describe("消息滚动记忆、新消息红线消除与多类型附件上�
     await generalChannelBtn.click();
 
     // A. 模拟拖拽文件进入聊天区域：验证 Discord 风格拖拽高亮蒙层展现
-    const chatContainer = page.locator('div[data-channel-id="chn_default_text_01"]').last();
+    const chatContainer = page
+      .locator('div[data-channel-id="chn_default_text_01"]')
+      .last();
     await chatContainer.evaluate((node) => {
       const dt = new DataTransfer();
-      dt.items.add(new File(["mock content"], "document.pdf", { type: "application/pdf" }));
+      dt.items.add(
+        new File(["mock content"], "document.pdf", { type: "application/pdf" }),
+      );
       const enterEvt = new DragEvent("dragenter", {
         bubbles: true,
         cancelable: true,
@@ -204,7 +223,9 @@ test.describe("消息滚动记忆、新消息红线消除与多类型附件上�
     // 离开拖拽区域：蒙层应隐藏
     await chatContainer.evaluate((node) => {
       const dt = new DataTransfer();
-      dt.items.add(new File(["mock content"], "document.pdf", { type: "application/pdf" }));
+      dt.items.add(
+        new File(["mock content"], "document.pdf", { type: "application/pdf" }),
+      );
       const leaveEvt = new DragEvent("dragleave", {
         bubbles: true,
         cancelable: true,
@@ -236,14 +257,18 @@ test.describe("消息滚动记忆、新消息红线消除与多类型附件上�
     });
 
     // 验证弹出安全警告 Toast
-    const toast = page.locator("text=出于安全考虑，禁止上传可执行程序或脚本文件");
+    const toast = page.locator(
+      "text=出于安全考虑，禁止上传可执行程序或脚本文件",
+    );
     await expect(toast).toBeVisible({ timeout: 5000 });
 
     // 确认 malware.exe 绝不能进入待发送附件栏
     await expect(page.locator('text="malware.exe"')).not.toBeVisible();
   });
 
-  test("4. 验证当用户进入频道处于最底部时，绝不呈现未读红线分割条与跳到最新浮条", async ({ page }) => {
+  test("4. 验证当用户进入频道处于最底部时，绝不呈现未读红线分割条与跳到最新浮条", async ({
+    page,
+  }) => {
     await page.goto("/");
 
     const serverBtn = page
@@ -255,11 +280,14 @@ test.describe("消息滚动记忆、新消息红线消除与多类型附件上�
     // 注入 meta：即使存在未读消息 (lastReadSequence: 10)，但处于最底部 (isNearBottom: true)
     await page.evaluate(async () => {
       if ((window as any).__tescord_messageDb) {
-        await (window as any).__tescord_messageDb.saveChannelMeta("chn_default_text_02", {
-          lastReadSequence: 10,
-          scrollTop: 99999,
-          isNearBottom: true,
-        });
+        await (window as any).__tescord_messageDb.saveChannelMeta(
+          "chn_default_text_02",
+          {
+            lastReadSequence: 10,
+            scrollTop: 99999,
+            isNearBottom: true,
+          },
+        );
       }
     });
 
@@ -268,7 +296,9 @@ test.describe("消息滚动记忆、新消息红线消除与多类型附件上�
     await cryptoChannelBtn.click();
 
     // 核心断言：由于用户处于最底下，绝不呈现未读红线（“以下是新消息”）
-    const unreadDivider = page.locator('[data-testid="unread-message-divider"]');
+    const unreadDivider = page.locator(
+      '[data-testid="unread-message-divider"]',
+    );
     await expect(unreadDivider).not.toBeVisible();
 
     // 核心断言：由于处于最底端，顶部“跳到最新消息”横幅绝不呈现

@@ -54,11 +54,15 @@ test.describe("频音频道静音与时长选项自动化验收 (Channel Mute & 
     await serverButton.click();
 
     // 3. 定位一个频道条目
-    const channelButton = page.locator('button[data-testid^="channel-button-"]').first();
+    const channelButton = page
+      .locator('button[data-testid^="channel-button-"]')
+      .first();
     await expect(channelButton).toBeVisible({ timeout: 6000 });
 
     // 验证初始状态下无静音图标
-    const initialMutedIcons = page.locator('[data-testid^="channel-muted-icon-"]');
+    const initialMutedIcons = page.locator(
+      '[data-testid^="channel-muted-icon-"]',
+    );
     const initialMutedCount = await initialMutedIcons.count();
 
     // 4. 右键触发频道的上下文菜单
@@ -67,7 +71,9 @@ test.describe("频音频道静音与时长选项自动化验收 (Channel Mute & 
     await expect(contextMenu).toBeVisible({ timeout: 5000 });
 
     // 5. 验证“静音频道”二级子菜单触发器
-    const muteTrigger = page.locator('[data-testid="channel-context-menu-mute-trigger"]');
+    const muteTrigger = page.locator(
+      '[data-testid="channel-context-menu-mute-trigger"]',
+    );
     await expect(muteTrigger).toBeVisible({ timeout: 3000 });
     await expect(muteTrigger).toContainText("静音频道");
 
@@ -75,12 +81,24 @@ test.describe("频音频道静音与时长选项自动化验收 (Channel Mute & 
     await muteTrigger.hover();
 
     // 6. 验证 6 个预设时长选项全部正确渲染
-    const duration15m = page.locator('[data-testid="mute-duration-option-15 分钟"]');
-    const duration1h = page.locator('[data-testid="mute-duration-option-1 小时"]');
-    const duration3h = page.locator('[data-testid="mute-duration-option-3 小时"]');
-    const duration8h = page.locator('[data-testid="mute-duration-option-8 小时"]');
-    const duration24h = page.locator('[data-testid="mute-duration-option-24 小时"]');
-    const durationUntilOpen = page.locator('[data-testid="mute-duration-option-直到重新开启"]');
+    const duration15m = page.locator(
+      '[data-testid="mute-duration-option-15 分钟"]',
+    );
+    const duration1h = page.locator(
+      '[data-testid="mute-duration-option-1 小时"]',
+    );
+    const duration3h = page.locator(
+      '[data-testid="mute-duration-option-3 小时"]',
+    );
+    const duration8h = page.locator(
+      '[data-testid="mute-duration-option-8 小时"]',
+    );
+    const duration24h = page.locator(
+      '[data-testid="mute-duration-option-24 小时"]',
+    );
+    const durationUntilOpen = page.locator(
+      '[data-testid="mute-duration-option-直到重新开启"]',
+    );
 
     await expect(duration15m).toBeVisible({ timeout: 5000 });
     await expect(duration1h).toBeVisible();
@@ -96,14 +114,18 @@ test.describe("频音频道静音与时长选项自动化验收 (Channel Mute & 
     await expect(contextMenu).not.toBeVisible({ timeout: 3000 });
 
     // 8. 验证该频道右侧出现静音图标
-    const mutedIconAfterMute = page.locator('[data-testid^="channel-muted-icon-"]').first();
+    const mutedIconAfterMute = page
+      .locator('[data-testid^="channel-muted-icon-"]')
+      .first();
     await expect(mutedIconAfterMute).toBeVisible({ timeout: 5000 });
 
     // 9. 再次右键该频道，验证菜单项转换为“取消静音频道”与“更改静音时长”
     await channelButton.click({ button: "right" });
     await expect(contextMenu).toBeVisible({ timeout: 5000 });
 
-    const unmuteItem = page.locator('[data-testid="channel-context-menu-unmute"]');
+    const unmuteItem = page.locator(
+      '[data-testid="channel-context-menu-unmute"]',
+    );
     await expect(unmuteItem).toBeVisible({ timeout: 3000 });
     await expect(unmuteItem).toContainText("取消静音频道");
 
@@ -135,7 +157,9 @@ test.describe("频音频道静音与时长选项自动化验收 (Channel Mute & 
     await expect(page).toHaveTitle(/Tescord/i);
 
     // 刷新后静音图标依然常驻（LocalStorage 持久化有效）
-    const mutedIconAfterReload = page.locator('[data-testid^="channel-muted-icon-"]').first();
+    const mutedIconAfterReload = page
+      .locator('[data-testid^="channel-muted-icon-"]')
+      .first();
     await expect(mutedIconAfterReload).toBeVisible({ timeout: 8000 });
 
     // 控制台无致命错误

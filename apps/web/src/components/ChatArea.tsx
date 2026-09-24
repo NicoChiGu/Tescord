@@ -61,6 +61,7 @@ import { clientFtsStorage } from "../services/e2eeStorage.js";
 import { useViewport } from "../hooks/useViewport.js";
 import { useLongPress } from "../hooks/useLongPress.js";
 import { useAuthStore } from "../stores/useAuthStore.js";
+import { getUserDisplayName } from "../utils/userDisplay.js";
 
 // 频道草稿缓存字典（按频道隔离保留用户未发送的草稿，切回时自动恢复）
 const channelDraftMap = new Map<string, string>();
@@ -112,10 +113,7 @@ interface ChatMessageItemProps {
   setInputText: React.Dispatch<React.SetStateAction<string>>;
   onOpenMobileActions: (msg: Message) => void;
   onMentionUser?: (username: string) => void;
-  onOpenProfile?: (
-    author: { id: string; username: string; avatarUrl?: string | null },
-    rect: DOMRect,
-  ) => void;
+  onOpenProfile?: (author: Message["author"], rect: DOMRect) => void;
   onOpenProfileByName?: (username: string, rect: DOMRect) => void;
   isHighlighted?: boolean;
   onJumpToMessage?: (messageId: string) => void;
@@ -148,6 +146,8 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
   onJumpToMessage,
 }) => {
   const isMe = msg.authorId === currentUser.id;
+  const member = guild?.members?.find((m) => m.userId === msg.author.id);
+  const authorName = getUserDisplayName(msg.author, member);
   const formattedTime = new Date(msg.createdAt).toLocaleTimeString([], {
     hour: "2-digit",
     minute: "2-digit",
@@ -237,7 +237,7 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
             msg.author.avatarUrl ||
             "https://api.dicebear.com/7.x/bottts/svg?seed=user"
           }
-          alt={msg.author.username}
+          alt={authorName}
           width={40}
           height={40}
           loading="lazy"
@@ -252,30 +252,19 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
         <div className="flex-1 overflow-hidden">
           {/* 用户信息与时间栏 */}
           <div className="flex items-center space-x-2">
-            {(() => {
-              const member = guild?.members?.find((m) => m.userId === msg.author.id);
-              const authorName =
-                member?.nickname ||
-                (msg.author as any).displayName ||
-                (msg.author.username.includes("#")
-                  ? msg.author.username.split("#")[0]
-                  : msg.author.username);
-              return (
-                <span
-                  data-profile-trigger={`chat-${msg.author.id}`}
-                  onContextMenu={handleAuthorContextMenu}
-                  onClick={(e) =>
-                    onOpenProfile?.(
-                      msg.author,
-                      e.currentTarget.getBoundingClientRect(),
-                    )
-                  }
-                  className="font-semibold text-discord-textHeader text-sm cursor-pointer hover:underline"
-                >
-                  {authorName}
-                </span>
-              );
-            })()}
+            <span
+              data-profile-trigger={`chat-${msg.author.id}`}
+              onContextMenu={handleAuthorContextMenu}
+              onClick={(e) =>
+                onOpenProfile?.(
+                  msg.author,
+                  e.currentTarget.getBoundingClientRect(),
+                )
+              }
+              className="font-semibold text-discord-textHeader text-sm cursor-pointer hover:underline"
+            >
+              {authorName}
+            </span>
             {isMe && (
               <span className="text-[10px] bg-discord-brand/20 text-discord-brand px-1 rounded font-medium">
                 我
@@ -550,10 +539,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const { togglePopout } = useUserProfilePopoutStore();
 
   const handleOpenProfile = useCallback(
-    (
-      author: { id: string; username: string; avatarUrl?: string | null },
-      rect: DOMRect,
-    ) => {
+    (author: Message["author"], rect: DOMRect) => {
       const member =
         guild?.members?.find(
           (m) => m.userId === author.id || m.user?.id === author.id,
@@ -580,6 +566,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         ...(member?.user || dmRecipient || {}),
         id: author.id,
         username: author.username,
+        displayName:
+          author.displayName ||
+          member?.user?.displayName ||
+          dmRecipient?.displayName ||
+          null,
         avatarUrl: author.avatarUrl,
         email: member?.user?.email || dmRecipient?.email || "",
         status: effectiveStatus,
@@ -680,6 +671,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           user: {
             id: msgAuthor.id,
             username: msgAuthor.username,
+            displayName:
+              msgAuthor.displayName || dmRecipient?.displayName || null,
             avatarUrl: msgAuthor.avatarUrl,
             email: dmRecipient?.email || "",
             status: effectiveStatus,
@@ -2076,7 +2069,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               <Reply className="w-3.5 h-3.5 text-discord-brand" />
               <span>正在回复</span>
               <span className="font-semibold text-discord-textHeader">
-                @{replyingTo.author.username}
+                @
+                {getUserDisplayName(
+                  replyingTo.author,
+                  guild?.members?.find(
+                    (m) => m.userId === replyingTo.author.id,
+                  ),
+                )}
               </span>
               <span className="truncate opacity-75">
                 : {replyingTo.content.slice(0, 40)}

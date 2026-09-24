@@ -4,7 +4,10 @@ test.describe("编辑频道与服务器设置自适应模态框 (Modal) 交互�
   test.beforeEach(async ({ page }) => {
     // 注入 Mock Token
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token");
+      localStorage.setItem(
+        "tescord_access_token",
+        localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token",
+      );
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 

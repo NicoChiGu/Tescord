@@ -98,7 +98,9 @@ test.describe("全局决策模态框与4位安全验证码验收 (Security Code 
 
       // 验证解散弹窗弹出
       const codeInput = page.locator('[data-testid="delete-guild-code-input"]');
-      const confirmDeleteBtn = page.locator('[data-testid="delete-guild-confirm-btn"]');
+      const confirmDeleteBtn = page.locator(
+        '[data-testid="delete-guild-confirm-btn"]',
+      );
       await expect(codeInput).toBeVisible({ timeout: 5000 });
       await expect(confirmDeleteBtn).toBeVisible({ timeout: 5000 });
 
@@ -110,7 +112,7 @@ test.describe("全局决策模态框与4位安全验证码验收 (Security Code 
       await expect(confirmDeleteBtn).toBeDisabled();
 
       // 获取当前弹窗中显示的 4 位真实安全码
-      const securityCodeEl = page.locator('.tracking-\\[0\\.35em\\]');
+      const securityCodeEl = page.locator(".tracking-\\[0\\.35em\\]");
       const expectedCode = (await securityCodeEl.innerText()).trim();
       expect(expectedCode).toMatch(/^\d{4}$/);
 

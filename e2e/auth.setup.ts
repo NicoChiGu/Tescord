@@ -19,7 +19,10 @@ setup(
       refreshToken: string;
     };
     let normalResponse = await request.post("/api/auth/login", {
-      data: { emailOrUsername: "alice@tescord.local", password: "alicepassword123" },
+      data: {
+        emailOrUsername: "alice@tescord.local",
+        password: "alicepassword123",
+      },
     });
     if (!normalResponse.ok()) {
       normalResponse = await request.post("/api/auth/register", {

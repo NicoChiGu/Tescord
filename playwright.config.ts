@@ -51,7 +51,8 @@ export default defineConfig({
   /* 自动启动 Web 预览服务 */
   webServer: [
     {
-      command: "pnpm --filter @tescord/server exec tsx scripts/run-e2e-server.ts",
+      command:
+        "pnpm --filter @tescord/server exec tsx scripts/run-e2e-server.ts",
       url: "http://127.0.0.1:3001/health",
       reuseExistingServer: !process.env.CI,
       timeout: 60000,
