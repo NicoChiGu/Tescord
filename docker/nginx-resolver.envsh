@@ -1,0 +1,6 @@
+#!/bin/sh
+
+# The official nginx entrypoint sources *.envsh before rendering templates.
+# Resolve Podman's network DNS at container startup instead of pinning a subnet.
+PODMAN_DNS="$(awk '/^nameserver / { print $2; exit }' /etc/resolv.conf)"
+export PODMAN_DNS

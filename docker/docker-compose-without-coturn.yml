@@ -116,7 +116,7 @@ services:
     build: { context: .., dockerfile: docker/Dockerfile.web }
     restart: unless-stopped
     volumes:
-      - ./nginx-tunnel.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx-tunnel.conf.template:/etc/nginx/templates/default.conf.template:ro
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
       interval: 10s

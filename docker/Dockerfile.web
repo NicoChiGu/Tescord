@@ -7,3 +7,4 @@ RUN pnpm --filter @tescord/types build && pnpm --filter @tescord/web build
 
 FROM docker.io/library/nginx:1.27.2-alpine
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
+COPY --chmod=755 docker/nginx-resolver.envsh /docker-entrypoint.d/15-resolver.envsh
