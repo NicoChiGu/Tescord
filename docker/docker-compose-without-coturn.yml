@@ -120,8 +120,6 @@ services:
     restart: unless-stopped
     volumes:
       - ./nginx-tunnel.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      server: { condition: service_healthy }
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
       interval: 10s
@@ -135,5 +133,3 @@ services:
     command: ["tunnel", "--no-autoupdate", "run"]
     environment:
       TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN}
-    depends_on:
-      web: { condition: service_healthy }
