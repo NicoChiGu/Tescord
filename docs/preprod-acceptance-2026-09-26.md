@@ -24,11 +24,12 @@
 
 - 用户修正 Cloudflare 路由后，`https://tescord.terata.top/` 和 `/healthz` 均返回 HTTP 200，未登录 `/api/guilds` 为 401，未授权 LiveKit Twirp 信令为 401，`/uploads/` 私有资源直访为 404。先前指向连接器内 `localhost:3000` 而返回 502 的入口问题已解除。
 - `node scripts/verify-public-acceptance.mjs` 通过：公网注册、公会/频道、消息、附件上传与签名下载及 SHA-256、匿名/未签名/篡改拒绝、真实 Web 登录与刷新后保持登录、Gateway `IDENTIFY/READY`、移动端登录布局、打包 Windows Electron 的公网登录及重启后快捷登录。Web 控制台错误数为 0。脱敏输出位于 `test-results/public-acceptance/public-smoke.log`；桌面、移动端和 Electron 截图在同目录。脚本只在内存中保存随机生成的测试凭据；验收账号及公会仍保留在本次隔离部署数据中。
+- `node scripts/verify-public-session.mjs` 通过：真实公网 A→B→A 快捷登录、未勾选记住登录时续期凭据仅驻留 `sessionStorage`、静默轮换后身份保持。脱敏输出位于 `test-results/public-acceptance/public-session.log`。
 - `node scripts/verify-public-media.mjs` **未通过**。真实网页通过 Tunnel 信令进入 LiveKit 房间，但在 12 秒时 ICE 仍处于 `checking`、无 selected candidate pair/收发 RTP；25 秒后连接关闭。`test-results/public-acceptance/media-stats.json` 与 `media-attempt.png` 记录了客户端状态。LiveKit 服务端确认候选地址为 `100.69.12.101:7882/UDP` 和 `100.69.12.101:7881/TCP`，对 Windows 候选的 ICE 检查请求没有收到响应，未选出成功的 pair。没有实际 codec 或 E2EE 媒体证据。
 
 ## 阻断与待环境验收
 
-1. **P0 媒体端口**：主机监听 `7881/TCP` 与 `7882/UDP`，并配置 `LIVEKIT_NODE_IP=100.69.12.101`；但 Windows 客户端从 Tailscale 访问 `100.69.12.101:7881` 失败，而 SSH 22 端口可达。目标机自身连接 7881 成功。公网真实语音加入也因 ICE 检查无响应失败，当前无 selected candidate pair、双向 RTP 字节或真实 codec 证据，不能报告 SFU/直连可用。需排查主机防火墙或 Tailnet ACL，再测真实双端媒体、E2EE 和断线恢复。
+1. **P0 媒体端口**：主机监听 `7881/TCP` 与 `7882/UDP`，并配置 `LIVEKIT_NODE_IP=100.69.12.101`；但 Windows 客户端从 Tailscale 访问 `100.69.12.101:7881` 失败，而 SSH 22 端口可达。目标机自身连接 7881 成功。公网真实语音加入也因 ICE 检查无响应失败，当前无 selected candidate pair、双向 RTP 字节或真实 codec 证据，不能报告 SFU/直连可用。目标机现有 Tailscale Serve 占用 443、8443，不占用 7881；在保存现有配置后，尝试以 `tera` 增加 7881 原始 TCP 转发，被守护进程明确拒绝为 `Access denied`，原 Serve 配置未改变。需有管理员权限排查主机防火墙/Tailnet ACL 或授权 Tailscale operator，再测真实双端媒体、E2EE 和断线恢复。用户当前无法调整媒体网络，故此项保持阻断。
 2. **P0 TURN 回退**：外部 Coturn 按约定未配置；TURN relay 和依赖它的跨网回退均待环境验收。Cloudflare Tunnel 的普通公开域名路由不能代替 UDP/TCP WebRTC 媒体路径。
 3. **P0 桌面正式发布**：Windows 安装包未签名，更新公钥/正式签名发布链尚未配置。已通过的更新器负向测试不等同于正式签名升级及失败回滚验收。
 4. **P1 Electron 全场景**：打包应用的线上登录及重启快捷登录已通过，但通知、采集、托盘、设备释放、真实音视频/屏幕共享及签名更新失败回滚尚无完整 Windows 验收；本地专项测试不能替代这些门禁。
