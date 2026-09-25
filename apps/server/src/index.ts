@@ -5063,7 +5063,8 @@ server.post("/api/cloudflare-realtime/tracks/subscribe", async (request, reply) 
     return result;
   } catch (err: any) {
     server.log.error(err, "Failed to subscribe tracks from Cloudflare Calls");
-    console.warn("[CF media] subscribe failed:", err instanceof Error ? err.message : "unknown");
+    const statuses = await Promise.all(body.tracks.slice(0, 3).map(t => cloudflareRealtimeService.publicationStatus(t.publisherSessionId!, t.trackName!)));
+    console.warn("[CF media] subscribe failed:", err instanceof Error ? err.message : "unknown", "publisher statuses:", statuses.join(","));
     return reply.status(502).send({ error: "Failed to subscribe tracks" });
   }
 });

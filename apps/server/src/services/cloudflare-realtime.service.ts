@@ -85,6 +85,19 @@ export class CloudflareRealtimeService {
     return this.readyPublications.has(key) ? this.publications.get(key) : undefined;
   }
 
+  public async publicationStatus(sessionId: string, trackName: string): Promise<string> {
+    try {
+      const response = await fetch(`${this.baseUrl}/apps/${this.appId}/sessions/${sessionId}`, {
+        headers: this.sfuAuthHeaders,
+        signal: AbortSignal.timeout(5_000),
+      });
+      if (!response.ok) return `http_${response.status}`;
+      const data = await response.json() as { tracks?: Array<{ location?: string; trackName?: string; status?: string }> };
+      const track = data.tracks?.find(item => item.location === "local" && item.trackName === trackName);
+      return track?.status || "missing";
+    } catch { return "inspection_failed"; }
+  }
+
   public markTracksReady(sessionId: string): void {
     for (const key of this.publications.keys()) {
       if (key.startsWith(`${sessionId}:`)) this.readyPublications.add(key);
