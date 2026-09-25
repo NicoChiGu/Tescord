@@ -1,0 +1,41 @@
+diff --git a/out/binDownload.js b/out/binDownload.js
+index 287e8735e53970c9787253e85b5980988719a668..35f63216bf50ecee277ac2a835193e86b950b0ac 100644
+--- a/out/binDownload.js
++++ b/out/binDownload.js
+@@ -24,7 +24,7 @@ async function download(url, output, checksum) {
+         version: "9.9.9",
+         artifactName: filenameWithExt,
+         cacheRoot: path.resolve((0, electronGet_1.getCacheDirectory)({ allowEnvVarOverride: true }), "downloads"),
+-        cacheMode: ElectronDownloadCacheMode.ReadWrite,
++        cacheMode: ElectronDownloadCacheMode?.ReadWrite,
+         ...(checksum != null ? { checksums: { [filenameWithExt]: checksum } } : { unsafelyDisableChecksums: true }),
+         mirrorOptions: { resolveAssetURL: async () => Promise.resolve(url) },
+         isGeneric: true,
+diff --git a/out/util/electronGet.js b/out/util/electronGet.js
+index a941f9d20c10ca58a84b9a600b0df468631aae01..eaa6acce549c9d726f4dd92ba9f339427665f179 100644
+--- a/out/util/electronGet.js
++++ b/out/util/electronGet.js
+@@ -61,12 +61,12 @@ function resolveCacheMode() {
+     var _a;
+     const varName = "ELECTRON_DOWNLOAD_CACHE_MODE";
+     const cacheOverride = (_a = process.env[varName]) === null || _a === void 0 ? void 0 : _a.trim();
+-    if (cacheOverride && Number(cacheOverride) in get_1.ElectronDownloadCacheMode) {
++    if (cacheOverride && get_1.ElectronDownloadCacheMode && Number(cacheOverride) in get_1.ElectronDownloadCacheMode) {
+         const mode = Number(cacheOverride);
+         builder_util_1.log.debug({ mode }, `cache mode overridden via env var ${varName}`);
+         return mode;
+     }
+-    return get_1.ElectronDownloadCacheMode.ReadWrite;
++    return get_1.ElectronDownloadCacheMode?.ReadWrite;
+ }
+ async function extractZipStreaming(file, dir) {
+     var _a;
+@@ -271,7 +271,7 @@ async function downloadArtifactToFile(config, label) {
+         }
+         if (!(await (0, builder_util_1.exists)(filePath))) {
+             builder_util_1.log.warn({ filePath, label }, "cached artifact missing from disk; retrying with cache write");
+-            filePath = await get.downloadArtifact({ ...configWithProgress, cacheMode: get_1.ElectronDownloadCacheMode.WriteOnly });
++            filePath = await get.downloadArtifact({ ...configWithProgress, cacheMode: get_1.ElectronDownloadCacheMode?.WriteOnly });
+         }
+         if (!state.bar && lastLoggedMilestone === -1) {
+             builder_util_1.log.info({ label }, "using cached artifact");

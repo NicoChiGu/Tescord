@@ -9,6 +9,7 @@ overrides:
   minio>stream-json: 3.7.0
 
 patchedDependencies:
+  app-builder-lib@26.15.3: d5203e565fc09adad63f8106b38cc1e1750601f50879410c9a613675f024c4d0
   minio@8.0.7: b787a769d4f9dac7c25cb33a8e26b0a7ea28f1d9befc04f1941020bed5de0e37
 
 importers:
@@ -5109,7 +5110,7 @@ snapshots:
 
   anynum@1.0.1: {}
 
-  app-builder-lib@26.15.3(dmg-builder@26.15.3)(electron-builder-squirrel-windows@26.15.3):
+  app-builder-lib@26.15.3(patch_hash=d5203e565fc09adad63f8106b38cc1e1750601f50879410c9a613675f024c4d0)(dmg-builder@26.15.3)(electron-builder-squirrel-windows@26.15.3):
     dependencies:
       '@electron/asar': 3.4.1
       '@electron/fuses': 1.8.0
@@ -5491,7 +5492,7 @@ snapshots:
 
   dmg-builder@26.15.3(electron-builder-squirrel-windows@26.15.3):
     dependencies:
-      app-builder-lib: 26.15.3(dmg-builder@26.15.3)(electron-builder-squirrel-windows@26.15.3)
+      app-builder-lib: 26.15.3(patch_hash=d5203e565fc09adad63f8106b38cc1e1750601f50879410c9a613675f024c4d0)(dmg-builder@26.15.3)(electron-builder-squirrel-windows@26.15.3)
       builder-util: 26.15.3
       fs-extra: 10.1.0
       js-yaml: 4.3.2
@@ -5534,7 +5535,7 @@ snapshots:
 
   electron-builder-squirrel-windows@26.15.3(dmg-builder@26.15.3):
     dependencies:
-      app-builder-lib: 26.15.3(dmg-builder@26.15.3)(electron-builder-squirrel-windows@26.15.3)
+      app-builder-lib: 26.15.3(patch_hash=d5203e565fc09adad63f8106b38cc1e1750601f50879410c9a613675f024c4d0)(dmg-builder@26.15.3)(electron-builder-squirrel-windows@26.15.3)
       builder-util: 26.15.3
       electron-winstaller: 5.4.0
     transitivePeerDependencies:
@@ -5543,7 +5544,7 @@ snapshots:
 
   electron-builder@26.15.3(electron-builder-squirrel-windows@26.15.3):
     dependencies:
-      app-builder-lib: 26.15.3(dmg-builder@26.15.3)(electron-builder-squirrel-windows@26.15.3)
+      app-builder-lib: 26.15.3(patch_hash=d5203e565fc09adad63f8106b38cc1e1750601f50879410c9a613675f024c4d0)(dmg-builder@26.15.3)(electron-builder-squirrel-windows@26.15.3)
       builder-util: 26.15.3
       builder-util-runtime: 9.7.0
       chalk: 4.1.2

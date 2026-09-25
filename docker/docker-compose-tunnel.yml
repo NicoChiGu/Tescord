@@ -3,12 +3,12 @@ version: "3.8"
 services:
   # Cloudflare Zero Trust (Access) Tunnel Connector
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    image: docker.io/cloudflare/cloudflared:2026.9.0
     container_name: tescord-cloudflared
     restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    command: ["tunnel", "--no-autoupdate", "run"]
     environment:
-      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN}
     # 允许容器访问宿主机服务 (Web 前端 3000、Fastify 后端 3001)
     extra_hosts:
       - "host.docker.internal:host-gateway"
