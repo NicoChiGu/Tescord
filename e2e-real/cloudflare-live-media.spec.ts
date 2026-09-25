@@ -14,8 +14,9 @@ async function mediaSnapshot(page: Page) {
       const report = await pc.getStats();
       let localType = "";
       const rtp = [];
+      const selectedPairId = [...report.values()].find(item => item.type === "transport" && item.selectedCandidatePairId)?.selectedCandidatePairId;
       for (const item of report.values()) {
-        if (item.type === "candidate-pair" && item.nominated && item.state === "succeeded") localType = report.get(item.localCandidateId)?.candidateType || "";
+        if (item.type === "candidate-pair" && item.state === "succeeded" && (item.id === selectedPairId || item.nominated || item.selected)) localType = report.get(item.localCandidateId)?.candidateType || "";
         if (item.type === "outbound-rtp" || item.type === "inbound-rtp") rtp.push({ direction: item.type, kind: item.kind, bytes: item.bytesSent || item.bytesReceived || 0, codec: report.get(item.codecId)?.mimeType || null, frames: item.framesDecoded || 0 });
       }
       rows.push({ state: pc.connectionState, localType, rtp });
@@ -138,7 +139,10 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   const before = await Promise.all(pages.map(mediaSnapshot));
   await pages[0].waitForTimeout(1200);
   const after = await Promise.all(pages.map(mediaSnapshot));
-  if (forceRelay) expect(after.every(rows => rows.some(row => row.state === "connected" && row.localType === "relay"))).toBe(true);
+  if (forceRelay) await expect.poll(async () => {
+    const rows = await Promise.all(pages.map(mediaSnapshot));
+    return rows.every(peers => peers.some(peer => peer.state === "connected" && peer.localType === "relay"));
+  }, { timeout: 10_000 }).toBe(true);
   for (let i = 0; i < pages.length; i++) {
     const inbound = (rows: Awaited<ReturnType<typeof mediaSnapshot>>) => rows.flatMap(row => row.rtp).filter(rtp => rtp.direction === "inbound-rtp" && rtp.kind === "audio").reduce((sum, rtp) => sum + rtp.bytes, 0);
     const outbound = (rows: Awaited<ReturnType<typeof mediaSnapshot>>) => rows.flatMap(row => row.rtp).filter(rtp => rtp.direction === "outbound-rtp" && rtp.kind === "audio").reduce((sum, rtp) => sum + rtp.bytes, 0);
