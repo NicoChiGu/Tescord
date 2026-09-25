@@ -403,12 +403,14 @@ export class CloudflareRealtimeService {
     if (!this.pc || !this.sessionId) return;
 
     // 1. 向服务端请求订阅，触发 Cloudflare SFU 返回 Offer
-    const subRes = await apiFetch(`${API_BASE}/api/cloudflare-realtime/tracks/subscribe`, {
+    const subscriberSessionId = this.sessionId;
+    const publicationKey = `${publisherSessionId}:${trackName}`;
+    const requestSubscription = () => apiFetch(`${API_BASE}/api/cloudflare-realtime/tracks/subscribe`, {
       method: "POST",
       headers: this.authHeaders,
       body: JSON.stringify({
         channelId: this.currentChannelId || "",
-        sessionId: this.sessionId,
+        sessionId: subscriberSessionId,
         tracks: [
           {
             publisherSessionId,
@@ -417,6 +419,12 @@ export class CloudflareRealtimeService {
         ],
       }),
     });
+    let subRes = await requestSubscription();
+    for (let attempt = 0; (subRes.status === 400 || subRes.status === 502) && attempt < 4; attempt++) {
+      await new Promise(resolve => setTimeout(resolve, 250 * 2 ** attempt));
+      if (this.sessionId !== subscriberSessionId || !this.currentPublications.has(publicationKey)) return;
+      subRes = await requestSubscription();
+    }
 
     if (!subRes.ok) {
       throw new Error(`订阅远端轨道请求失败: ${subRes.statusText}`);

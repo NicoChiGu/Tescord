@@ -23,6 +23,7 @@ export class CloudflareRealtimeService {
   private readonly baseUrl = "https://rtc.live.cloudflare.com/v1";
   private readonly sessions = new Map<string, { userId: string; channelId: string; loginSessionId: string; createdAt: number; lastSeenAt: number }>();
   private readonly publications = new Map<string, CfMediaPublication>();
+  private readonly readyPublications = new Set<string>();
   private readonly subscribedMids = new Map<string, Set<string>>();
   private readonly maxSessionsPerUser = 4;
 
@@ -72,11 +73,22 @@ export class CloudflareRealtimeService {
   }
 
   public getTracks(channelId: string): CfMediaPublication[] {
-    return [...this.publications.values()].filter((track) => track.channelId === channelId);
+    return [...this.publications.entries()].filter(([key, track]) => track.channelId === channelId && this.readyPublications.has(key)).map(([, track]) => track);
   }
 
   public getTrack(sessionId: string, trackName: string): CfMediaPublication | undefined {
     return this.publications.get(`${sessionId}:${trackName}`);
+  }
+
+  public getReadyTrack(sessionId: string, trackName: string): CfMediaPublication | undefined {
+    const key = `${sessionId}:${trackName}`;
+    return this.readyPublications.has(key) ? this.publications.get(key) : undefined;
+  }
+
+  public markTracksReady(sessionId: string): void {
+    for (const key of this.publications.keys()) {
+      if (key.startsWith(`${sessionId}:`)) this.readyPublications.add(key);
+    }
   }
 
   public addTracks(tracks: CfMediaPublication[]): void {
@@ -84,14 +96,21 @@ export class CloudflareRealtimeService {
   }
 
   public removeTracks(sessionId: string, trackNames: string[]): void {
-    for (const trackName of trackNames) this.publications.delete(`${sessionId}:${trackName}`);
+    for (const trackName of trackNames) {
+      const key = `${sessionId}:${trackName}`;
+      this.publications.delete(key);
+      this.readyPublications.delete(key);
+    }
   }
 
   public removeSession(sessionId: string): void {
     this.sessions.delete(sessionId);
     this.subscribedMids.delete(sessionId);
     for (const [key, track] of this.publications) {
-      if (track.sessionId === sessionId) this.publications.delete(key);
+      if (track.sessionId === sessionId) {
+        this.publications.delete(key);
+        this.readyPublications.delete(key);
+      }
     }
   }
 

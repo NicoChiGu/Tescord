@@ -5053,7 +5053,7 @@ server.post("/api/cloudflare-realtime/tracks/subscribe", async (request, reply) 
   const body = cfBody(request);
   const session = await cfSessionForRequest(request, body.sessionId);
   if (!session) return reply.status(403).send({ error: "Invalid media session" });
-  if (body.channelId !== session.channelId || !Array.isArray(body.tracks) || body.tracks.length < 1 || body.tracks.length > 16 || body.tracks.some(t => !t.publisherSessionId || !t.trackName || cloudflareRealtimeService.getTrack(t.publisherSessionId, t.trackName)?.channelId !== session.channelId)) {
+  if (body.channelId !== session.channelId || !Array.isArray(body.tracks) || body.tracks.length < 1 || body.tracks.length > 16 || body.tracks.some(t => !t.publisherSessionId || !t.trackName || cloudflareRealtimeService.getReadyTrack(t.publisherSessionId, t.trackName)?.channelId !== session.channelId)) {
     return reply.status(400).send({ error: "Invalid subscribe request body" });
   }
 
@@ -5123,6 +5123,7 @@ server.put("/api/cloudflare-realtime/tracks/close", async (request, reply) => {
 server.post("/api/cloudflare-realtime/tracks/ready", async (request, reply) => {
   const session = await cfSessionForRequest(request, cfBody(request).sessionId);
   if (!session) return reply.status(403).send({ error: "Invalid media session" });
+  cloudflareRealtimeService.markTracksReady(session.sessionId);
   await cfSendTracks(session.channelId);
   return { ok: true };
 });

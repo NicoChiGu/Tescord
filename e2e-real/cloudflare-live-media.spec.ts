@@ -28,7 +28,7 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   const onTarget = Boolean(process.env.TESCORD_TARGET_BASE_URL);
   const forceRelay = process.env.TESCORD_FORCE_RELAY === "1";
   const adminLogin = await request.post("/api/auth/login", { data: {
-    emailOrUsername: onTarget ? "AcceptanceAdmin" : "Jackey",
+    emailOrUsername: onTarget ? process.env.TESCORD_ACCEPTANCE_ADMIN_USERNAME || "AcceptanceAdmin" : "Jackey",
     password: onTarget ? process.env.TESCORD_ACCEPTANCE_ADMIN_PASSWORD : "adminpassword123",
   } });
   expect(adminLogin.ok()).toBeTruthy();
