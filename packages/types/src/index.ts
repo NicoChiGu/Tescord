@@ -83,6 +83,19 @@ export interface RegisterDTO {
 export interface LoginDTO {
   emailOrUsername: string;
   password: string;
+  rememberMe?: boolean;
+}
+
+export interface SavedAccount {
+  id: string;
+  email: string;
+  username: string;
+  displayName?: string | null;
+  discriminator?: string;
+  avatarUrl?: string | null;
+  lastActiveAt: number;
+  rememberPassword?: boolean;
+  refreshToken?: string;
 }
 
 export interface RefreshTokenDTO {

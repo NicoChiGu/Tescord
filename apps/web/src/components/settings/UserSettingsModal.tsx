@@ -21,6 +21,7 @@ import {
   RotateCcw,
   CheckCircle2,
   Download,
+  Eye,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { AudioSettingsTab } from "./AudioSettingsTab.js";
@@ -142,6 +143,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
 
   // 桌面端状态
   const [isAutoLaunch, setIsAutoLaunch] = useState(false);
+
+  // 移动端实时卡片预览模态弹窗状态
+  const [isMobilePreviewOpen, setIsMobilePreviewOpen] = useState(false);
   const isElectron = !!window.electronAPI;
 
   // 检查是否有未保存的更改
@@ -311,83 +315,116 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   return (
     <div
       data-testid="user-settings-modal"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-150 p-0 sm:p-4 md:p-6"
     >
-      <div className="relative w-full h-full sm:h-[90vh] sm:max-w-6xl sm:rounded-2xl bg-[#313338] shadow-2xl overflow-hidden flex flex-col md:flex-row border border-white/5">
-        {/* 左侧：分类导航边栏 */}
-        <div className="w-full md:w-60 bg-[#2b2d31] p-4 flex flex-col justify-between border-r border-[#1f2023] shrink-0">
-          <div className="space-y-4">
-            <div className="px-2 py-1">
+      <div className="relative w-full h-[100dvh] sm:h-[90vh] sm:max-h-[850px] sm:max-w-6xl rounded-none sm:rounded-2xl bg-[#313338] shadow-2xl overflow-hidden flex flex-col md:flex-row border border-transparent sm:border-white/5">
+        {/* 全局右上角关闭按钮 (移动端与桌面端自适应位置，保证全局唯一无歧义) */}
+        <div className="absolute top-2.5 right-3 md:top-6 md:right-8 flex flex-col items-center z-50">
+          <button
+            type="button"
+            data-testid="close-user-settings-btn"
+            onClick={onClose}
+            aria-label="关闭"
+            className="w-8 h-8 md:w-9 md:h-9 rounded-full border border-white/20 md:border-2 hover:border-white flex items-center justify-center text-gray-300 hover:text-white bg-[#1e1f22]/90 md:bg-transparent hover:bg-white/10 transition-all cursor-pointer shadow-md md:shadow-none"
+            title="关闭设置 (ESC)"
+          >
+            <X className="w-4 h-4 md:w-5 md:h-5" />
+          </button>
+          <span className="hidden md:block text-[10px] font-bold text-gray-400 mt-1 select-none">
+            ESC
+          </span>
+        </div>
+
+        {/* 导航栏：移动端顶部紧凑横向滑动胶囊栏 (高约 44px~50px)，桌面端左侧经典纵向侧边栏 */}
+        <div className="w-full md:w-60 bg-[#2b2d31] p-2 md:p-4 flex flex-col md:justify-between border-b md:border-b-0 md:border-r border-[#1f2023] shrink-0">
+          <div className="space-y-1.5 md:space-y-4">
+            {/* 移动端顶部标题行 (展示当前模块标题，右侧留出关闭按钮安全边距) */}
+            <div className="flex md:hidden items-center justify-between px-2 pt-0.5 pb-1 pr-12">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-[#5865f2]" />
+                <h3 className="text-xs font-bold uppercase tracking-wider text-white">
+                  {t("settings:userSettings", "用户设置")}
+                </h3>
+              </div>
+            </div>
+
+            {/* 桌面端分组标题 1 */}
+            <div className="hidden md:block px-2 py-1">
               <h3 className="text-xs font-bold uppercase tracking-wider text-discord-textMuted">
                 {t("settings:userSettings")}
               </h3>
             </div>
 
-            <div className="space-y-1">
+            {/* 选项卡容器：移动端横向滚动胶囊，桌面端垂直堆叠 */}
+            <div className="flex flex-row md:flex-col overflow-x-auto md:overflow-visible no-scrollbar gap-1.5 md:gap-1 items-center md:items-stretch py-0.5 md:py-0 pr-12 md:pr-0">
               {/* 个人资料与展示卡 (Profiles) */}
               <button
                 type="button"
                 data-testid="tab-profile-btn"
                 onClick={() => setActiveTab("profile")}
-                className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                className={`shrink-0 md:shrink w-auto md:w-full flex items-center gap-2 md:gap-2.5 px-3 md:px-2.5 py-1.5 md:py-2 rounded-full md:rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
                   activeTab === "profile"
-                    ? "bg-white/10 text-white"
-                    : "text-gray-400 hover:bg-white/5 hover:text-white"
+                    ? "bg-[#5865f2] md:bg-white/10 text-white shadow-sm md:shadow-none"
+                    : "text-gray-300 md:text-gray-400 bg-[#1e1f22]/80 md:bg-transparent hover:bg-white/5 hover:text-white"
                 }`}
               >
-                <Palette className="w-4 h-4 text-[#5865f2]" />
+                <Palette className="w-3.5 h-3.5 md:w-4 md:h-4 text-white md:text-[#5865f2]" />
                 <span>{t("settings:profileTab", "个人资料与展示卡")}</span>
               </button>
 
-              {/* 分组 2：应用设置 */}
-              <div className="pt-2 space-y-1">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-gray-400 px-2 py-1">
-                  {t("settings:appSettings")}
-                </div>
-                <button
-                  type="button"
-                  data-testid="tab-audio-btn"
-                  onClick={() => setActiveTab("audio")}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                    activeTab === "audio"
-                      ? "bg-white/10 text-white"
-                      : "text-gray-400 hover:bg-white/5 hover:text-white"
-                  }`}
-                >
-                  <Volume2 className="w-4 h-4 text-discord-brand" />
-                  <span>{t("settings:voiceAndVideo")}</span>
-                </button>
-                <button
-                  type="button"
-                  data-testid="tab-language-btn"
-                  onClick={() => setActiveTab("language")}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                    activeTab === "language"
-                      ? "bg-white/10 text-white"
-                      : "text-gray-400 hover:bg-white/5 hover:text-white"
-                  }`}
-                >
-                  <Globe className="w-4 h-4 text-discord-brand" />
-                  <span>{t("settings:language")}</span>
-                </button>
-                <button
-                  type="button"
-                  data-testid="tab-updates-btn"
-                  onClick={() => setActiveTab("updates")}
-                  className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                    activeTab === "updates"
-                      ? "bg-white/10 text-white"
-                      : "text-gray-400 hover:bg-white/5 hover:text-white"
-                  }`}
-                >
-                  <Download className="w-4 h-4 text-discord-brand" />
-                  <span>{t("settings:updatesTab", "版本与更新")}</span>
-                </button>
+              {/* 桌面端分组标题 2 */}
+              <div className="hidden md:block pt-2 text-[11px] font-bold uppercase tracking-wider text-gray-400 px-2 py-1">
+                {t("settings:appSettings")}
               </div>
 
-              {/* 分组 3：桌面客户端原生 (若运行在 Electron 下) */}
+              {/* 语音与视频 */}
+              <button
+                type="button"
+                data-testid="tab-audio-btn"
+                onClick={() => setActiveTab("audio")}
+                className={`shrink-0 md:shrink w-auto md:w-full flex items-center gap-2 md:gap-2.5 px-3 md:px-2.5 py-1.5 md:py-2 rounded-full md:rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                  activeTab === "audio"
+                    ? "bg-[#5865f2] md:bg-white/10 text-white shadow-sm md:shadow-none"
+                    : "text-gray-300 md:text-gray-400 bg-[#1e1f22]/80 md:bg-transparent hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                <Volume2 className="w-3.5 h-3.5 md:w-4 md:h-4 text-white md:text-discord-brand" />
+                <span>{t("settings:voiceAndVideo")}</span>
+              </button>
+
+              {/* 语言设置 */}
+              <button
+                type="button"
+                data-testid="tab-language-btn"
+                onClick={() => setActiveTab("language")}
+                className={`shrink-0 md:shrink w-auto md:w-full flex items-center gap-2 md:gap-2.5 px-3 md:px-2.5 py-1.5 md:py-2 rounded-full md:rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                  activeTab === "language"
+                    ? "bg-[#5865f2] md:bg-white/10 text-white shadow-sm md:shadow-none"
+                    : "text-gray-300 md:text-gray-400 bg-[#1e1f22]/80 md:bg-transparent hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5 md:w-4 md:h-4 text-white md:text-discord-brand" />
+                <span>{t("settings:language")}</span>
+              </button>
+
+              {/* 版本与更新 */}
+              <button
+                type="button"
+                data-testid="tab-updates-btn"
+                onClick={() => setActiveTab("updates")}
+                className={`shrink-0 md:shrink w-auto md:w-full flex items-center gap-2 md:gap-2.5 px-3 md:px-2.5 py-1.5 md:py-2 rounded-full md:rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                  activeTab === "updates"
+                    ? "bg-[#5865f2] md:bg-white/10 text-white shadow-sm md:shadow-none"
+                    : "text-gray-300 md:text-gray-400 bg-[#1e1f22]/80 md:bg-transparent hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                <Download className="w-3.5 h-3.5 md:w-4 md:h-4 text-white md:text-discord-brand" />
+                <span>{t("settings:updatesTab", "版本与更新")}</span>
+              </button>
+
+              {/* 桌面客户端原生 (Electron 下) */}
               {isElectron && (
-                <div className="space-y-1">
+                <div className="hidden md:block space-y-1">
                   <div className="text-[11px] font-bold uppercase tracking-wider text-gray-400 px-2 py-1">
                     {t("settings:desktopApp")}
                   </div>
@@ -414,11 +451,22 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                   </div>
                 </div>
               )}
+
+              {/* 移动端退出登录胶囊 */}
+              <button
+                type="button"
+                data-testid="user-logout-btn-mobile"
+                onClick={handleLogout}
+                className="md:hidden shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 transition-colors whitespace-nowrap"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>{t("settings:logout")}</span>
+              </button>
             </div>
           </div>
 
-          {/* 底部危险区：退出登录 */}
-          <div className="pt-4 border-t border-white/5">
+          {/* 桌面端底部危险区：退出登录 */}
+          <div className="hidden md:block pt-4 border-t border-white/5">
             <button
               type="button"
               data-testid="user-logout-btn"
@@ -433,25 +481,8 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
 
         {/* 右侧：主配置画布 */}
         <div className="flex-1 flex flex-col min-w-0 bg-[#313338] relative">
-          {/* 右上角固定关闭按钮与 ESC 提示 */}
-          <div className="absolute top-4 right-4 sm:top-6 sm:right-8 flex flex-col items-center z-40">
-            <button
-              type="button"
-              data-testid="close-user-settings-btn"
-              onClick={onClose}
-              aria-label="关闭"
-              className="w-9 h-9 rounded-full border-2 border-white/20 hover:border-white flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-              title="关闭设置 (ESC)"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <span className="text-[10px] font-bold text-gray-400 mt-1 select-none">
-              ESC
-            </span>
-          </div>
-
           {/* 内容画布容器 */}
-          <div className="flex-1 overflow-y-auto px-6 sm:px-10 py-8 custom-scrollbar">
+          <div className="flex-1 overflow-y-auto px-4 sm:px-10 py-5 sm:py-8 custom-scrollbar">
             {activeTab === "profile" && (
               <div className="space-y-6 max-w-5xl">
                 <div>
@@ -519,7 +550,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                           onChange={(e) => setDisplayName(e.target.value)}
                           placeholder={userPrefix || "设置向大家展示的昵称"}
                           data-testid="profile-display-name-input"
-                          className="w-full rounded-xl bg-[#1e1f22] border border-white/5 px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
+                          className="w-full rounded-xl bg-[#1e1f22] border border-white/5 px-4 py-2.5 text-base sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
                         />
                         <p className="text-[11px] text-gray-400">
                           这是您在聊天、成员列表和个人卡片中展示的专属昵称。您可以随时调整，无修改次数限制。
@@ -543,7 +574,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                               )
                             }
                             data-testid="profile-username-prefix-input"
-                            className="flex-1 bg-transparent text-white text-sm focus:outline-none"
+                            className="flex-1 bg-transparent text-white text-base sm:text-sm focus:outline-none"
                             placeholder="用户名"
                           />
                           <span
@@ -726,7 +757,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                       </div>
 
                       {/* 侦测状态卡片 */}
-                      <div className="p-3 rounded-lg bg-[#1e1f22] border border-white/5 flex items-center justify-between text-xs">
+                      <div className="p-3 rounded-lg bg-[#1e1f22] border border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
                         <div className="flex items-center gap-2.5">
                           <div
                             className={`w-2.5 h-2.5 rounded-full ${
@@ -757,7 +788,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                         <button
                           type="button"
                           onClick={() => setTestGameActive(!testGameActive)}
-                          className="text-[11px] px-2.5 py-1 rounded bg-[#2b2d31] hover:bg-[#35373c] text-gray-300 hover:text-white border border-white/5 transition"
+                          className="text-[11px] px-2.5 py-1 rounded bg-[#2b2d31] hover:bg-[#35373c] text-gray-300 hover:text-white border border-white/5 transition self-end sm:self-auto shrink-0"
                         >
                           {testGameActive ? "停止测试游戏" : "模拟测试游戏"}
                         </button>
@@ -774,7 +805,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                         value={customStatus}
                         onChange={(e) => setCustomStatus(e.target.value)}
                         placeholder="分享你现在在做什么... (例如: 正在开黑 🎮)"
-                        className="w-full rounded-xl bg-[#2b2d31] border border-white/5 px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
+                        className="w-full rounded-xl bg-[#2b2d31] border border-white/5 px-4 py-3 text-base sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
                       />
                     </div>
 
@@ -788,7 +819,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                         value={bio}
                         onChange={(e) => setBio(e.target.value)}
                         placeholder="写一小段介绍展示在个人资料卡片上..."
-                        className="w-full rounded-xl bg-[#2b2d31] border border-white/5 p-3.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2] resize-none"
+                        className="w-full rounded-xl bg-[#2b2d31] border border-white/5 p-3.5 text-base sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2] resize-none"
                       />
                     </div>
 
@@ -802,13 +833,13 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                         value={avatarUrl}
                         onChange={(e) => setAvatarUrl(e.target.value)}
                         placeholder="https://... (支持外部图片直链或 DiceBear SVG)"
-                        className="w-full rounded-xl bg-[#2b2d31] border border-white/5 px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
+                        className="w-full rounded-xl bg-[#2b2d31] border border-white/5 px-4 py-3 text-base sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
                       />
                     </div>
                   </div>
 
-                  {/* 右侧：1:1 动态实时卡片预览区 (Sticky 悬停) */}
-                  <div className="w-full lg:w-80 shrink-0 flex justify-center sticky top-2">
+                  {/* 右侧：1:1 动态实时卡片预览区 (桌面大屏 Sticky 悬停，小屏隐藏并转由悬浮按钮呼出) */}
+                  <div className="hidden lg:flex w-80 shrink-0 justify-center sticky top-2">
                     <ProfileCardPreview
                       user={user}
                       displayName={displayName}
@@ -826,18 +857,78 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                   </div>
                 </div>
 
-                {/* 底部浮动“未保存更改提示条” (类似 Discord 经典条) */}
+                {/* 移动端轻量悬浮“查看卡片预览”按钮 (FAB) */}
+                <div className="lg:hidden fixed bottom-6 right-4 sm:right-6 z-40">
+                  <button
+                    type="button"
+                    data-testid="open-profile-preview-fab"
+                    onClick={() => setIsMobilePreviewOpen(true)}
+                    className="flex items-center gap-2 bg-[#5865f2] hover:bg-[#4752c4] active:scale-95 text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-2xl border border-white/20 transition-all cursor-pointer backdrop-blur-md"
+                    aria-label="查看卡片预览"
+                  >
+                    <Eye className="w-4 h-4" />
+                    <span>{t("settings:previewProfileCard", "预览资料卡")}</span>
+                  </button>
+                </div>
+
+                {/* 移动端卡片预览半模态弹窗 */}
+                {isMobilePreviewOpen && (
+                  <div
+                    data-testid="mobile-profile-preview-modal"
+                    className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-150"
+                    onClick={() => setIsMobilePreviewOpen(false)}
+                  >
+                    <div
+                      className="relative w-full max-w-[360px] bg-[#313338] rounded-2xl shadow-2xl p-4 border border-[#3f4147] flex flex-col items-center animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto custom-scrollbar"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="w-full flex items-center justify-between pb-3 mb-3 border-b border-white/10">
+                        <div className="flex items-center gap-2 text-white font-bold text-sm">
+                          <Palette className="w-4 h-4 text-[#5865f2]" />
+                          <span>{t("settings:realtimePreview", "实时卡片预览")}</span>
+                        </div>
+                        <button
+                          type="button"
+                          data-testid="close-mobile-preview-btn"
+                          onClick={() => setIsMobilePreviewOpen(false)}
+                          className="text-gray-400 hover:text-white p-1 rounded-md hover:bg-white/10 transition cursor-pointer"
+                          aria-label="关闭预览"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                      <div className="w-full flex justify-center">
+                        <ProfileCardPreview
+                          user={user}
+                          displayName={displayName}
+                          usernamePrefix={usernamePrefix}
+                          avatarUrl={avatarUrl}
+                          status={status}
+                          customStatus={customStatus}
+                          bio={bio}
+                          bannerColor={bannerColor}
+                          bannerUrl={bannerUrl}
+                          themeColor={themeColor}
+                          showActivity={showActivity}
+                          activeGame={activeGameForPreview}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* 底部浮动“未保存更改提示条” (自适应移动端与窄屏) */}
                 {hasChanges && (
                   <div
                     data-testid="unsaved-changes-notice-bar"
-                    className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#111214] border border-white/10 rounded-2xl shadow-2xl px-6 py-3.5 flex items-center justify-between gap-6 animate-in slide-in-from-bottom-5 duration-200"
+                    className="fixed bottom-4 left-3 right-3 sm:left-1/2 sm:-translate-x-1/2 sm:w-auto max-w-xl z-50 bg-[#111214] border border-white/10 rounded-2xl shadow-2xl p-3 sm:px-6 sm:py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-6 animate-in slide-in-from-bottom-5 duration-200"
                   >
-                    <div className="flex items-center gap-2 text-xs font-semibold text-white">
-                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                      <span>注意 — 您有未保存的更改！</span>
+                    <div className="flex items-center gap-2 text-xs font-semibold text-white w-full sm:w-auto justify-center sm:justify-start">
+                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+                      <span className="truncate">注意 — 您有未保存的更改！</span>
                     </div>
 
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
                       <button
                         type="button"
                         data-testid="reset-profile-changes-btn"
@@ -852,7 +943,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                         data-testid="save-profile-changes-btn"
                         disabled={isSaving}
                         onClick={handleSave}
-                        className="bg-[#23a55a] hover:bg-[#1a8044] active:scale-95 text-white text-xs font-semibold px-5 py-2 rounded-xl shadow-lg transition-all flex items-center gap-1.5 disabled:opacity-50"
+                        className="bg-[#23a55a] hover:bg-[#1a8044] active:scale-95 text-white text-xs font-semibold px-4 sm:px-5 py-2 rounded-xl shadow-lg transition-all flex items-center gap-1.5 disabled:opacity-50"
                       >
                         {isSaving ? (
                           <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -865,11 +956,11 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                   </div>
                 )}
 
-                {/* 保存成功提示 */}
+                {/* 保存成功提示 (自适应小屏居中) */}
                 {saveSuccess && (
-                  <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-emerald-900/90 border border-emerald-500/30 text-white rounded-2xl shadow-2xl px-6 py-3 flex items-center gap-2 text-xs font-semibold animate-in fade-in">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>展示卡个性化设置已成功保存并全网同步！</span>
+                  <div className="fixed bottom-4 left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 bg-emerald-900/95 border border-emerald-500/30 text-white rounded-2xl shadow-2xl px-4 sm:px-6 py-3 flex items-center justify-center gap-2 text-xs font-semibold animate-in fade-in">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="truncate">展示卡个性化设置已成功保存并全网同步！</span>
                   </div>
                 )}
               </div>

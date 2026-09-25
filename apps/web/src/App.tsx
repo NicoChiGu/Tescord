@@ -3883,6 +3883,7 @@ export const App: React.FC = () => {
           <div className="flex-1 flex flex-col items-center justify-center text-discord-textMuted p-4 text-center">
             {isMobile && (
               <button
+                data-testid="mobile-open-drawer-btn"
                 onClick={() => setIsMobileDrawerOpen(true)}
                 className="mb-4 px-4 py-2 bg-discord-brand text-white rounded-lg font-medium shadow-md md:hidden"
               >

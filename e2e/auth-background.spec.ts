@@ -52,7 +52,7 @@ test.describe("Web 登录界面步进式流转、shake 错误动效与阻止默�
     await submitBtn.click();
 
     // 验证出现错误信息并在密码容器上触发 animate-shake 与 border-rose-500
-    await expect(page.getByText(/密码/)).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("p.text-rose-400")).toBeVisible({ timeout: 5000 });
     await expect(page.locator(".animate-shake")).toBeVisible();
     await expect(page.locator(".border-rose-500")).toBeVisible();
 

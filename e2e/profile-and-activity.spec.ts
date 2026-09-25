@@ -100,7 +100,7 @@ test.describe("游戏状态自动侦测与全维度展示卡个性化 (Profiles 
     await expect(
       modal.getByRole("heading", { name: "TescordGamer" }).first(),
     ).toBeVisible();
-    await expect(modal.getByText("@TescordGamer")).toBeVisible();
+    await expect(modal.getByText("@TescordGamer").first()).toBeVisible();
 
     // 6. 验证游戏状态侦测与模拟交互
     const simulateGameBtn = page.getByRole("button", { name: /模拟测试游戏/i });

@@ -1281,6 +1281,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
           {onToggleMobileDrawer && (
             <button
               type="button"
+              data-testid="toggle-mobile-drawer-btn"
               onClick={onToggleMobileDrawer}
               className="md:hidden p-1.5 -ml-1 text-discord-textMuted hover:text-white hover:bg-[#35373c] rounded-lg transition flex-shrink-0"
               title="打开频道与服务器抽屉"

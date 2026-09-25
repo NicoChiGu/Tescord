@@ -5,9 +5,104 @@ import {
   RegisterDTO,
   UpdateProfileDTO,
   AuthTokens,
+  SavedAccount,
 } from "@tescord/types";
 import { API_BASE } from "../config.js";
 import { cancelPendingRequests } from "../services/apiClient.js";
+
+const MAX_SAVED_ACCOUNTS = 10;
+const SAVED_ACCOUNTS_STORAGE_KEY = "tescord_saved_accounts";
+
+export function getStoredSavedAccounts(): SavedAccount[] {
+  try {
+    if (typeof localStorage === "undefined") return [];
+    const raw = localStorage.getItem(SAVED_ACCOUNTS_STORAGE_KEY);
+    if (raw) {
+      const list = JSON.parse(raw);
+      if (Array.isArray(list) && list.length > 0) return list;
+    }
+    // 兼容历史遗留的单账号记忆 tescord_last_user
+    const lastUserRaw = localStorage.getItem("tescord_last_user");
+    if (lastUserRaw) {
+      const u: User = JSON.parse(lastUserRaw);
+      const migrated: SavedAccount = {
+        id: u.id,
+        email: u.email,
+        username: u.username,
+        displayName: u.displayName,
+        discriminator: u.discriminator,
+        avatarUrl: u.avatarUrl,
+        lastActiveAt: Date.now(),
+        rememberPassword: true,
+        refreshToken: localStorage.getItem("tescord_refresh_token") || undefined,
+      };
+      localStorage.setItem(SAVED_ACCOUNTS_STORAGE_KEY, JSON.stringify([migrated]));
+      return [migrated];
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
+export function persistSavedAccounts(accounts: SavedAccount[]): void {
+  try {
+    if (typeof localStorage === "undefined") return;
+    localStorage.setItem(
+      SAVED_ACCOUNTS_STORAGE_KEY,
+      JSON.stringify(accounts.slice(0, MAX_SAVED_ACCOUNTS))
+    );
+  } catch {
+    // 忽略持久化异常
+  }
+}
+
+export function upsertSavedAccount(
+  user: User,
+  tokens?: { refreshToken?: string },
+  rememberPassword?: boolean
+): SavedAccount[] {
+  const accounts = getStoredSavedAccounts();
+  const existingIdx = accounts.findIndex(
+    (a) =>
+      a.id === user.id ||
+      (a.email && user.email && a.email.toLowerCase() === user.email.toLowerCase())
+  );
+
+  const shouldRemember = rememberPassword ?? true;
+  const tokenToStore = shouldRemember ? tokens?.refreshToken : undefined;
+
+  const newItem: SavedAccount = {
+    id: user.id,
+    email: user.email,
+    username: user.username,
+    displayName: user.displayName,
+    discriminator: user.discriminator,
+    avatarUrl: user.avatarUrl,
+    lastActiveAt: Date.now(),
+    rememberPassword: shouldRemember,
+    refreshToken: tokenToStore,
+  };
+
+  let updated: SavedAccount[];
+  if (existingIdx >= 0) {
+    const existing = accounts[existingIdx];
+    updated = [
+      {
+        ...existing,
+        ...newItem,
+        refreshToken: shouldRemember ? (tokenToStore || existing.refreshToken) : undefined,
+      },
+      ...accounts.filter((_, idx) => idx !== existingIdx),
+    ];
+  } else {
+    updated = [newItem, ...accounts];
+  }
+
+  updated.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+  persistSavedAccounts(updated);
+  return updated;
+}
 
 interface AuthState {
   user: User | null;
@@ -21,6 +116,7 @@ interface AuthState {
   isReauthModalOpen: boolean;
   reauthReason: string | null;
   lastActiveUser: User | null;
+  savedAccounts: SavedAccount[];
 
   initAuth: () => Promise<void>;
   login: (dto: LoginDTO) => Promise<void>;
@@ -34,6 +130,8 @@ interface AuthState {
   closeReauthModal: () => void;
   reauth: (password: string) => Promise<void>;
   switchAccount: () => void;
+  removeSavedAccount: (idOrEmail: string) => void;
+  loginWithSavedAccount: (account: SavedAccount) => Promise<boolean>;
 }
 
 const syncDesktopWindowMode = (mode: "auth" | "main") => {
@@ -82,6 +180,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   error: null,
   isReauthModalOpen: false,
   reauthReason: null,
+  savedAccounts: getStoredSavedAccounts(),
   lastActiveUser: (() => {
     try {
       const saved =
@@ -105,56 +204,78 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   initAuth: async () => {
     set({ isLoading: true, error: null });
+    const accounts = getStoredSavedAccounts();
+    set({ savedAccounts: accounts });
+
     const accessToken = localStorage.getItem("tescord_access_token");
     const refreshToken = localStorage.getItem("tescord_refresh_token");
 
-    if (!accessToken && !refreshToken) {
-      set({ isLoading: false, isAuthenticated: false, user: null });
-      syncDesktopWindowMode("auth");
-      return;
-    }
-
-    try {
-      // 1. 尝试使用现有的 Access Token 请求个人信息
-      if (accessToken) {
-        const res = await fetch(`${API_BASE}/api/auth/me`, {
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-
-        if (res.ok) {
-          const user: User = await res.json();
-          localStorage.setItem("tescord_last_user", JSON.stringify(user));
-          set({
-            user,
-            lastActiveUser: user,
-            accessToken,
-            token: accessToken,
-            refreshToken,
-            isAuthenticated: true,
-            isLoading: false,
+    // 1. 优先尝试本地活跃的 access/refresh token
+    if (accessToken || refreshToken) {
+      try {
+        if (accessToken) {
+          const res = await fetch(`${API_BASE}/api/auth/me`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
           });
-          syncDesktopWindowMode("main");
-          scheduleProactiveRefresh(() => get().refreshAuth());
-          return;
-        }
-      }
 
-      // 2. Access Token 失效，尝试使用 Refresh Token 无感静默刷新
-      if (refreshToken) {
-        const refreshed = await get().refreshAuth();
-        if (refreshed) {
-          syncDesktopWindowMode("main");
-          return;
+          if (res.ok) {
+            const user: User = await res.json();
+            localStorage.setItem("tescord_last_user", JSON.stringify(user));
+            const updated = upsertSavedAccount(
+              user,
+              { refreshToken: refreshToken || undefined },
+              true
+            );
+            set({
+              user,
+              lastActiveUser: user,
+              accessToken,
+              token: accessToken,
+              refreshToken,
+              isAuthenticated: true,
+              isLoading: false,
+              savedAccounts: updated,
+            });
+            syncDesktopWindowMode("main");
+            scheduleProactiveRefresh(() => get().refreshAuth());
+            return;
+          }
         }
-      }
 
-      // 3. 全部失效，清除本地凭据
-      get().logout();
-    } catch {
-      get().logout();
-    } finally {
-      set({ isLoading: false });
+        if (refreshToken) {
+          const refreshed = await get().refreshAuth();
+          if (refreshed) {
+            syncDesktopWindowMode("main");
+            return;
+          }
+        }
+      } catch {
+        // 出错继续尝试免密账号检查
+      }
     }
+
+    // 2. 检查是否有开启了 7天免密 且携带长效 refreshToken 的已保存账号
+    const autoLoginAccount = accounts.find((a) => a.rememberPassword && Boolean(a.refreshToken));
+    if (autoLoginAccount) {
+      const ok = await get().loginWithSavedAccount(autoLoginAccount);
+      if (ok) {
+        return;
+      }
+    }
+
+    // 3. 无有效令牌或免密失败，停留在未登录态并进入账号选择
+    clearProactiveRefreshTimer();
+    localStorage.removeItem("tescord_access_token");
+    localStorage.removeItem("tescord_refresh_token");
+    set({
+      user: null,
+      accessToken: null,
+      token: null,
+      refreshToken: null,
+      isAuthenticated: false,
+      isLoading: false,
+    });
+    syncDesktopWindowMode("auth");
   },
 
   login: async (dto: LoginDTO) => {
@@ -163,7 +284,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(dto),
+        body: JSON.stringify({
+          emailOrUsername: dto.emailOrUsername,
+          password: dto.password,
+        }),
       });
 
       const data = await res.json();
@@ -172,22 +296,36 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       const tokens = data as AuthTokens;
+      const rememberMe = dto.rememberMe !== false;
       localStorage.setItem("tescord_access_token", tokens.accessToken);
-      localStorage.setItem("tescord_refresh_token", tokens.refreshToken);
+      if (rememberMe) {
+        localStorage.setItem("tescord_refresh_token", tokens.refreshToken);
+      } else {
+        localStorage.removeItem("tescord_refresh_token");
+      }
       localStorage.setItem("tescord_last_user", JSON.stringify(tokens.user));
+
+      const updatedAccounts = upsertSavedAccount(
+        tokens.user,
+        { refreshToken: tokens.refreshToken },
+        rememberMe
+      );
 
       set({
         user: tokens.user,
         lastActiveUser: tokens.user,
         accessToken: tokens.accessToken,
         token: tokens.accessToken,
-        refreshToken: tokens.refreshToken,
+        refreshToken: rememberMe ? tokens.refreshToken : null,
         isAuthenticated: true,
         isLoading: false,
+        savedAccounts: updatedAccounts,
         error: null,
       });
       syncDesktopWindowMode("main");
-      scheduleProactiveRefresh(() => get().refreshAuth());
+      if (rememberMe) {
+        scheduleProactiveRefresh(() => get().refreshAuth());
+      }
     } catch (err: any) {
       set({ error: err.message });
       throw err;
@@ -213,6 +351,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       localStorage.setItem("tescord_refresh_token", tokens.refreshToken);
       localStorage.setItem("tescord_last_user", JSON.stringify(tokens.user));
 
+      const updatedAccounts = upsertSavedAccount(
+        tokens.user,
+        { refreshToken: tokens.refreshToken },
+        true
+      );
+
       set({
         user: tokens.user,
         lastActiveUser: tokens.user,
@@ -221,6 +365,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         refreshToken: tokens.refreshToken,
         isAuthenticated: true,
         isLoading: false,
+        savedAccounts: updatedAccounts,
         error: null,
       });
       syncDesktopWindowMode("main");
@@ -229,6 +374,76 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ error: err.message });
       throw err;
     }
+  },
+
+  loginWithSavedAccount: async (account: SavedAccount) => {
+    set({ isLoading: true, error: null });
+    if (account.refreshToken) {
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refreshToken: account.refreshToken }),
+        });
+
+        if (res.ok) {
+          const data = (await res.json()) as AuthTokens;
+          localStorage.setItem("tescord_access_token", data.accessToken);
+          localStorage.setItem("tescord_refresh_token", data.refreshToken);
+          localStorage.setItem("tescord_last_user", JSON.stringify(data.user));
+
+          const updated = upsertSavedAccount(
+            data.user,
+            { refreshToken: data.refreshToken },
+            true
+          );
+
+          set({
+            user: data.user,
+            lastActiveUser: data.user,
+            accessToken: data.accessToken,
+            token: data.accessToken,
+            refreshToken: data.refreshToken,
+            isAuthenticated: true,
+            isLoading: false,
+            savedAccounts: updated,
+            error: null,
+          });
+          syncDesktopWindowMode("main");
+          scheduleProactiveRefresh(() => get().refreshAuth());
+          return true;
+        }
+      } catch {
+        // 静默刷新失败
+      }
+    }
+
+    // 凭据无效或已过期，将该账号的 refreshToken 置空，保留账号卡片
+    const current = getStoredSavedAccounts();
+    const updated = current.map((a) =>
+      a.id === account.id ||
+      (a.email && account.email && a.email.toLowerCase() === account.email.toLowerCase())
+        ? { ...a, refreshToken: undefined }
+        : a
+    );
+    persistSavedAccounts(updated);
+    set({ isLoading: false, savedAccounts: updated });
+    return false;
+  },
+
+  removeSavedAccount: (idOrEmail: string) => {
+    const current = getStoredSavedAccounts();
+    const target = idOrEmail.toLowerCase();
+    const updated = current.filter(
+      (a) => a.id !== idOrEmail && a.email?.toLowerCase() !== target
+    );
+    persistSavedAccounts(updated);
+    const last = get().lastActiveUser;
+    if (last && (last.id === idOrEmail || last.email?.toLowerCase() === target)) {
+      localStorage.removeItem("tescord_last_user");
+      set({ lastActiveUser: null });
+    }
+    set({ savedAccounts: updated });
   },
 
   refreshAuth: async () => {
@@ -259,6 +474,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         localStorage.setItem("tescord_refresh_token", data.refreshToken);
         localStorage.setItem("tescord_last_user", JSON.stringify(data.user));
 
+        const accounts = getStoredSavedAccounts();
+        const updated = accounts.map((acc) => {
+          if (
+            acc.id === data.user.id ||
+            (acc.email &&
+              data.user.email &&
+              acc.email.toLowerCase() === data.user.email.toLowerCase())
+          ) {
+            return {
+              ...acc,
+              refreshToken: acc.rememberPassword ? data.refreshToken : undefined,
+              lastActiveAt: Date.now(),
+              avatarUrl: data.user.avatarUrl ?? acc.avatarUrl,
+              displayName: data.user.displayName ?? acc.displayName,
+              username: data.user.username ?? acc.username,
+            };
+          }
+          return acc;
+        });
+        persistSavedAccounts(updated);
+
         set({
           user: data.user,
           lastActiveUser: data.user,
@@ -267,6 +503,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           refreshToken: data.refreshToken,
           isAuthenticated: true,
           isLoading: false,
+          savedAccounts: updated,
           error: null,
         });
 
@@ -285,6 +522,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   logout: () => {
     clearProactiveRefreshTimer();
+    const currentUser = get().user || get().lastActiveUser;
+    if (currentUser) {
+      const current = getStoredSavedAccounts();
+      const updated = current.map((acc) => {
+        if (
+          acc.id === currentUser.id ||
+          (acc.email &&
+            currentUser.email &&
+            acc.email.toLowerCase() === currentUser.email.toLowerCase())
+        ) {
+          return {
+            ...acc,
+            refreshToken: undefined, // 登出清除免密凭据，保留卡片
+          };
+        }
+        return acc;
+      });
+      persistSavedAccounts(updated);
+      set({ savedAccounts: updated });
+    }
+
     localStorage.removeItem("tescord_access_token");
     localStorage.removeItem("tescord_refresh_token");
     set({
@@ -340,6 +598,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     localStorage.setItem("tescord_refresh_token", tokens.refreshToken);
     localStorage.setItem("tescord_last_user", JSON.stringify(tokens.user));
 
+    const updated = upsertSavedAccount(
+      tokens.user,
+      { refreshToken: tokens.refreshToken },
+      true
+    );
+
     set({
       user: tokens.user,
       lastActiveUser: tokens.user,
@@ -347,6 +611,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       token: tokens.accessToken,
       refreshToken: tokens.refreshToken,
       isAuthenticated: true,
+      savedAccounts: updated,
       isReauthModalOpen: false,
       reauthReason: null,
       error: null,
@@ -357,7 +622,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   switchAccount: () => {
     cancelPendingRequests("用户切换账号");
-    localStorage.removeItem("tescord_last_user");
     get().logout();
     set({
       isReauthModalOpen: false,
