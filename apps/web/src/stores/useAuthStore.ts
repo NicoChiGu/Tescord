@@ -12,6 +12,47 @@ import { cancelPendingRequests } from "../services/apiClient.js";
 
 const MAX_SAVED_ACCOUNTS = 10;
 const SAVED_ACCOUNTS_STORAGE_KEY = "tescord_saved_accounts";
+const REFRESH_KEY = "tescord_refresh_token";
+const ACCESS_KEY = "tescord_access_token";
+let authGeneration = 0;
+
+function currentRefreshToken(): string | null {
+  return (
+    sessionStorage.getItem(REFRESH_KEY) || localStorage.getItem(REFRESH_KEY)
+  );
+}
+
+function storeActiveTokens(tokens: AuthTokens, remember: boolean): void {
+  if (remember) {
+    localStorage.setItem(ACCESS_KEY, tokens.accessToken);
+    sessionStorage.removeItem(ACCESS_KEY);
+    localStorage.setItem(REFRESH_KEY, tokens.refreshToken);
+    sessionStorage.removeItem(REFRESH_KEY);
+  } else {
+    sessionStorage.setItem(ACCESS_KEY, tokens.accessToken);
+    localStorage.removeItem(ACCESS_KEY);
+    sessionStorage.setItem(REFRESH_KEY, tokens.refreshToken);
+    localStorage.removeItem(REFRESH_KEY);
+  }
+  localStorage.setItem("tescord_last_user", JSON.stringify(tokens.user));
+}
+
+function clearActiveTokens(): void {
+  localStorage.removeItem(ACCESS_KEY);
+  sessionStorage.removeItem(ACCESS_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+  sessionStorage.removeItem(REFRESH_KEY);
+}
+
+function accessExpiresAt(token: string | null): number {
+  if (!token) return 0;
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return typeof payload.exp === "number" ? payload.exp * 1000 : 0;
+  } catch {
+    return 0;
+  }
+}
 
 export function getStoredSavedAccounts(): SavedAccount[] {
   try {
@@ -34,9 +75,13 @@ export function getStoredSavedAccounts(): SavedAccount[] {
         avatarUrl: u.avatarUrl,
         lastActiveAt: Date.now(),
         rememberPassword: true,
-        refreshToken: localStorage.getItem("tescord_refresh_token") || undefined,
+        refreshToken:
+          localStorage.getItem("tescord_refresh_token") || undefined,
       };
-      localStorage.setItem(SAVED_ACCOUNTS_STORAGE_KEY, JSON.stringify([migrated]));
+      localStorage.setItem(
+        SAVED_ACCOUNTS_STORAGE_KEY,
+        JSON.stringify([migrated]),
+      );
       return [migrated];
     }
     return [];
@@ -50,7 +95,7 @@ export function persistSavedAccounts(accounts: SavedAccount[]): void {
     if (typeof localStorage === "undefined") return;
     localStorage.setItem(
       SAVED_ACCOUNTS_STORAGE_KEY,
-      JSON.stringify(accounts.slice(0, MAX_SAVED_ACCOUNTS))
+      JSON.stringify(accounts.slice(0, MAX_SAVED_ACCOUNTS)),
     );
   } catch {
     // 忽略持久化异常
@@ -60,13 +105,15 @@ export function persistSavedAccounts(accounts: SavedAccount[]): void {
 export function upsertSavedAccount(
   user: User,
   tokens?: { refreshToken?: string },
-  rememberPassword?: boolean
+  rememberPassword?: boolean,
 ): SavedAccount[] {
   const accounts = getStoredSavedAccounts();
   const existingIdx = accounts.findIndex(
     (a) =>
       a.id === user.id ||
-      (a.email && user.email && a.email.toLowerCase() === user.email.toLowerCase())
+      (a.email &&
+        user.email &&
+        a.email.toLowerCase() === user.email.toLowerCase()),
   );
 
   const shouldRemember = rememberPassword ?? true;
@@ -91,7 +138,9 @@ export function upsertSavedAccount(
       {
         ...existing,
         ...newItem,
-        refreshToken: shouldRemember ? (tokenToStore || existing.refreshToken) : undefined,
+        refreshToken: shouldRemember
+          ? tokenToStore || existing.refreshToken
+          : undefined,
       },
       ...accounts.filter((_, idx) => idx !== existingIdx),
     ];
@@ -112,6 +161,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  refreshFailure: "invalid" | "transient" | null;
 
   isReauthModalOpen: boolean;
   reauthReason: string | null;
@@ -146,6 +196,7 @@ const syncDesktopWindowMode = (mode: "auth" | "main") => {
 };
 
 let activeRefreshPromise: Promise<boolean> | null = null;
+let activeRefreshGeneration = -1;
 let proactiveRefreshTimer: ReturnType<typeof setTimeout> | null = null;
 
 // Access Token 寿命 15 分钟，在第 12 分钟 (720 秒) 执行主动静默预续期
@@ -158,26 +209,44 @@ function clearProactiveRefreshTimer() {
   }
 }
 
-function scheduleProactiveRefresh(triggerFn: () => Promise<boolean>) {
+function scheduleProactiveRefresh(
+  triggerFn: () => Promise<boolean>,
+  token?: string | null,
+) {
   clearProactiveRefreshTimer();
+  const expiry = accessExpiresAt(token || useAuthStore.getState().accessToken);
+  const delay =
+    useAuthStore.getState().refreshFailure === "transient"
+      ? 30_000
+      : expiry
+        ? Math.max(
+            1_000,
+            Math.min(
+              PROACTIVE_REFRESH_INTERVAL_MS,
+              expiry - Date.now() - 60_000,
+            ),
+          )
+        : PROACTIVE_REFRESH_INTERVAL_MS;
   proactiveRefreshTimer = setTimeout(async () => {
     try {
       await triggerFn();
     } catch {
       // 容错处理，由后续请求或重试接管
     }
-  }, PROACTIVE_REFRESH_INTERVAL_MS);
+  }, delay);
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   setUser: (user) => set({ user }),
-  accessToken: localStorage.getItem("tescord_access_token"),
-  refreshToken: localStorage.getItem("tescord_refresh_token"),
-  token: localStorage.getItem("tescord_access_token"),
+  accessToken:
+    sessionStorage.getItem(ACCESS_KEY) || localStorage.getItem(ACCESS_KEY),
+  refreshToken: currentRefreshToken(),
+  token: sessionStorage.getItem(ACCESS_KEY) || localStorage.getItem(ACCESS_KEY),
   isAuthenticated: false,
   isLoading: true,
   error: null,
+  refreshFailure: null,
   isReauthModalOpen: false,
   reauthReason: null,
   savedAccounts: getStoredSavedAccounts(),
@@ -207,8 +276,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const accounts = getStoredSavedAccounts();
     set({ savedAccounts: accounts });
 
-    const accessToken = localStorage.getItem("tescord_access_token");
-    const refreshToken = localStorage.getItem("tescord_refresh_token");
+    const accessToken =
+      sessionStorage.getItem(ACCESS_KEY) || localStorage.getItem(ACCESS_KEY);
+    const refreshToken = currentRefreshToken();
 
     // 1. 优先尝试本地活跃的 access/refresh token
     if (accessToken || refreshToken) {
@@ -221,10 +291,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           if (res.ok) {
             const user: User = await res.json();
             localStorage.setItem("tescord_last_user", JSON.stringify(user));
+            const remember = Boolean(localStorage.getItem(REFRESH_KEY));
             const updated = upsertSavedAccount(
               user,
               { refreshToken: refreshToken || undefined },
-              true
+              remember,
             );
             set({
               user,
@@ -254,8 +325,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     }
 
-    // 2. 检查是否有开启了 7天免密 且携带长效 refreshToken 的已保存账号
-    const autoLoginAccount = accounts.find((a) => a.rememberPassword && Boolean(a.refreshToken));
+    if (get().refreshFailure === "transient") {
+      set({ isLoading: false });
+      return;
+    }
+
+    // 2. 检查已保存的免密账号
+    const autoLoginAccount = accounts.find(
+      (a) => a.rememberPassword && Boolean(a.refreshToken),
+    );
     if (autoLoginAccount) {
       const ok = await get().loginWithSavedAccount(autoLoginAccount);
       if (ok) {
@@ -265,8 +343,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     // 3. 无有效令牌或免密失败，停留在未登录态并进入账号选择
     clearProactiveRefreshTimer();
-    localStorage.removeItem("tescord_access_token");
-    localStorage.removeItem("tescord_refresh_token");
+    if (get().refreshFailure !== "transient") clearActiveTokens();
     set({
       user: null,
       accessToken: null,
@@ -297,18 +374,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       const tokens = data as AuthTokens;
       const rememberMe = dto.rememberMe !== false;
-      localStorage.setItem("tescord_access_token", tokens.accessToken);
-      if (rememberMe) {
-        localStorage.setItem("tescord_refresh_token", tokens.refreshToken);
-      } else {
-        localStorage.removeItem("tescord_refresh_token");
-      }
-      localStorage.setItem("tescord_last_user", JSON.stringify(tokens.user));
+      authGeneration++;
+      storeActiveTokens(tokens, rememberMe);
 
       const updatedAccounts = upsertSavedAccount(
         tokens.user,
         { refreshToken: tokens.refreshToken },
-        rememberMe
+        rememberMe,
       );
 
       set({
@@ -316,16 +388,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         lastActiveUser: tokens.user,
         accessToken: tokens.accessToken,
         token: tokens.accessToken,
-        refreshToken: rememberMe ? tokens.refreshToken : null,
+        refreshToken: tokens.refreshToken,
         isAuthenticated: true,
         isLoading: false,
         savedAccounts: updatedAccounts,
         error: null,
       });
       syncDesktopWindowMode("main");
-      if (rememberMe) {
-        scheduleProactiveRefresh(() => get().refreshAuth());
-      }
+      scheduleProactiveRefresh(() => get().refreshAuth());
     } catch (err: any) {
       set({ error: err.message });
       throw err;
@@ -347,14 +417,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       const tokens = data as AuthTokens;
-      localStorage.setItem("tescord_access_token", tokens.accessToken);
-      localStorage.setItem("tescord_refresh_token", tokens.refreshToken);
-      localStorage.setItem("tescord_last_user", JSON.stringify(tokens.user));
+      authGeneration++;
+      storeActiveTokens(tokens, true);
 
       const updatedAccounts = upsertSavedAccount(
         tokens.user,
         { refreshToken: tokens.refreshToken },
-        true
+        true,
       );
 
       set({
@@ -378,6 +447,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   loginWithSavedAccount: async (account: SavedAccount) => {
     set({ isLoading: true, error: null });
+    const generation = authGeneration;
     if (account.refreshToken) {
       try {
         const res = await fetch(`${API_BASE}/api/auth/refresh`, {
@@ -388,14 +458,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
         if (res.ok) {
           const data = (await res.json()) as AuthTokens;
-          localStorage.setItem("tescord_access_token", data.accessToken);
-          localStorage.setItem("tescord_refresh_token", data.refreshToken);
-          localStorage.setItem("tescord_last_user", JSON.stringify(data.user));
+          if (generation !== authGeneration || data.user.id !== account.id)
+            return false;
+          authGeneration++;
+          storeActiveTokens(data, true);
 
           const updated = upsertSavedAccount(
             data.user,
             { refreshToken: data.refreshToken },
-            true
+            true,
           );
 
           set({
@@ -413,8 +484,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           scheduleProactiveRefresh(() => get().refreshAuth());
           return true;
         }
+        if (res.status !== 400 && res.status !== 401 && res.status !== 403) {
+          set({ isLoading: false });
+          return false;
+        }
       } catch {
-        // 静默刷新失败
+        // 临时网络故障不销毁免密凭据。
+        set({ isLoading: false });
+        return false;
       }
     }
 
@@ -422,9 +499,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const current = getStoredSavedAccounts();
     const updated = current.map((a) =>
       a.id === account.id ||
-      (a.email && account.email && a.email.toLowerCase() === account.email.toLowerCase())
+      (a.email &&
+        account.email &&
+        a.email.toLowerCase() === account.email.toLowerCase())
         ? { ...a, refreshToken: undefined }
-        : a
+        : a,
     );
     persistSavedAccounts(updated);
     set({ isLoading: false, savedAccounts: updated });
@@ -435,11 +514,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const current = getStoredSavedAccounts();
     const target = idOrEmail.toLowerCase();
     const updated = current.filter(
-      (a) => a.id !== idOrEmail && a.email?.toLowerCase() !== target
+      (a) => a.id !== idOrEmail && a.email?.toLowerCase() !== target,
     );
     persistSavedAccounts(updated);
     const last = get().lastActiveUser;
-    if (last && (last.id === idOrEmail || last.email?.toLowerCase() === target)) {
+    if (
+      last &&
+      (last.id === idOrEmail || last.email?.toLowerCase() === target)
+    ) {
       localStorage.removeItem("tescord_last_user");
       set({ lastActiveUser: null });
     }
@@ -447,73 +529,109 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   refreshAuth: async () => {
-    // 1. 若当前已有正在进行的刷新请求，直接复用 Promise（防并发冲突）
-    if (activeRefreshPromise) {
+    if (activeRefreshPromise && activeRefreshGeneration === authGeneration) {
       return activeRefreshPromise;
     }
-
-    const refreshToken =
-      get().refreshToken || localStorage.getItem("tescord_refresh_token");
-    if (!refreshToken) return false;
-
+    if (!currentRefreshToken()) {
+      set({ refreshFailure: "invalid" });
+      return false;
+    }
+    const generation = authGeneration;
+    activeRefreshGeneration = generation;
+    const expectedUserId = get().user?.id || get().lastActiveUser?.id;
+    const startedRefreshToken = currentRefreshToken();
     activeRefreshPromise = (async () => {
       try {
-        const res = await fetch(`${API_BASE}/api/auth/refresh`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ refreshToken }),
-        });
-
-        if (!res.ok) {
-          clearProactiveRefreshTimer();
-          return false;
-        }
-
-        const data = (await res.json()) as AuthTokens;
-        localStorage.setItem("tescord_access_token", data.accessToken);
-        localStorage.setItem("tescord_refresh_token", data.refreshToken);
-        localStorage.setItem("tescord_last_user", JSON.stringify(data.user));
-
-        const accounts = getStoredSavedAccounts();
-        const updated = accounts.map((acc) => {
+        const perform = async (): Promise<boolean> => {
+          const refreshToken = currentRefreshToken();
+          if (!refreshToken || generation !== authGeneration) return false;
+          // Another tab may have rotated the token while this tab waited for the lock.
+          const newerAccess = localStorage.getItem(ACCESS_KEY);
           if (
-            acc.id === data.user.id ||
-            (acc.email &&
-              data.user.email &&
-              acc.email.toLowerCase() === data.user.email.toLowerCase())
+            refreshToken !== startedRefreshToken &&
+            accessExpiresAt(newerAccess) > Date.now() + 60_000
           ) {
-            return {
-              ...acc,
-              refreshToken: acc.rememberPassword ? data.refreshToken : undefined,
-              lastActiveAt: Date.now(),
-              avatarUrl: data.user.avatarUrl ?? acc.avatarUrl,
-              displayName: data.user.displayName ?? acc.displayName,
-              username: data.user.username ?? acc.username,
-            };
+            set({
+              accessToken: newerAccess,
+              token: newerAccess,
+              refreshToken,
+              refreshFailure: null,
+            });
+            scheduleProactiveRefresh(() => get().refreshAuth(), newerAccess);
+            return true;
           }
-          return acc;
-        });
-        persistSavedAccounts(updated);
+          const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ refreshToken }),
+          });
+          if (!res.ok) {
+            const invalid =
+              res.status === 400 || res.status === 401 || res.status === 403;
+            set({ refreshFailure: invalid ? "invalid" : "transient" });
+            if (invalid) clearProactiveRefreshTimer();
+            else scheduleProactiveRefresh(() => get().refreshAuth());
+            return false;
+          }
+          const data = (await res.json()) as AuthTokens;
+          if (
+            generation !== authGeneration ||
+            (expectedUserId && data.user.id !== expectedUserId)
+          )
+            return false;
+          const remembered = Boolean(localStorage.getItem(REFRESH_KEY));
+          storeActiveTokens(data, remembered);
 
-        set({
-          user: data.user,
-          lastActiveUser: data.user,
-          accessToken: data.accessToken,
-          token: data.accessToken,
-          refreshToken: data.refreshToken,
-          isAuthenticated: true,
-          isLoading: false,
-          savedAccounts: updated,
-          error: null,
-        });
+          const accounts = getStoredSavedAccounts();
+          const updated = accounts.map((acc) => {
+            if (
+              acc.id === data.user.id ||
+              (acc.email &&
+                data.user.email &&
+                acc.email.toLowerCase() === data.user.email.toLowerCase())
+            ) {
+              return {
+                ...acc,
+                refreshToken: acc.rememberPassword
+                  ? data.refreshToken
+                  : undefined,
+                lastActiveAt: Date.now(),
+                avatarUrl: data.user.avatarUrl ?? acc.avatarUrl,
+                displayName: data.user.displayName ?? acc.displayName,
+                username: data.user.username ?? acc.username,
+              };
+            }
+            return acc;
+          });
+          persistSavedAccounts(updated);
 
-        // 成功换票后安排下一轮主动静默预续期
-        scheduleProactiveRefresh(() => get().refreshAuth());
-        return true;
+          set({
+            user: data.user,
+            lastActiveUser: data.user,
+            accessToken: data.accessToken,
+            token: data.accessToken,
+            refreshToken: data.refreshToken,
+            isAuthenticated: true,
+            isLoading: false,
+            savedAccounts: updated,
+            error: null,
+            refreshFailure: null,
+          });
+          scheduleProactiveRefresh(() => get().refreshAuth(), data.accessToken);
+          return true;
+        };
+        if (navigator.locks?.request) {
+          return await navigator.locks.request("tescord-auth-refresh", perform);
+        }
+        return await perform();
       } catch {
+        if (generation === authGeneration) {
+          set({ refreshFailure: "transient" });
+          scheduleProactiveRefresh(() => get().refreshAuth());
+        }
         return false;
       } finally {
-        activeRefreshPromise = null;
+        if (activeRefreshGeneration === generation) activeRefreshPromise = null;
       }
     })();
 
@@ -521,7 +639,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   logout: () => {
+    authGeneration++;
     clearProactiveRefreshTimer();
+    cancelPendingRequests("用户已退出登录");
+    const tokenToRevoke = currentRefreshToken();
+    if (tokenToRevoke) {
+      fetch(`${API_BASE}/api/auth/logout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken: tokenToRevoke }),
+        keepalive: true,
+      }).catch(() => {});
+    }
     const currentUser = get().user || get().lastActiveUser;
     if (currentUser) {
       const current = getStoredSavedAccounts();
@@ -543,8 +672,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ savedAccounts: updated });
     }
 
-    localStorage.removeItem("tescord_access_token");
-    localStorage.removeItem("tescord_refresh_token");
+    clearActiveTokens();
     set({
       user: null,
       accessToken: null,
@@ -594,14 +722,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     const tokens = data as AuthTokens;
-    localStorage.setItem("tescord_access_token", tokens.accessToken);
-    localStorage.setItem("tescord_refresh_token", tokens.refreshToken);
-    localStorage.setItem("tescord_last_user", JSON.stringify(tokens.user));
+    authGeneration++;
+    storeActiveTokens(
+      tokens,
+      getStoredSavedAccounts().some(
+        (a) => a.id === tokens.user.id && a.rememberPassword,
+      ),
+    );
 
     const updated = upsertSavedAccount(
       tokens.user,
       { refreshToken: tokens.refreshToken },
-      true
+      getStoredSavedAccounts().some(
+        (a) => a.id === tokens.user.id && a.rememberPassword,
+      ),
     );
 
     set({
@@ -621,9 +755,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 
   switchAccount: () => {
+    authGeneration++;
+    clearProactiveRefreshTimer();
     cancelPendingRequests("用户切换账号");
-    get().logout();
+    clearActiveTokens();
     set({
+      user: null,
+      accessToken: null,
+      token: null,
+      refreshToken: null,
+      isAuthenticated: false,
+      isLoading: false,
       isReauthModalOpen: false,
       reauthReason: null,
       lastActiveUser: null,
@@ -653,4 +795,51 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
 if (typeof window !== "undefined") {
   (window as any).useAuthStore = useAuthStore;
+  const refreshOnResume = () => {
+    const state = useAuthStore.getState();
+    if (
+      !state.isAuthenticated &&
+      state.refreshFailure === "transient" &&
+      currentRefreshToken()
+    ) {
+      void state.initAuth();
+      return;
+    }
+    if (
+      state.isAuthenticated &&
+      currentRefreshToken() &&
+      accessExpiresAt(state.accessToken) < Date.now() + 2 * 60_000
+    ) {
+      void state.refreshAuth();
+    }
+  };
+  window.addEventListener("online", refreshOnResume);
+  window.addEventListener("focus", refreshOnResume);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refreshOnResume();
+  });
+  window.addEventListener("storage", (event) => {
+    if (event.key !== REFRESH_KEY || !event.newValue) return;
+    const state = useAuthStore.getState();
+    if (
+      !state.isAuthenticated ||
+      !state.user ||
+      sessionStorage.getItem(REFRESH_KEY)
+    )
+      return;
+    const saved = getStoredSavedAccounts().find(
+      (account) => account.id === state.user?.id,
+    );
+    if (saved?.refreshToken !== event.newValue) return;
+    const accessToken = localStorage.getItem(ACCESS_KEY);
+    useAuthStore.setState({
+      refreshToken: event.newValue,
+      accessToken,
+      token: accessToken,
+    });
+    scheduleProactiveRefresh(
+      () => useAuthStore.getState().refreshAuth(),
+      accessToken,
+    );
+  });
 }

@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: tescord
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
       POSTGRES_DB: tescord
-    volumes: [pgdata:/var/lib/postgresql/data]
+    volumes: [./datas/postgres:/var/lib/postgresql/data]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U tescord -d tescord"]
       interval: 10s
@@ -16,12 +16,19 @@ services:
   redis:
     image: redis:7.4.1-alpine
     restart: unless-stopped
-    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?set REDIS_PASSWORD}"]
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--requirepass",
+        "${REDIS_PASSWORD:?set REDIS_PASSWORD}",
+      ]
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
-    volumes: [redisdata:/data]
+    volumes: [./datas/redis:/data]
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
+      test: ["CMD-SHELL", 'redis-cli -a "$$REDIS_PASSWORD" ping | grep PONG']
       interval: 10s
       timeout: 5s
       retries: 10
@@ -33,7 +40,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?set MINIO_ACCESS_KEY}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY}
-    volumes: [miniodata:/data]
+    volumes: [./datas/minio:/data]
     healthcheck:
       test: ["CMD", "mc", "ready", "local"]
       interval: 10s
@@ -69,7 +76,13 @@ services:
   coturn:
     image: coturn/coturn:4.18.0
     restart: unless-stopped
-    command: ["-c", "/etc/turnserver.conf", "--static-auth-secret=${TURN_SECRET:?set TURN_SECRET}", "--external-ip=${PUBLIC_IP:?set PUBLIC_IP}"]
+    command:
+      [
+        "-c",
+        "/etc/turnserver.conf",
+        "--static-auth-secret=${TURN_SECRET:?set TURN_SECRET}",
+        "--external-ip=${PUBLIC_IP:?set PUBLIC_IP}",
+      ]
     volumes: [./turnserver.conf:/etc/turnserver.conf:ro]
     ports:
       - "3478:3478/tcp"
@@ -112,7 +125,13 @@ services:
       minio: { condition: service_healthy }
       redis: { condition: service_healthy }
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -134,8 +153,3 @@ services:
       timeout: 5s
       retries: 10
     ports: ["80:80", "443:443"]
-
-volumes:
-  pgdata:
-  redisdata:
-  miniodata:

@@ -97,7 +97,9 @@ export class UpdateManager {
     indexPath: string;
     isFromUpdate: boolean;
   } {
-    const defaultDistPath = path.join(__dirname, "../../web/dist/index.html");
+    const defaultDistPath = app.isPackaged
+      ? path.join(process.resourcesPath, "web/dist/index.html")
+      : path.join(__dirname, "../../../web/dist/index.html");
     const hostVersion = this.getHostVersion();
 
     try {

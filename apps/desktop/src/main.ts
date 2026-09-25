@@ -40,6 +40,10 @@ import { ProxyManager } from "./updater/proxy-manager.js";
 import { BUILD_CONFIG } from "./build-config.js";
 import { ToastManager } from "./toastManager.js";
 
+if (process.env.TESCORD_E2E_USER_DATA_DIR) {
+  app.setPath("userData", process.env.TESCORD_E2E_USER_DATA_DIR);
+}
+
 let toastManager: ToastManager | null = null;
 
 // 开发环境下忽略自签名证书错误 (配合 Vite basicSsl HTTPS 开发模式)
@@ -69,7 +73,10 @@ app.commandLine.appendSwitch("enable-zero-copy");
 app.commandLine.appendSwitch("disable-features", "CalculateNativeWinOcclusion");
 
 // 1. 单例进程保护 (Single Instance Lock)
-const gotTheLock = app.requestSingleInstanceLock();
+const gotTheLock =
+  process.env.TESCORD_E2E_SKIP_SINGLE_INSTANCE === "true"
+    ? true
+    : app.requestSingleInstanceLock();
 if (!gotTheLock) {
   console.log(
     "⚠️ 检测到已有 Tescord 实例在运行，本进程将直接退出并唤醒前台窗口。",
@@ -512,11 +519,14 @@ async function loadWindowContent(
   isAuth: boolean,
   targetEntryPath?: string,
 ): Promise<void> {
-  const devUrls = [
-    process.env.VITE_DEV_SERVER_URL,
-    "https://localhost:3000",
-    "http://localhost:3000",
-  ].filter(Boolean) as string[];
+  const devUrls =
+    process.env.TESCORD_E2E_FORCE_FILE === "true"
+      ? []
+      : ([
+          process.env.VITE_DEV_SERVER_URL,
+          "https://localhost:3000",
+          "http://localhost:3000",
+        ].filter(Boolean) as string[]);
 
   const activeEntry = UpdateManager.getInstance().getActiveWebEntry();
   const distPath = targetEntryPath || activeEntry.indexPath;

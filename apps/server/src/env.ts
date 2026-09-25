@@ -30,7 +30,6 @@ if (process.env.NODE_ENV === "production") {
     "JWT_SECRET",
     "LIVEKIT_API_KEY",
     "LIVEKIT_API_SECRET",
-    "TURN_SECRET",
     "UPLOAD_SIGNING_SECRET",
     "MINIO_ACCESS_KEY",
     "MINIO_SECRET_KEY",
@@ -40,7 +39,6 @@ if (process.env.NODE_ENV === "production") {
     "LIVEKIT_HTTP_URL",
     "CORS_ORIGINS",
     "SERVER_BASE_URL",
-    "TURN_HOST",
   ];
   const knownPlaceholders = new Set([
     ...insecureProductionDefaults.values(),
@@ -74,6 +72,16 @@ if (process.env.NODE_ENV === "production") {
     }
     return false;
   });
+  const turnHost = process.env.TURN_HOST?.trim() || "";
+  const turnSecret = process.env.TURN_SECRET?.trim() || "";
+  if (Boolean(turnHost) !== Boolean(turnSecret))
+    invalid.push("TURN_HOST/TURN_SECRET");
+  if (
+    turnSecret &&
+    (Buffer.byteLength(turnSecret, "utf8") < 32 ||
+      knownPlaceholders.has(turnSecret))
+  )
+    invalid.push("TURN_SECRET");
   if (
     process.env.DATABASE_PROVIDER !== "postgresql" ||
     !/^postgres(ql)?:\/\//.test(process.env.DATABASE_URL || "")
@@ -113,8 +121,9 @@ if (process.env.NODE_ENV === "production") {
     invalid.push("TURN_HOST");
   if (
     process.env.JWT_SECRET === process.env.UPLOAD_SIGNING_SECRET ||
-    process.env.JWT_SECRET === process.env.TURN_SECRET ||
-    process.env.UPLOAD_SIGNING_SECRET === process.env.TURN_SECRET
+    (turnSecret &&
+      (process.env.JWT_SECRET === turnSecret ||
+        process.env.UPLOAD_SIGNING_SECRET === turnSecret))
   )
     invalid.push("independent signing secrets");
   if (invalid.length > 0) {

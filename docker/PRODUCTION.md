@@ -1,5 +1,9 @@
 # Tescord 单机生产部署与验收
 
+`docker-compose-without-coturn.yml` 是 rootless Podman + Cloudflare Tunnel 的部署入口，示例配置在 `.env.without-coturn.example`。它将 Web 源站仅绑定到 `127.0.0.1:18080`，由同网络的 `cloudflared` 转发至 `http://web:80`。Cloudflare 控制台需将公开主机名指向该 Tunnel 的 `http://web:80`；Tunnel 不承载 LiveKit 的 UDP/TCP 媒体端口。
+
+所有 Compose 持久化数据位于 Compose 文件目录下的 `./datas/`（PostgreSQL、Redis、MinIO，以及独立 Coturn 的日志）。首次启动前创建目录并确认 rootless Podman 的容器用户可写；不要把现有命名卷当作空目录直接替换。备份时数据库与对象存储必须成对保存，在另一套隔离实例恢复后验证数量和附件哈希。外部 Coturn 未配置时 `TURN_HOST` 与 `TURN_SECRET` 都留空，ICE API 不下发 TURN；配置外部服务时同时填写有效地址和相同的长随机密钥。
+
 首次生产部署使用新的 PostgreSQL 空库。开发 SQLite 数据不会被导入。当前仓库保留 `docker/livekit.yaml` 等开发配置；生产只使用本目录的 `docker-compose.yml` 与生产环境变量。
 
 ## 准备

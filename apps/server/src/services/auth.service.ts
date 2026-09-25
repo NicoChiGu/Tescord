@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { FastifyInstance } from "fastify";
 import {
   AuthTokens,
+  AuthFailureCode,
   GatewayEvents,
   GatewayOpCode,
   LoginDTO,
@@ -17,6 +18,17 @@ import { prisma } from "../db.js";
 import { cacheStore } from "../cache.js";
 import { gatewayManager } from "../gateway.js";
 import { registrationInviteService } from "./registration-invite.service.js";
+
+export class AuthFailure extends Error {
+  constructor(
+    public code: AuthFailureCode,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+const REFRESH_LIFETIME_MS = 30 * 24 * 60 * 60 * 1000;
 
 export class AuthService {
   private fastify: FastifyInstance;
@@ -77,15 +89,34 @@ export class AuthService {
   }
 
   /**
-   * 生成 Access Token (15分钟) 与 Refresh Token (7天)，并持久化 Refresh Token
+   * 生成 Access Token (15分钟) 与 Refresh Token (30天)，并持久化 Refresh Token
    */
   public async generateAuthTokens(user: any): Promise<AuthTokens> {
-    const formattedUser = this.formatUser(user);
+    const rawRefreshToken = crypto.randomBytes(40).toString("hex");
+    const session = await prisma.refreshToken.create({
+      data: {
+        tokenHash: this.hashRefreshToken(rawRefreshToken),
+        userId: user.id,
+        expiresAt: new Date(Date.now() + REFRESH_LIFETIME_MS),
+      },
+    });
+    return this.issueTokens(user, session.id, rawRefreshToken);
+  }
 
-    // 1. 生成短生命周期 Access Token (15m)
+  private hashRefreshToken(token: string): string {
+    return crypto.createHash("sha256").update(token).digest("hex");
+  }
+
+  private async issueTokens(
+    user: any,
+    sessionId: string,
+    rawRefreshToken: string,
+  ): Promise<AuthTokens> {
+    const formattedUser = this.formatUser(user);
     const accessToken = this.fastify.jwt.sign(
       {
         sub: user.id,
+        sessionId,
         username: user.username,
         email: user.email,
         role: user.role || "USER",
@@ -94,25 +125,9 @@ export class AuthService {
       { expiresIn: "15m" },
     );
 
-    // 2. 生成安全随机 Refresh Token (7d)
-    const rawRefreshToken = crypto.randomBytes(40).toString("hex");
-    const tokenHash = crypto
-      .createHash("sha256")
-      .update(rawRefreshToken)
-      .digest("hex");
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7天
-
-    // 3. 将 Refresh Token 哈希持久化至数据库
-    await prisma.refreshToken.create({
-      data: {
-        tokenHash,
-        userId: user.id,
-        expiresAt,
-      },
-    });
-
-    // 4. 写入缓存记录在线状态
-    await cacheStore.setUserPresence(user.id, formattedUser.status);
+    await cacheStore
+      .setUserPresence(user.id, formattedUser.status)
+      .catch(() => {});
 
     return {
       accessToken,
@@ -269,16 +284,19 @@ export class AuthService {
     });
 
     if (!user) {
-      throw new Error("账号或密码不正确");
+      throw new AuthFailure("AUTH_INVALID_CREDENTIALS", "账号或密码不正确");
     }
 
     if (user.isBanned) {
-      throw new Error("该账号已被系统封禁，无法登录");
+      throw new AuthFailure(
+        "AUTH_ACCOUNT_BANNED",
+        "该账号已被系统封禁，无法登录",
+      );
     }
 
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) {
-      throw new Error("账号或密码不正确");
+      throw new AuthFailure("AUTH_INVALID_CREDENTIALS", "账号或密码不正确");
     }
 
     return this.generateAuthTokens(user);
@@ -325,40 +343,59 @@ export class AuthService {
    * 双令牌无感刷新 (Token Rotation)
    */
   public async refresh(rawRefreshToken: string): Promise<AuthTokens> {
-    if (!rawRefreshToken) {
-      throw new Error("缺失 Refresh Token");
+    if (!rawRefreshToken || !/^[a-f0-9]{80}$/.test(rawRefreshToken)) {
+      throw new AuthFailure("AUTH_REFRESH_INVALID", "无效的刷新凭据");
     }
-
-    const tokenHash = crypto
-      .createHash("sha256")
-      .update(rawRefreshToken)
-      .digest("hex");
+    const tokenHash = this.hashRefreshToken(rawRefreshToken);
     const tokenRecord = await prisma.refreshToken.findUnique({
       where: { tokenHash },
       include: { user: true },
     });
 
     if (!tokenRecord) {
-      throw new Error("无效的 Refresh Token");
+      throw new AuthFailure("AUTH_REFRESH_INVALID", "无效的刷新凭据");
     }
 
     if (tokenRecord.expiresAt < new Date()) {
       await prisma.refreshToken.delete({ where: { id: tokenRecord.id } });
-      throw new Error("Refresh Token 已过期，请重新登录");
+      throw new AuthFailure("AUTH_REFRESH_EXPIRED", "登录已过期，请重新登录");
     }
 
     if (tokenRecord.user.isBanned) {
       await prisma.refreshToken.deleteMany({
         where: { userId: tokenRecord.userId },
       });
-      throw new Error("该账号已被系统封禁");
+      throw new AuthFailure("AUTH_ACCOUNT_BANNED", "该账号已被系统封禁");
     }
+    const newRefreshToken = crypto.randomBytes(40).toString("hex");
+    // 条件更新保证并发中只有一个请求消费旧凭据；更新失败时事务回滚。
+    const updated = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.findUnique({
+        where: { id: tokenRecord.userId },
+      });
+      if (!user || user.isBanned) {
+        throw new AuthFailure("AUTH_ACCOUNT_BANNED", "账号不可用");
+      }
+      const changed = await tx.refreshToken.updateMany({
+        where: { id: tokenRecord.id, tokenHash, expiresAt: { gt: new Date() } },
+        data: {
+          tokenHash: this.hashRefreshToken(newRefreshToken),
+          expiresAt: new Date(Date.now() + REFRESH_LIFETIME_MS),
+        },
+      });
+      if (changed.count !== 1) {
+        throw new AuthFailure("AUTH_REFRESH_INVALID", "刷新凭据已使用，请重试");
+      }
+      return user;
+    });
+    return this.issueTokens(updated, tokenRecord.id, newRefreshToken);
+  }
 
-    // 轮换机制：消费旧 Refresh Token 并销毁
-    await prisma.refreshToken.delete({ where: { id: tokenRecord.id } });
-
-    // 签发全新 Access Token 与 Refresh Token
-    return this.generateAuthTokens(tokenRecord.user);
+  public async revokeSession(rawRefreshToken: string): Promise<void> {
+    if (!/^[a-f0-9]{80}$/.test(rawRefreshToken)) return;
+    await prisma.refreshToken.deleteMany({
+      where: { tokenHash: this.hashRefreshToken(rawRefreshToken) },
+    });
   }
 
   /**

@@ -23,6 +23,7 @@ process.env.HOST = "127.0.0.1";
 process.env.SERVER_BASE_URL = "https://localhost:4173";
 process.env.NODE_ENV = "development";
 process.env.IS_E2E = "true";
+process.env.ALLOW_FILE_ORIGIN = "true";
 process.env.JWT_SECRET = "tescord-e2e-only-signed-token-test-secret-2026";
 process.env.UPLOAD_SIGNING_SECRET =
   "tescord-e2e-only-upload-signing-test-secret-2026";

@@ -9,7 +9,7 @@ import fs from "fs";
 import { createHmac, randomBytes } from "crypto";
 import { config } from "dotenv";
 import { prisma, seedInitialData } from "./db.js";
-import { AuthService } from "./services/auth.service.js";
+import { AuthFailure, AuthService } from "./services/auth.service.js";
 import { RelationshipService } from "./services/relationship.service.js";
 import { gatewayManager } from "./gateway.js";
 import { cacheStore } from "./cache.js";
@@ -158,7 +158,12 @@ await server.register(cors, {
       Boolean(
         origin && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin),
       );
-    if (!origin || allowed.has(origin) || isLocalDevelopment) {
+    if (
+      !origin ||
+      allowed.has(origin) ||
+      isLocalDevelopment ||
+      (origin === "null" && process.env.ALLOW_FILE_ORIGIN === "true")
+    ) {
       callback(null, true);
       return;
     }
@@ -225,10 +230,19 @@ async function getUserIdFromRequest(
 server.decorate(
   "authenticate",
   async (request: FastifyRequest, reply: FastifyReply) => {
+    let claims: { sub?: string; sessionVersion?: number; sessionId?: string };
     try {
       await request.jwtVerify();
-      const claims = request.user as { sub?: string; sessionVersion?: number };
+      claims = request.user as {
+        sub?: string;
+        sessionVersion?: number;
+        sessionId?: string;
+      };
       if (!claims?.sub) throw new Error("missing subject");
+    } catch {
+      return reply.status(401).send({ error: "认证失效或未提供有效令牌" });
+    }
+    try {
       const user = await prisma.user.findUnique({ where: { id: claims.sub } });
       if (!user || user.isBanned) {
         return reply.status(401).send({ error: "会话已失效，请重新登录" });
@@ -238,8 +252,31 @@ server.decorate(
       if (dbSessionVersion !== tokenSessionVersion) {
         return reply.status(401).send({ error: "会话已失效，请重新登录" });
       }
+      const session = claims.sessionId
+        ? await prisma.refreshToken.findUnique({
+            where: { id: claims.sessionId },
+          })
+        : null;
+      if (
+        !session ||
+        session.userId !== user.id ||
+        session.expiresAt <= new Date()
+      ) {
+        return reply
+          .status(401)
+          .send({
+            error: "会话已撤销，请重新登录",
+            code: "AUTH_SESSION_REVOKED",
+          });
+      }
     } catch (err) {
-      return reply.status(401).send({ error: "认证失效或未提供有效令牌" });
+      request.log.error({ err }, "session validation failed");
+      return reply
+        .status(503)
+        .send({
+          error: "会话服务暂时不可用",
+          code: "AUTH_SERVICE_UNAVAILABLE",
+        });
     }
   },
 );
@@ -248,6 +285,7 @@ const publicApiPaths = new Set([
   "/api/auth/register",
   "/api/auth/login",
   "/api/auth/refresh",
+  "/api/auth/logout",
   "/api/auth/registration-status",
   "/api/auth/check-email",
   "/api/discovery/guilds",
@@ -393,14 +431,19 @@ server.post("/api/auth/login", async (request, reply) => {
       token: result.accessToken, // 兼容字段
     };
   } catch (err: any) {
-    return reply.status(401).send({ error: err.message || "账号或密码错误" });
+    if (err instanceof AuthFailure)
+      return reply.status(401).send({ error: err.message, code: err.code });
+    request.log.error({ err }, "auth login failed");
+    return reply
+      .status(503)
+      .send({ error: "登录服务暂时不可用", code: "AUTH_SERVICE_UNAVAILABLE" });
   }
 });
 
 // 双令牌无感刷新
 server.post("/api/auth/refresh", async (request, reply) => {
   try {
-    const { refreshToken } = request.body as { refreshToken: string };
+    const { refreshToken } = (request.body || {}) as { refreshToken?: string };
     if (!refreshToken) {
       return reply.status(400).send({ error: "未提供 refreshToken" });
     }
@@ -410,10 +453,22 @@ server.post("/api/auth/refresh", async (request, reply) => {
       token: result.accessToken,
     };
   } catch (err: any) {
+    if (err instanceof AuthFailure) {
+      return reply.status(401).send({ error: err.message, code: err.code });
+    }
+    request.log.error({ err }, "auth refresh failed");
     return reply
-      .status(401)
-      .send({ error: err.message || "刷新令牌无效或已过期" });
+      .status(503)
+      .send({ error: "会话服务暂时不可用", code: "AUTH_SERVICE_UNAVAILABLE" });
   }
+});
+
+server.post("/api/auth/logout", async (request, reply) => {
+  const body = (request.body || {}) as { refreshToken?: string };
+  if (typeof body.refreshToken !== "string")
+    return reply.status(400).send({ error: "缺少会话凭据" });
+  await authService.revokeSession(body.refreshToken);
+  return reply.status(204).send();
 });
 
 server.post(
@@ -4711,13 +4766,12 @@ server.get("/api/channels/:channelId/e2ee/status", async (request, reply) => {
 // ==========================================
 
 server.get("/api/network/ice-servers", async (request) => {
-  const turnHost =
-    process.env.COTURN_HOST || process.env.TURN_HOST || "127.0.0.1";
+  const turnHost = process.env.COTURN_HOST || process.env.TURN_HOST || "";
   const turnPort = process.env.COTURN_PORT || process.env.TURN_PORT || "3478";
   const userId = await getUserIdFromRequest(request);
   const expiresAt = Math.floor(Date.now() / 1000) + 10 * 60;
   const turnUser = `${expiresAt}:${userId}`;
-  const turnSecret = process.env.TURN_SECRET || "tescord-dev-turn-secret";
+  const turnSecret = process.env.TURN_SECRET || "";
   const turnPass = createHmac("sha1", turnSecret)
     .update(turnUser)
     .digest("base64");
@@ -4727,18 +4781,22 @@ server.get("/api/network/ice-servers", async (request) => {
       ...(process.env.ALLOW_PUBLIC_STUN === "true"
         ? [{ urls: "stun:stun.cloudflare.com:3478" }]
         : []),
-      // 自托管 Coturn STUN & TURN（凭据十分钟后失效）
-      { urls: `stun:${turnHost}:${turnPort}` },
-      {
-        urls: [
-          `turn:${turnHost}:${turnPort}?transport=udp`,
-          `turn:${turnHost}:${turnPort}?transport=tcp`,
-        ],
-        username: turnUser,
-        credential: turnPass,
-      },
+      // 未配置外部 Coturn 时不下发无效的本机地址或开发密钥。
+      ...(turnHost && turnSecret
+        ? [
+            { urls: `stun:${turnHost}:${turnPort}` },
+            {
+              urls: [
+                `turn:${turnHost}:${turnPort}?transport=udp`,
+                `turn:${turnHost}:${turnPort}?transport=tcp`,
+              ],
+              username: turnUser,
+              credential: turnPass,
+            },
+          ]
+        : []),
     ],
-    turnActive: true,
+    turnActive: Boolean(turnHost && turnSecret),
   };
 });
 

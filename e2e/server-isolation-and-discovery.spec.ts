@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("服务器未加入隔离与公开社区探索中心验收 (Server Isolation & Discovery)", () => {
-  test("未加入服务器的用户不可见该服务器，主界面展示探索引导大厅并支持一键发现加入公开社区", async ({
+  test("未加入服务器的用户不可见该服务器，侧边栏可打开公开社区探索并加入", async ({
     page,
     request,
   }) => {
@@ -60,22 +60,13 @@ test.describe("服务器未加入隔离与公开社区探索中心验收 (Server
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
-    // 5. 验证主界面在零公会状态下渲染探索引导大厅 EmptyGuildsWelcome
-    const emptyWelcome = page.locator('[data-testid="empty-guilds-welcome"]');
-    await expect(emptyWelcome).toBeVisible({ timeout: 10000 });
-
-    const welcomeDiscoveryCard = page.locator(
-      '[data-testid="welcome-discovery-card"]',
-    );
-    await expect(welcomeDiscoveryCard).toBeVisible();
-
-    const welcomeCreateCard = page.locator(
-      '[data-testid="welcome-create-card"]',
-    );
-    await expect(welcomeCreateCard).toBeVisible();
-
-    // 6. 点击欢迎卡片或侧边栏指南针按钮打开 DiscoveryModal
-    await welcomeDiscoveryCard.click();
+    // 5. 零公会时从侧边栏打开 DiscoveryModal
+    await expect(
+      page.getByRole("button", { name: "Tescord 极客总部" }),
+    ).toHaveCount(0);
+    const openDiscovery = page.locator('[data-testid="open-discovery-btn"]');
+    await expect(openDiscovery).toBeVisible();
+    await openDiscovery.click();
 
     const discoveryModal = page.locator('[data-testid="discovery-modal"]');
     await expect(discoveryModal).toBeVisible();
@@ -102,8 +93,7 @@ test.describe("服务器未加入隔离与公开社区探索中心验收 (Server
     });
     await expect(guildButton).toBeVisible({ timeout: 10000 });
 
-    // 10. 验证主界面平滑退出零公会大厅，显示出公会频道及聊天区域
-    await expect(emptyWelcome).not.toBeVisible();
+    // 10. 验证公会频道及聊天区域已可进入
     const generalChannelBtn = page.getByRole("button", { name: "general" });
     if (await generalChannelBtn.isVisible()) {
       await generalChannelBtn.click();
@@ -292,6 +282,8 @@ test.describe("服务器未加入隔离与公开社区探索中心验收 (Server
     await dialogConfirmBtn.click();
 
     // 5. 验证弹窗成功触发登出并展示登录弹窗 AuthModal
+    await expect(page.getByTestId("account-picker")).toBeVisible();
+    await page.getByRole("button", { name: "使用其他账号登录" }).click();
     const emailInput = page.locator('[data-testid="auth-email-input"]');
     await expect(emailInput).toBeVisible({ timeout: 5000 });
     const passwordInput = page.locator('[data-testid="auth-password-input"]');
@@ -299,14 +291,18 @@ test.describe("服务器未加入隔离与公开社区探索中心验收 (Server
 
     // 6. 切换为用户 Bob 登录
     await emailInput.fill("bob@tescord.local");
+    await submitBtn.click();
+    await expect(passwordInput).toBeVisible();
     await passwordInput.fill("bobpassword123");
     await submitBtn.click();
 
     // 7. 核心断言：Bob 登录成功后
-    // - 立即进入 EmptyGuildsWelcome 探索引导大厅
+    // - Bob 不继承 Jackey 的任何公会和聊天内容
     // - 绝对不残留上一个账号 Jackey 的频道聊天消息与公会数据
-    const emptyWelcome = page.locator('[data-testid="empty-guilds-welcome"]');
-    await expect(emptyWelcome).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId("current-user-panel-btn")).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Tescord 极客总部" }),
+    ).toHaveCount(0);
 
     // 验证 Jackey 的私密消息从 DOM 中彻底清空，完全不可见
     await expect(secretMsgLocator).not.toBeVisible();

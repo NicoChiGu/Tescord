@@ -21,8 +21,11 @@ playwright-report/
 .env.local
 .env.*.local
 docker/.env.production
+docker/.env.without-coturn
 docker/certs/
 docker/backups/
+docker/**/datas/
+docker/.env.tunnel
 release-keys/
 
 # Database & Storage

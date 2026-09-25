@@ -232,6 +232,7 @@ test.describe("令牌失效重新登录 Modal 与会话无感恢复验收", () =
   test("WebSocket 会话失效事件可唤起 ReauthModal，且支持切换账号彻底登出", async ({
     page,
   }) => {
+    await page.routeWebSocket("**/gateway", (socket) => socket.close());
     // 预注入认证凭据
     await page.addInitScript(() => {
       localStorage.setItem("tescord_access_token", "mock_ws_access_token");
