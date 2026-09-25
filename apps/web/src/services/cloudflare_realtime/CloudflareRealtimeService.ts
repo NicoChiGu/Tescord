@@ -304,7 +304,11 @@ export class CloudflareRealtimeService {
     } catch (err: any) {
       console.error("[CF Realtime] 连接建立异常:", err);
       const shouldRetry = retryCount === 0 && err instanceof Error &&
-        err.message.includes("ICE timeout") &&
+        (err.message.includes("ICE timeout") ||
+          err.message.includes("media connection failed") ||
+          err.message.includes("No ICE candidates gathered") ||
+          err.message.includes("ICE candidate gathering timed out") ||
+          err.message.includes("Publish failed (502)")) &&
         Boolean(options?.audioStream?.getAudioTracks().some(track => track.readyState === "live"));
       await this.disconnect(!shouldRetry);
       if (shouldRetry) {
@@ -600,7 +604,6 @@ export class CloudflareRealtimeService {
 
   private async waitForIceGathering(pc: RTCPeerConnection, timeoutMs = 15_000): Promise<void> {
     const hasCandidate = () => pc.localDescription?.sdp?.includes("a=candidate:") === true;
-    if (hasCandidate()) return;
     await new Promise<void>((resolve, reject) => {
       const cleanup = () => {
         clearTimeout(timer);
@@ -608,10 +611,17 @@ export class CloudflareRealtimeService {
         pc.removeEventListener("icegatheringstatechange", check);
       };
       const check = () => {
-        if (hasCandidate()) { cleanup(); resolve(); }
-        else if (pc.iceGatheringState === "complete") { cleanup(); reject(new Error("No ICE candidates gathered")); }
+        if (pc.iceGatheringState === "complete") {
+          cleanup();
+          if (hasCandidate()) resolve();
+          else reject(new Error("No ICE candidates gathered"));
+        }
       };
-      const timer = setTimeout(() => { cleanup(); reject(new Error("ICE candidate gathering timed out")); }, timeoutMs);
+      const timer = setTimeout(() => {
+        cleanup();
+        if (hasCandidate()) resolve();
+        else reject(new Error("ICE candidate gathering timed out"));
+      }, timeoutMs);
       pc.addEventListener("icecandidate", check);
       pc.addEventListener("icegatheringstatechange", check);
       check();

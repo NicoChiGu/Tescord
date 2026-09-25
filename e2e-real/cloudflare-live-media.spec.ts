@@ -34,6 +34,7 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   expect(adminLogin.ok()).toBeTruthy();
   const adminToken = (await adminLogin.json()).accessToken as string;
   let guildId = "gld_default_01";
+  let guildName: string | null = null;
   let aliceToken: string;
   let bobToken: string;
   if (onTarget) {
@@ -48,7 +49,8 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     };
     aliceToken = await register("alice");
     bobToken = await register("bob");
-    const guild = await request.post("/api/guilds", { headers: { Authorization: `Bearer ${adminToken}` }, data: { name: `Cloudflare acceptance ${marker}` } });
+    guildName = `Cloudflare acceptance ${marker}`;
+    const guild = await request.post("/api/guilds", { headers: { Authorization: `Bearer ${adminToken}` }, data: { name: guildName } });
     expect(guild.ok()).toBeTruthy();
     guildId = (await guild.json()).id as string;
   } else {
@@ -111,11 +113,17 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   }
 
   for (const page of pages) {
+    if (guildName) await page.getByRole("button", { name: guildName, exact: true }).click();
     const voice = page.locator('button[title="单击预览房间，双击加入语音通话"]').first();
     await expect(voice).toBeVisible({ timeout: 10_000 });
     await voice.click();
     await page.getByRole("button", { name: "加入语音通话" }).click();
-    await expect(page.getByRole("button", { name: "断开连接" }).first()).toBeVisible({ timeout: 25_000 });
+    try {
+      await expect(page.getByRole("button", { name: "断开连接" }).first()).toBeVisible({ timeout: 25_000 });
+    } catch (error) {
+      console.log(JSON.stringify({ stage: "join", snapshots: await Promise.all(pages.map(mediaSnapshot)), diagnostics }));
+      throw error;
+    }
   }
 
   try {
