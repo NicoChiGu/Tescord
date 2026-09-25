@@ -2703,22 +2703,7 @@ export const App: React.FC = () => {
     const isCloudflareActive =
       voiceMode === "cloudflare_realtime" || VOICE_ENGINE === "cloudflare_realtime";
 
-    // 优先：若配置为 Cloudflare Realtime，直接通过 Cloudflare Calls SFU 建连推流
-    if (isCloudflareActive && processedStream) {
-      try {
-        console.log("[VoiceEngine] 正在通过 Cloudflare Realtime Serverless SFU 加入频道:", channel.id);
-        const cfSessionId = await cloudflareRealtimeService.connect(channel.id, {
-          audioStream: processedStream,
-        });
-        joinSuccess = Boolean(cfSessionId);
-        if (joinSuccess) {
-          livekitService.setConnectionStatus("connected");
-        }
-      } catch (cfErr) {
-        console.error("Cloudflare Realtime 加入频道失败:", cfErr);
-        joinSuccess = false;
-      }
-    } else if (voiceMode === "p2p_mesh" && processedStream && channel.guildId) {
+    if (voiceMode === "p2p_mesh" && processedStream && channel.guildId) {
       gatewayClient.updateVoiceState(channel.guildId, channel.id, {
         selfMute: isMuted,
         selfDeaf: isDeafened,
@@ -2748,7 +2733,19 @@ export const App: React.FC = () => {
       if (!joinSuccess) voiceMeshManager.stopAll();
     }
 
-    // 后备：若未开启 Cloudflare 且 Mesh 失败，回退传统 LiveKit
+    // 显式 P2P 失败时使用部署所选 SFU；Cloudflare 实例不请求 LiveKit 令牌。
+    if (!joinSuccess && isCloudflareActive && processedStream) {
+      try {
+        const cfSessionId = await cloudflareRealtimeService.connect(channel.id, {
+          audioStream: processedStream,
+        });
+        joinSuccess = Boolean(cfSessionId);
+        if (joinSuccess) livekitService.setConnectionStatus("connected");
+      } catch (cfErr) {
+        console.error("Cloudflare Realtime 加入频道失败:", cfErr);
+      }
+    }
+
     try {
       if (!isCloudflareActive && !joinSuccess) {
         const token = useAuthStore.getState().token;
