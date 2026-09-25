@@ -1282,6 +1282,43 @@ export const GatewayEvents = {
 export type GatewayEventType =
   (typeof GatewayEvents)[keyof typeof GatewayEvents];
 
+export interface DMCallOfferPayload {
+  channelId: string;
+  hasVideo: boolean;
+}
+
+export interface DMCallActionPayload {
+  callId: string;
+  reason?: string;
+}
+
+export interface DMCallStatePayload {
+  callId: string;
+  channelId: string;
+  callerId: string;
+  hasVideo: boolean;
+  state: "ringing" | "active";
+}
+
+export interface DMCallIncomingPayload {
+  callId: string;
+  channelId: string;
+  caller: Pick<User, "id" | "username" | "avatarUrl">;
+  hasVideo: boolean;
+}
+
+export interface DMCallAnsweredPayload {
+  callId: string;
+  channelId: string;
+}
+
+export interface DMCallEndedPayload {
+  callId: string;
+  channelId: string;
+  endedBy: string;
+  reason: string;
+}
+
 export type NATType =
   | "FullCone"
   | "RestrictedCone"

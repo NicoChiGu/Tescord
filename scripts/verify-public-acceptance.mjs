@@ -41,7 +41,9 @@ async function mediaStats(page) {
     const rtp = [...report.values()].filter(item => item.type === 'inbound-rtp' || item.type === 'outbound-rtp')
       .map(item => ({ direction: item.type, kind: item.kind, bytes: item.bytesReceived || item.bytesSent || 0,
         codec: report.get(item.codecId)?.mimeType || null, frames: item.framesDecoded || 0 }));
-    return { state: pc.connectionState, localType: report.get(pair?.localCandidateId)?.candidateType || null, rtp };
+    return { state: pc.connectionState, localType: report.get(pair?.localCandidateId)?.candidateType || null, rtp,
+      senders: pc.getSenders().map(sender => sender.track ? { kind: sender.track.kind, readyState: sender.track.readyState,
+        enabled: sender.track.enabled, muted: sender.track.muted } : null) };
   })));
 }
 
@@ -176,7 +178,8 @@ try {
   desktopDir = await mkdtemp(join(resolve('test-results'), 'public-electron-'));
   const launchDesktop = () => electron.launch({
     executablePath: exe,
-    args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
+    args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream',
+      '--disable-background-timer-throttling', '--disable-renderer-backgrounding'],
     env: { ...process.env, NODE_ENV: 'production', TESCORD_E2E_USER_DATA_DIR: desktopDir,
       TESCORD_E2E_SKIP_SINGLE_INSTANCE: 'true' },
     timeout: 30000,
@@ -209,7 +212,40 @@ try {
     window.RTCPeerConnection = class extends NativePC {
       constructor(...args) { super(...args); window.__acceptanceMediaPcs.push(this); }
     };
-    navigator.mediaDevices.getDisplayMedia = () => navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    const nativeGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+    const captureCleanup = [];
+    navigator.mediaDevices.getUserMedia = async (constraints) => {
+      if (!constraints?.video) return nativeGetUserMedia(constraints);
+      const canvas = document.createElement('canvas');
+      canvas.width = 640; canvas.height = 360;
+      const context = canvas.getContext('2d');
+      let frame = 0;
+      const paint = () => {
+        context.fillStyle = frame++ % 2 ? '#18888f' : '#df744d';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+      };
+      paint();
+      const timer = setInterval(paint, 100);
+      const stream = canvas.captureStream(15);
+      captureCleanup.push(() => { clearInterval(timer); stream.getTracks().forEach(track => track.stop()); });
+      if (constraints.audio) {
+        const audio = new AudioContext();
+        const oscillator = audio.createOscillator();
+        const gain = audio.createGain();
+        const destination = audio.createMediaStreamDestination();
+        gain.gain.value = 0.02;
+        oscillator.connect(gain).connect(destination);
+        oscillator.start();
+        stream.addTrack(destination.stream.getAudioTracks()[0]);
+        captureCleanup.push(() => { oscillator.stop(); void audio.close(); });
+      }
+      return stream;
+    };
+    window.__acceptanceCaptureCleanup = () => captureCleanup.forEach(cleanup => cleanup());
+    Object.defineProperty(navigator.mediaDevices, 'getDisplayMedia', {
+      configurable: true,
+      value: () => navigator.mediaDevices.getUserMedia({ video: true, audio: true }),
+    });
   });
   const electronDiagnostics = [];
   window.on('console', event => {
@@ -261,7 +297,36 @@ try {
   await writeFile(join(screenshotDir, 'electron-media-stats.json'), JSON.stringify({ before: mediaBefore, after: mediaAfter }, null, 2));
   await window.screenshot({ path: join(screenshotDir, 'electron-media.png'), fullPage: true });
   console.log('PASS packaged Electron file:// and public Chromium exchange bidirectional Opus RTP');
+  await window.getByTestId('voice-toggle-camera-btn').click();
+  try {
+    await expect.poll(async () => (await mediaStats(peerPage)).some(row => row.rtp.some(item =>
+      item.direction === 'inbound-rtp' && item.kind === 'video' && item.bytes > 1000 && item.frames > 0
+    )), { timeout: 45000 }).toBe(true);
+  } catch (error) {
+    console.log(JSON.stringify({ stage: 'electron_camera', diagnostics: electronDiagnostics.slice(-30), stats: await Promise.all([mediaStats(window), mediaStats(peerPage)]) }));
+    throw error;
+  }
+  console.log('PASS packaged Electron camera reaches public Chromium as decoded video');
+  await window.getByTestId('voice-toggle-camera-btn').click();
+  await window.getByTestId('voice-toggle-screen-btn').click();
+  await window.getByTestId('screen-share-audio-checkbox').check({ force: true });
+  await window.getByTestId('start-screen-share-confirm-btn').click();
+  try {
+    await expect.poll(async () => (await mediaStats(peerPage)).some(row =>
+      row.rtp.filter(item => item.direction === 'inbound-rtp' && item.kind === 'video' && item.frames > 0).length >= 2 &&
+      row.rtp.filter(item => item.direction === 'inbound-rtp' && item.kind === 'audio' && item.bytes > 1000).length >= 2
+    ), { timeout: 45000 }).toBe(true);
+  } catch (error) {
+    console.log(JSON.stringify({ stage: 'electron_screen', diagnostics: electronDiagnostics.slice(-30), stats: await Promise.all([mediaStats(window), mediaStats(peerPage)]) }));
+    throw error;
+  }
+  await writeFile(join(screenshotDir, 'electron-screen-stats.json'), JSON.stringify(await Promise.all([mediaStats(window), mediaStats(peerPage)]), null, 2));
+  await window.screenshot({ path: join(screenshotDir, 'electron-screen.png'), fullPage: true });
+  console.log('PASS packaged Electron screen video and shared audio reach public Chromium');
 } finally {
+  await desktop?.windows().then(windows => Promise.all(windows.map(async page => {
+    await page.evaluate(() => window.__acceptanceCaptureCleanup?.()).catch(() => {});
+  }))).catch(() => {});
   await desktop?.close().catch(() => {});
   await browser?.close().catch(() => {});
   await api.dispose();

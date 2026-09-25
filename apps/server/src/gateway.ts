@@ -20,6 +20,10 @@ import {
   PresenceUpdateEvent,
   MaintenanceUpdatePayload,
   PermissionFlags,
+  DMCallOfferPayload,
+  DMCallActionPayload,
+  DMCallSession,
+  DMCallEndedPayload,
 } from "@tescord/types";
 import { prisma } from "./db.js";
 import { removeParticipantFromRoom } from "./livekit.js";
@@ -66,6 +70,7 @@ export class GatewayManager {
 
   constructor() {
     this.initMaintenanceState();
+    dmCallService.setEndSink((call) => this.publishCallEnd(call, "system"));
     // 启动周期性心跳巡检（每 30 秒），及时识别并清理 TCP 僵尸假死连接
     this.heartbeatSweepTimer = setInterval(() => {
       for (const conn of this.connections) {
@@ -592,7 +597,48 @@ export class GatewayManager {
       }
 
       case GatewayOpCode.DISPATCH: {
-        if (payload.t === GatewayEvents.TYPING_START) {
+        if (payload.t === GatewayEvents.CALL_OFFER) {
+          if (!conn.userId || !conn.sessionId) return;
+          const data = payload.d as DMCallOfferPayload | undefined;
+          if (typeof data?.channelId !== "string" || !data.channelId || data.channelId.length > 160 || typeof data.hasVideo !== "boolean") return;
+          try {
+            const call = await dmCallService.start(conn.userId, conn.sessionId, data.channelId, data.hasVideo);
+            const caller = await prisma.user.findUnique({ where: { id: conn.userId }, select: { id: true, username: true, avatarUrl: true } });
+            if (!caller) return;
+            this.send(conn.ws, { op: GatewayOpCode.DISPATCH, t: GatewayEvents.CALL_STATE_UPDATE,
+              d: { callId: call.callId, channelId: call.channelId, callerId: call.callerId, hasVideo: call.hasVideo, state: call.state } });
+            this.sendToUser(call.calleeId, { op: GatewayOpCode.DISPATCH, t: GatewayEvents.CALL_OFFER,
+              d: { callId: call.callId, channelId: call.channelId, caller, hasVideo: call.hasVideo } });
+          } catch {
+            this.send(conn.ws, { op: GatewayOpCode.DISPATCH, t: GatewayEvents.CALL_END,
+              d: { callId: "", channelId: data.channelId, endedBy: "system", reason: "call_unavailable" } });
+          }
+        } else if (payload.t === GatewayEvents.CALL_ANSWER) {
+          if (!conn.userId || !conn.sessionId) return;
+          const data = payload.d as DMCallActionPayload | undefined;
+          if (typeof data?.callId !== "string" || !data.callId || data.callId.length > 160) return;
+          try {
+            const call = dmCallService.answer(conn.userId, conn.sessionId, data.callId);
+            const event = { callId: call.callId, channelId: call.channelId };
+            if (!call.callerSessionId) return;
+            this.sendToSession(call.callerId, call.callerSessionId, { op: GatewayOpCode.DISPATCH, t: GatewayEvents.CALL_ANSWER, d: event });
+            this.send(conn.ws, { op: GatewayOpCode.DISPATCH, t: GatewayEvents.CALL_ANSWER, d: event });
+            const state = { ...event, callerId: call.callerId, hasVideo: call.hasVideo, state: "active" as const };
+            this.sendToSession(call.callerId, call.callerSessionId, { op: GatewayOpCode.DISPATCH, t: GatewayEvents.CALL_STATE_UPDATE, d: state });
+            this.send(conn.ws, { op: GatewayOpCode.DISPATCH, t: GatewayEvents.CALL_STATE_UPDATE, d: state });
+          } catch { /* Invalid call and nonparticipant attempts are silent. */ }
+        } else if (payload.t === GatewayEvents.CALL_REJECT || payload.t === GatewayEvents.CALL_END) {
+          if (!conn.userId || !conn.sessionId) return;
+          const data = payload.d as DMCallActionPayload | undefined;
+          if (typeof data?.callId !== "string" || !data.callId || data.callId.length > 160) return;
+          try {
+            const call = payload.t === GatewayEvents.CALL_REJECT
+              ? dmCallService.reject(conn.userId, data.callId)
+              : dmCallService.end(conn.userId, data.callId,
+                typeof data.reason === "string" && data.reason.length <= 80 ? data.reason : "ended");
+            this.publishCallEnd(call, conn.userId);
+          } catch { /* Invalid call and nonparticipant attempts are silent. */ }
+        } else if (payload.t === GatewayEvents.TYPING_START) {
           if (!conn.userId) return;
           const { channelId } = (payload.d || {}) as { channelId?: string };
           if (!channelId) return;
@@ -606,7 +652,24 @@ export class GatewayManager {
           await this.broadcastTypingAuthorized(channelId, user);
         } else if (payload.t === GatewayEvents.P2P_SIGNAL) {
           const signalData = payload.d as P2PSignalPayload;
-          if (!signalData || !conn.userId) return;
+          if (!signalData || !conn.userId || !conn.sessionId) return;
+          if (signalData.callId) {
+            if (!signalData.channelId || !signalData.targetId || !signalData.callId ||
+              signalData.channelId.length > 160 || signalData.callId.length > 160 ||
+              !["VOICE_OFFER", "VOICE_ANSWER", "VOICE_ICE_CANDIDATE", "VOICE_LEAVE"].includes(signalData.type)) return;
+            try {
+              const call = dmCallService.authorizeMedia(conn.userId, conn.sessionId, signalData.callId, signalData.channelId);
+              const peerId = call.callerId === conn.userId ? call.calleeId : call.callerId;
+              if (signalData.targetId !== peerId) return;
+              signalData.senderId = conn.userId;
+              signalData.streamOwnerId = conn.userId;
+              signalData.guildId = "";
+              const peerSessionId = peerId === call.callerId ? call.callerSessionId : call.acceptedSessionId;
+              if (!peerSessionId) return;
+              this.sendToSession(peerId, peerSessionId, { op: GatewayOpCode.DISPATCH, t: GatewayEvents.P2P_SIGNAL, d: signalData });
+            } catch { /* Reject forged or expired DM media signalling. */ }
+            return;
+          }
           if (
             !signalData.channelId ||
             !(await this.canSignalVoice(conn, signalData.channelId))
@@ -875,6 +938,19 @@ export class GatewayManager {
       for (const conn of sessions.values()) {
         this.send(conn.ws, payload);
       }
+    }
+  }
+
+  private sendToSession(userId: string, sessionId: string, payload: GatewayPayload) {
+    const conn = this.userSessions.get(userId)?.get(sessionId);
+    if (conn) this.send(conn.ws, payload);
+  }
+
+  private publishCallEnd(call: DMCallSession, endedBy: string) {
+    const event: DMCallEndedPayload = { callId: call.callId, channelId: call.channelId,
+      endedBy, reason: call.endedReason || "ended" };
+    for (const userId of [call.callerId, call.calleeId]) {
+      this.sendToUser(userId, { op: GatewayOpCode.DISPATCH, t: GatewayEvents.CALL_END, d: event });
     }
   }
 
