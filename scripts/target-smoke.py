@@ -54,6 +54,11 @@ def run(base, state_path, verify):
         })
         require(status, 200, auth, "login after restart")
         token = auth["accessToken"]
+        status, ice = call(base, "GET", "/api/network/ice-servers", token)
+        require(status, 200, ice, "ICE configuration")
+        if ice.get("turnActive") is not False or ice.get("iceServers") != []:
+            raise RuntimeError("TURN-empty environment returned relay or public STUN")
+        print("PASS TURN disabled and no implicit public STUN")
         status, guilds = call(base, "GET", "/api/guilds", token)
         require(status, 200, guilds, "guild listing after restart")
         if state["guildId"] not in json.dumps(guilds):
@@ -64,7 +69,25 @@ def run(base, state_path, verify):
         if state["messageId"] not in json.dumps(messages):
             raise RuntimeError("created message missing after restart")
         print("PASS message persisted")
-        status, attachment = call(base, "GET", state["attachmentUrl"], token)
+        def signed_attachment(value):
+            if isinstance(value, dict):
+                if value.get("fileName") == "preprod.txt" and "/attachments/" in value.get("url", ""):
+                    return value["url"]
+                for child in value.values():
+                    found = signed_attachment(child)
+                    if found:
+                        return found
+            if isinstance(value, list):
+                for child in value:
+                    found = signed_attachment(child)
+                    if found:
+                        return found
+            return None
+
+        attachment_url = signed_attachment(messages)
+        if not attachment_url:
+            raise RuntimeError("message has no signed attachment URL")
+        status, attachment = call(base, "GET", attachment_url, token)
         require(status, 200, attachment, "attachment persisted")
         if hashlib.sha256(attachment).hexdigest() != state["attachmentSha256"]:
             raise RuntimeError("attachment hash differs")
