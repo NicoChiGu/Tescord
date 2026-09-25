@@ -238,7 +238,10 @@ export class CloudflareRealtimeService {
     }
 
     const data = (await response.json()) as CfCallsSubscribeTrackResponse;
-    if (!data?.sessionDescription || typeof data.sessionDescription.sdp !== "string" || !Array.isArray(data.tracks) || data.tracks.length !== req.tracks.length || data.tracks.some(track => track.errorCode || typeof track.mid !== "string")) throw new Error("Cloudflare subscription rejected");
+    if (!data?.sessionDescription || typeof data.sessionDescription.sdp !== "string" || !Array.isArray(data.tracks) || data.tracks.length !== req.tracks.length || data.tracks.some(track => track.errorCode || typeof track.mid !== "string")) {
+      const codes = Array.isArray(data?.tracks) ? data.tracks.map(track => track.errorCode).filter(Boolean).join(",") : "missing_tracks";
+      throw new Error(`Cloudflare subscription rejected (${codes || "invalid_response"})`);
+    }
     return data;
   }
 

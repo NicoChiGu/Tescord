@@ -101,10 +101,15 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     await expect(page.getByRole("button", { name: "断开连接" }).first()).toBeVisible({ timeout: 25_000 });
   }
 
-  await expect.poll(async () => {
-    const snapshots = await Promise.all(pages.map(mediaSnapshot));
-    return snapshots.every((rows) => rows.some((row) => row.state === "connected" && row.rtp.some((rtp) => rtp.direction === "inbound-rtp" && rtp.kind === "audio" && rtp.bytes > 1000)));
-  }, { timeout: 30_000 }).toBe(true);
+  try {
+    await expect.poll(async () => {
+      const snapshots = await Promise.all(pages.map(mediaSnapshot));
+      return snapshots.every((rows) => rows.some((row) => row.state === "connected" && row.rtp.some((rtp) => rtp.direction === "inbound-rtp" && rtp.kind === "audio" && rtp.bytes > 1000)));
+    }, { timeout: 30_000 }).toBe(true);
+  } catch (error) {
+    console.log(JSON.stringify({ stage: "audio", snapshots: await Promise.all(pages.map(mediaSnapshot)) }));
+    throw error;
+  }
   const before = await Promise.all(pages.map(mediaSnapshot));
   await pages[0].waitForTimeout(1200);
   const after = await Promise.all(pages.map(mediaSnapshot));
