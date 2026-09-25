@@ -33,6 +33,7 @@ interface ClientConnection {
   sessionVersion?: number;
   tokenExpiresAt?: number;
   sessionId?: string;
+  authSessionId?: string;
   properties?: {
     os?: string;
     browser?: string;
@@ -134,6 +135,20 @@ export class GatewayManager {
         conn.ws.close(GatewayCloseCode.SESSION_INVALID, "Session revoked");
         return;
       }
+      const authSession = conn.authSessionId
+        ? await prisma.refreshToken.findUnique({
+            where: { id: conn.authSessionId },
+          })
+        : null;
+      if (
+        !authSession ||
+        authSession.userId !== conn.userId ||
+        authSession.expiresAt <= new Date()
+      ) {
+        this.send(conn.ws, { op: GatewayOpCode.INVALID_SESSION });
+        conn.ws.close(GatewayCloseCode.SESSION_INVALID, "Session revoked");
+        return;
+      }
     }
     if (this.isMaintenanceActive) {
       const isAllowedOp =
@@ -203,6 +218,22 @@ export class GatewayManager {
           }
           return;
         }
+        const authSession =
+          typeof claims?.sessionId === "string"
+            ? await prisma.refreshToken.findUnique({
+                where: { id: claims.sessionId },
+              })
+            : null;
+        if (
+          !authSession ||
+          authSession.userId !== user.id ||
+          authSession.expiresAt <= new Date()
+        ) {
+          this.send(conn.ws, { op: GatewayOpCode.INVALID_SESSION });
+          conn.ws.close(GatewayCloseCode.SESSION_INVALID, "Session revoked");
+          return;
+        }
+        conn.authSessionId = authSession.id;
 
         // 若存在断线缓冲定时器，立即清除（说明用户刷新页面重连成功，避免误触发离线）
         if (this.disconnectGraceTimers.has(user.id)) {

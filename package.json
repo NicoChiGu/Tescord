@@ -16,6 +16,7 @@
     "test:context-menu": "node ./scripts/test-context-menu.mjs",
     "test:member-add": "node ./scripts/test-member-add.mjs",
     "test:e2e": "playwright test",
+    "test:e2e:electron": "playwright test --config playwright.electron.config.ts",
     "test:minio-compat": "node scripts/test-minio-compat.mjs",
     "test:security-media": "pnpm --filter @tescord/server exec tsx ../../scripts/verify-media-crypto.ts",
     "test:updater": "node ./scripts/test-updater-service.mjs && pnpm --filter @tescord/server exec tsx ../../scripts/test-updater-archive.ts",

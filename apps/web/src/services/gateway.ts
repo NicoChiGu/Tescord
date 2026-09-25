@@ -127,6 +127,10 @@ export class GatewayClient {
                 return;
               }
             }
+            if (useAuthStore.getState().refreshFailure === "transient") {
+              setTimeout(() => this.scheduleReconnect(), 30_000);
+              return;
+            }
             // 刷新失败，说明 Refresh Token 也过期或被吊销，阻断并提示重新登录
             this.emit(GatewayEvents.AUTH_SESSION_EXPIRED, {
               code: event.code,
@@ -139,15 +143,7 @@ export class GatewayClient {
               );
           })
           .catch(() => {
-            this.emit(GatewayEvents.AUTH_SESSION_EXPIRED, {
-              code: event.code,
-              reason: event.reason,
-            });
-            useAuthStore
-              .getState()
-              .openReauthModal(
-                event.reason || "连接凭据已失效，请重新验证以恢复长连接",
-              );
+            setTimeout(() => this.scheduleReconnect(), 30_000);
           });
         return;
       }

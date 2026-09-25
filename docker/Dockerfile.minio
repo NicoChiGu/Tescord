@@ -1,0 +1,17 @@
+FROM docker.io/library/golang:1.24-bookworm AS build
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+ARG MINIO_TAG=RELEASE.2025-10-15T17-29-55Z
+ARG MINIO_SHA=9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
+RUN git init && git remote add origin https://github.com/minio/minio.git \
+    && git fetch --depth 1 origin "refs/tags/${MINIO_TAG}" \
+    && git checkout --detach FETCH_HEAD \
+    && test "$(git rev-parse HEAD)" = "${MINIO_SHA}"
+RUN CGO_ENABLED=0 go build -trimpath -o /out/minio .
+
+FROM docker.io/library/debian:bookworm-slim
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
+COPY --from=build /out/minio /usr/local/bin/minio
+COPY --from=build /src/LICENSE /licenses/minio/LICENSE
+EXPOSE 9000 9001
+ENTRYPOINT ["/usr/local/bin/minio"]

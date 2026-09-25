@@ -1,89 +1,132 @@
-version: '3.8'
-
 services:
-  # 1. 业务数据库 PostgreSQL
   postgres:
-    image: postgres:16-alpine
-    container_name: tescord-postgres
+    image: docker.io/library/postgres:16.4-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: tescord
-      POSTGRES_PASSWORD: tescord_secret_password
-      POSTGRES_DB: tescord_db
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: tescord
+    volumes: [./datas/postgres:/var/lib/postgresql/data]
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U tescord -d tescord_db"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U tescord -d tescord"]
+      interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
 
-  # 2. Redis 网关缓存与广播
   redis:
-    image: redis:7-alpine
-    container_name: tescord-redis
+    image: docker.io/library/redis:7.4.1-alpine
     restart: unless-stopped
-    ports:
-      - "6379:6379"
-    volumes:
-      - redisdata:/data
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--requirepass",
+        "${REDIS_PASSWORD:?set REDIS_PASSWORD}",
+      ]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+    volumes: [./datas/redis:/data]
+    healthcheck:
+      test: ["CMD-SHELL", 'redis-cli -a "$$REDIS_PASSWORD" ping | grep PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
-  # 3. MinIO 本地化对象存储
   minio:
-    image: minio/minio:latest
-    container_name: tescord-minio
+    build: { context: .., dockerfile: docker/Dockerfile.minio }
     command: server /data --console-address ":9001"
     restart: unless-stopped
     environment:
-      MINIO_ROOT_USER: minioadmin
-      MINIO_ROOT_PASSWORD: minioadminpassword
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - miniodata:/data
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?set MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY}
+    volumes: [./datas/minio:/data]
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
-  # 4. LiveKit SFU 媒体引擎 (WebRTC 语音视频与直播)
   livekit:
-    image: livekit/livekit-server:latest
-    container_name: tescord-livekit
+    image: docker.io/livekit/livekit-server:v1.13.7
     restart: unless-stopped
-    command: --config /etc/livekit.yaml
-    volumes:
-      - ./livekit.yaml:/etc/livekit.yaml:ro
-    ports:
-      - "7880:7880"         # 媒体信令端口
-      - "7881:7881"         # WebRTC TCP
-      - "7882:7882/udp"     # LiveKit 内置 TURN 端口
-      - "50000-50100:50000-50100/udp" # WebRTC ICE UDP 媒体端口
-      
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    container_name: tescord-cloudflared
-    restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
     environment:
-      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
-    # 允许容器访问宿主机服务 (Web 前端 3000、Fastify 后端 3001)
-    extra_hosts:
-      - "host.docker.internal:host-gateway"  
+      LIVEKIT_CONFIG: |
+        port: 7880
+        rtc:
+          tcp_port: 7881
+          udp_port: 7882
+          use_external_ip: false
+          node_ip: ${LIVEKIT_NODE_IP:?set LIVEKIT_NODE_IP}
+        redis:
+          address: redis:6379
+          password: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+        keys:
+          ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET}
+        webhook:
+          api_key: ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY}
+          urls:
+            - http://server:3001/api/livekit/webhook
+    depends_on:
+      redis: { condition: service_healthy }
+    ports:
+      - "7881:7881"
+      - "7882:7882/udp"
 
-  # # 5. Coturn NAT 穿透中继
-  # coturn:
-  #   image: coturn/coturn:latest
-  #   container_name: tescord-coturn
-  #   restart: unless-stopped
-  #   command: ["-c", "/etc/turnserver.conf", "--static-auth-secret=${TURN_SECRET:-tescord-dev-turn-secret}"]
-  #   volumes:
-  #     - ./turnserver.conf:/etc/turnserver.conf:ro
-  #   ports:
-  #     - "3478:3478"
-  #     - "3478:3478/udp"
-  #     - "49152-49252:49152-49252/udp"
+  migrate:
+    build: { context: .., dockerfile: docker/Dockerfile.server }
+    environment: &server-env
+      NODE_ENV: production
+      DATABASE_PROVIDER: postgresql
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET}
+      LIVEKIT_URL: wss://${SITE_HOST:?set SITE_HOST}
+      LIVEKIT_HTTP_URL: http://livekit:7880
+      TURN_HOST: ${TURN_HOST:-}
+      TURN_SECRET: ${TURN_SECRET:-}
+      UPLOAD_SIGNING_SECRET: ${UPLOAD_SIGNING_SECRET:?set UPLOAD_SIGNING_SECRET}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?set MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY}
+      MINIO_BUCKET: tescord-assets
+      REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD}@redis:6379
+      CORS_ORIGINS: https://${SITE_HOST:?set SITE_HOST}
+      ALLOW_FILE_ORIGIN: "true"
+      SERVER_BASE_URL: https://${SITE_HOST:?set SITE_HOST}
+    command: ["pnpm", "--filter", "@tescord/server", "db:migrate:deploy"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
 
-volumes:
-  pgdata:
-  redisdata:
-  miniodata:
+  server:
+    build: { context: .., dockerfile: docker/Dockerfile.server }
+    restart: unless-stopped
+    environment: *server-env
+    command: ["sh", "/app/docker/start-server.sh"]
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: { context: .., dockerfile: docker/Dockerfile.web }
+    restart: unless-stopped
+    volumes:
+      - ./nginx-tunnel.conf.template:/etc/nginx/templates/default.conf.template:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    ports: ["127.0.0.1:18080:80"]
+
+  cloudflared:
+    image: docker.io/cloudflare/cloudflared:2026.9.0
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN}

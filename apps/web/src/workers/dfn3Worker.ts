@@ -71,7 +71,7 @@ self.onmessage = async ({ data }: MessageEvent<WorkerInput>) => {
       ),
       fetchVerifiedAsset(
         new URL("meta.json", dir),
-        "f069011a01849629ad23fbb1d00f4417cf106d5e316e3f7fbcba65cce3440818",
+        "e3a8fefd13c43747b97471bf889d54608465198a58c2b99006483b1b4bad2962",
       ),
       fetchVerifiedAsset(
         new URL("initial-state-layout.json", dir),

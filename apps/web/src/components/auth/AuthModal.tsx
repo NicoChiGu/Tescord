@@ -36,17 +36,25 @@ export const AuthModal: React.FC = () => {
     loginWithSavedAccount,
   } = useAuthStore();
 
-  const [selectedAccount, setSelectedAccount] = useState<SavedAccount | null>(() => {
-    return savedAccounts && savedAccounts.length > 0 ? savedAccounts[0] : null;
-  });
+  const [selectedAccount, setSelectedAccount] = useState<SavedAccount | null>(
+    () => {
+      return savedAccounts && savedAccounts.length > 0
+        ? savedAccounts[0]
+        : null;
+    },
+  );
   const [rememberPassword, setRememberPassword] = useState(true);
   const [phase, setPhase] = useState<AuthPhase>(() => {
-    return savedAccounts && savedAccounts.length > 0 ? "ACCOUNT_PICKER" : "EMAIL";
+    return savedAccounts && savedAccounts.length > 0
+      ? "ACCOUNT_PICKER"
+      : "EMAIL";
   });
 
   const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [email, setEmail] = useState(() => {
-    return savedAccounts && savedAccounts.length > 0 ? savedAccounts[0].email : "";
+    return savedAccounts && savedAccounts.length > 0
+      ? savedAccounts[0].email
+      : "";
   });
   const [password, setPassword] = useState("");
   const [nickname, setNickname] = useState("");
@@ -76,7 +84,10 @@ export const AuthModal: React.FC = () => {
 
   // 当账号列表被清空且当前处于 ACCOUNT_PICKER 阶段时，自动回退到常规邮箱输入
   useEffect(() => {
-    if (phase === "ACCOUNT_PICKER" && (!savedAccounts || savedAccounts.length === 0)) {
+    if (
+      phase === "ACCOUNT_PICKER" &&
+      (!savedAccounts || savedAccounts.length === 0)
+    ) {
       setPhase("EMAIL");
       setSelectedAccount(null);
     }
@@ -180,7 +191,7 @@ export const AuthModal: React.FC = () => {
     setPassword("");
     setFieldErrors({});
 
-    // 若开启了7天免密且具备长效 RefreshToken，执行静默快捷登录
+    // 若开启免密且具备长效 RefreshToken，执行静默快捷登录
     if (account.rememberPassword && account.refreshToken) {
       setIsSubmitting(true);
       try {
@@ -281,7 +292,7 @@ export const AuthModal: React.FC = () => {
         setIsEmailVerified(true);
         if (data.exists) {
           const matched = savedAccounts.find(
-            (a) => a.email.toLowerCase() === trimmed.toLowerCase()
+            (a) => a.email.toLowerCase() === trimmed.toLowerCase(),
           );
           if (matched) {
             setSelectedAccount(matched);
@@ -541,7 +552,9 @@ export const AuthModal: React.FC = () => {
                   {selectedAccount.avatarUrl ? (
                     <img
                       src={selectedAccount.avatarUrl}
-                      alt={selectedAccount.displayName || selectedAccount.username}
+                      alt={
+                        selectedAccount.displayName || selectedAccount.username
+                      }
                       className="w-20 h-20 rounded-full object-cover border-2 border-[#5865f2] shadow-lg shadow-[#5865f2]/25"
                     />
                   ) : (
@@ -690,7 +703,9 @@ export const AuthModal: React.FC = () => {
                     >
                       <Lock
                         className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 ${
-                          fieldErrors.password ? "text-rose-400" : "text-gray-400"
+                          fieldErrors.password
+                            ? "text-rose-400"
+                            : "text-gray-400"
                         }`}
                       />
                       <input
@@ -718,7 +733,7 @@ export const AuthModal: React.FC = () => {
                     )}
                   </div>
 
-                  {/* 记住密码 (7天免密) 复选框 */}
+                  {/* 记住登录复选框 */}
                   <label className="flex items-center space-x-2.5 pt-1 select-none cursor-pointer group">
                     <input
                       type="checkbox"
@@ -729,7 +744,7 @@ export const AuthModal: React.FC = () => {
                     />
                     <span className="text-xs text-discord-textMuted group-hover:text-white transition">
                       {t("auth:rememberMe", {
-                        defaultValue: "7天内保持登录状态（记住密码）",
+                        defaultValue: "30天内保持登录状态",
                       })}
                     </span>
                   </label>
@@ -756,7 +771,9 @@ export const AuthModal: React.FC = () => {
                     >
                       <UserIcon
                         className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 ${
-                          fieldErrors.nickname ? "text-rose-400" : "text-gray-400"
+                          fieldErrors.nickname
+                            ? "text-rose-400"
+                            : "text-gray-400"
                         }`}
                       />
                       <input
@@ -801,7 +818,9 @@ export const AuthModal: React.FC = () => {
                     >
                       <Lock
                         className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 ${
-                          fieldErrors.password ? "text-rose-400" : "text-gray-400"
+                          fieldErrors.password
+                            ? "text-rose-400"
+                            : "text-gray-400"
                         }`}
                       />
                       <input
@@ -834,7 +853,9 @@ export const AuthModal: React.FC = () => {
                     <div className="flex items-center justify-between mb-1.5">
                       <label
                         className={`block text-xs font-bold uppercase tracking-wider ${
-                          fieldErrors.inviteCode ? "text-rose-400" : "text-gray-300"
+                          fieldErrors.inviteCode
+                            ? "text-rose-400"
+                            : "text-gray-300"
                         }`}
                       >
                         {t("auth:inviteCodeLabel", { defaultValue: "邀请码" })}{" "}
@@ -859,7 +880,9 @@ export const AuthModal: React.FC = () => {
                     >
                       <KeyRound
                         className={`absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 ${
-                          fieldErrors.inviteCode ? "text-rose-400" : "text-gray-400"
+                          fieldErrors.inviteCode
+                            ? "text-rose-400"
+                            : "text-gray-400"
                         }`}
                       />
                       <input
@@ -900,7 +923,8 @@ export const AuthModal: React.FC = () => {
                 data-testid="auth-submit-btn"
                 disabled={
                   isSubmitting ||
-                  (phase === "REGISTER" && !registrationPolicy.allowRegistration)
+                  (phase === "REGISTER" &&
+                    !registrationPolicy.allowRegistration)
                 }
                 className="w-full flex items-center justify-center gap-2 rounded-lg bg-[#5865f2] hover:bg-[#4752c4] active:scale-[0.98] py-2.5 text-sm font-semibold text-white shadow-md shadow-[#5865f2]/25 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed mt-2 cursor-pointer"
               >

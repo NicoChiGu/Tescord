@@ -9,6 +9,7 @@
 .env
 .env.*
 docker/certs
+docker/**/datas
 playwright-report
 test-results
 .turbo

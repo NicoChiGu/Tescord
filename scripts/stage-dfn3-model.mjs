@@ -9,7 +9,7 @@ const root = path.resolve("apps/web/public/models/dfn3");
 const expected = {
   "denoiser_model.onnx": "b758c49d6708a5b7979e3de185705a8a4915076c862fb17b1b304d9a72b75cdc",
   "initial_states.npz": "1165503707b8859a6b650b6bb0dc5b6c55d30c2779d87502f97a77102b5d3872",
-  "meta.json": "f069011a01849629ad23fbb1d00f4417cf106d5e316e3f7fbcba65cce3440818",
+  "meta.json": "e3a8fefd13c43747b97471bf889d54608465198a58c2b99006483b1b4bad2962",
 };
 for (const [name, want] of Object.entries(expected)) {
   const got = createHash("sha256").update(fs.readFileSync(path.join(root, name))).digest("hex");

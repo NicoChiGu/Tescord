@@ -57,6 +57,22 @@ export interface AuthTokens {
   expiresIn: number;
 }
 
+export type AuthFailureCode =
+  | "AUTH_INVALID_CREDENTIALS"
+  | "AUTH_REFRESH_INVALID"
+  | "AUTH_REFRESH_EXPIRED"
+  | "AUTH_ACCOUNT_BANNED"
+  | "AUTH_SESSION_REVOKED";
+
+export interface AuthErrorResponse {
+  error: string;
+  code: AuthFailureCode | "AUTH_SERVICE_UNAVAILABLE";
+}
+
+export interface RevokeSessionDTO {
+  refreshToken: string;
+}
+
 export interface AuthResponse {
   user: User;
   token: string; // 兼容旧接口 token === accessToken

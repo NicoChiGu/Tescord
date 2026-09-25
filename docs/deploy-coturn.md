@@ -293,10 +293,11 @@ TURN_SECRET=a8b9c1d2e3f405162738495a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c
 请使用仓库提供的无 Coturn 生产编排文件启动主服务：
 
 ```bash
-docker compose -f docker/docker-compose-without-coturn.yml up -d
+cd docker
+podman-compose --env-file .env.without-coturn -f docker-compose-without-coturn.yml up -d --build
 ```
 
-此时主服务仅会启动 Postgres、Redis、MinIO 及 LiveKit SFU，显著减少主节点的网络与端口负担。
+编排包含 Postgres、Redis、MinIO、LiveKit、迁移任务、API、Web 和 Tunnel。MinIO 社区版镜像已不再由上游持续发布，因此仓库从固定的官方源码提交构建本地镜像；首次构建需要访问 GitHub 与 Go 模块代理。该上游项目已归档，生产运维必须评估其后续安全维护和替换方案。
 
 ### 步骤 3：验证 API 接口凭据下发
 

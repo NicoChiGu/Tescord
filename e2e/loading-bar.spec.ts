@@ -53,7 +53,7 @@ test.describe("Tescord 首屏与鉴权轻量无文字 Loading 加载条验收", 
 
     // 验证页面加载完成，进入登录引导界面
     const loginHeading = page.getByRole("heading", {
-      name: /欢迎回到 Tescord|登录/i,
+      name: /欢迎使用 Tescord|欢迎回到 Tescord|登录/i,
     });
     await expect(loginHeading).toBeVisible({ timeout: 15000 });
 

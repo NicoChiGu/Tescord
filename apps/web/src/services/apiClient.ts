@@ -5,6 +5,7 @@ interface PendingRequest {
   init?: RequestInit;
   resolve: (value: Response | PromiseLike<Response>) => void;
   reject: (reason?: any) => void;
+  userId: string | null;
 }
 
 let isRefreshing = false;
@@ -56,6 +57,10 @@ export function flushPendingRequests(newAccessToken: string) {
     const item = pendingReauthQueue.shift();
     if (!item) break;
     const updatedOptions = cloneOptionsWithToken(item.init, newAccessToken);
+    if (item.userId !== useAuthStore.getState().user?.id) {
+      item.reject(new Error("账号已切换，取消旧请求"));
+      continue;
+    }
     originalFetch(item.url, updatedOptions)
       .then((res) => item.resolve(res))
       .catch((err) => item.reject(err));
@@ -94,6 +99,7 @@ export async function apiFetch(
     urlStr.includes("/api/auth/login") ||
     urlStr.includes("/api/auth/register") ||
     urlStr.includes("/api/auth/refresh") ||
+    urlStr.includes("/api/auth/logout") ||
     urlStr.includes("/api/auth/check-email") ||
     urlStr.includes("/api/auth/registration-status");
 
@@ -128,7 +134,13 @@ export async function apiFetch(
     // 唤起重登弹窗并排队
     authStore.openReauthModal("登录会话已过期，请重新登录");
     return new Promise<Response>((resolve, reject) => {
-      pendingReauthQueue.push({ url: input, init, resolve, reject });
+      pendingReauthQueue.push({
+        url: input,
+        init,
+        resolve,
+        reject,
+        userId: authStore.user?.id || null,
+      });
     });
   }
 
@@ -141,8 +153,18 @@ export async function apiFetch(
           const updatedOptions = cloneOptionsWithToken(init, newToken);
           originalFetch(input, updatedOptions).then(resolve).catch(reject);
         } else {
+          if (useAuthStore.getState().refreshFailure === "transient") {
+            resolve(response);
+            return;
+          }
           // 刷新失败，转入重登挂起队列
-          pendingReauthQueue.push({ url: input, init, resolve, reject });
+          pendingReauthQueue.push({
+            url: input,
+            init,
+            resolve,
+            reject,
+            userId: authStore.user?.id || null,
+          });
         }
       });
     });
@@ -164,20 +186,25 @@ export async function apiFetch(
       // Refresh Token 也失效了
       isRefreshing = false;
       onRefreshed(null);
+      if (useAuthStore.getState().refreshFailure === "transient")
+        return response;
 
       // 唤起毛玻璃重新登录弹窗，并挂起当前请求
       authStore.openReauthModal("登录凭据已完全失效，请输入密码重新验证");
       return new Promise<Response>((resolve, reject) => {
-        pendingReauthQueue.push({ url: input, init, resolve, reject });
+        pendingReauthQueue.push({
+          url: input,
+          init,
+          resolve,
+          reject,
+          userId: authStore.user?.id || null,
+        });
       });
     }
   } catch (e) {
     isRefreshing = false;
     onRefreshed(null);
-    authStore.openReauthModal("会话校验异常，请重新验证登录");
-    return new Promise<Response>((resolve, reject) => {
-      pendingReauthQueue.push({ url: input, init, resolve, reject });
-    });
+    return response;
   }
 }
 
