@@ -28,6 +28,8 @@ async function mediaSnapshot(page: Page) {
 test("three authorized browsers exchange Cloudflare SFU audio, camera and screen tracks", async ({ browser, request }) => {
   const onTarget = Boolean(process.env.TESCORD_TARGET_BASE_URL);
   const forceRelay = process.env.TESCORD_FORCE_RELAY === "1";
+  const testP2PFallback = process.env.TESCORD_TEST_P2P_FALLBACK === "1";
+  if (testP2PFallback) test.setTimeout(180_000);
   const adminLogin = await request.post("/api/auth/login", { data: {
     emailOrUsername: onTarget ? process.env.TESCORD_ACCEPTANCE_ADMIN_USERNAME || "AcceptanceAdmin" : "Jackey",
     password: onTarget ? process.env.TESCORD_ACCEPTANCE_ADMIN_PASSWORD : "adminpassword123",
@@ -75,10 +77,11 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   for (const token of [adminToken, aliceToken, bobToken]) {
     const index = pages.length;
     const context = await browser.newContext({ ignoreHTTPSErrors: true, locale: "zh-CN", permissions: ["microphone", "camera"] });
-    await context.addInitScript(({ accessToken, forceRelay }) => {
+    await context.addInitScript(({ accessToken, forceRelay, blockP2P }) => {
       localStorage.setItem("tescord_access_token", accessToken);
       const NativePC = window.RTCPeerConnection;
       window.__cloudflareAcceptancePcs = [];
+      let blockNextOffer = blockP2P;
       Object.defineProperty(navigator.mediaDevices, "getDisplayMedia", {
         configurable: true,
         value: () => navigator.mediaDevices.getUserMedia({ video: true, audio: true }),
@@ -86,10 +89,14 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
       window.RTCPeerConnection = class extends NativePC {
         constructor(...args: ConstructorParameters<typeof RTCPeerConnection>) {
           super({ ...args[0], ...(forceRelay ? { iceTransportPolicy: "relay" as const } : {}) });
+          if (blockNextOffer) {
+            blockNextOffer = false;
+            this.createOffer = async () => { throw new Error("Acceptance test blocked P2P negotiation"); };
+          }
           window.__cloudflareAcceptancePcs.push(this);
         }
       };
-    }, { accessToken: token, forceRelay });
+    }, { accessToken: token, forceRelay, blockP2P: testP2PFallback && index === 1 });
     const page = await context.newPage();
     page.on("websocket", socket => socket.on("framereceived", frame => {
       try {
@@ -106,25 +113,39 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
         diagnostics[index].push({ event: pathname.endsWith("ready") ? "ready" : "subscribe", status: response.status() });
       }
     });
-    page.on("console", message => { if (message.type() === "error" || message.type() === "warning") console.log(`browser ${pages.length} ${message.type()}: ${message.text()}`); });
-    page.on("pageerror", error => console.log(`browser ${pages.length} pageerror: ${error.message}`));
+    page.on("console", message => { if (message.type() === "error" || message.type() === "warning") console.log(`browser ${index} ${message.type()}: ${message.text()}`); });
+    page.on("pageerror", error => console.log(`browser ${index} pageerror: ${error.message}`));
     pages.push(page);
     await page.goto("/");
     await expect(page.getByTestId("current-user-panel-btn")).toBeVisible({ timeout: 20_000 });
   }
 
-  for (const page of pages) {
+  for (const [index, page] of pages.entries()) {
     if (guildName) await page.getByRole("button", { name: guildName, exact: true }).click();
+    if (testP2PFallback && index === 1) {
+      await page.evaluate(() => (window as Window & { useSettingsStore: { getState(): { setVoiceTransmissionMode(mode: string): void } } }).useSettingsStore.getState().setVoiceTransmissionMode("p2p_mesh"));
+    }
     const voice = page.locator('button[title="单击预览房间，双击加入语音通话"]').first();
     await expect(voice).toBeVisible({ timeout: 10_000 });
     await voice.click();
     await page.getByRole("button", { name: "加入语音通话" }).click();
     try {
-      await expect(page.getByRole("button", { name: "断开连接" }).first()).toBeVisible({ timeout: 25_000 });
+      await expect(page.getByRole("button", { name: "断开连接" }).first()).toBeVisible({ timeout: testP2PFallback ? 70_000 : 25_000 });
     } catch (error) {
       console.log(JSON.stringify({ stage: "join", snapshots: await Promise.all(pages.map(mediaSnapshot)), diagnostics }));
       throw error;
     }
+    if (testP2PFallback && index === 0) {
+      await expect.poll(async () => (await mediaSnapshot(page)).some(peer => peer.state === "connected"), { timeout: 30_000 }).toBe(true);
+      await page.waitForTimeout(1500);
+    }
+  }
+
+  if (testP2PFallback) {
+    await expect.poll(async () => {
+      const rows = await mediaSnapshot(pages[1]);
+      return rows.length >= 2 && rows[0].state === "closed" && rows.some(row => row.state === "connected");
+    }, { timeout: 30_000 }).toBe(true);
   }
 
   try {
