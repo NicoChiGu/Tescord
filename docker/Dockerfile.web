@@ -2,6 +2,8 @@ FROM docker.io/library/node:22-bookworm-slim AS build
 RUN corepack enable
 WORKDIR /app
 COPY . .
+ARG VITE_VOICE_ENGINE=livekit
+ENV VITE_VOICE_ENGINE=${VITE_VOICE_ENGINE}
 RUN pnpm --filter @tescord/web... --filter @tescord/server... install --frozen-lockfile
 RUN pnpm --filter @tescord/types build && pnpm --filter @tescord/web build
 

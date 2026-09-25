@@ -91,10 +91,6 @@ test("真实三引擎切换、关闭、PTT 与资源释放", async ({ page }) =>
       stopped: stableTrack.readyState,
     };
   });
-  console.log(
-    "Three-engine runtime diagnostics:",
-    JSON.stringify(result.modes),
-  );
   expect(result.modes.map((entry) => entry.effectiveMode)).toEqual([
     "rnnoise",
     "dtln",

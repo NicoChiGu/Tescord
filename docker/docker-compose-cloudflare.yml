@@ -1,0 +1,111 @@
+services:
+  postgres:
+    image: docker.io/library/postgres:16.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tescord
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: tescord
+    volumes: [./datas/postgres:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tescord -d tescord"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: docker.io/library/redis:7.4.1-alpine
+    restart: unless-stopped
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--requirepass",
+        "${REDIS_PASSWORD:?set REDIS_PASSWORD}",
+      ]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?set REDIS_PASSWORD}
+    volumes: [./datas/redis:/data]
+    healthcheck:
+      test: ["CMD-SHELL", 'redis-cli -a "$$REDIS_PASSWORD" ping | grep PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    build: { context: .., dockerfile: docker/Dockerfile.minio }
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?set MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY}
+    volumes: [./datas/minio:/data]
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  migrate:
+    build: { context: .., dockerfile: docker/Dockerfile.server }
+    environment: &server-env
+      NODE_ENV: production
+      DATABASE_PROVIDER: postgresql
+      DATABASE_URL: ${DATABASE_URL:?set DATABASE_URL}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      VOICE_ENGINE: cloudflare_realtime
+      CLOUDFLARE_CALLS_APP_ID: ${CLOUDFLARE_CALLS_APP_ID:?set CLOUDFLARE_CALLS_APP_ID}
+      CLOUDFLARE_CALLS_APP_SECRET: ${CLOUDFLARE_CALLS_APP_SECRET:?set CLOUDFLARE_CALLS_APP_SECRET}
+      CLOUDFLARE_CALLS_TURN_KEY_ID: ${CLOUDFLARE_CALLS_TURN_KEY_ID:?set CLOUDFLARE_CALLS_TURN_KEY_ID}
+      CLOUDFLARE_CALLS_TURN_API_TOKEN: ${CLOUDFLARE_CALLS_TURN_API_TOKEN:?set CLOUDFLARE_CALLS_TURN_API_TOKEN}
+      TURN_HOST: ${TURN_HOST:-}
+      TURN_SECRET: ${TURN_SECRET:-}
+      UPLOAD_SIGNING_SECRET: ${UPLOAD_SIGNING_SECRET:?set UPLOAD_SIGNING_SECRET}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?set MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY}
+      MINIO_BUCKET: tescord-assets
+      REDIS_URL: redis://:${REDIS_PASSWORD:?set REDIS_PASSWORD}@redis:6379
+      CORS_ORIGINS: https://${SITE_HOST:?set SITE_HOST}
+      ALLOW_FILE_ORIGIN: "true"
+      SERVER_BASE_URL: https://${SITE_HOST:?set SITE_HOST}
+    command: ["pnpm", "--filter", "@tescord/server", "db:migrate:deploy"]
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  server:
+    build: { context: .., dockerfile: docker/Dockerfile.server }
+    restart: unless-stopped
+    environment: *server-env
+    command: ["sh", "/app/docker/start-server.sh"]
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "http://127.0.0.1:3001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.web
+      args:
+        VITE_VOICE_ENGINE: cloudflare_realtime
+    restart: unless-stopped
+    volumes:
+      - ./nginx-cloudflare.conf.template:/etc/nginx/templates/default.conf.template:ro
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    ports: ["127.0.0.1:18080:80"]
+
+  cloudflared:
+    image: docker.io/cloudflare/cloudflared:2026.9.0
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?set CLOUDFLARE_TUNNEL_TOKEN}

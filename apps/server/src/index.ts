@@ -22,6 +22,9 @@ import { adminService } from "./services/admin.service.js";
 import { dmService } from "./services/dm.service.js";
 import { dmCallService } from "./services/dm-call.service.js";
 import { registrationInviteService } from "./services/registration-invite.service.js";
+import { cloudflareRealtimeService } from "./services/cloudflare-realtime.service.js";
+import type { CfCallsPublishTrackRequest, CfCallsSubscribeTrackRequest, CfCallsRenegotiateRequest, CfCallsCloseTracksRequest } from "@tescord/types";
+
 import {
   CreateRegistrationInviteDTO,
   GatewayOpCode,
@@ -4765,10 +4768,32 @@ server.get("/api/channels/:channelId/e2ee/status", async (request, reply) => {
 // 4.9 WebRTC STUN/TURN 动态穿透中继凭据分发
 // ==========================================
 
-server.get("/api/network/ice-servers", async (request) => {
+server.get("/api/network/ice-servers", async (request, reply) => {
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+
+  // 1. 若配置了 Cloudflare Realtime TURN，优先拉取全球 Anycast 边缘凭据
+  if (cloudflareRealtimeService.isTurnConfigured) {
+    try {
+      const cfTurn = await cloudflareRealtimeService.generateTurnIceServers(userId, 86400);
+      return {
+        iceServers: [
+          ...(process.env.ALLOW_PUBLIC_STUN === "true"
+            ? [{ urls: "stun:stun.cloudflare.com:3478" }]
+            : []),
+          ...cfTurn.iceServers,
+        ],
+        turnActive: true,
+        provider: "cloudflare",
+      };
+    } catch (err: any) {
+      server.log.warn(`Cloudflare TURN generation failed: ${err.message}, falling back to Coturn`);
+    }
+  }
+
+  // 2. 否则使用自建 Coturn 凭据
   const turnHost = process.env.COTURN_HOST || process.env.TURN_HOST || "";
   const turnPort = process.env.COTURN_PORT || process.env.TURN_PORT || "3478";
-  const userId = await getUserIdFromRequest(request);
   const expiresAt = Math.floor(Date.now() / 1000) + 10 * 60;
   const turnUser = `${expiresAt}:${userId}`;
   const turnSecret = process.env.TURN_SECRET || "";
@@ -4797,8 +4822,10 @@ server.get("/api/network/ice-servers", async (request) => {
         : []),
     ],
     turnActive: Boolean(turnHost && turnSecret),
+    provider: "coturn",
   };
 });
+
 
 // ==========================================
 // 5. LiveKit 媒体 Token 生成
@@ -4874,8 +4901,257 @@ server.post("/api/livekit/webhook", async (request, reply) => {
 });
 
 // ==========================================
+// 6. Cloudflare Realtime (Serverless SFU & Calls TURN)
+// ==========================================
+
+type CfMediaBody = {
+  channelId?: string;
+  sessionId?: string;
+  sessionDescription?: { type: "offer" | "answer"; sdp: string };
+  tracks?: Array<{ mid?: string; trackName?: string; publisherSessionId?: string; kind?: "audio" | "video"; source?: "microphone" | "camera" | "screen" | "screen-audio" }>;
+};
+
+const cfRateBuckets = new Map<string, { count: number; until: number }>();
+server.addHook("preHandler", async (request, reply) => {
+  if (!request.url.startsWith("/api/cloudflare-realtime/")) return;
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+  const now = Date.now();
+  const key = `${userId}:${request.url.split("?", 1)[0]}`;
+  const bucket = cfRateBuckets.get(key);
+  const count = bucket && bucket.until > now ? bucket.count + 1 : 1;
+  cfRateBuckets.set(key, { count, until: bucket && bucket.until > now ? bucket.until : now + 60_000 });
+  if (cfRateBuckets.size > 10_000) {
+    for (const [id, entry] of cfRateBuckets) if (entry.until <= now) cfRateBuckets.delete(id);
+  }
+  if (count > (key.endsWith("/session/new") ? 6 : 60)) return reply.status(429).send({ error: "Media request rate exceeded" });
+});
+
+function cfBody(request: FastifyRequest): CfMediaBody {
+  return request.body && typeof request.body === "object" && !Array.isArray(request.body)
+    ? request.body as CfMediaBody : {};
+}
+
+function cfLoginSession(request: FastifyRequest): string {
+  return (request.user as { sessionId?: string } | undefined)?.sessionId || "";
+}
+
+async function cfCanUseChannel(userId: string, channelId: string, speak = false): Promise<boolean> {
+  const channel = await prisma.channel.findUnique({ where: { id: channelId } });
+  if (!channel) return false;
+  if (channel.type === "DM" || channel.type === "GROUP_DM") {
+    return dmService.isParticipant(userId, channelId);
+  }
+  if (channel.type !== "VOICE") return false;
+  return permissionService.hasChannelPermission(userId, channelId, speak ? PermissionFlags.SPEAK : PermissionFlags.CONNECT);
+}
+
+async function cfSessionForRequest(request: FastifyRequest, sessionId: string | undefined) {
+  const userId = await getUserIdFromRequest(request);
+  if (!userId || !sessionId || !cloudflareRealtimeService.ownsSession(sessionId, userId, cfLoginSession(request))) return null;
+  const session = cloudflareRealtimeService.getSession(sessionId);
+  if (!session || !(await cfCanUseChannel(userId, session.channelId))) return null;
+  return { ...session, sessionId };
+}
+
+async function cfSendTracks(channelId: string) {
+  const channel = await prisma.channel.findUnique({ where: { id: channelId }, include: { recipients: true } });
+  if (!channel) return;
+  const payload = { op: GatewayOpCode.DISPATCH, t: GatewayEvents.CF_MEDIA_TRACKS, d: { channelId, tracks: cloudflareRealtimeService.getTracks(channelId) } };
+  if (channel.type === "DM" || channel.type === "GROUP_DM") {
+    for (const recipient of channel.recipients) gatewayManager.sendToUser(recipient.userId, payload);
+  } else if (channel.guildId) {
+    const members = await prisma.guildMember.findMany({ where: { guildId: channel.guildId }, select: { userId: true } });
+    for (const member of members) {
+      if (await cfCanUseChannel(member.userId, channelId)) gatewayManager.sendToUser(member.userId, payload);
+    }
+  }
+}
+
+// 6.1 获取 Cloudflare Realtime 服务端配置状态
+server.get("/api/cloudflare-realtime/config", async () => {
+  return cloudflareRealtimeService.getConfig();
+});
+
+// 6.2 申请 Cloudflare Calls TURN 临时中继凭据
+server.get("/api/cloudflare-realtime/ice-servers", async (request, reply) => {
+  if (!cloudflareRealtimeService.isTurnConfigured) {
+    return reply.status(503).send({ error: "Cloudflare TURN is not configured" });
+  }
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+  try {
+    const creds = await cloudflareRealtimeService.generateTurnIceServers(userId, 3600);
+    return creds;
+  } catch (err: any) {
+    server.log.error(err, "Failed to generate Cloudflare TURN credentials");
+    return reply.status(502).send({ error: "TURN credential request failed" });
+  }
+});
+
+// 6.3 创建新的 Cloudflare Calls SFU 会话
+server.post("/api/cloudflare-realtime/session/new", async (request, reply) => {
+  if (!cloudflareRealtimeService.isSfuConfigured) {
+    return reply.status(503).send({ error: "Cloudflare Calls SFU is not configured" });
+  }
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) {
+    return reply.status(401).send({ error: "Unauthorized" });
+  }
+
+  const { channelId } = cfBody(request);
+  if (typeof channelId !== "string" || !channelId || !(await cfCanUseChannel(userId, channelId))) {
+    return reply.status(403).send({ error: "无权连接该语音频道" });
+  }
+  if (!cfLoginSession(request)) return reply.status(401).send({ error: "Invalid login session" });
+
+  try {
+    const session = await cloudflareRealtimeService.createSession();
+    cloudflareRealtimeService.registerSession(session.sessionId, userId, channelId, cfLoginSession(request));
+    const channel = await prisma.channel.findUnique({ where: { id: channelId }, select: { type: true, isE2EE: true } });
+    return { ...session, tracks: cloudflareRealtimeService.getTracks(channelId), requiresE2EE: channel?.type === "DM" || channel?.type === "GROUP_DM" || Boolean(channel?.isE2EE) };
+  } catch (err: any) {
+    server.log.error(err, "Failed to create Cloudflare Calls session");
+    return reply.status(502).send({ error: "Failed to create media session" });
+  }
+});
+
+// 6.4 推送本地音视频轨道 (Publish Tracks / Local Tracks)
+server.post("/api/cloudflare-realtime/tracks/publish", async (request, reply) => {
+  if (!cloudflareRealtimeService.isSfuConfigured) {
+    return reply.status(503).send({ error: "Cloudflare Calls SFU is not configured" });
+  }
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+
+  const body = cfBody(request);
+  const session = await cfSessionForRequest(request, body.sessionId);
+  if (!session) return reply.status(403).send({ error: "Invalid media session" });
+  if (body.channelId !== session.channelId || body.sessionDescription?.type !== "offer" || typeof body.sessionDescription.sdp !== "string" || !Array.isArray(body.tracks) || body.tracks.length < 1 || body.tracks.length > 4 || body.tracks.some(t => typeof t.mid !== "string" || !/^\d{1,3}$/.test(t.mid) || typeof t.trackName !== "string" || t.trackName.length > 100 || !/^(microphone|camera|screen|screen-audio)-[a-f0-9-]{36}$/.test(t.trackName) || !((t.kind === "audio" && (t.source === "microphone" || t.source === "screen-audio")) || (t.kind === "video" && (t.source === "camera" || t.source === "screen"))))) {
+    return reply.status(400).send({ error: "Invalid publish request body" });
+  }
+  if (!(await cfCanUseChannel(userId, session.channelId, true))) return reply.status(403).send({ error: "缺少发言权限" });
+
+  try {
+    const result = await cloudflareRealtimeService.publishTracks(body as CfCallsPublishTrackRequest);
+    cloudflareRealtimeService.addTracks(body.tracks.map(t => ({ sessionId: session.sessionId, channelId: session.channelId, userId, trackName: t.trackName!, mid: t.mid, kind: t.kind!, source: t.source! })));
+    return result;
+  } catch (err: any) {
+    server.log.error(err, "Failed to publish tracks to Cloudflare Calls");
+    return reply.status(502).send({ error: "Failed to publish tracks" });
+  }
+});
+
+// 6.5 订阅远端音视频轨道 (Subscribe Tracks / Remote Tracks)
+server.post("/api/cloudflare-realtime/tracks/subscribe", async (request, reply) => {
+  if (!cloudflareRealtimeService.isSfuConfigured) {
+    return reply.status(503).send({ error: "Cloudflare Calls SFU is not configured" });
+  }
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+
+  const body = cfBody(request);
+  const session = await cfSessionForRequest(request, body.sessionId);
+  if (!session) return reply.status(403).send({ error: "Invalid media session" });
+  if (body.channelId !== session.channelId || !Array.isArray(body.tracks) || body.tracks.length < 1 || body.tracks.length > 16 || body.tracks.some(t => !t.publisherSessionId || !t.trackName || cloudflareRealtimeService.getTrack(t.publisherSessionId, t.trackName)?.channelId !== session.channelId)) {
+    return reply.status(400).send({ error: "Invalid subscribe request body" });
+  }
+
+  try {
+    const result = await cloudflareRealtimeService.subscribeTracks(body as CfCallsSubscribeTrackRequest);
+    cloudflareRealtimeService.recordSubscriptions(session.sessionId, result.tracks.map(track => track.mid).filter((mid): mid is string => !!mid));
+    return result;
+  } catch (err: any) {
+    server.log.error(err, "Failed to subscribe tracks from Cloudflare Calls");
+    return reply.status(502).send({ error: "Failed to subscribe tracks" });
+  }
+});
+
+// 6.6 重协商 Answer 提交
+server.put("/api/cloudflare-realtime/tracks/renegotiate", async (request, reply) => {
+  if (!cloudflareRealtimeService.isSfuConfigured) {
+    return reply.status(503).send({ error: "Cloudflare Calls SFU is not configured" });
+  }
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+
+  const body = cfBody(request);
+  if (!(await cfSessionForRequest(request, body.sessionId))) return reply.status(403).send({ error: "Invalid media session" });
+  if (body.sessionDescription?.type !== "answer" || typeof body.sessionDescription.sdp !== "string") {
+    return reply.status(400).send({ error: "Invalid renegotiate request body" });
+  }
+
+  try {
+    await cloudflareRealtimeService.renegotiate(body as CfCallsRenegotiateRequest);
+    return { ok: true };
+  } catch (err: any) {
+    server.log.error(err, "Failed to renegotiate Cloudflare Calls session");
+    return reply.status(502).send({ error: "Failed to renegotiate" });
+  }
+});
+
+// 6.7 注销/关闭轨道
+server.put("/api/cloudflare-realtime/tracks/close", async (request, reply) => {
+  if (!cloudflareRealtimeService.isSfuConfigured) {
+    return reply.status(503).send({ error: "Cloudflare Calls SFU is not configured" });
+  }
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+
+  const body = cfBody(request);
+  const session = await cfSessionForRequest(request, body.sessionId);
+  if (!session) return reply.status(403).send({ error: "Invalid media session" });
+  if (!Array.isArray(body.tracks) || body.tracks.length < 1 || body.tracks.length > 8 || body.tracks.some(t => {
+    const published = t.trackName ? cloudflareRealtimeService.getTrack(session.sessionId, t.trackName) : undefined;
+    return !published || published.userId !== userId || !published.mid || t.mid !== published.mid;
+  })) {
+    return reply.status(400).send({ error: "Invalid close tracks request body" });
+  }
+
+  try {
+    await cloudflareRealtimeService.closeTracks(body as CfCallsCloseTracksRequest);
+    cloudflareRealtimeService.removeTracks(session.sessionId, body.tracks.map(t => t.trackName!));
+    await cfSendTracks(session.channelId);
+    return { ok: true };
+  } catch (err: any) {
+    server.log.error(err, "Failed to close Cloudflare Calls tracks");
+    return reply.status(502).send({ error: "Failed to close tracks" });
+  }
+});
+
+server.post("/api/cloudflare-realtime/tracks/ready", async (request, reply) => {
+  const session = await cfSessionForRequest(request, cfBody(request).sessionId);
+  if (!session) return reply.status(403).send({ error: "Invalid media session" });
+  await cfSendTracks(session.channelId);
+  return { ok: true };
+});
+
+server.post("/api/cloudflare-realtime/session/leave", async (request, reply) => {
+  const body = cfBody(request);
+  const session = await cfSessionForRequest(request, body.sessionId);
+  if (!session) return reply.status(403).send({ error: "Invalid media session" });
+  await cloudflareRealtimeService.revokeSession(session.sessionId).catch(error => request.log.warn({ error }, "Cloudflare session teardown incomplete"));
+  await cfSendTracks(session.channelId);
+  return { ok: true };
+});
+
+const cloudflareMediaSweep = setInterval(async () => {
+  for (const [sessionId, session] of cloudflareRealtimeService.listSessions()) {
+    try {
+      const login = await prisma.refreshToken.findUnique({ where: { id: session.loginSessionId }, select: { userId: true, expiresAt: true } });
+      const user = await prisma.user.findUnique({ where: { id: session.userId }, select: { isBanned: true } });
+      if (login?.userId === session.userId && login.expiresAt > new Date() && user && !user.isBanned && await cfCanUseChannel(session.userId, session.channelId)) continue;
+      await cloudflareRealtimeService.revokeSession(sessionId);
+      await cfSendTracks(session.channelId);
+    } catch (error) { server.log.warn({ error }, "Cloudflare media revocation retry pending"); }
+  }
+}, 10_000);
+cloudflareMediaSweep.unref();
+
+// ==========================================
 // 7. 超级管理员系统运维与治理 API (Super Admin)
 // ==========================================
+
 
 // 获取系统综合运行指标看板
 server.get(

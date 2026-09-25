@@ -75,6 +75,7 @@ import { usePresenceStore } from "./stores/usePresenceStore.js";
 import { gatewayClient } from "./services/gateway.js";
 import { audioEngine } from "./services/audioEngine.js";
 import { livekitService, ActiveScreenShare } from "./services/livekit.js";
+import { cloudflareRealtimeService } from "./services/cloudflare_realtime/index.js";
 import { audioMixer } from "./services/audioMixer.js";
 import { doubleRatchetManager } from "./services/doubleRatchet.js";
 import { sframeManager } from "./services/sframe.js";
@@ -88,7 +89,8 @@ import {
   GatewayEvents,
   GatewayOpCode,
 } from "@tescord/types";
-import { API_BASE } from "./config.js";
+import { API_BASE, VOICE_ENGINE } from "./config.js";
+
 import { useViewport } from "./hooks/useViewport.js";
 import { useSwipeGesture } from "./hooks/useSwipeGesture.js";
 import { X, AlertTriangle, Info } from "lucide-react";
@@ -231,6 +233,7 @@ export const App: React.FC = () => {
       sfuFallbackInProgressRef.current
     )
       return false;
+    if (VOICE_ENGINE === "cloudflare_realtime" && cloudflareRealtimeService.status === "connected") return true;
     if (livekitService.isConnected) return true;
     sfuFallbackInProgressRef.current = true;
     try {
@@ -250,6 +253,14 @@ export const App: React.FC = () => {
       }
       const stream = audioEngine.getStream();
       if (!stream) throw new Error("麦克风媒体流不可用");
+      if (VOICE_ENGINE === "cloudflare_realtime") {
+        await cloudflareRealtimeService.connect(channelId, { audioStream: stream });
+        if (activeVoiceChannelIdRef.current !== channelId) throw new Error("频道已切换");
+        voiceMeshManager.stopAll();
+        livekitService.setConnectionStatus("connected");
+        showGlobalToast("已连接 Cloudflare SFU 媒体服务", "info");
+        return true;
+      }
       const endpoint = callId
         ? `${API_BASE}/api/channels/dm/${channelId}/call-token`
         : `${API_BASE}/api/livekit/token`;
@@ -1582,6 +1593,7 @@ export const App: React.FC = () => {
               );
               sframeManager.setNegotiatedKey(negotiated.key);
               livekitService.setNegotiatedE2EEKey(negotiated.key);
+              cloudflareRealtimeService.setNegotiatedE2EEKey(negotiated.key);
               setCallEncryption({
                 status: negotiated.trust,
                 fingerprint: negotiated.fingerprint,
@@ -1613,6 +1625,8 @@ export const App: React.FC = () => {
           if (!negotiated) return;
           sframeManager.setNegotiatedKey(negotiated.key);
           livekitService.setNegotiatedE2EEKey(negotiated.key);
+          cloudflareRealtimeService.setNegotiatedE2EEKey(negotiated.key);
+
           setCallEncryption({
             status: negotiated.trust,
             fingerprint: negotiated.fingerprint,
@@ -1902,6 +1916,56 @@ export const App: React.FC = () => {
       );
     };
   }, [currentUser?.id, isAuthenticated]);
+
+  // 监听 LiveKit SFU 底层断开回调（服务器断线、异常掉线、多端冲突被踢时权威收敛状态并向网关上报）
+  useEffect(() => cloudflareRealtimeService.onStatusChange((status) => {
+    if (VOICE_ENGINE !== "cloudflare_realtime") return;
+    if (status === "connected") livekitService.setConnectionStatus("connected");
+    else if (status === "connecting" || status === "reconnecting") livekitService.setConnectionStatus("connecting");
+    else if (status === "failed") {
+      livekitService.setConnectionStatus("disconnected");
+      audioEngine.stop();
+      setActiveVoiceChannelId(null);
+      setIsScreenSharing(false);
+      setIsVideoEnabled(false);
+    }
+  }), []);
+
+  useEffect(() => {
+    if (VOICE_ENGINE !== "cloudflare_realtime") return;
+    let pendingChannelId: string | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearTimer = () => { if (reconnectTimer) clearTimeout(reconnectTimer); reconnectTimer = null; };
+    const unbind = gatewayClient.onConnectionStateChange((state) => {
+      if (state === "disconnected" && activeVoiceChannelIdRef.current && cloudflareRealtimeService.currentSessionId) {
+        pendingChannelId = activeVoiceChannelIdRef.current;
+        void cloudflareRealtimeService.disconnect();
+        livekitService.setConnectionStatus("connecting");
+        clearTimer();
+        reconnectTimer = setTimeout(() => {
+          if (pendingChannelId) {
+            pendingChannelId = null;
+            livekitService.setConnectionStatus("disconnected");
+            setActiveVoiceChannelId(null);
+          }
+        }, 30_000);
+      } else if (state === "connected" && pendingChannelId) {
+        const channelId = pendingChannelId;
+        pendingChannelId = null;
+        clearTimer();
+        if (activeVoiceChannelIdRef.current !== channelId) return;
+        void audioEngine.initMicrophone().then(async () => {
+          const stream = audioEngine.getStream();
+          if (!stream) throw new Error("Microphone unavailable after reconnect");
+          await cloudflareRealtimeService.connect(channelId, { audioStream: stream });
+        }).catch(() => {
+          livekitService.setConnectionStatus("disconnected");
+          setActiveVoiceChannelId(null);
+        });
+      }
+    });
+    return () => { clearTimer(); unbind(); };
+  }, []);
 
   // 监听 LiveKit SFU 底层断开回调（服务器断线、异常掉线、多端冲突被踢时权威收敛状态并向网关上报）
   useEffect(() => {
@@ -2604,6 +2668,7 @@ export const App: React.FC = () => {
 
     // 若当前已在另一个语音频道，立即同步清理旧房间音频连接与 WebRTC 状态，杜绝 1 秒声音残留
     if (activeVoiceChannelId && activeVoiceChannelId !== channel.id) {
+      await cloudflareRealtimeService.disconnect();
       livekitService.leaveRoom();
       voiceMeshManager.stopAll();
       audioEngine.stop();
@@ -2635,7 +2700,25 @@ export const App: React.FC = () => {
 
     let joinSuccess = false;
     const voiceMode = useSettingsStore.getState().voiceTransmissionMode;
-    if (voiceMode === "p2p_mesh" && processedStream && channel.guildId) {
+    const isCloudflareActive =
+      voiceMode === "cloudflare_realtime" || VOICE_ENGINE === "cloudflare_realtime";
+
+    // 优先：若配置为 Cloudflare Realtime，直接通过 Cloudflare Calls SFU 建连推流
+    if (isCloudflareActive && processedStream) {
+      try {
+        console.log("[VoiceEngine] 正在通过 Cloudflare Realtime Serverless SFU 加入频道:", channel.id);
+        const cfSessionId = await cloudflareRealtimeService.connect(channel.id, {
+          audioStream: processedStream,
+        });
+        joinSuccess = Boolean(cfSessionId);
+        if (joinSuccess) {
+          livekitService.setConnectionStatus("connected");
+        }
+      } catch (cfErr) {
+        console.error("Cloudflare Realtime 加入频道失败:", cfErr);
+        joinSuccess = false;
+      }
+    } else if (voiceMode === "p2p_mesh" && processedStream && channel.guildId) {
       gatewayClient.updateVoiceState(channel.guildId, channel.id, {
         selfMute: isMuted,
         selfDeaf: isDeafened,
@@ -2664,8 +2747,10 @@ export const App: React.FC = () => {
       }
       if (!joinSuccess) voiceMeshManager.stopAll();
     }
+
+    // 后备：若未开启 Cloudflare 且 Mesh 失败，回退传统 LiveKit
     try {
-      if (!joinSuccess) {
+      if (!isCloudflareActive && !joinSuccess) {
         const token = useAuthStore.getState().token;
         const res = await fetch(`${API_BASE}/api/livekit/token`, {
           method: "POST",
@@ -2697,7 +2782,7 @@ export const App: React.FC = () => {
     }
 
     if (!joinSuccess) {
-      console.warn("LiveKit 连接未成功，自动复位语音频道状态");
+      console.warn("语音服务连接未成功，自动复位语音频道状态");
       audioEngine.stop();
       setActiveVoiceChannelId(null);
       return;
@@ -2721,6 +2806,7 @@ export const App: React.FC = () => {
     const cancellingChannelId = activeVoiceChannelId;
     setActiveVoiceChannelId(null);
     audioEngine.stop();
+    await cloudflareRealtimeService.disconnect();
     await livekitService.leaveRoom();
     const currentChannel = guildsRef.current
       .flatMap((g) => g.channels)
@@ -2744,19 +2830,23 @@ export const App: React.FC = () => {
     const leavingChannelId = activeVoiceChannelId;
 
     if (isVideoEnabled) {
-      await livekitService.setCameraEnabled(false);
+      if (VOICE_ENGINE === "cloudflare_realtime") await cloudflareRealtimeService.unpublishSource("camera");
+      else await livekitService.setCameraEnabled(false);
       setIsVideoEnabled(false);
     }
 
     // 清理 SFrame 语音加密管线状态与纯语音 Mesh P2P
     sframeManager.disable();
     livekitService.setNegotiatedE2EEKey(null);
+    cloudflareRealtimeService.setNegotiatedE2EEKey(null);
     voiceMeshManager.stopAll();
     audioEngine.stop();
+    await cloudflareRealtimeService.disconnect();
     await livekitService.leaveRoom();
 
     // 播放退出语音频道提示音
     soundManager.play("VOICE_LEAVE");
+
 
     const currentChannel = guildsRef.current
       .flatMap((g) => g.channels)
@@ -3003,8 +3093,23 @@ export const App: React.FC = () => {
     }
 
     if (!joinSuccess) voiceMeshManager.stopAll();
+
+    const isCloudflareActive = VOICE_ENGINE === "cloudflare_realtime";
+    if (!joinSuccess && isCloudflareActive && processedStream) {
+      try {
+        console.log("[VoiceEngine] DM 呼叫回退使用 Cloudflare Realtime SFU 建立连接:", channelId);
+        const cfSessionId = await cloudflareRealtimeService.connect(channelId, {
+          audioStream: processedStream,
+        });
+        joinSuccess = Boolean(cfSessionId);
+        if (joinSuccess) livekitService.setConnectionStatus("connected");
+      } catch (cfErr) {
+        console.error("Cloudflare Realtime 加入 DM 呼叫失败:", cfErr);
+      }
+    }
+
     try {
-      if (!joinSuccess) {
+      if (!joinSuccess && !isCloudflareActive) {
         const token = useAuthStore.getState().token;
         const res = await fetch(
           `${API_BASE}/api/channels/dm/${channelId}/call-token`,
@@ -3037,11 +3142,12 @@ export const App: React.FC = () => {
     }
 
     if (!joinSuccess) {
-      console.warn("LiveKit 连接未成功，自动复位呼叫状态");
+      console.warn("语音服务连接未成功，自动复位呼叫状态");
       audioEngine.stop();
       setActiveVoiceChannelId(null);
       return;
     }
+
 
     soundManager.play("VOICE_JOIN");
     if (hasVideo) {
@@ -3054,6 +3160,7 @@ export const App: React.FC = () => {
     if (!currentUser) return;
     sframeManager.disable();
     livekitService.setNegotiatedE2EEKey(null);
+    cloudflareRealtimeService.setNegotiatedE2EEKey(null);
     setCallEncryption({ status: "negotiating" });
     const ch = dmChannels.find((c) => c.id === channelId) || selectedChannel;
     if (!ch) return;
@@ -3083,6 +3190,8 @@ export const App: React.FC = () => {
         if (!negotiated) throw new Error("媒体密钥未发给当前设备");
         sframeManager.setNegotiatedKey(negotiated.key);
         livekitService.setNegotiatedE2EEKey(negotiated.key);
+        cloudflareRealtimeService.setNegotiatedE2EEKey(negotiated.key);
+
         setCallEncryption({
           status: negotiated.trust,
           fingerprint: negotiated.fingerprint,
@@ -3138,8 +3247,10 @@ export const App: React.FC = () => {
     const nextMuted = !isMuted;
     setIsMuted(nextMuted);
     audioEngine.setMute(nextMuted);
+    cloudflareRealtimeService.setMicrophoneMute(nextMuted);
     // 播放麦克风开/关提示音
     soundManager.play(nextMuted ? "MUTE" : "UNMUTE");
+
     if (selectedGuildId && activeVoiceChannelId) {
       gatewayClient.updateVoiceState(selectedGuildId, activeVoiceChannelId, {
         selfMute: nextMuted,
@@ -3155,6 +3266,7 @@ export const App: React.FC = () => {
   const handleToggleDeafen = () => {
     const nextDeafened = !isDeafened;
     setIsDeafened(nextDeafened);
+    cloudflareRealtimeService.setDeafened(nextDeafened);
     // 播放关闭/开启声音提示音
     soundManager.play(nextDeafened ? "DEAFEN" : "UNDEAFEN");
     if (!isMuted && nextDeafened) {
@@ -3175,6 +3287,22 @@ export const App: React.FC = () => {
   const handleToggleCamera = async () => {
     if (!activeVoiceChannelId) return;
     const nextVideo = !isVideoEnabled;
+    try {
+      if (VOICE_ENGINE === "cloudflare_realtime" && cloudflareRealtimeService.status === "connected") {
+        if (nextVideo) {
+          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          try { await cloudflareRealtimeService.publishMediaTrack(stream.getVideoTracks()[0], stream, "camera"); }
+          catch (error) { stream.getTracks().forEach(track => track.stop()); throw error; }
+        } else {
+          await cloudflareRealtimeService.unpublishSource("camera");
+        }
+      } else {
+        await livekitService.setCameraEnabled(nextVideo);
+      }
+    } catch (error) {
+      showGlobalToast(`摄像头切换失败：${error instanceof Error ? error.message : "未知错误"}`, "error");
+      return;
+    }
     setIsVideoEnabled(nextVideo);
     if (selectedGuildId) {
       gatewayClient.updateVoiceState(selectedGuildId, activeVoiceChannelId, {
@@ -3183,11 +3311,6 @@ export const App: React.FC = () => {
         selfVideo: nextVideo,
         streaming: isScreenSharing,
       });
-    }
-    try {
-      await livekitService.setCameraEnabled(nextVideo);
-    } catch (e) {
-      console.warn("LiveKit camera toggle error:", e);
     }
   };
 
@@ -3263,7 +3386,12 @@ export const App: React.FC = () => {
     setActiveScreenShare((prev) => (prev?.isLocal ? null : prev));
 
     try {
-      await livekitService.stopScreenShare();
+      if (VOICE_ENGINE === "cloudflare_realtime") {
+        await cloudflareRealtimeService.unpublishSource("screen");
+        await cloudflareRealtimeService.unpublishSource("screen-audio");
+      } else {
+        await livekitService.stopScreenShare();
+      }
     } catch (err) {
       console.warn("livekit stopScreenShare error:", err);
     }
@@ -3456,14 +3584,22 @@ export const App: React.FC = () => {
         );
       } else {
         // 4.2 保持原生双轨推流架构：屏幕伴音作为独立音轨发送，麦克风人声保持独立推流，避免静音冲突
-        await livekitService.startScreenShareWithStream(stream, {
-          sourceId: sourceId || undefined,
-          preset: presetId,
-          captureAudio: actualHasAudioTrack,
-          simulcast: true,
-          videoCodec,
-          customBitrate,
-        });
+        if (VOICE_ENGINE === "cloudflare_realtime") {
+          const videoTrack = stream.getVideoTracks()[0];
+          if (!videoTrack) throw new Error("屏幕视频轨道不可用");
+          await cloudflareRealtimeService.publishMediaTrack(videoTrack, stream, "screen");
+          if (actualHasAudioTrack) await cloudflareRealtimeService.publishMediaTrack(stream.getAudioTracks()[0], stream, "screen-audio");
+          videoTrack.addEventListener("ended", () => { void handleStopScreenShare(); }, { once: true });
+        } else {
+          await livekitService.startScreenShareWithStream(stream, {
+            sourceId: sourceId || undefined,
+            preset: presetId,
+            captureAudio: actualHasAudioTrack,
+            simulcast: true,
+            videoCodec,
+            customBitrate,
+          });
+        }
       }
 
       setIsScreenSharing(true);
@@ -3496,7 +3632,7 @@ export const App: React.FC = () => {
         t: GatewayEvents.P2P_FALLBACK_REQUEST,
         d: { channelId: activeVoiceChannelId },
       });
-      showGlobalToast("已切换为服务器中继 (LiveKit SFU) 模式观看", "info");
+      showGlobalToast(VOICE_ENGINE === "cloudflare_realtime" ? "已切换为 Cloudflare SFU 模式观看" : "已切换为 LiveKit SFU 模式观看", "info");
     }
   };
 

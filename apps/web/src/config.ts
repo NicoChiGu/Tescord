@@ -91,3 +91,11 @@ export function resolveLiveKitUrl(rawUrl: string | undefined | null): string {
 
   return rawUrl;
 }
+
+/**
+ * 当前客户端活跃的语音媒体引擎；生产容器在构建时显式选择 Cloudflare。
+ * 可选: "cloudflare_realtime" | "livekit"
+ */
+export const VOICE_ENGINE =
+  (import.meta.env.VITE_VOICE_ENGINE as "livekit" | "cloudflare_realtime") ||
+  "livekit";

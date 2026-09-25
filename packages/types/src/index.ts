@@ -969,8 +969,9 @@ export interface StreamDetailedStats {
   transportVerified?: boolean;
 }
 
-// 纯语音传输模式：SFU 服务端转发 或 P2P 全网状 Mesh 直连
-export type VoiceTransmissionMode = "sfu" | "p2p_mesh";
+// 纯语音传输模式：SFU (LiveKit) 服务端转发、P2P 全网状 Mesh 直连 或 Cloudflare Realtime Serverless SFU
+export type VoiceTransmissionMode = "sfu" | "p2p_mesh" | "cloudflare_realtime";
+
 
 // 语音通道状态信息
 export interface VoiceChannelStatusInfo {
@@ -1226,6 +1227,7 @@ export const GatewayEvents = {
   MESSAGE_REACTION_REMOVE: "MESSAGE_REACTION_REMOVE",
   MESSAGE_PIN_UPDATE: "MESSAGE_PIN_UPDATE",
   VOICE_STATE_UPDATE: "VOICE_STATE_UPDATE",
+  CF_MEDIA_TRACKS: "CF_MEDIA_TRACKS",
   USER_UPDATE: "USER_UPDATE",
   PRESENCE_UPDATE: "PRESENCE_UPDATE",
   GUILD_CREATE: "GUILD_CREATE",
@@ -3198,4 +3200,102 @@ export interface UpdaterConfig {
 
 export interface SetCustomProxyDTO {
   proxyUrl: string; // 自定义代理前缀，传空字符串代表清除自定义代理
+}
+
+// ==========================================
+// Cloudflare Realtime (Serverless SFU & Calls TURN) 媒体引擎契约
+// ==========================================
+
+export type VoiceMediaEngine = "livekit" | "cloudflare_realtime" | "p2p_mesh";
+
+export interface CfCallsSessionDescription {
+  type: "offer" | "answer";
+  sdp: string;
+}
+
+export interface CfCallsTrackInfo {
+  location: "local" | "remote";
+  trackName: string;
+  mid?: string;
+  sessionId?: string;
+  errorCode?: string;
+  errorDescription?: string;
+}
+
+export interface CfCallsCreateSessionResponse {
+  sessionId: string;
+  tracks?: CfMediaPublication[];
+  requiresE2EE?: boolean;
+}
+
+export interface CfMediaPublication {
+  sessionId: string;
+  userId: string;
+  channelId: string;
+  trackName: string;
+  mid?: string;
+  kind: "audio" | "video";
+  source: "microphone" | "camera" | "screen" | "screen-audio";
+}
+
+export interface CfMediaTracksEvent {
+  channelId: string;
+  tracks: CfMediaPublication[];
+}
+
+export interface CfCallsPublishTrackRequest {
+  channelId: string;
+  sessionId: string;
+  sessionDescription: CfCallsSessionDescription;
+  tracks: Array<{
+    mid: string;
+    trackName: string;
+    kind: "audio" | "video";
+    source: "microphone" | "camera" | "screen" | "screen-audio";
+  }>;
+}
+
+export interface CfCallsPublishTrackResponse {
+  sessionDescription: CfCallsSessionDescription;
+  tracks: CfCallsTrackInfo[];
+}
+
+export interface CfCallsSubscribeTrackRequest {
+  channelId: string;
+  sessionId: string;
+  tracks: Array<{
+    publisherSessionId: string;
+    trackName: string;
+  }>;
+}
+
+export interface CfCallsSubscribeTrackResponse {
+  sessionDescription: CfCallsSessionDescription;
+  tracks: CfCallsTrackInfo[];
+}
+
+export interface CfCallsRenegotiateRequest {
+  sessionId: string;
+  sessionDescription: CfCallsSessionDescription;
+}
+
+export interface CfCallsCloseTracksRequest {
+  sessionId: string;
+  tracks: Array<{ mid?: string; trackName?: string }>;
+  sessionDescription?: CfCallsSessionDescription;
+}
+
+export interface CfRealtimeConfigResponse {
+  enabled: boolean;
+  sfuEnabled: boolean;
+  turnEnabled: boolean;
+}
+
+export interface CfTurnIceServersResponse {
+  iceServers: Array<{
+    urls: string | string[];
+    username?: string;
+    credential?: string;
+  }>;
+  expiresAt: number;
 }

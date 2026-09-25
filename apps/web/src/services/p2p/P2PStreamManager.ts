@@ -15,6 +15,8 @@ import {
 import { NATDetector, NATDetectionResult } from "./NATDetector.js";
 import { gatewayClient } from "../gateway.js";
 import { API_BASE } from "../../config.js";
+import { apiFetch } from "../apiClient.js";
+import { useAuthStore } from "../../stores/useAuthStore.js";
 import { bitrateCalculator } from "../stats/BitrateCalculator.js";
 import { sframeManager } from "../sframe.js";
 
@@ -45,6 +47,7 @@ export class P2PStreamManager {
   // 动态 ICE 服务器 (双栈 STUN + Coturn TURN)
   private currentIceServers: RTCIceServer[] = [...DEFAULT_ICE_SERVERS];
   private isIceServersLoaded: boolean = false;
+  private iceServersLoadedAt = 0;
 
   // targetUserId -> 打洞重试状态追踪
   private peerRetries: Map<
@@ -75,10 +78,10 @@ export class P2PStreamManager {
    * 动态拉取服务端 Coturn TURN 与双栈 STUN 列表
    */
   public async fetchIceServers(): Promise<RTCIceServer[]> {
-    if (this.isIceServersLoaded) return this.currentIceServers;
+    if (this.isIceServersLoaded && Date.now() - this.iceServersLoadedAt < 60 * 60 * 1000) return this.currentIceServers;
     try {
-      const token = localStorage.getItem("tescord_access_token");
-      const res = await fetch(`${API_BASE}/api/network/ice-servers`, {
+      const token = useAuthStore.getState().token || sessionStorage.getItem("tescord_access_token") || localStorage.getItem("tescord_access_token");
+      const res = await apiFetch(`${API_BASE}/api/network/ice-servers`, {
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });
       if (res.ok) {
@@ -86,6 +89,7 @@ export class P2PStreamManager {
         if (data.iceServers && Array.isArray(data.iceServers)) {
           this.currentIceServers = data.iceServers as RTCIceServer[];
           this.isIceServersLoaded = true;
+          this.iceServersLoadedAt = Date.now();
           return this.currentIceServers;
         }
       }

@@ -29,6 +29,10 @@ process.env.UPLOAD_SIGNING_SECRET =
   "tescord-e2e-only-upload-signing-test-secret-2026";
 process.env.STORAGE_MODE = "local";
 process.env.REDIS_URL = "";
+process.env.CLOUDFLARE_CALLS_APP_ID ??= "e2e-sfu-app";
+process.env.CLOUDFLARE_CALLS_APP_SECRET ??= "e2e-sfu-secret-never-used";
+process.env.CLOUDFLARE_CALLS_TURN_KEY_ID ??= "e2e-turn-key";
+process.env.CLOUDFLARE_CALLS_TURN_API_TOKEN ??= "e2e-turn-token-never-used";
 
 // `prisma db push` currently crashes in the Windows schema engine on this host.
 // Generate the same new-database DDL, then apply each statement through Prisma's

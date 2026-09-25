@@ -1,1 +1,2 @@
 *.sh text eol=lf
+apps/web/public/models/dfn3/initial-state-layout.json text eol=lf

@@ -22,6 +22,8 @@ playwright-report/
 .env.*.local
 docker/.env.production
 docker/.env.without-coturn
+docker/.env.cloudflare
+playwright-cloudflare-report/
 docker/certs/
 docker/backups/
 docker/**/datas/

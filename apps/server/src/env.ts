@@ -25,18 +25,18 @@ const insecureProductionDefaults = new Map([
 ]);
 
 if (process.env.NODE_ENV === "production") {
+  const cloudflareMedia = process.env.VOICE_ENGINE === "cloudflare_realtime";
   const required = [
     "DATABASE_URL",
     "JWT_SECRET",
-    "LIVEKIT_API_KEY",
-    "LIVEKIT_API_SECRET",
+    ...(cloudflareMedia
+      ? ["CLOUDFLARE_CALLS_APP_ID", "CLOUDFLARE_CALLS_APP_SECRET", "CLOUDFLARE_CALLS_TURN_KEY_ID", "CLOUDFLARE_CALLS_TURN_API_TOKEN"]
+      : ["LIVEKIT_API_KEY", "LIVEKIT_API_SECRET", "LIVEKIT_URL", "LIVEKIT_HTTP_URL"]),
     "UPLOAD_SIGNING_SECRET",
     "MINIO_ACCESS_KEY",
     "MINIO_SECRET_KEY",
     "MINIO_ENDPOINT",
     "REDIS_URL",
-    "LIVEKIT_URL",
-    "LIVEKIT_HTTP_URL",
     "CORS_ORIGINS",
     "SERVER_BASE_URL",
   ];
@@ -108,9 +108,9 @@ if (process.env.NODE_ENV === "production") {
   } catch {
     invalid.push("DATABASE_URL/REDIS_URL");
   }
-  if (!/^wss:\/\//.test(process.env.LIVEKIT_URL || ""))
+  if (!cloudflareMedia && !/^wss:\/\//.test(process.env.LIVEKIT_URL || ""))
     invalid.push("LIVEKIT_URL");
-  if (!/^https?:\/\//.test(process.env.LIVEKIT_HTTP_URL || ""))
+  if (!cloudflareMedia && !/^https?:\/\//.test(process.env.LIVEKIT_HTTP_URL || ""))
     invalid.push("LIVEKIT_HTTP_URL");
   const allowedOrigins = (process.env.CORS_ORIGINS || "")
     .split(",")
@@ -126,6 +126,19 @@ if (process.env.NODE_ENV === "production") {
         process.env.UPLOAD_SIGNING_SECRET === turnSecret))
   )
     invalid.push("independent signing secrets");
+
+  const cfAppId = process.env.CLOUDFLARE_CALLS_APP_ID?.trim() || "";
+  const cfAppSecret = process.env.CLOUDFLARE_CALLS_APP_SECRET?.trim() || "";
+  if (Boolean(cfAppId) !== Boolean(cfAppSecret)) {
+    invalid.push("CLOUDFLARE_CALLS_APP_ID/CLOUDFLARE_CALLS_APP_SECRET pair");
+  }
+
+  const cfTurnKeyId = process.env.CLOUDFLARE_CALLS_TURN_KEY_ID?.trim() || "";
+  const cfTurnToken = process.env.CLOUDFLARE_CALLS_TURN_API_TOKEN?.trim() || "";
+  if (Boolean(cfTurnKeyId) !== Boolean(cfTurnToken)) {
+    invalid.push("CLOUDFLARE_CALLS_TURN_KEY_ID/CLOUDFLARE_CALLS_TURN_API_TOKEN pair");
+  }
+
   if (invalid.length > 0) {
     throw new Error(
       `Production secrets are missing or still use development defaults: ${invalid.join(", ")}`,

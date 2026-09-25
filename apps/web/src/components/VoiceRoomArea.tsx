@@ -9,6 +9,7 @@ import {
   NoiseSuppressionMode,
 } from "@tescord/types";
 import { livekitService, ActiveScreenShare } from "../services/livekit.js";
+import { cloudflareRealtimeService } from "../services/cloudflare_realtime/index.js";
 import { audioEngine } from "../services/audioEngine.js";
 import { audioMixer } from "../services/audioMixer.js";
 import { sframeManager, SFrameStats } from "../services/sframe.js";
@@ -1001,6 +1002,24 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
     const unbindCamera = livekitService.onCameraTracksChange((tracks) => {
       setCameraTracks(new Map(tracks));
     });
+    const unbindCloudflareVideo = cloudflareRealtimeService.onRemoteVideo((publication, stream) => {
+      const track = stream?.getVideoTracks()[0] || null;
+      if (publication.source === "camera") {
+        setCameraTracks((previous) => {
+          const next = new Map(previous);
+          if (track) next.set(publication.userId, track);
+          else next.delete(publication.userId);
+          return next;
+        });
+      } else if (publication.source === "screen") {
+        setScreenShares((previous) => {
+          const next = new Map(previous);
+          if (track) next.set(publication.userId, { participantIdentity: publication.userId, track, isLocal: publication.userId === currentUser.id, preset: "Cloudflare SFU" });
+          else next.delete(publication.userId);
+          return next;
+        });
+      }
+    });
     const unbindP2P = p2pStreamManager.onStreamChange((stream, ownerId) => {
       setP2pScreenShares((prev) => {
         const next = new Map(prev);
@@ -1023,6 +1042,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
       unbindShares();
       unbindShare();
       unbindCamera();
+      unbindCloudflareVideo();
       unbindP2P();
     };
   }, [currentUser.id]);
