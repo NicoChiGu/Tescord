@@ -103,7 +103,7 @@ const DFN3_MODEL_HASHES: Record<string, string> = {
   "denoiser_model.onnx":
     "b758c49d6708a5b7979e3de185705a8a4915076c862fb17b1b304d9a72b75cdc",
   "meta.json":
-    "f069011a01849629ad23fbb1d00f4417cf106d5e316e3f7fbcba65cce3440818",
+    "e3a8fefd13c43747b97471bf889d54608465198a58c2b99006483b1b4bad2962",
   "initial-state-layout.json":
     "53ba88f801e07015dc508ea2c1cc2c461c32ae32f992f5764a32ac46fb3bab1e",
   "initial-states.f32":

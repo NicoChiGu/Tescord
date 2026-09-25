@@ -130,7 +130,7 @@ test.describe("服务器侧边栏超出容器时竖向滚动与滚动条隐藏�
     expect(scrolledTop).toBe(150);
 
     // 6. 验证吸底固定模式：底部添加服务器(+)与探索发现按钮常驻可见，无需滚到底部也能直接交互
-    const addServerBtn = page.getByRole("button", { name: "创建新服务器" });
+    const addServerBtn = page.getByRole("button", { name: "添加服务器" });
     const discoveryBtn = page.locator('[data-testid="open-discovery-btn"]');
     await expect(addServerBtn).toBeVisible();
     await expect(discoveryBtn).toBeVisible();

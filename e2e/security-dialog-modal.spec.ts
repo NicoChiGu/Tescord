@@ -87,12 +87,16 @@ test.describe("全局决策模态框与4位安全验证码验收 (Security Code 
       await expect(guildIcon).toBeVisible({ timeout: 5000 });
       await guildIcon.click({ button: "right" });
 
-      const serverSettingsItem = page.locator('text="服务器设置"').first();
+      const serverSettingsItem = page.getByRole("menuitem", {
+        name: "服务器管理设置",
+      });
       await expect(serverSettingsItem).toBeVisible({ timeout: 5000 });
       await serverSettingsItem.click();
 
       // 点击左侧底部的“删除服务器”红字选项
-      const deleteGuildTabBtn = page.locator('button:has-text("删除服务器")');
+      const deleteGuildTabBtn = page.getByRole("button", {
+        name: "解散服务器",
+      });
       await expect(deleteGuildTabBtn).toBeVisible({ timeout: 5000 });
       await deleteGuildTabBtn.click();
 
