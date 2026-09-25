@@ -53,6 +53,7 @@ export class CloudflareRealtimeService {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private remoteVideoListeners = new Set<(publication: CfMediaPublication, stream: MediaStream | null) => void>();
   private currentPublications = new Map<string, CfMediaPublication>();
+  private initialPublications: CfMediaPublication[] = [];
   private remoteByMid = new Map<string, CfMediaPublication>();
 
   private readonly pagehideHandler = (): void => {
@@ -140,6 +141,28 @@ export class CloudflareRealtimeService {
         console.error("[CF Realtime] Status listener error:", err);
       }
     }
+  }
+
+  private async createMediaSession(): Promise<string> {
+    if (!this.currentChannelId) throw new Error("No media channel selected");
+    const sessionRes = await apiFetch(`${API_BASE}/api/cloudflare-realtime/session/new`, {
+      method: "POST",
+      headers: this.authHeaders,
+      body: JSON.stringify({ channelId: this.currentChannelId }),
+    });
+    if (!sessionRes.ok) throw new Error(`Cloudflare media session request failed (${sessionRes.status})`);
+    const sessionData = (await sessionRes.json()) as CfCallsCreateSessionResponse;
+    if (!sessionData?.sessionId) throw new Error("Invalid Cloudflare media session");
+    this.sessionId = sessionData.sessionId;
+    this.initialPublications = sessionData.tracks || [];
+    if (sessionData.requiresE2EE && (!this.negotiatedE2EEKey || !sframeManager.getStats().enabled)) {
+      throw new Error("E2EE media key unavailable");
+    }
+    this.startHeartbeat();
+    this.unbindTracks = gatewayClient.on("CF_MEDIA_TRACKS", (event: CfMediaTracksEvent) => {
+      if (event.channelId === this.currentChannelId) void this.syncPublications(event.tracks);
+    });
+    return sessionData.sessionId;
   }
 
   /**
@@ -268,38 +291,16 @@ export class CloudflareRealtimeService {
         }
       };
 
-      // 5. 调用后端创建 Cloudflare Calls 边缘会话 (Session)
-      const sessionRes = await apiFetch(`${API_BASE}/api/cloudflare-realtime/session/new`, {
-        method: "POST",
-        headers: this.authHeaders,
-        body: JSON.stringify({ channelId }),
-      });
-      if (!sessionRes.ok) {
-        throw new Error(`未能获取 Cloudflare Calls Session: ${sessionRes.statusText}`);
-      }
-      const sessionData = (await sessionRes.json()) as CfCallsCreateSessionResponse;
-      if (!sessionData?.sessionId) {
-        throw new Error("未能获取有效的 Cloudflare Calls SessionId");
-      }
-      this.sessionId = sessionData.sessionId;
-      this.startHeartbeat();
-      if (sessionData.requiresE2EE && (!this.negotiatedE2EEKey || !sframeManager.getStats().enabled)) {
-        throw new Error("E2EE media key unavailable");
-      }
-      this.unbindTracks = gatewayClient.on("CF_MEDIA_TRACKS", (event: CfMediaTracksEvent) => {
-        if (event.channelId === this.currentChannelId) void this.syncPublications(event.tracks);
-      });
-
-      // 6. 若提供了麦克风音频流，立即执行推流 (Publish)
-      if (options?.audioStream) {
-        await this.publishMicrophoneStream(options.audioStream);
-      }
+      // 在申请短寿命的 SFU 会话前完成本地 ICE 候选收集。
+      if (options?.audioStream) await this.publishMicrophoneStream(options.audioStream);
+      else await this.createMediaSession();
 
       if (options?.audioStream) {
         await this.waitForConnected(pc, 30_000);
         await this.announceTracks();
       }
-      await this.syncPublications(sessionData.tracks || []);
+      await this.syncPublications(this.initialPublications);
+      if (!this.sessionId) throw new Error("Media session lost during connection");
       return this.sessionId;
     } catch (err: any) {
       console.error("[CF Realtime] 连接建立异常:", err);
@@ -334,8 +335,8 @@ export class CloudflareRealtimeService {
   public async publishMediaTrack(track: MediaStreamTrack, stream: MediaStream, source: CfMediaPublication["source"]): Promise<void> {
     await this.queue(async () => {
       const pc = this.pc;
-      const sessionId = this.sessionId;
-      if (!pc || !sessionId || !this.currentChannelId) throw new Error("No Cloudflare media session");
+      let sessionId = this.sessionId;
+      if (!pc || !this.currentChannelId || (!sessionId && source !== "microphone")) throw new Error("No Cloudflare media session");
       if (this.negotiatedE2EEKey && !sframeManager.getStats().enabled) throw new Error("E2EE key unavailable");
       const transceiver = pc.addTransceiver(track, { direction: "sendonly", streams: [stream] });
       const sender = transceiver.sender;
@@ -344,6 +345,7 @@ export class CloudflareRealtimeService {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         await this.waitForIceGathering(pc);
+        if (!sessionId) sessionId = await this.createMediaSession();
         const mid = transceiver.mid;
         if (!mid) throw new Error("Missing track MID");
         const trackName = `${source}-${crypto.randomUUID()}`;
@@ -569,6 +571,7 @@ export class CloudflareRealtimeService {
     this.audioElements.clear();
     this.remoteStreams.clear();
     this.currentPublications.clear();
+    this.initialPublications = [];
     this.remoteByMid.clear();
     this.subscribedTracks.clear();
     for (const published of this.publishedTracks.values()) {
