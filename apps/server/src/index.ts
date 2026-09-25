@@ -5126,6 +5126,13 @@ server.post("/api/cloudflare-realtime/tracks/ready", async (request, reply) => {
   return { ok: true };
 });
 
+server.post("/api/cloudflare-realtime/session/heartbeat", async (request, reply) => {
+  const session = await cfSessionForRequest(request, cfBody(request).sessionId);
+  if (!session) return reply.status(403).send({ error: "Invalid media session" });
+  cloudflareRealtimeService.touchSession(session.sessionId);
+  return { ok: true };
+});
+
 server.post("/api/cloudflare-realtime/session/leave", async (request, reply) => {
   const body = cfBody(request);
   const session = await cfSessionForRequest(request, body.sessionId);
@@ -5140,7 +5147,7 @@ const cloudflareMediaSweep = setInterval(async () => {
     try {
       const login = await prisma.refreshToken.findUnique({ where: { id: session.loginSessionId }, select: { userId: true, expiresAt: true } });
       const user = await prisma.user.findUnique({ where: { id: session.userId }, select: { isBanned: true } });
-      if (login?.userId === session.userId && login.expiresAt > new Date() && user && !user.isBanned && await cfCanUseChannel(session.userId, session.channelId)) continue;
+      if (Date.now() - session.lastSeenAt <= 45_000 && login?.userId === session.userId && login.expiresAt > new Date() && user && !user.isBanned && await cfCanUseChannel(session.userId, session.channelId)) continue;
       await cloudflareRealtimeService.revokeSession(sessionId);
       await cfSendTracks(session.channelId);
     } catch (error) { server.log.warn({ error }, "Cloudflare media revocation retry pending"); }

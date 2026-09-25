@@ -21,7 +21,7 @@ import type {
  */
 export class CloudflareRealtimeService {
   private readonly baseUrl = "https://rtc.live.cloudflare.com/v1";
-  private readonly sessions = new Map<string, { userId: string; channelId: string; loginSessionId: string; createdAt: number }>();
+  private readonly sessions = new Map<string, { userId: string; channelId: string; loginSessionId: string; createdAt: number; lastSeenAt: number }>();
   private readonly publications = new Map<string, CfMediaPublication>();
   private readonly subscribedMids = new Map<string, Set<string>>();
   private readonly maxSessionsPerUser = 4;
@@ -36,12 +36,17 @@ export class CloudflareRealtimeService {
     }
     const count = [...this.sessions.values()].filter((s) => s.userId === userId).length;
     if (count >= this.maxSessionsPerUser) throw new Error("Media session limit reached");
-    this.sessions.set(sessionId, { userId, channelId, loginSessionId, createdAt: now });
+    this.sessions.set(sessionId, { userId, channelId, loginSessionId, createdAt: now, lastSeenAt: now });
   }
 
   public getSession(sessionId: string) { return this.sessions.get(sessionId); }
 
   public listSessions() { return [...this.sessions.entries()]; }
+
+  public touchSession(sessionId: string): void {
+    const session = this.sessions.get(sessionId);
+    if (session) session.lastSeenAt = Date.now();
+  }
 
   public recordSubscriptions(sessionId: string, mids: string[]): void {
     const set = this.subscribedMids.get(sessionId) || new Set<string>();
@@ -54,10 +59,11 @@ export class CloudflareRealtimeService {
       ...this.getTracks(this.sessions.get(sessionId)?.channelId || "").filter(t => t.sessionId === sessionId).map(t => t.mid).filter((mid): mid is string => !!mid),
       ...(this.subscribedMids.get(sessionId) || []),
     ];
-    if (mids.length) {
-      await this.closeTracks({ sessionId, tracks: mids.map(mid => ({ mid })) });
+    try {
+      if (mids.length) await this.closeTracks({ sessionId, tracks: mids.map(mid => ({ mid })) });
+    } finally {
+      this.removeSession(sessionId);
     }
-    this.removeSession(sessionId);
   }
 
   public ownsSession(sessionId: string, userId: string, loginSessionId: string): boolean {

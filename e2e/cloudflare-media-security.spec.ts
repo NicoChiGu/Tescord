@@ -23,6 +23,8 @@ test("Cloudflare media endpoints reject anonymous and forged channel/session ope
   expect(forgedSubscribe.status()).toBe(403);
   const forgedReady = await request.post("/api/cloudflare-realtime/tracks/ready", { headers, data: { sessionId: "forged" } });
   expect(forgedReady.status()).toBe(403);
+  const forgedHeartbeat = await request.post("/api/cloudflare-realtime/session/heartbeat", { headers, data: { sessionId: "forged" } });
+  expect(forgedHeartbeat.status()).toBe(403);
   const forgedLeave = await request.post("/api/cloudflare-realtime/session/leave", { headers, data: { sessionId: "forged" } });
   expect(forgedLeave.status()).toBe(403);
 });

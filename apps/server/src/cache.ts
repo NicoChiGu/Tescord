@@ -185,7 +185,7 @@ export class DualCacheStore implements ICacheStore {
       if (this.redis) {
         this.redis.on("connect", () => {
           this.isRedisAvailable = true;
-          console.log(`[Cache] Successfully connected to Redis at ${redisUrl}`);
+          console.log("[Cache] Successfully connected to Redis");
         });
 
         this.redis.on("error", (err: any) => {

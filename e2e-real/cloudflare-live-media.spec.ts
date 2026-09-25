@@ -1,4 +1,7 @@
 import { test, expect, type Page } from "@playwright/test";
+import { randomBytes } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
 declare global {
   interface Window { __cloudflareAcceptancePcs: RTCPeerConnection[]; }
@@ -22,17 +25,42 @@ async function mediaSnapshot(page: Page) {
 }
 
 test("three authorized browsers exchange Cloudflare SFU audio, camera and screen tracks", async ({ browser, request }) => {
-  const adminLogin = await request.post("/api/auth/login", { data: { emailOrUsername: "Jackey", password: "adminpassword123" } });
+  const onTarget = Boolean(process.env.TESCORD_TARGET_BASE_URL);
+  const forceRelay = process.env.TESCORD_FORCE_RELAY === "1";
+  const adminLogin = await request.post("/api/auth/login", { data: {
+    emailOrUsername: onTarget ? "AcceptanceAdmin" : "Jackey",
+    password: onTarget ? process.env.TESCORD_ACCEPTANCE_ADMIN_PASSWORD : "adminpassword123",
+  } });
   expect(adminLogin.ok()).toBeTruthy();
   const adminToken = (await adminLogin.json()).accessToken as string;
-  const aliceLogin = await request.post("/api/auth/login", { data: { emailOrUsername: "alice@tescord.local", password: "alicepassword123" } });
-  expect(aliceLogin.ok()).toBeTruthy();
-  const aliceToken = (await aliceLogin.json()).accessToken as string;
-  const bobLogin = await request.post("/api/auth/login", { data: { emailOrUsername: "bob@tescord.local", password: "bobpassword123" } });
-  expect(bobLogin.ok()).toBeTruthy();
-  const bobToken = (await bobLogin.json()).accessToken as string;
+  let guildId = "gld_default_01";
+  let aliceToken: string;
+  let bobToken: string;
+  if (onTarget) {
+    const marker = randomBytes(5).toString("hex");
+    const registrationInvite = await request.post("/api/admin/registration-invites", { headers: { Authorization: `Bearer ${adminToken}` }, data: { note: `Cloudflare acceptance ${marker}`, maxUses: 2 } });
+    expect(registrationInvite.ok()).toBeTruthy();
+    const inviteCode = (await registrationInvite.json()).code as string;
+    const register = async (label: string) => {
+      const response = await request.post("/api/auth/register", { data: { username: `${label}_${marker}`, email: `${label}-${marker}@example.invalid`, password: randomBytes(24).toString("base64url"), inviteCode } });
+      expect(response.ok()).toBeTruthy();
+      return (await response.json()).accessToken as string;
+    };
+    aliceToken = await register("alice");
+    bobToken = await register("bob");
+    const guild = await request.post("/api/guilds", { headers: { Authorization: `Bearer ${adminToken}` }, data: { name: `Cloudflare acceptance ${marker}` } });
+    expect(guild.ok()).toBeTruthy();
+    guildId = (await guild.json()).id as string;
+  } else {
+    const aliceLogin = await request.post("/api/auth/login", { data: { emailOrUsername: "alice@tescord.local", password: "alicepassword123" } });
+    expect(aliceLogin.ok()).toBeTruthy();
+    aliceToken = (await aliceLogin.json()).accessToken as string;
+    const bobLogin = await request.post("/api/auth/login", { data: { emailOrUsername: "bob@tescord.local", password: "bobpassword123" } });
+    expect(bobLogin.ok()).toBeTruthy();
+    bobToken = (await bobLogin.json()).accessToken as string;
+  }
   for (const token of [aliceToken, bobToken]) {
-    const invite = await request.post("/api/guilds/gld_default_01/invites", { headers: { Authorization: `Bearer ${adminToken}` }, data: { maxUses: 1 } });
+    const invite = await request.post(`/api/guilds/${guildId}/invites`, { headers: { Authorization: `Bearer ${adminToken}` }, data: { maxUses: 1 } });
     expect(invite.ok()).toBeTruthy();
     const code = (await invite.json()).code as string;
     const joined = await request.post(`/api/invites/${code}/join`, { headers: { Authorization: `Bearer ${token}` } });
@@ -42,7 +70,7 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   const pages: Page[] = [];
   for (const token of [adminToken, aliceToken, bobToken]) {
     const context = await browser.newContext({ ignoreHTTPSErrors: true, locale: "zh-CN", permissions: ["microphone", "camera"] });
-    await context.addInitScript((accessToken) => {
+    await context.addInitScript(({ accessToken, forceRelay }) => {
       localStorage.setItem("tescord_access_token", accessToken);
       const NativePC = window.RTCPeerConnection;
       window.__cloudflareAcceptancePcs = [];
@@ -52,11 +80,11 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
       });
       window.RTCPeerConnection = class extends NativePC {
         constructor(...args: ConstructorParameters<typeof RTCPeerConnection>) {
-          super(...args);
+          super({ ...args[0], ...(forceRelay ? { iceTransportPolicy: "relay" as const } : {}) });
           window.__cloudflareAcceptancePcs.push(this);
         }
       };
-    }, token);
+    }, { accessToken: token, forceRelay });
     const page = await context.newPage();
     page.on("console", message => { if (message.type() === "error" || message.type() === "warning") console.log(`browser ${pages.length} ${message.type()}: ${message.text()}`); });
     page.on("pageerror", error => console.log(`browser ${pages.length} pageerror: ${error.message}`));
@@ -80,6 +108,7 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   const before = await Promise.all(pages.map(mediaSnapshot));
   await pages[0].waitForTimeout(1200);
   const after = await Promise.all(pages.map(mediaSnapshot));
+  if (forceRelay) expect(after.every(rows => rows.some(row => row.state === "connected" && row.localType === "relay"))).toBe(true);
   for (let i = 0; i < pages.length; i++) {
     const inbound = (rows: Awaited<ReturnType<typeof mediaSnapshot>>) => rows.flatMap(row => row.rtp).filter(rtp => rtp.direction === "inbound-rtp" && rtp.kind === "audio").reduce((sum, rtp) => sum + rtp.bytes, 0);
     const outbound = (rows: Awaited<ReturnType<typeof mediaSnapshot>>) => rows.flatMap(row => row.rtp).filter(rtp => rtp.direction === "outbound-rtp" && rtp.kind === "audio").reduce((sum, rtp) => sum + rtp.bytes, 0);
@@ -107,6 +136,13 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   }, { timeout: 30_000 }).toBe(true);
   const screenReceiver = await mediaSnapshot(pages[1]);
   await pages[0].getByTestId("voice-toggle-screen-btn").click();
-  console.log(JSON.stringify({ result: "PASS", peers: after, cameraReceiver: videoAfter, screenReceiver }));
+  const evidence = { result: "PASS", peers: after, cameraReceiver: videoAfter, screenReceiver };
+  if (onTarget) {
+    const directory = resolve("test-results/cloudflare-target");
+    await mkdir(directory, { recursive: true });
+    await writeFile(resolve(directory, "media-stats.json"), JSON.stringify(evidence, null, 2));
+    await pages[1].screenshot({ path: resolve(directory, "media-receiver.png"), fullPage: true });
+  }
+  console.log(JSON.stringify(evidence));
   await Promise.all(pages.map(page => page.context().close()));
 });

@@ -50,9 +50,38 @@ export class CloudflareRealtimeService {
   private operation: Promise<void> = Promise.resolve();
   private unbindTracks: (() => void) | null = null;
   private turnRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private remoteVideoListeners = new Set<(publication: CfMediaPublication, stream: MediaStream | null) => void>();
   private currentPublications = new Map<string, CfMediaPublication>();
   private remoteByMid = new Map<string, CfMediaPublication>();
+
+  private readonly pagehideHandler = (): void => {
+    if (!this.sessionId) return;
+    void fetch(`${API_BASE}/api/cloudflare-realtime/session/leave`, {
+      method: "POST", headers: this.authHeaders,
+      body: JSON.stringify({ sessionId: this.sessionId }), keepalive: true,
+    }).catch(() => undefined);
+  };
+
+  private startHeartbeat(): void {
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    window.addEventListener("pagehide", this.pagehideHandler);
+    this.heartbeatTimer = setInterval(async () => {
+      const sessionId = this.sessionId;
+      if (!sessionId) return;
+      try {
+        const response = await apiFetch(`${API_BASE}/api/cloudflare-realtime/session/heartbeat`, {
+          method: "POST", headers: this.authHeaders, body: JSON.stringify({ sessionId }),
+        });
+        if ((response.status === 401 || response.status === 403) && this.sessionId === sessionId) {
+          await this.disconnect();
+          this.setStatus("failed", "Media session revoked");
+        }
+      } catch (error) {
+        console.warn("[CF Realtime] Media heartbeat failed", error);
+      }
+    }, 10_000);
+  }
 
   public onRemoteVideo(listener: (publication: CfMediaPublication, stream: MediaStream | null) => void): () => void {
     this.remoteVideoListeners.add(listener);
@@ -253,6 +282,7 @@ export class CloudflareRealtimeService {
         throw new Error("未能获取有效的 Cloudflare Calls SessionId");
       }
       this.sessionId = sessionData.sessionId;
+      this.startHeartbeat();
       if (sessionData.requiresE2EE && (!this.negotiatedE2EEKey || !sframeManager.getStats().enabled)) {
         throw new Error("E2EE media key unavailable");
       }
@@ -507,12 +537,16 @@ export class CloudflareRealtimeService {
 
     this.unbindTracks?.();
     this.unbindTracks = null;
+    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+    this.heartbeatTimer = null;
+    window.removeEventListener("pagehide", this.pagehideHandler);
     if (this.turnRefreshTimer) clearTimeout(this.turnRefreshTimer);
     this.turnRefreshTimer = null;
     const oldSessionId = this.sessionId;
     if (oldSessionId) {
-      void apiFetch(`${API_BASE}/api/cloudflare-realtime/session/leave`, {
+      await apiFetch(`${API_BASE}/api/cloudflare-realtime/session/leave`, {
         method: "POST", headers: this.authHeaders, body: JSON.stringify({ sessionId: oldSessionId }),
+        signal: AbortSignal.timeout(3_000),
       }).catch(() => undefined);
     }
     // 释放远端播放 Audio 元素

@@ -1,6 +1,12 @@
 # Tescord 单机生产部署与验收
 
-Cloudflare Serverless SFU/TURN 部署使用 `docker/docker-compose-cloudflare.yml` 和目标机私有文件 `docker/.env.cloudflare`（模板 `docker/.env.cloudflare.example`）。此组合只运行 PostgreSQL、Redis、MinIO、API、Web 和 Cloudflared；Cloudflare SFU/TURN 凭据只注入 API。部署前对 PostgreSQL、MinIO 与环境文件做配套备份并在隔离容器中验证恢复。`podman compose -f docker/docker-compose-cloudflare.yml --env-file docker/.env.cloudflare config -q` 可核对配置；启动命令为 `podman compose -f docker/docker-compose-cloudflare.yml --env-file docker/.env.cloudflare up -d --build --remove-orphans`。
+Cloudflare Serverless SFU/TURN 部署使用 `docker/docker-compose-cloudflare.yml` 和目标机私有文件 `docker/.env.cloudflare`（模板 `docker/.env.cloudflare.example`）。此组合只运行 PostgreSQL、Redis、MinIO、API、Web 和 Cloudflared；Cloudflare SFU/TURN 凭据只注入 API。部署前对 PostgreSQL、MinIO 与环境文件做配套备份并在隔离容器中验证恢复。在目标机运行以下命令；该机的 Podman Compose 1.3.0 需要绝对路径，`config` 不支持 `-q`。
+
+```sh
+root=/home/tera/apps/tescord
+podman-compose -f "$root/docker/docker-compose-cloudflare.yml" --env-file "$root/docker/.env.cloudflare" config >/dev/null
+podman-compose -f "$root/docker/docker-compose-cloudflare.yml" --env-file "$root/docker/.env.cloudflare" up -d --build --remove-orphans
+```
 
 验收后若需创建首个超级管理员，在目标机执行 `sh docker/scripts/create-admin.sh admin admin@example.com`；脚本隐藏输入并确认密码，通过 `podman exec -i` 在 API 容器内创建账号。已有用户名或邮箱会被拒绝，不会提升已有账号或修改其密码。
 
