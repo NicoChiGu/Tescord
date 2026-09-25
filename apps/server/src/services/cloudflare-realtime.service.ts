@@ -229,11 +229,16 @@ export class CloudflareRealtimeService {
     );
 
     if (!response.ok) {
-      throw new Error(`Cloudflare publish failed (${response.status})`);
+      const failure = await response.json().catch(() => ({})) as { errorCode?: unknown };
+      const code = typeof failure.errorCode === "string" && /^[a-z0-9_]{1,80}$/i.test(failure.errorCode) ? failure.errorCode : "unknown";
+      throw new Error(`Cloudflare publish failed (${response.status}, ${code})`);
     }
 
     const data = (await response.json()) as CfCallsPublishTrackResponse;
-    if (!data?.sessionDescription || typeof data.sessionDescription.sdp !== "string" || !Array.isArray(data.tracks) || data.tracks.length !== req.tracks.length || data.tracks.some(track => track.errorCode)) throw new Error("Cloudflare publication rejected");
+    if (!data?.sessionDescription || typeof data.sessionDescription.sdp !== "string" || !Array.isArray(data.tracks) || data.tracks.length !== req.tracks.length || data.tracks.some(track => track.errorCode)) {
+      const codes = Array.isArray(data?.tracks) ? data.tracks.map(track => track.errorCode).filter(Boolean).join(",") : "missing_tracks";
+      throw new Error(`Cloudflare publication rejected (${codes || "invalid_response"})`);
+    }
     return data;
   }
 

@@ -5038,6 +5038,7 @@ server.post("/api/cloudflare-realtime/tracks/publish", async (request, reply) =>
     return result;
   } catch (err: any) {
     server.log.error(err, "Failed to publish tracks to Cloudflare Calls");
+    console.warn("[CF media] publish failed:", err instanceof Error ? err.message : "unknown");
     return reply.status(502).send({ error: "Failed to publish tracks" });
   }
 });
