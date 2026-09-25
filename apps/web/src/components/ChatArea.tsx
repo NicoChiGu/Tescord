@@ -1337,13 +1337,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             scrollContainerRef.current.clientHeight >=
             80;
 
-        if (
-          isValidSavedScrollTop &&
-          (meta.isNearBottom === false || isFarFromBottom)
-        ) {
-          scrollContainerRef.current.scrollTop = meta.scrollTop;
-          rowVirtualizer.scrollToOffset(meta.scrollTop);
-          currentScrollTopRef.current = meta.scrollTop;
+        const restoreReadPosition =
+          meta?.isNearBottom === false ||
+          (isValidSavedScrollTop && isFarFromBottom);
+        if (restoreReadPosition) {
+          const savedScrollTop = meta?.scrollTop ?? 0;
+          scrollContainerRef.current.scrollTop = savedScrollTop;
+          rowVirtualizer.scrollToOffset(savedScrollTop);
+          currentScrollTopRef.current = savedScrollTop;
           setIsNearBottom(false);
           isNearBottomRef.current = false;
         } else {
@@ -1380,15 +1381,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         setTimeout(() => {
           if (
             scrollContainerRef.current &&
-            isValidSavedScrollTop &&
-            (meta.isNearBottom === false || isFarFromBottom)
+            restoreReadPosition
           ) {
             if (
-              Math.abs(scrollContainerRef.current.scrollTop - meta.scrollTop) >
+              Math.abs(scrollContainerRef.current.scrollTop - (meta?.scrollTop ?? 0)) >
               5
             ) {
-              scrollContainerRef.current.scrollTop = meta.scrollTop;
-              rowVirtualizer.scrollToOffset(meta.scrollTop);
+              scrollContainerRef.current.scrollTop = meta?.scrollTop ?? 0;
+              rowVirtualizer.scrollToOffset(meta?.scrollTop ?? 0);
             }
           } else if (scrollContainerRef.current && isNearBottomRef.current) {
             // 贴底状态下的二次对齐
