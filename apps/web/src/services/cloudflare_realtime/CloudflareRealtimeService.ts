@@ -449,7 +449,7 @@ export class CloudflareRealtimeService {
 
     const answer = await this.pc.createAnswer();
     await this.pc.setLocalDescription(answer);
-    await this.waitForIceGathering(this.pc, 5000);
+    await this.waitForIceGathering(this.pc);
 
     // 3. 提交 Answer 完成重协商
     const renegRes = await apiFetch(`${API_BASE}/api/cloudflare-realtime/tracks/renegotiate`, {
@@ -598,22 +598,23 @@ export class CloudflareRealtimeService {
     this.setStatus("disconnected");
   }
 
-  private async waitForIceGathering(pc: RTCPeerConnection, timeoutMs = 800): Promise<void> {
-    if (pc.iceGatheringState === "complete") return;
-    return new Promise<void>((resolve) => {
-      let resolved = false;
-      const done = () => {
-        if (!resolved) {
-          resolved = true;
-          pc.removeEventListener("icegatheringstatechange", check);
-          resolve();
-        }
+  private async waitForIceGathering(pc: RTCPeerConnection, timeoutMs = 15_000): Promise<void> {
+    const hasCandidate = () => pc.localDescription?.sdp?.includes("a=candidate:") === true;
+    if (hasCandidate()) return;
+    await new Promise<void>((resolve, reject) => {
+      const cleanup = () => {
+        clearTimeout(timer);
+        pc.removeEventListener("icecandidate", check);
+        pc.removeEventListener("icegatheringstatechange", check);
       };
       const check = () => {
-        if (pc.iceGatheringState === "complete") done();
+        if (hasCandidate()) { cleanup(); resolve(); }
+        else if (pc.iceGatheringState === "complete") { cleanup(); reject(new Error("No ICE candidates gathered")); }
       };
+      const timer = setTimeout(() => { cleanup(); reject(new Error("ICE candidate gathering timed out")); }, timeoutMs);
+      pc.addEventListener("icecandidate", check);
       pc.addEventListener("icegatheringstatechange", check);
-      setTimeout(done, timeoutMs);
+      check();
     });
   }
 }

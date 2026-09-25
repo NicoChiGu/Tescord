@@ -68,7 +68,9 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   }
 
   const pages: Page[] = [];
+  const diagnostics: Array<Array<{ event: string; count?: number; status?: number }>> = [[], [], []];
   for (const token of [adminToken, aliceToken, bobToken]) {
+    const index = pages.length;
     const context = await browser.newContext({ ignoreHTTPSErrors: true, locale: "zh-CN", permissions: ["microphone", "camera"] });
     await context.addInitScript(({ accessToken, forceRelay }) => {
       localStorage.setItem("tescord_access_token", accessToken);
@@ -86,6 +88,21 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
       };
     }, { accessToken: token, forceRelay });
     const page = await context.newPage();
+    page.on("websocket", socket => socket.on("framereceived", frame => {
+      try {
+        const packet = JSON.parse(String(frame.payload));
+        if (packet.t === "CF_MEDIA_TRACKS") diagnostics[index].push({ event: "gateway_tracks", count: packet.d?.tracks?.length || 0 });
+      } catch { /* Other Gateway frames are irrelevant. */ }
+    }));
+    page.on("response", async response => {
+      const pathname = new URL(response.url()).pathname;
+      if (pathname.includes("/api/cloudflare-realtime/session/new")) {
+        const body = await response.json().catch(() => ({}));
+        diagnostics[index].push({ event: "session_new", status: response.status(), count: body.tracks?.length || 0 });
+      } else if (pathname.includes("/api/cloudflare-realtime/tracks/ready") || pathname.includes("/api/cloudflare-realtime/tracks/subscribe")) {
+        diagnostics[index].push({ event: pathname.endsWith("ready") ? "ready" : "subscribe", status: response.status() });
+      }
+    });
     page.on("console", message => { if (message.type() === "error" || message.type() === "warning") console.log(`browser ${pages.length} ${message.type()}: ${message.text()}`); });
     page.on("pageerror", error => console.log(`browser ${pages.length} pageerror: ${error.message}`));
     pages.push(page);
@@ -107,7 +124,7 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
       return snapshots.every((rows) => rows.some((row) => row.state === "connected" && row.rtp.some((rtp) => rtp.direction === "inbound-rtp" && rtp.kind === "audio" && rtp.bytes > 1000)));
     }, { timeout: 30_000 }).toBe(true);
   } catch (error) {
-    console.log(JSON.stringify({ stage: "audio", snapshots: await Promise.all(pages.map(mediaSnapshot)) }));
+    console.log(JSON.stringify({ stage: "audio", snapshots: await Promise.all(pages.map(mediaSnapshot)), diagnostics }));
     throw error;
   }
   const before = await Promise.all(pages.map(mediaSnapshot));
