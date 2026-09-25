@@ -1,6 +1,6 @@
 import { chromium, request, _electron as electron, expect } from '@playwright/test';
 import { randomBytes, createHash } from 'node:crypto';
-import { mkdtemp, mkdir, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { join, resolve, sep } from 'node:path';
 
 const base = process.env.TESCORD_PUBLIC_URL || 'https://tescord.terata.top';
@@ -17,7 +17,8 @@ let desktopDir;
 
 async function checked(response, label, status = 200) {
   if (response.status() !== status) {
-    throw new Error(`${label}: HTTP ${response.status()}, expected ${status}`);
+    const failure = await response.json().catch(() => ({}));
+    throw new Error(`${label}: HTTP ${response.status()}, expected ${status}, code ${failure.code || 'unknown'}`);
   }
   console.log(`PASS ${label}: HTTP ${status}`);
   return response;
@@ -32,10 +33,46 @@ async function mainWindow(app) {
   });
 }
 
+async function mediaStats(page) {
+  return page.evaluate(async () => Promise.all((window.__acceptanceMediaPcs || []).map(async (pc) => {
+    const report = await pc.getStats();
+    const selectedId = [...report.values()].find(item => item.type === 'transport' && item.selectedCandidatePairId)?.selectedCandidatePairId;
+    const pair = [...report.values()].find(item => item.type === 'candidate-pair' && item.state === 'succeeded' && (item.id === selectedId || item.nominated));
+    const rtp = [...report.values()].filter(item => item.type === 'inbound-rtp' || item.type === 'outbound-rtp')
+      .map(item => ({ direction: item.type, kind: item.kind, bytes: item.bytesReceived || item.bytesSent || 0,
+        codec: report.get(item.codecId)?.mimeType || null, frames: item.framesDecoded || 0 }));
+    return { state: pc.connectionState, localType: report.get(pair?.localCandidateId)?.candidateType || null, rtp };
+  })));
+}
+
+async function joinVoice(page, guildName) {
+  await page.getByRole('button', { name: guildName, exact: true }).click();
+  await page.locator('button[title="单击预览房间，双击加入语音通话"]').first().click();
+  await page.getByRole('button', { name: '加入语音通话' }).click();
+  await expect(page.getByRole('button', { name: '断开连接' }).first()).toBeVisible({ timeout: 45000 });
+}
+
 try {
   await checked(await api.get('/healthz'), 'public health');
+  let inviteCode;
+  let adminToken;
+  if (process.env.TESCORD_ACCEPTANCE_ADMIN_PASSWORD) {
+    const adminLogin = await checked(await api.post('/api/auth/login', {
+      data: {
+        emailOrUsername: process.env.TESCORD_ACCEPTANCE_ADMIN_USERNAME || 'AcceptanceAdmin',
+        password: process.env.TESCORD_ACCEPTANCE_ADMIN_PASSWORD,
+      },
+    }), 'acceptance administrator login');
+    const admin = await adminLogin.json();
+    adminToken = admin.accessToken;
+    const invite = await checked(await api.post('/api/admin/registration-invites', {
+      headers: { Authorization: `Bearer ${admin.accessToken}` },
+      data: { note: `Public acceptance ${marker}`, maxUses: 1 },
+    }), 'acceptance registration invite');
+    inviteCode = (await invite.json()).code;
+  }
   const registration = await checked(await api.post('/api/auth/register', {
-    data: { username: `public_${marker}`, email, password },
+    data: { username: `public_${marker}`, email, password, ...(inviteCode ? { inviteCode } : {}) },
   }), 'public registration');
   const auth = await registration.json();
   const headers = { Authorization: `Bearer ${auth.accessToken}` };
@@ -44,6 +81,20 @@ try {
   const guild = await (await checked(await api.post('/api/guilds', {
     headers, data: { name: `Public acceptance ${marker}` },
   }), 'public guild create')).json();
+  const secondInvite = adminToken ? await (await checked(await api.post('/api/admin/registration-invites', {
+    headers: { Authorization: `Bearer ${adminToken}` },
+    data: { note: `Electron media peer ${marker}`, maxUses: 1 },
+  }), 'second acceptance invite')).json() : null;
+  const secondRegistration = await (await checked(await api.post('/api/auth/register', {
+    data: { username: `electron_peer_${marker}`, email: `electron-peer-${marker}@example.invalid`,
+      password: randomBytes(24).toString('base64url'), ...(secondInvite ? { inviteCode: secondInvite.code } : {}) },
+  }), 'second acceptance registration')).json();
+  const guildInvite = await (await checked(await api.post(`/api/guilds/${guild.id}/invites`, {
+    headers, data: { maxUses: 1 },
+  }), 'acceptance guild invite')).json();
+  await checked(await api.post(`/api/invites/${guildInvite.code}/join`, {
+    headers: { Authorization: `Bearer ${secondRegistration.accessToken}` },
+  }), 'second acceptance member join');
   const channel = await (await checked(await api.post(`/api/guilds/${guild.id}/channels`, {
     headers, data: { name: 'public-acceptance', type: 'TEXT' },
   }), 'public channel create')).json();
@@ -125,6 +176,7 @@ try {
   desktopDir = await mkdtemp(join(resolve('test-results'), 'public-electron-'));
   const launchDesktop = () => electron.launch({
     executablePath: exe,
+    args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'],
     env: { ...process.env, NODE_ENV: 'production', TESCORD_E2E_USER_DATA_DIR: desktopDir,
       TESCORD_E2E_SKIP_SINGLE_INSTANCE: 'true' },
     timeout: 30000,
@@ -150,6 +202,65 @@ try {
   window = await mainWindow(desktop);
   await expect(window.getByTestId('current-user-panel-btn')).toBeVisible({ timeout: 20000 });
   console.log('PASS packaged Electron remembered login after restart');
+
+  await window.evaluate(() => {
+    const NativePC = window.RTCPeerConnection;
+    window.__acceptanceMediaPcs = [];
+    window.RTCPeerConnection = class extends NativePC {
+      constructor(...args) { super(...args); window.__acceptanceMediaPcs.push(this); }
+    };
+    navigator.mediaDevices.getDisplayMedia = () => navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+  });
+  const electronDiagnostics = [];
+  window.on('console', event => {
+    if (event.type() === 'error' || event.type() === 'warning') electronDiagnostics.push({ event: 'console', message: event.text().slice(0, 220) });
+  });
+  window.on('response', response => {
+    if (response.url().includes('/api/cloudflare-realtime/')) electronDiagnostics.push({ event: 'cloudflare_api', path: new URL(response.url()).pathname, status: response.status() });
+  });
+  browser = await chromium.launch({ headless: true, args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] });
+  const peerContext = await browser.newContext({ locale: 'zh-CN', permissions: ['microphone', 'camera'] });
+  await peerContext.addInitScript((token) => {
+    localStorage.setItem('tescord_access_token', token);
+    const NativePC = window.RTCPeerConnection;
+    window.__acceptanceMediaPcs = [];
+    window.RTCPeerConnection = class extends NativePC {
+      constructor(...args) { super(...args); window.__acceptanceMediaPcs.push(this); }
+    };
+  }, secondRegistration.accessToken);
+  const peerPage = await peerContext.newPage();
+  await peerPage.goto(base);
+  await expect(peerPage.getByTestId('current-user-panel-btn')).toBeVisible({ timeout: 20000 });
+  try {
+    await joinVoice(window, guild.name);
+  } catch (error) {
+    console.log(JSON.stringify({ stage: 'electron_join', diagnostics: electronDiagnostics.slice(-30), stats: await mediaStats(window) }));
+    throw error;
+  }
+  await joinVoice(peerPage, guild.name);
+  try {
+    await expect.poll(async () => {
+      const all = await Promise.all([mediaStats(window), mediaStats(peerPage)]);
+      return all.every(rows => rows.some(row => row.state === 'connected' &&
+        row.rtp.some(item => item.direction === 'inbound-rtp' && item.kind === 'audio' && item.bytes > 1000) &&
+        row.rtp.some(item => item.direction === 'outbound-rtp' && item.kind === 'audio' && item.bytes > 1000)));
+    }, { timeout: 45000 }).toBe(true);
+  } catch (error) {
+    console.log(JSON.stringify({ stage: 'electron_media', diagnostics: electronDiagnostics.slice(-30), stats: await Promise.all([mediaStats(window), mediaStats(peerPage)]) }));
+    throw error;
+  }
+  const mediaBefore = await Promise.all([mediaStats(window), mediaStats(peerPage)]);
+  await window.waitForTimeout(1200);
+  const mediaAfter = await Promise.all([mediaStats(window), mediaStats(peerPage)]);
+  for (let i = 0; i < 2; i++) {
+    for (const direction of ['inbound-rtp', 'outbound-rtp']) {
+      const bytes = rows => rows.flatMap(row => row.rtp).filter(item => item.direction === direction && item.kind === 'audio').reduce((sum, item) => sum + item.bytes, 0);
+      if (bytes(mediaAfter[i]) <= bytes(mediaBefore[i])) throw new Error(`Electron media ${direction} bytes did not increase`);
+    }
+  }
+  await writeFile(join(screenshotDir, 'electron-media-stats.json'), JSON.stringify({ before: mediaBefore, after: mediaAfter }, null, 2));
+  await window.screenshot({ path: join(screenshotDir, 'electron-media.png'), fullPage: true });
+  console.log('PASS packaged Electron file:// and public Chromium exchange bidirectional Opus RTP');
 } finally {
   await desktop?.close().catch(() => {});
   await browser?.close().catch(() => {});

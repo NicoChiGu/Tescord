@@ -165,7 +165,7 @@ await server.register(cors, {
       !origin ||
       allowed.has(origin) ||
       isLocalDevelopment ||
-      (origin === "null" && process.env.ALLOW_FILE_ORIGIN === "true")
+      ((origin === "null" || origin === "file://") && process.env.ALLOW_FILE_ORIGIN === "true")
     ) {
       callback(null, true);
       return;

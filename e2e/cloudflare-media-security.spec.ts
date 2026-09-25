@@ -1,4 +1,31 @@
 import { test, expect } from "@playwright/test";
+import { request as httpRequest } from "node:http";
+import { randomBytes } from "node:crypto";
+
+test("Gateway accepts Electron file origin", async () => {
+  const handshake = (origin: string) => new Promise<number>((resolve, reject) => {
+    const req = httpRequest("http://127.0.0.1:3101/gateway", {
+      headers: {
+        Origin: origin,
+        Connection: "Upgrade",
+        Upgrade: "websocket",
+        "Sec-WebSocket-Version": "13",
+        "Sec-WebSocket-Key": randomBytes(16).toString("base64"),
+      },
+    });
+    req.on("upgrade", (res, socket) => {
+      const status = res.statusCode || 0;
+      socket.once("close", () => resolve(status));
+      socket.once("error", reject);
+      socket.setTimeout(2_000, () => socket.destroy());
+      socket.write(Buffer.concat([Buffer.from([0x88, 0x80]), randomBytes(4)]));
+    });
+    req.on("response", res => { res.resume(); resolve(res.statusCode || 0); });
+    req.on("error", reject);
+    req.end();
+  });
+  expect(await handshake("file://")).toBe(101);
+});
 
 test("Cloudflare media endpoints reject anonymous and forged channel/session operations", async ({ page, request }) => {
   await page.goto("/");
