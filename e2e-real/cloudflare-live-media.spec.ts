@@ -2,6 +2,10 @@ import { test, expect, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 
 declare global {
   interface Window { __cloudflareAcceptancePcs: RTCPeerConnection[]; }
@@ -27,9 +31,12 @@ async function mediaSnapshot(page: Page) {
 
 test("three authorized browsers exchange Cloudflare SFU audio, camera and screen tracks", async ({ browser, request }) => {
   const onTarget = Boolean(process.env.TESCORD_TARGET_BASE_URL);
+  if (onTarget) test.setTimeout(180_000);
   const forceRelay = process.env.TESCORD_FORCE_RELAY === "1";
   const testP2PFallback = process.env.TESCORD_TEST_P2P_FALLBACK === "1";
   if (testP2PFallback) test.setTimeout(180_000);
+  if (process.env.TESCORD_TEST_SERVER_RESTART === "1") test.setTimeout(240_000);
+  if (process.env.TESCORD_TEST_NETWORK_RECOVERY === "1") test.setTimeout(240_000);
   const adminLogin = await request.post("/api/auth/login", { data: {
     emailOrUsername: onTarget ? process.env.TESCORD_ACCEPTANCE_ADMIN_USERNAME || "AcceptanceAdmin" : "Jackey",
     password: onTarget ? process.env.TESCORD_ACCEPTANCE_ADMIN_PASSWORD : "adminpassword123",
@@ -191,13 +198,68 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   }, { timeout: 30_000 }).toBe(true);
   const screenReceiver = await mediaSnapshot(pages[1]);
   await pages[0].getByTestId("voice-toggle-screen-btn").click();
-  const evidence = { result: "PASS", peers: after, cameraReceiver: videoAfter, screenReceiver };
+  let networkReceiver: Awaited<ReturnType<typeof mediaSnapshot>> | undefined;
+  if (onTarget && process.env.TESCORD_TEST_NETWORK_RECOVERY === "1") {
+    await pages[0].context().setOffline(true);
+    await pages[0].waitForTimeout(4_000);
+    await pages[0].context().setOffline(false);
+    const baseline = await mediaSnapshot(pages[0]);
+    const audioBytes = (rows: Awaited<ReturnType<typeof mediaSnapshot>>, direction: string) => rows.flatMap(peer => peer.rtp)
+      .filter(rtp => rtp.direction === direction && rtp.kind === "audio").reduce((sum, rtp) => sum + rtp.bytes, 0);
+    try {
+      await expect.poll(async () => {
+        const peers = await mediaSnapshot(pages[0]);
+        return peers.some(peer => peer.state === "connected" && peer.localType === "relay") &&
+          audioBytes(peers, "inbound-rtp") > audioBytes(baseline, "inbound-rtp") + 1000 &&
+          audioBytes(peers, "outbound-rtp") > audioBytes(baseline, "outbound-rtp") + 1000;
+      }, { timeout: 90_000 }).toBe(true);
+    } catch (error) {
+      console.log(JSON.stringify({ stage: "network_recovery", baseline, after: await mediaSnapshot(pages[0]), diagnostics: diagnostics[0] }));
+      throw error;
+    }
+    networkReceiver = await mediaSnapshot(pages[0]);
+  }
+  let restartReceiver: Awaited<ReturnType<typeof mediaSnapshot>> | undefined;
+  if (onTarget && process.env.TESCORD_TEST_SERVER_RESTART === "1") {
+    const oldCounts = await Promise.all(pages.map(async page => (await mediaSnapshot(page)).length));
+    const compose = "podman-compose -f /home/tera/apps/tescord/docker/docker-compose-cloudflare.yml --env-file /home/tera/apps/tescord/docker/.env.cloudflare up -d --no-build server";
+    try {
+      await execFileAsync("ssh", ["tera@100.69.12.101", `podman stop docker_server_1 && podman rm docker_server_1 && ${compose}`], { timeout: 45_000 });
+    } catch (error) {
+      await execFileAsync("ssh", ["tera@100.69.12.101", compose], { timeout: 45_000 }).catch(() => undefined);
+      throw error;
+    }
+    await expect.poll(async () => {
+      const rows = await Promise.all(pages.map(mediaSnapshot));
+      return rows.every((peers, index) => peers.length > oldCounts[index] && peers.some(peer => peer.state === "connected" &&
+        peer.rtp.some(rtp => rtp.direction === "inbound-rtp" && rtp.kind === "audio" && rtp.bytes > 1000)));
+    }, { timeout: 90_000 }).toBe(true);
+    const beforeRestartRtp = await Promise.all(pages.map(mediaSnapshot));
+    await pages[0].waitForTimeout(1200);
+    const afterRestartRtp = await Promise.all(pages.map(mediaSnapshot));
+    for (let index = 0; index < pages.length; index++) {
+      const inbound = (rows: Awaited<ReturnType<typeof mediaSnapshot>>) => rows.flatMap(peer => peer.rtp)
+        .filter(rtp => rtp.direction === "inbound-rtp" && rtp.kind === "audio").reduce((sum, rtp) => sum + rtp.bytes, 0);
+      expect(inbound(afterRestartRtp[index])).toBeGreaterThan(inbound(beforeRestartRtp[index]));
+    }
+    restartReceiver = afterRestartRtp[1];
+  }
+  const evidence = { result: "PASS", peers: after, cameraReceiver: videoAfter, screenReceiver, networkReceiver, restartReceiver };
   if (onTarget) {
     const directory = resolve("test-results/cloudflare-target");
     await mkdir(directory, { recursive: true });
     await writeFile(resolve(directory, "media-stats.json"), JSON.stringify(evidence, null, 2));
     await pages[1].screenshot({ path: resolve(directory, "media-receiver.png"), fullPage: true });
   }
+  for (const page of pages) {
+    const shareModal = page.locator(".fixed.inset-0.z-50").filter({ has: page.getByRole("heading", { name: /屏幕与应用直播分享/ }) });
+    if (await shareModal.isVisible().catch(() => false)) await shareModal.getByRole("button", { name: "关闭" }).click();
+    await page.getByRole("button", { name: "断开连接" }).first().click();
+  }
+  await expect.poll(async () => (await Promise.all(pages.map(page => page.evaluate(() =>
+    (window.__cloudflareAcceptancePcs || []).every(pc => pc.connectionState === "closed" &&
+      pc.getSenders().every(sender => !sender.track || sender.track.readyState === "ended"))
+  )))).every(Boolean), { timeout: 15_000 }).toBe(true);
   console.log(JSON.stringify(evidence));
   await Promise.all(pages.map(page => page.context().close()));
 });

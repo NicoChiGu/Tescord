@@ -324,9 +324,9 @@ try {
   await window.screenshot({ path: join(screenshotDir, 'electron-screen.png'), fullPage: true });
   console.log('PASS packaged Electron screen video and shared audio reach public Chromium');
 } finally {
-  await desktop?.windows().then(windows => Promise.all(windows.map(async page => {
+  for (const page of desktop?.windows() || []) {
     await page.evaluate(() => window.__acceptanceCaptureCleanup?.()).catch(() => {});
-  }))).catch(() => {});
+  }
   await desktop?.close().catch(() => {});
   await browser?.close().catch(() => {});
   await api.dispose();
