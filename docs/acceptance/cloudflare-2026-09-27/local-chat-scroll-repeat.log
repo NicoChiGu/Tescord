@@ -1,0 +1,43 @@
+[WebServer] (node:41784) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:30152) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:18024) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:18024) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] [Cache] Redis unavailable (connection error). Seamlessly falling back to in-memory store.
+[WebServer] (node:13252) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] $ vite preview "--port" "4173"
+[WebServer] (node:38008) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 16 tests using 1 worker
+
+(node:27080) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  1 [setup] › e2e\auth.setup.ts:10:6 › create a real signed admin session for legacy UI fixtures (197ms)
+(node:44128) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  2 [chromium] › e2e\chat-scroll-unread-attachment.spec.ts:82:7 › 消息滚动记忆、新消息红线消除与多类型附件上传综合验收 › 1. 消息滚动记忆纯物理恢复：切换离开再返回时精确还原离开时的 scrollTop (1.6s)
+  ok  3 [chromium] › e2e\chat-scroll-unread-attachment.spec.ts:147:7 › 消息滚动记忆、新消息红线消除与多类型附件上传综合验收 › 2. 新消息分割红线视口消除：新消息在视口内曝光停留超1秒后，红线自动淡出消除 (2.2s)
+  ok  4 [chromium] › e2e\chat-scroll-unread-attachment.spec.ts:190:7 › 消息滚动记忆、新消息红线消除与多类型附件上传综合验收 › 3. 附件多格式上传、拖拽高亮蒙层与高危扩展名拦截 (701ms)
+  ok  5 [chromium] › e2e\chat-scroll-unread-attachment.spec.ts:270:7 › 消息滚动记忆、新消息红线消除与多类型附件上传综合验收 › 4. 验证当用户进入频道处于最底部时，绝不呈现未读红线分割条与跳到最新浮条 (674ms)
+  ok  6 [chromium] › e2e\chat-scroll-unread-attachment.spec.ts:310:7 › 消息滚动记忆、新消息红线消除与多类型附件上传综合验收 › 5. 阅读历史时发送自己的消息后回到最新消息 (756ms)
+(node:40180) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  7 [chromium] › e2e\chat-scroll-unread-attachment.spec.ts:82:7 › 消息滚动记忆、新消息红线消除与多类型附件上传综合验收 › 1. 消息滚动记忆纯物理恢复：切换离开再返回时精确还原离开时的 scrollTop (1.6s)
+  ok  8 [chromium] › e2e\chat-scroll-unread-attachment.spec.ts:147:7 › 消息滚动记忆、新消息红线消除与多类型附件上传综合验收 › 2. 新消息分割红线视口消除：新消息在视口内曝光停留超1秒后，红线自动淡出消除 (2.2s)
+  ok  9 [chromium] › e2e\chat-scroll-unread-attachment.spec.ts:190:7 › 消息滚动记忆、新消息红线消除与多类型附件上传综合验收 › 3. 附件多格式上传、拖拽高亮蒙层与高危扩展名拦截 (697ms)
+  ok 10 [chromium] › e2e\chat-scroll-unread-attachment.spec.ts:270:7 › 消息滚动记忆、新消息红线消除与多类型附件上传综合验收 › 4. 验证当用户进入频道处于最底部时，绝不呈现未读红线分割条与跳到最新浮条 (655ms)
+  ok 11 [chromium] › e2e\chat-scroll-unread-attachment.spec.ts:310:7 › 消息滚动记忆、新消息红线消除与多类型附件上传综合验收 › 5. 阅读历史时发送自己的消息后回到最新消息 (695ms)
+(node:38324) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 12 [chromium] › e2e\chat-scroll-unread-attachment.spec.ts:82:7 › 消息滚动记忆、新消息红线消除与多类型附件上传综合验收 › 1. 消息滚动记忆纯物理恢复：切换离开再返回时精确还原离开时的 scrollTop (1.6s)
+  ok 13 [chromium] › e2e\chat-scroll-unread-attachment.spec.ts:147:7 › 消息滚动记忆、新消息红线消除与多类型附件上传综合验收 › 2. 新消息分割红线视口消除：新消息在视口内曝光停留超1秒后，红线自动淡出消除 (2.2s)
+  ok 14 [chromium] › e2e\chat-scroll-unread-attachment.spec.ts:190:7 › 消息滚动记忆、新消息红线消除与多类型附件上传综合验收 › 3. 附件多格式上传、拖拽高亮蒙层与高危扩展名拦截 (720ms)
+  ok 15 [chromium] › e2e\chat-scroll-unread-attachment.spec.ts:270:7 › 消息滚动记忆、新消息红线消除与多类型附件上传综合验收 › 4. 验证当用户进入频道处于最底部时，绝不呈现未读红线分割条与跳到最新浮条 (669ms)
+  ok 16 [chromium] › e2e\chat-scroll-unread-attachment.spec.ts:310:7 › 消息滚动记忆、新消息红线消除与多类型附件上传综合验收 › 5. 阅读历史时发送自己的消息后回到最新消息 (695ms)
+
+  16 passed (32.8s)

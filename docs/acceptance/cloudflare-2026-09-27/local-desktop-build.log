@@ -9,10 +9,10 @@ dist/assets/dfn3Worker-CxGxiclb.js                     52.54 kB
 dist/assets/dtlnWorker-DD3h_WXN.js                     53.37 kB
 dist/assets/livekit-client.e2ee.worker-CATwNyzV.js    101.52 kB
 dist/assets/index-dis3cCUY.css                        100.79 kB │ gzip:  16.15 kB
-dist/assets/index-DZ1lk56w.js                       2,229.19 kB │ gzip: 624.95 kB
+dist/assets/index-CKyRMd14.js                       2,229.66 kB │ gzip: 625.05 kB
 
 (!) Some chunks are larger than 500 kB after minification. Consider:
 - Using dynamic import() to code-split the application
 - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
-✓ built in 6.01s
+✓ built in 6.08s

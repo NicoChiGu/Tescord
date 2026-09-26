@@ -1012,7 +1012,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     if (scrollRafRef.current !== null) return;
     scrollRafRef.current = requestAnimationFrame(() => {
       scrollRafRef.current = null;
-      if (!scrollContainerRef.current) return;
+      if (!scrollContainerRef.current || !isInitialPositionedRef.current)
+        return;
       const { scrollTop, scrollHeight, clientHeight } =
         scrollContainerRef.current;
       currentScrollTopRef.current = scrollTop;

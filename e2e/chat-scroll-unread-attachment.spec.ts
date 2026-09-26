@@ -316,6 +316,9 @@ test.describe("消息滚动记忆、新消息红线消除与多类型附件上�
     await page.getByRole("button", { name: "general" }).click();
     const container = page.getByTestId("chat-scroll-container");
     await expect(page.locator("#message-msg_general_scroll_1")).toBeVisible();
+    await expect
+      .poll(() => container.evaluate((element) => element.scrollTop))
+      .toBeGreaterThan(0);
     await container.evaluate((element) => {
       element.scrollTop = 0;
       element.dispatchEvent(new Event("scroll"));

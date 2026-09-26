@@ -7,7 +7,7 @@ $ turbo run build
 
 @tescord/types:build: cache hit, replaying logs e0f5d66f9b2f6836
 @tescord/types:build: $ tsc
-@tescord/web:build: cache hit, replaying logs f533eeff751c9fea
+@tescord/web:build: cache hit, replaying logs 2da4ba6aa203cbb0
 @tescord/web:build: $ tsc && vite build
 @tescord/web:build: vite v6.4.3 building for production...
 @tescord/web:build: transforming...
@@ -19,13 +19,13 @@ $ turbo run build
 @tescord/web:build: dist/assets/dtlnWorker-DD3h_WXN.js                     53.37 kB
 @tescord/web:build: dist/assets/livekit-client.e2ee.worker-CATwNyzV.js    101.52 kB
 @tescord/web:build: dist/assets/index-dis3cCUY.css                        100.79 kB │ gzip:  16.15 kB
-@tescord/web:build: dist/assets/index-DsdITnkZ.js                       2,229.23 kB │ gzip: 624.96 kB
+@tescord/web:build: dist/assets/index-Dt2PRaSw.js                       2,229.70 kB │ gzip: 625.06 kB
 @tescord/web:build: 
 @tescord/web:build: (!) Some chunks are larger than 500 kB after minification. Consider:
 @tescord/web:build: - Using dynamic import() to code-split the application
 @tescord/web:build: - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
 @tescord/web:build: - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
-@tescord/web:build: ✓ built in 6.72s
+@tescord/web:build: ✓ built in 6.01s
 @tescord/desktop:build: cache hit, replaying logs 4f6a90f8cb7731c7
 @tescord/desktop:build: $ node ../../scripts/generate-build-config.mjs && pnpm run build:native && tsc && pnpm run copy-assets
 @tescord/desktop:build: [BuildConfig] GitHub 仓库: "labsphaela/Tescord"；更新签名公钥缺失或无效，更新已禁用。
@@ -109,5 +109,5 @@ $ turbo run build
 
  Tasks:    4 successful, 4 total
 Cached:    4 cached, 4 total
-  Time:    33ms >>> FULL TURBO
+  Time:    30ms >>> FULL TURBO
 
