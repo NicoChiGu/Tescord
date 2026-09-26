@@ -1,0 +1,2 @@
+$ pnpm --filter @tescord/server exec tsx ../../scripts/verify-media-crypto.ts
+PASS media-crypto: negotiated decrypt, replay rejection, tamper rejection, fail-closed send

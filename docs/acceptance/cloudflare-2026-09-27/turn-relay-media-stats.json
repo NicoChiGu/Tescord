@@ -1,0 +1,281 @@
+{
+  "result": "PASS",
+  "peers": [
+    [
+      {
+        "state": "closed",
+        "localType": "",
+        "rtp": []
+      },
+      {
+        "state": "connected",
+        "localType": "relay",
+        "rtp": [
+          {
+            "direction": "inbound-rtp",
+            "kind": "audio",
+            "bytes": 6222,
+            "codec": "audio/opus",
+            "frames": 0
+          },
+          {
+            "direction": "inbound-rtp",
+            "kind": "audio",
+            "bytes": 76166,
+            "codec": "audio/opus",
+            "frames": 0
+          },
+          {
+            "direction": "outbound-rtp",
+            "kind": "audio",
+            "bytes": 139508,
+            "codec": "audio/opus",
+            "frames": 0
+          }
+        ]
+      }
+    ],
+    [
+      {
+        "state": "closed",
+        "localType": "",
+        "rtp": []
+      },
+      {
+        "state": "connected",
+        "localType": "relay",
+        "rtp": [
+          {
+            "direction": "inbound-rtp",
+            "kind": "audio",
+            "bytes": 6169,
+            "codec": "audio/opus",
+            "frames": 0
+          },
+          {
+            "direction": "inbound-rtp",
+            "kind": "audio",
+            "bytes": 78521,
+            "codec": "audio/opus",
+            "frames": 0
+          },
+          {
+            "direction": "outbound-rtp",
+            "kind": "audio",
+            "bytes": 80898,
+            "codec": "audio/opus",
+            "frames": 0
+          }
+        ]
+      }
+    ],
+    [
+      {
+        "state": "closed",
+        "localType": "",
+        "rtp": []
+      },
+      {
+        "state": "connected",
+        "localType": "relay",
+        "rtp": [
+          {
+            "direction": "inbound-rtp",
+            "kind": "audio",
+            "bytes": 2373,
+            "codec": "audio/opus",
+            "frames": 0
+          },
+          {
+            "direction": "inbound-rtp",
+            "kind": "audio",
+            "bytes": 8005,
+            "codec": "audio/opus",
+            "frames": 0
+          },
+          {
+            "direction": "outbound-rtp",
+            "kind": "audio",
+            "bytes": 10543,
+            "codec": "audio/opus",
+            "frames": 0
+          }
+        ]
+      }
+    ]
+  ],
+  "microphoneSwitchReceiver": [
+    {
+      "state": "closed",
+      "localType": "",
+      "rtp": []
+    },
+    {
+      "state": "connected",
+      "localType": "relay",
+      "rtp": [
+        {
+          "direction": "inbound-rtp",
+          "kind": "audio",
+          "bytes": 10070,
+          "codec": "audio/opus",
+          "frames": 0
+        },
+        {
+          "direction": "inbound-rtp",
+          "kind": "audio",
+          "bytes": 83948,
+          "codec": "audio/opus",
+          "frames": 0
+        },
+        {
+          "direction": "outbound-rtp",
+          "kind": "audio",
+          "bytes": 85321,
+          "codec": "audio/opus",
+          "frames": 0
+        }
+      ]
+    }
+  ],
+  "cameraReceiver": [
+    {
+      "state": "closed",
+      "localType": "",
+      "rtp": []
+    },
+    {
+      "state": "connected",
+      "localType": "relay",
+      "rtp": [
+        {
+          "direction": "inbound-rtp",
+          "kind": "audio",
+          "bytes": 26685,
+          "codec": "audio/opus",
+          "frames": 0
+        },
+        {
+          "direction": "inbound-rtp",
+          "kind": "audio",
+          "bytes": 104603,
+          "codec": "audio/opus",
+          "frames": 0
+        },
+        {
+          "direction": "inbound-rtp",
+          "kind": "video",
+          "bytes": 66349,
+          "codec": "video/VP8",
+          "frames": 43
+        },
+        {
+          "direction": "outbound-rtp",
+          "kind": "audio",
+          "bytes": 103085,
+          "codec": "audio/opus",
+          "frames": 0
+        }
+      ]
+    }
+  ],
+  "cameraSwitch": {
+    "trackChanged": true,
+    "receiver": [
+      {
+        "state": "closed",
+        "localType": "",
+        "rtp": []
+      },
+      {
+        "state": "connected",
+        "localType": "relay",
+        "rtp": [
+          {
+            "direction": "inbound-rtp",
+            "kind": "audio",
+            "bytes": 30886,
+            "codec": "audio/opus",
+            "frames": 0
+          },
+          {
+            "direction": "inbound-rtp",
+            "kind": "audio",
+            "bytes": 110354,
+            "codec": "audio/opus",
+            "frames": 0
+          },
+          {
+            "direction": "inbound-rtp",
+            "kind": "video",
+            "bytes": 76359,
+            "codec": "video/VP8",
+            "frames": 61
+          },
+          {
+            "direction": "outbound-rtp",
+            "kind": "audio",
+            "bytes": 107818,
+            "codec": "audio/opus",
+            "frames": 0
+          }
+        ]
+      }
+    ]
+  },
+  "screenReceiver": [
+    {
+      "state": "closed",
+      "localType": "",
+      "rtp": []
+    },
+    {
+      "state": "connected",
+      "localType": "",
+      "rtp": [
+        {
+          "direction": "inbound-rtp",
+          "kind": "audio",
+          "bytes": 59345,
+          "codec": "audio/opus",
+          "frames": 0
+        },
+        {
+          "direction": "inbound-rtp",
+          "kind": "audio",
+          "bytes": 12044,
+          "codec": "audio/opus",
+          "frames": 0
+        },
+        {
+          "direction": "inbound-rtp",
+          "kind": "audio",
+          "bytes": 145589,
+          "codec": "audio/opus",
+          "frames": 0
+        },
+        {
+          "direction": "inbound-rtp",
+          "kind": "video",
+          "bytes": 77012,
+          "codec": "video/VP8",
+          "frames": 67
+        },
+        {
+          "direction": "inbound-rtp",
+          "kind": "video",
+          "bytes": 309600,
+          "codec": "video/VP8",
+          "frames": 101
+        },
+        {
+          "direction": "outbound-rtp",
+          "kind": "audio",
+          "bytes": 137847,
+          "codec": "audio/opus",
+          "frames": 0
+        }
+      ]
+    }
+  ]
+}

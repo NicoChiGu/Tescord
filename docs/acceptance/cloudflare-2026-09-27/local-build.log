@@ -1,0 +1,113 @@
+$ turbo run build
+• turbo 2.11.2
+
+   • Packages in scope: @tescord/desktop, @tescord/server, @tescord/types, @tescord/web
+   • Running build in 4 packages
+   • Remote caching disabled
+
+@tescord/types:build: cache hit, replaying logs e0f5d66f9b2f6836
+@tescord/types:build: $ tsc
+@tescord/web:build: cache hit, replaying logs f533eeff751c9fea
+@tescord/web:build: $ tsc && vite build
+@tescord/web:build: vite v6.4.3 building for production...
+@tescord/web:build: transforming...
+@tescord/web:build: ✓ 2172 modules transformed.
+@tescord/web:build: rendering chunks...
+@tescord/web:build: computing gzip size...
+@tescord/web:build: dist/index.html                                         2.37 kB │ gzip:   1.07 kB
+@tescord/web:build: dist/assets/dfn3Worker-CxGxiclb.js                     52.54 kB
+@tescord/web:build: dist/assets/dtlnWorker-DD3h_WXN.js                     53.37 kB
+@tescord/web:build: dist/assets/livekit-client.e2ee.worker-CATwNyzV.js    101.52 kB
+@tescord/web:build: dist/assets/index-dis3cCUY.css                        100.79 kB │ gzip:  16.15 kB
+@tescord/web:build: dist/assets/index-DsdITnkZ.js                       2,229.23 kB │ gzip: 624.96 kB
+@tescord/web:build: 
+@tescord/web:build: (!) Some chunks are larger than 500 kB after minification. Consider:
+@tescord/web:build: - Using dynamic import() to code-split the application
+@tescord/web:build: - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+@tescord/web:build: - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+@tescord/web:build: ✓ built in 6.72s
+@tescord/desktop:build: cache hit, replaying logs 4f6a90f8cb7731c7
+@tescord/desktop:build: $ node ../../scripts/generate-build-config.mjs && pnpm run build:native && tsc && pnpm run copy-assets
+@tescord/desktop:build: [BuildConfig] GitHub 仓库: "labsphaela/Tescord"；更新签名公钥缺失或无效，更新已禁用。
+@tescord/desktop:build: ℹ️ [BuildConfig] E:\nodejs_project\Tescord\apps\desktop\src\build-config.ts 内容未变，跳过覆写。
+@tescord/desktop:build: $ node scripts/build-rnnoise.mjs
+@tescord/desktop:build: gyp info it worked if it ends with ok
+@tescord/desktop:build: gyp info using node-gyp@11.5.0
+@tescord/desktop:build: gyp info using node@22.17.1 | win32 | x64
+@tescord/desktop:build: gyp info chdir E:\nodejs_project\Tescord\apps\desktop\native\rnnoise
+@tescord/desktop:build: gyp info find Python using Python version 3.14.6 found at "C:\Users\94886\AppData\Local\Python\pythoncore-3.14-64\python.exe"
+@tescord/desktop:build: 
+@tescord/desktop:build: gyp info find VS using VS2022 (17.14.37411.7) found at:
+@tescord/desktop:build: gyp info find VS "C:\Program Files\Microsoft Visual Studio\2022\Community"
+@tescord/desktop:build: gyp info find VS run with --verbose for detailed information
+@tescord/desktop:build: gyp info spawn C:\Users\94886\AppData\Local\Python\pythoncore-3.14-64\python.exe
+@tescord/desktop:build: gyp info spawn args [
+@tescord/desktop:build: gyp info spawn args 'E:\\nodejs_project\\Tescord\\node_modules\\.pnpm\\node-gyp@11.5.0\\node_modules\\node-gyp\\gyp\\gyp_main.py',
+@tescord/desktop:build: gyp info spawn args 'binding.gyp',
+@tescord/desktop:build: gyp info spawn args '-f',
+@tescord/desktop:build: gyp info spawn args 'msvs',
+@tescord/desktop:build: gyp info spawn args '-I',
+@tescord/desktop:build: gyp info spawn args 'E:\\nodejs_project\\Tescord\\apps\\desktop\\native\\rnnoise\\build\\config.gypi',
+@tescord/desktop:build: gyp info spawn args '-I',
+@tescord/desktop:build: gyp info spawn args 'E:\\nodejs_project\\Tescord\\node_modules\\.pnpm\\node-gyp@11.5.0\\node_modules\\node-gyp\\addon.gypi',
+@tescord/desktop:build: gyp info spawn args '-I',
+@tescord/desktop:build: gyp info spawn args 'C:\\Users\\94886\\AppData\\Local\\node-gyp\\Cache\\33.2.1\\include\\node\\common.gypi',
+@tescord/desktop:build: gyp info spawn args '-Dlibrary=shared_library',
+@tescord/desktop:build: gyp info spawn args '-Dvisibility=default',
+@tescord/desktop:build: gyp info spawn args '-Dnode_root_dir=C:\\Users\\94886\\AppData\\Local\\node-gyp\\Cache\\33.2.1',
+@tescord/desktop:build: gyp info spawn args '-Dnode_gyp_dir=E:\\nodejs_project\\Tescord\\node_modules\\.pnpm\\node-gyp@11.5.0\\node_modules\\node-gyp',
+@tescord/desktop:build: gyp info spawn args '-Dnode_lib_file=C:\\\\Users\\\\94886\\\\AppData\\\\Local\\\\node-gyp\\\\Cache\\\\33.2.1\\\\<(target_arch)\\\\node.lib',
+@tescord/desktop:build: gyp info spawn args '-Dmodule_root_dir=E:\\nodejs_project\\Tescord\\apps\\desktop\\native\\rnnoise',
+@tescord/desktop:build: gyp info spawn args '-Dnode_engine=v8',
+@tescord/desktop:build: gyp info spawn args '--depth=.',
+@tescord/desktop:build: gyp info spawn args '--no-parallel',
+@tescord/desktop:build: gyp info spawn args '--generator-output',
+@tescord/desktop:build: gyp info spawn args 'E:\\nodejs_project\\Tescord\\apps\\desktop\\native\\rnnoise\\build',
+@tescord/desktop:build: gyp info spawn args '-Goutput_dir=.'
+@tescord/desktop:build: gyp info spawn args ]
+@tescord/desktop:build: gyp info spawn C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe
+@tescord/desktop:build: gyp info spawn args [
+@tescord/desktop:build: gyp info spawn args 'build/binding.sln',
+@tescord/desktop:build: gyp info spawn args '/clp:Verbosity=minimal',
+@tescord/desktop:build: gyp info spawn args '/nologo',
+@tescord/desktop:build: gyp info spawn args '/nodeReuse:false',
+@tescord/desktop:build: gyp info spawn args '/p:Configuration=Release;Platform=x64'
+@tescord/desktop:build: gyp info spawn args ]
+@tescord/desktop:build: 
+@tescord/desktop:build:   addon.c
+@tescord/desktop:build:   denoise.c
+@tescord/desktop:build: E:\nodejs_project\Tescord\apps\desktop\native\rnnoise\src\denoise.c(361,45): warning C4305: '-=': truncation from 'double' to 'float' [E:\nodejs_project\Tescord\apps\desktop\native\rnnoise\build\rnnoise.vcxproj]
+@tescord/desktop:build: E:\nodejs_project\Tescord\apps\desktop\native\rnnoise\src\denoise.c(362,49): warning C4305: '-=': truncation from 'double' to 'float' [E:\nodejs_project\Tescord\apps\desktop\native\rnnoise\build\rnnoise.vcxproj]
+@tescord/desktop:build: E:\nodejs_project\Tescord\apps\desktop\native\rnnoise\src\denoise.c(503,33): warning C4305: 'initializing': truncation from 'double' to 'const float' [E:\nodejs_project\Tescord\apps\desktop\native\rnnoise\build\rnnoise.vcxproj]
+@tescord/desktop:build: E:\nodejs_project\Tescord\apps\desktop\native\rnnoise\src\denoise.c(503,43): warning C4305: 'initializing': truncation from 'double' to 'const float' [E:\nodejs_project\Tescord\apps\desktop\native\rnnoise\build\rnnoise.vcxproj]
+@tescord/desktop:build:   rnn.c
+@tescord/desktop:build: E:\nodejs_project\Tescord\apps\desktop\native\rnnoise\src\rnn.c(1,1): warning C4819: The file contains a character that cannot be represented in the current code page (936). Save the file in Unicode format to prevent data loss [E:\nodejs_project\Tescord\apps\desktop\native\rnnoise\build\rnnoise.vcxproj]
+@tescord/desktop:build:   rnn_data.c
+@tescord/desktop:build:   rnn_reader.c
+@tescord/desktop:build:   pitch.c
+@tescord/desktop:build:   kiss_fft.c
+@tescord/desktop:build:   celt_lpc.c
+@tescord/desktop:build:   win_delay_load_hook.cc
+@tescord/desktop:build:      Creating library E:\nodejs_project\Tescord\apps\desktop\native\rnnoise\build\Release\rnnoise.lib and object E:\nodejs_project\Tescord\apps\desktop\native\rnnoise\build\Release\rnnoise.exp
+@tescord/desktop:build:   Generating code
+@tescord/desktop:build:   Previous IPDB not found, fall back to full compilation.
+@tescord/desktop:build:   All 57 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+@tescord/desktop:build:   Finished generating code
+@tescord/desktop:build:   rnnoise.vcxproj -> E:\nodejs_project\Tescord\apps\desktop\native\rnnoise\build\Release\\rnnoise.node
+@tescord/desktop:build: gyp info ok 
+@tescord/desktop:build: $ node scripts/copy-assets.mjs
+@tescord/server:build: cache hit, replaying logs fd2c36a041cded29
+@tescord/server:build: $ tsx scripts/ensure-prisma.ts && tsc
+@tescord/server:build: Prisma schema loaded from prisma\schema.prisma
+@tescord/server:build: 
+@tescord/server:build: ✔ Generated Prisma Client (v6.4.1) to .\..\..\node_modules\.pnpm\@prisma+client@6.4.1_prisma_d9c0f0155209eb0c662cfd61b7acab73\node_modules\@prisma\client in 152ms
+@tescord/server:build: 
+@tescord/server:build: Start by importing your Prisma Client (See: https://pris.ly/d/importing-client)
+@tescord/server:build: 
+@tescord/server:build: Tip: Want to turn off tips and other hints? https://pris.ly/tip-4-nohints
+@tescord/server:build: 
+
+ Tasks:    4 successful, 4 total
+Cached:    4 cached, 4 total
+  Time:    33ms >>> FULL TURBO
+
