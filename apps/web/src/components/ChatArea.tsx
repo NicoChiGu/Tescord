@@ -1066,7 +1066,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     checkUnreadDividerVisibility,
   ]);
 
-  const scrollJumpTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrollJumpTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const scrollToBottom = (smooth = true) => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({
@@ -1074,7 +1076,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         behavior: smooth ? "smooth" : "auto",
       });
       // 延迟二次校准，彻底防止虚拟列表动态尺寸测量撑大导致的未完全触底
-      if (scrollJumpTimeoutRef.current) clearTimeout(scrollJumpTimeoutRef.current);
+      if (scrollJumpTimeoutRef.current)
+        clearTimeout(scrollJumpTimeoutRef.current);
       scrollJumpTimeoutRef.current = setTimeout(() => {
         scrollJumpTimeoutRef.current = null;
         if (scrollContainerRef.current) {

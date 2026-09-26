@@ -223,26 +223,37 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
   // 远端用户音量 (0 - 200)
   const [volume, setVolume] = useState<number>(() => {
     if (!isMe) {
-      return (VOICE_ENGINE === "cloudflare_realtime" ? cloudflareRealtimeService : livekitService).getParticipantVolume(targetUser.id) ?? 100;
+      return (
+        (VOICE_ENGINE === "cloudflare_realtime"
+          ? cloudflareRealtimeService
+          : livekitService
+        ).getParticipantVolume(targetUser.id) ?? 100
+      );
     }
     return 100;
   });
 
   useEffect(() => {
     if (!isMe) {
-      const currentVol = (VOICE_ENGINE === "cloudflare_realtime" ? cloudflareRealtimeService : livekitService).getParticipantVolume(targetUser.id);
+      const currentVol = (
+        VOICE_ENGINE === "cloudflare_realtime"
+          ? cloudflareRealtimeService
+          : livekitService
+      ).getParticipantVolume(targetUser.id);
       if (currentVol !== undefined) {
         setVolume(currentVol);
       }
 
       // 订阅底层全局音量变动，确保与中间卡片滑块以及其他位置的改动双向同步
-      const unsubscribe = (VOICE_ENGINE === "cloudflare_realtime" ? cloudflareRealtimeService : livekitService).onParticipantVolumeChange(
-        (identity, newVol) => {
-          if (identity === targetUser.id) {
-            setVolume(newVol);
-          }
-        },
-      );
+      const unsubscribe = (
+        VOICE_ENGINE === "cloudflare_realtime"
+          ? cloudflareRealtimeService
+          : livekitService
+      ).onParticipantVolumeChange((identity, newVol) => {
+        if (identity === targetUser.id) {
+          setVolume(newVol);
+        }
+      });
 
       return () => {
         unsubscribe();
@@ -287,7 +298,11 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
       onOpenChange={(open) => {
         if (open && !isMe) {
           // 菜单弹出瞬间强制同步最新音量快照，防止旧值反向覆盖
-          const latestVol = (VOICE_ENGINE === "cloudflare_realtime" ? cloudflareRealtimeService : livekitService).getParticipantVolume(targetUser.id);
+          const latestVol = (
+            VOICE_ENGINE === "cloudflare_realtime"
+              ? cloudflareRealtimeService
+              : livekitService
+          ).getParticipantVolume(targetUser.id);
           if (latestVol !== undefined) {
             setVolume(latestVol);
           }

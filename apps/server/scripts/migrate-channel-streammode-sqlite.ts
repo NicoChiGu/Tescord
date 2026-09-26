@@ -31,24 +31,30 @@ try {
     'PRAGMA table_info("Channel")',
   );
   if (!before.some((column) => column.name === "id")) {
-    throw new Error('Target SQLite file does not appear to contain a "Channel" table');
+    throw new Error(
+      'Target SQLite file does not appear to contain a "Channel" table',
+    );
   }
   const hasStreamMode = before.some((column) => column.name === "streamMode");
   console.log(`[migrate-channel-streammode] Database: ${dbPath}`);
-  console.log(`[migrate-channel-streammode] Column streamMode exists: ${hasStreamMode}`);
+  console.log(
+    `[migrate-channel-streammode] Column streamMode exists: ${hasStreamMode}`,
+  );
 
   if (!hasStreamMode) {
     if (apply) {
-      console.log('[migrate-channel-streammode] Applying ALTER TABLE...');
+      console.log("[migrate-channel-streammode] Applying ALTER TABLE...");
       await prisma.$executeRawUnsafe(
-        'ALTER TABLE "Channel" ADD COLUMN "streamMode" TEXT DEFAULT \'sfu\''
+        'ALTER TABLE "Channel" ADD COLUMN "streamMode" TEXT DEFAULT \'sfu\'',
       );
-      console.log('[migrate-channel-streammode] Applied successfully.');
+      console.log("[migrate-channel-streammode] Applied successfully.");
     } else {
-      console.log('[migrate-channel-streammode] Dry-run only. Pass --apply to execute.');
+      console.log(
+        "[migrate-channel-streammode] Dry-run only. Pass --apply to execute.",
+      );
     }
   } else {
-    console.log('[migrate-channel-streammode] No migration needed.');
+    console.log("[migrate-channel-streammode] No migration needed.");
   }
 } finally {
   await prisma.$disconnect();

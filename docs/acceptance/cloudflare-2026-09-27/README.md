@@ -6,14 +6,14 @@ Before deployment, PostgreSQL and MinIO backups were saved under `/home/tera/tes
 
 ## Local verification
 
-| Command | Result | Evidence |
-| --- | --- | --- |
-| `pnpm build` | 4/4 packages passed | [local-build.log](local-build.log) |
-| `pnpm test:e2e` | 171/171 Playwright tests passed | [local-e2e.log](local-e2e.log) |
-| `pnpm exec playwright test e2e/chat-scroll-unread-attachment.spec.ts --repeat-each=3` | 16/16 passed, including scroll restoration and own-message follow | [local-chat-scroll-repeat.log](local-chat-scroll-repeat.log) |
-| `pnpm test:security-media` | media crypto checks passed | [local-security-media.log](local-security-media.log) |
-| `pnpm exec playwright test e2e/camera-live-stream.spec.ts e2e/cloudflare-media-security.spec.ts` | 4/4 passed after the final media change | Console output captured during the release run |
-| `BUILD_TARGET=desktop pnpm --filter @tescord/web build`, then `pnpm test:e2e:electron` | Desktop Web build passed; `file://` session test 1/1 passed, packaged-shell test 1 skipped | [desktop build](local-desktop-build.log), [Electron E2E](local-electron-e2e.log) |
+| Command                                                                                          | Result                                                                                     | Evidence                                                                         |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| `pnpm build`                                                                                     | 4/4 packages passed                                                                        | [local-build.log](local-build.log)                                               |
+| `pnpm test:e2e`                                                                                  | 171/171 Playwright tests passed                                                            | [local-e2e.log](local-e2e.log)                                                   |
+| `pnpm exec playwright test e2e/chat-scroll-unread-attachment.spec.ts --repeat-each=3`            | 16/16 passed, including scroll restoration and own-message follow                          | [local-chat-scroll-repeat.log](local-chat-scroll-repeat.log)                     |
+| `pnpm test:security-media`                                                                       | media crypto checks passed                                                                 | [local-security-media.log](local-security-media.log)                             |
+| `pnpm exec playwright test e2e/camera-live-stream.spec.ts e2e/cloudflare-media-security.spec.ts` | 4/4 passed after the final media change                                                    | Console output captured during the release run                                   |
+| `BUILD_TARGET=desktop pnpm --filter @tescord/web build`, then `pnpm test:e2e:electron`           | Desktop Web build passed; `file://` session test 1/1 passed, packaged-shell test 1 skipped | [desktop build](local-desktop-build.log), [Electron E2E](local-electron-e2e.log) |
 
 The packaged-shell test was skipped because no packaged installer was available.
 

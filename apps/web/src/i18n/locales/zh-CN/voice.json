@@ -99,5 +99,20 @@
   "notifications": "通知",
   "cancelVoiceConnecting": "取消",
   "enableVideo": "开启视频",
-  "disableVideo": "停用视频"
+  "disableVideo": "停用视频",
+  "watchStream": "观看直播",
+  "stopWatchingStream": "停止观看",
+  "connectionPopover": {
+    "title": "连线",
+    "avgPing": "平均讯息收发来回时间",
+    "lastPing": "上一个服务器讯息收发来回时间",
+    "packetLoss": "输出封包遗失率",
+    "msUnit": "毫秒",
+    "statusGood": "网络连接状态良好，音讯通话平稳。",
+    "statusWarning": "您可能会注意到音讯延迟 250 毫秒以上。输出封包遗失率超过 10%，您的声音可能会听起来像机器人。如果这个问题持续发生，请中断连线后再试一次。",
+    "btnDebug": "除错",
+    "btnMoreStats": "更多数据",
+    "debugCopied": "诊断日志已复制到剪贴板",
+    "endToEndEncrypted": "端到端加密"
+  }
 }

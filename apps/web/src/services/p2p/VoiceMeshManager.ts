@@ -143,7 +143,9 @@ export class VoiceMeshManager {
     reason: string = "网络穿透协商受阻，已平滑降级回退至 LiveKit SFU 服务器",
   ): void {
     if (!this.allowFallbackToSFU) {
-      console.log(`[VoiceMesh] 频道配置为强制纯 P2P Mesh，阻止自动降级至 SFU: ${reason}`);
+      console.log(
+        `[VoiceMesh] 频道配置为强制纯 P2P Mesh，阻止自动降级至 SFU: ${reason}`,
+      );
       return;
     }
     if (!this.isMeshActive || this.isFallbackToSFU || !this.activeChannelId)

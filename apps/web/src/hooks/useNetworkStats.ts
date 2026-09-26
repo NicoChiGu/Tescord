@@ -12,7 +12,8 @@ export function useNetworkStats(): NetworkStats | null {
   const user = useAuthStore((state) => state.user);
 
   const [stats, setStats] = useState<NetworkStats | null>(() => {
-    if (VOICE_ENGINE === "cloudflare_realtime") return cloudflareRealtimeService.getNetworkStats();
+    if (VOICE_ENGINE === "cloudflare_realtime")
+      return cloudflareRealtimeService.getNetworkStats();
     return (
       (user?.id ? livekitService.getNetworkStats(user.id) : null) ||
       livekitService.getNetworkStats()
@@ -23,7 +24,11 @@ export function useNetworkStats(): NetworkStats | null {
     if (VOICE_ENGINE === "cloudflare_realtime") {
       setStats(cloudflareRealtimeService.getNetworkStats());
       return cloudflareRealtimeService.onNetworkStatsUpdate((statsMap) => {
-        setStats((user?.id ? statsMap.get(user.id) : null) || statsMap.get("local-me") || null);
+        setStats(
+          (user?.id ? statsMap.get(user.id) : null) ||
+            statsMap.get("local-me") ||
+            null,
+        );
       });
     }
     const current =

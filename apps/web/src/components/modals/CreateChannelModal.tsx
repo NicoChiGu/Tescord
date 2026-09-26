@@ -226,7 +226,9 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
                       <Network className="w-3.5 h-3.5 text-discord-brand" />
                       <span className="text-xs font-bold">纯 Mesh</span>
                     </div>
-                    <p className="text-[10px] text-gray-400">P2P + Anycast TURN</p>
+                    <p className="text-[10px] text-gray-400">
+                      P2P + Anycast TURN
+                    </p>
                   </div>
                 </div>
               </div>

@@ -99,5 +99,20 @@
   "notifications": "Notifications",
   "cancelVoiceConnecting": "Cancel",
   "enableVideo": "Share Video",
-  "disableVideo": "Stop Video"
+  "disableVideo": "Stop Video",
+  "watchStream": "Watch Stream",
+  "stopWatchingStream": "Stop Watching",
+  "connectionPopover": {
+    "title": "Connection",
+    "avgPing": "Average Ping",
+    "lastPing": "Last Ping",
+    "packetLoss": "Packet Loss",
+    "msUnit": "ms",
+    "statusGood": "Your connection is looking good. Smooth sailing!",
+    "statusWarning": "You may experience audio latency of 250ms or more. Packet loss is above 10%, which may make voices sound robotic. If this persists, try reconnecting.",
+    "btnDebug": "Debug",
+    "btnMoreStats": "More Stats",
+    "debugCopied": "Diagnostic log copied to clipboard",
+    "endToEndEncrypted": "End-to-End Encrypted"
+  }
 }

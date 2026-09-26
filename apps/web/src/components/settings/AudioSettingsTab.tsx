@@ -90,7 +90,10 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
 
   // 输出音量与测试音频状态 (从 livekitService 读取持久化全局输出音量)
   const [outputVolume, setOutputVolume] = useState<number>(() =>
-    (VOICE_ENGINE === "cloudflare_realtime" ? cloudflareRealtimeService : livekitService).getMasterVolume(),
+    (VOICE_ENGINE === "cloudflare_realtime"
+      ? cloudflareRealtimeService
+      : livekitService
+    ).getMasterVolume(),
   );
   const [isPlayingTestSound, setIsPlayingTestSound] = useState(false);
   const testAudioRef = useRef<HTMLAudioElement | null>(null);

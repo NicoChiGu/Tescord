@@ -31,24 +31,30 @@ try {
     'PRAGMA table_info("Channel")',
   );
   if (!before.some((column) => column.name === "id")) {
-    throw new Error('Target SQLite file does not appear to contain a "Channel" table');
+    throw new Error(
+      'Target SQLite file does not appear to contain a "Channel" table',
+    );
   }
   const hasVoiceMode = before.some((column) => column.name === "voiceMode");
   console.log(`[migrate-channel-voicemode] Database: ${dbPath}`);
-  console.log(`[migrate-channel-voicemode] Column voiceMode exists: ${hasVoiceMode}`);
+  console.log(
+    `[migrate-channel-voicemode] Column voiceMode exists: ${hasVoiceMode}`,
+  );
 
   if (!hasVoiceMode) {
     if (apply) {
-      console.log('[migrate-channel-voicemode] Applying ALTER TABLE...');
+      console.log("[migrate-channel-voicemode] Applying ALTER TABLE...");
       await prisma.$executeRawUnsafe(
-        'ALTER TABLE "Channel" ADD COLUMN "voiceMode" TEXT DEFAULT \'sfu\''
+        'ALTER TABLE "Channel" ADD COLUMN "voiceMode" TEXT DEFAULT \'sfu\'',
       );
-      console.log('[migrate-channel-voicemode] Applied successfully.');
+      console.log("[migrate-channel-voicemode] Applied successfully.");
     } else {
-      console.log('[migrate-channel-voicemode] Dry-run only. Pass --apply to execute.');
+      console.log(
+        "[migrate-channel-voicemode] Dry-run only. Pass --apply to execute.",
+      );
     }
   } else {
-    console.log('[migrate-channel-voicemode] No migration needed.');
+    console.log("[migrate-channel-voicemode] No migration needed.");
   }
 } finally {
   await prisma.$disconnect();

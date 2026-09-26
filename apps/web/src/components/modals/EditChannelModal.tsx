@@ -293,12 +293,11 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
                             : "text-gray-400"
                         }`}
                       />
-                      <span className="text-xs font-bold">
-                        边缘转发 (SFU)
-                      </span>
+                      <span className="text-xs font-bold">边缘转发 (SFU)</span>
                     </div>
                     <p className="text-[11px] text-gray-400 leading-relaxed">
-                      经由 Cloudflare Anycast 边缘服务器转发，适合多人规模通话，连接更稳定。
+                      经由 Cloudflare Anycast
+                      边缘服务器转发，适合多人规模通话，连接更稳定。
                     </p>
                   </div>
                   <div className="mt-2 text-[10px] text-discord-brand font-semibold">
@@ -330,7 +329,8 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
                       </span>
                     </div>
                     <p className="text-[11px] text-gray-400 leading-relaxed">
-                      客户端间端到端直连，零服务器延迟；受限时由 Anycast TURN 智能穿透，绝不降级 SFU。
+                      客户端间端到端直连，零服务器延迟；受限时由 Anycast TURN
+                      智能穿透，绝不降级 SFU。
                     </p>
                   </div>
                   <div className="mt-2 text-[10px] text-discord-brand font-semibold">
@@ -367,9 +367,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
                             : "text-gray-400"
                         }`}
                       />
-                      <span className="text-xs font-bold">
-                        边缘转发 (SFU)
-                      </span>
+                      <span className="text-xs font-bold">边缘转发 (SFU)</span>
                     </div>
                     <p className="text-[11px] text-gray-400 leading-relaxed">
                       中央边缘分发，主播仅推一路，适合多人观看。
@@ -399,9 +397,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
                             : "text-gray-400"
                         }`}
                       />
-                      <span className="text-xs font-bold">
-                        P2P Mesh (直连)
-                      </span>
+                      <span className="text-xs font-bold">P2P Mesh (直连)</span>
                     </div>
                     <p className="text-[11px] text-gray-400 leading-relaxed">
                       主播单播直连每位观众，零服务器流量消耗。

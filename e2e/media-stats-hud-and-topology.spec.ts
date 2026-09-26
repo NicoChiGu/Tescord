@@ -74,7 +74,14 @@ test.describe("媒体属性面板、传输速率与网络连接架构端到端�
     // 3. 确认已成功进入语音频道
     await expect(page.getByText("语音已连接")).toBeVisible({ timeout: 5000 });
 
-    // 4. 纯语音卡片右上角应常驻媒体属性按钮 (data-testid="participant-stats-btn")
+    // 4. 开启摄像头进入视频状态，使卡片右上角出现媒体属性按钮 (data-testid="participant-stats-btn")
+    const toggleCameraBtn = page.locator(
+      '[data-testid="voice-toggle-camera-btn"]',
+    );
+    if (await toggleCameraBtn.isVisible()) {
+      await toggleCameraBtn.click();
+    }
+
     const statsBtn = page
       .locator('[data-testid="participant-stats-btn"]')
       .first();

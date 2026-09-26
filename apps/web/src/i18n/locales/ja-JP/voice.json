@@ -99,5 +99,20 @@
   "notifications": "通知",
   "cancelVoiceConnecting": "キャンセル",
   "enableVideo": "カメラを開始",
-  "disableVideo": "カメラを停止"
+  "disableVideo": "カメラを停止",
+  "watchStream": "配信を視聴",
+  "stopWatchingStream": "視聴を停止",
+  "connectionPopover": {
+    "title": "接続",
+    "avgPing": "平均往復時間 (Ping)",
+    "lastPing": "直近のPing",
+    "packetLoss": "パケット損失率",
+    "msUnit": "ミリ秒",
+    "statusGood": "接続状態は良好です。",
+    "statusWarning": "音声遅延が250ms以上発生している可能性があります。パケット損失率が10%を超えると、ロボットのような声になることがあります。問題が続く場合は、再接続をお試しください。",
+    "btnDebug": "デバッグ",
+    "btnMoreStats": "詳細データ",
+    "debugCopied": "診断ログをクリップボードにコピーしました",
+    "endToEndEncrypted": "エンドツーエンド暗号化"
+  }
 }

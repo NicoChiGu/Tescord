@@ -53,7 +53,9 @@ import {
   Info,
   ScreenShareOff,
   Loader2,
+  Play,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useViewport } from "../hooks/useViewport.js";
 import { StreamStatsHUD } from "./stream/StreamStatsHUD.js";
 import { useSettingsStore } from "../stores/useSettingsStore.js";
@@ -181,6 +183,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
   onToggleStats,
   onCloseStats,
 }) => {
+  const { t } = useTranslation(["voice", "common"]);
   // 当同时存在屏幕分享与摄像头时，是否对调主次画面 (默认: 屏幕分享为主，摄像头小窗在右下角)
   const [isSwapped, setIsSwapped] = useState(false);
   const [isVolumeOpen, setIsVolumeOpen] = useState(false);
@@ -463,7 +466,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
           </>
         ) : (
           /* 纯音频模式：圆形头像与呼吸光环 */
-          <div className="flex flex-col items-center justify-center p-3 sm:p-4 w-full h-full">
+          <div className="flex flex-col items-center justify-center p-3 sm:p-4 w-full h-full relative">
             <div className={`relative ${isTheaterMode ? "mb-1.5" : "mb-3"}`}>
               <img
                 src={
@@ -497,6 +500,36 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
                 <span className="text-[10px] text-discord-textMuted">(你)</span>
               )}
             </div>
+
+            {/* 居中大播放按钮：主播正在推流但观众尚未拉流时展示 (简洁无文字) */}
+            {streamAvailable && !isMe && !watching && onToggleWatching && (
+              <div
+                className="absolute inset-0 bg-black/45 backdrop-blur-[2px] flex items-center justify-center z-10 transition-all rounded-xl cursor-pointer group/play"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleWatching();
+                }}
+                title={t("voice:watchStream")}
+              >
+                <button
+                  type="button"
+                  data-testid={`stream-center-play-btn-${participant.userId}`}
+                  disabled={watchPending}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onToggleWatching();
+                  }}
+                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-discord-brand/90 hover:bg-discord-brand hover:scale-110 active:scale-95 text-white flex items-center justify-center shadow-2xl transition duration-200 backdrop-blur-md border border-white/20 group-hover/play:shadow-discord-brand/50 disabled:opacity-50"
+                  aria-label={t("voice:watchStream")}
+                >
+                  {watchPending ? (
+                    <Loader2 className="w-6 h-6 animate-spin text-white" />
+                  ) : (
+                    <Play className="w-7 h-7 sm:w-8 sm:h-8 fill-white ml-1 text-white" />
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -520,7 +553,11 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
               title={`与该成员的 P2P 直连延迟: ${peerLatency && peerLatency.rtt > 0 ? `${peerLatency.rtt}ms` : "探测中..."} (${peerLatency?.connectionType || "P2P"})`}
             >
               <Wifi className="w-3 h-3 flex-shrink-0" />
-              <span>{peerLatency && peerLatency.rtt > 0 ? `${peerLatency.rtt}ms` : "--ms"}</span>
+              <span>
+                {peerLatency && peerLatency.rtt > 0
+                  ? `${peerLatency.rtt}ms`
+                  : "--ms"}
+              </span>
             </div>
           )}
 
@@ -581,8 +618,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             </button>
           )}
 
-
-          {/* 直播与视频/语音属性详细统计 (Stats for nerds) */}
+          {/* 直播推流观看控制 */}
           {streamAvailable && !isMe && onToggleWatching && (
             <button
               type="button"
@@ -593,28 +629,47 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
                 onToggleWatching();
               }}
               className="bg-black/75 hover:bg-discord-brand disabled:opacity-50 text-white px-2 py-1 rounded-md text-xs shadow-lg"
-              title={watching ? "停止观看直播" : "播放直播"}
+              title={
+                watching
+                  ? t("voice:stopWatchingStream")
+                  : t("voice:watchStream")
+              }
             >
-              {watchPending ? "切换中…" : watching ? "停止观看" : "播放直播"}
+              {watchPending
+                ? t("common:loading", "切换中…")
+                : watching
+                  ? t("voice:stopWatchingStream")
+                  : t("voice:watchStream")}
             </button>
           )}
-          {watchError && <span className="text-[10px] text-red-300 max-w-36 truncate" title={watchError}>{watchError}</span>}
-          <button
-            type="button"
-            data-testid="participant-stats-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              handleToggleHUD();
-            }}
-            className={`p-1 rounded-md backdrop-blur-md transition ${
-              isHUDVisible
-                ? "bg-discord-brand text-white shadow-md opacity-100"
-                : "bg-black/60 hover:bg-discord-brand text-white opacity-0 group-hover:opacity-100"
-            }`}
-            title="媒体属性与实时统计 (Stats for nerds)"
-          >
-            <Info className="w-3.5 h-3.5" />
-          </button>
+          {watchError && (
+            <span
+              className="text-[10px] text-red-300 max-w-36 truncate"
+              title={watchError}
+            >
+              {watchError}
+            </span>
+          )}
+
+          {/* 直播与视频/语音属性详细统计 (Stats for nerds) - 仅在有活跃视频流 (hasAnyVideo) 时才允许查看 */}
+          {hasAnyVideo && (
+            <button
+              type="button"
+              data-testid="participant-stats-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleHUD();
+              }}
+              className={`p-1 rounded-md backdrop-blur-md transition ${
+                isHUDVisible
+                  ? "bg-discord-brand text-white shadow-md opacity-100"
+                  : "bg-black/60 hover:bg-discord-brand text-white opacity-0 group-hover:opacity-100"
+              }`}
+              title={t("voice:statsHUD")}
+            >
+              <Info className="w-3.5 h-3.5" />
+            </button>
+          )}
 
           {/* 本人直播停止推流显式操作 */}
           {isMe && hasScreen && (
@@ -644,7 +699,9 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             >
               <Wifi className="w-3 h-3 text-discord-green" />
               <span className="font-mono">
-                {typeof stats?.rtt === "number" && stats.rtt > 0 ? `${stats.rtt}ms` : "未知"}
+                {typeof stats?.rtt === "number" && stats.rtt > 0
+                  ? `${stats.rtt}ms`
+                  : "未知"}
               </span>
             </div>
           )}
@@ -672,7 +729,10 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             </span>
           )}
           {streamAvailable && viewerCount !== null && (
-            <span data-testid={`stream-viewer-count-${participant.userId}`} className="text-[10px] text-white/80 flex-shrink-0">
+            <span
+              data-testid={`stream-viewer-count-${participant.userId}`}
+              className="text-[10px] text-white/80 flex-shrink-0"
+            >
               {viewerCount} 人观看
             </span>
           )}
@@ -761,7 +821,10 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             </div>
           )}
           {streamAvailable && watching && !isMe && onStreamVolumeChange && (
-            <label className="flex items-center gap-1 text-[10px] text-white" onClick={(e) => e.stopPropagation()}>
+            <label
+              className="flex items-center gap-1 text-[10px] text-white"
+              onClick={(e) => e.stopPropagation()}
+            >
               直播伴音 {streamVolume}%
               <input
                 data-testid={`stream-audio-volume-${participant.userId}`}
@@ -852,7 +915,8 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
     voiceConnectionStatus === "connected" ||
     (voiceConnectionStatus === undefined && isConnected);
   const isConnecting = voiceConnectionStatus === "connecting";
-  const isP2P = channel.voiceMode === "p2p_mesh" || voiceMeshManager.getIsMeshActive();
+  const isP2P =
+    channel.voiceMode === "p2p_mesh" || voiceMeshManager.getIsMeshActive();
 
   const [cameraTracks, setCameraTracks] = useState<Map<string, any>>(
     new Map(livekitService.cameraTracksMap),
@@ -1008,21 +1072,38 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
   const [screenShares, setScreenShares] = useState<
     Map<string, ActiveScreenShare>
   >(new Map(livekitService.screenSharesMap));
-  const [cloudflarePublications, setCloudflarePublications] = useState<CfMediaPublication[]>([]);
-  const [watchStates, setWatchStates] = useState<Map<string, CfStreamWatchState>>(new Map());
+  const [cloudflarePublications, setCloudflarePublications] = useState<
+    CfMediaPublication[]
+  >([]);
+  const [watchStates, setWatchStates] = useState<
+    Map<string, CfStreamWatchState>
+  >(new Map());
   const [watchPending, setWatchPending] = useState<Set<string>>(new Set());
-  const [watchErrors, setWatchErrors] = useState<Map<string, string>>(new Map());
-  const [watchedLiveKitUsers, setWatchedLiveKitUsers] = useState<Set<string>>(new Set());
-  const [streamVolumes, setStreamVolumes] = useState<Map<string, number>>(new Map());
+  const [watchErrors, setWatchErrors] = useState<Map<string, string>>(
+    new Map(),
+  );
+  const [watchedLiveKitUsers, setWatchedLiveKitUsers] = useState<Set<string>>(
+    new Set(),
+  );
+  const [streamVolumes, setStreamVolumes] = useState<Map<string, number>>(
+    new Map(),
+  );
   const [p2pScreenShares, setP2pScreenShares] = useState<
     Map<string, ActiveScreenShare>
   >(new Map());
-  const [p2pRemoteAudio, setP2PRemoteAudio] = useState<{ stream: MediaStream; userId: string } | null>(null);
-  const [watchedP2PStreamerId, setWatchedP2PStreamerId] = useState<string | null>(null);
+  const [p2pRemoteAudio, setP2PRemoteAudio] = useState<{
+    stream: MediaStream;
+    userId: string;
+  } | null>(null);
+  const [watchedP2PStreamerId, setWatchedP2PStreamerId] = useState<
+    string | null
+  >(null);
   const p2pAudioContextRef = useRef<AudioContext | null>(null);
   const p2pAudioGainRef = useRef<GainNode | null>(null);
   const outputVolume = useSettingsStore((state) => state.outputVolume);
-  const outputDeviceId = useSettingsStore((state) => state.audio.outputDeviceId);
+  const outputDeviceId = useSettingsStore(
+    (state) => state.audio.outputDeviceId,
+  );
   const [micMixGain, setMicMixGain] = useState(audioMixer.config.micVolume);
   const [systemMixGain, setSystemMixGain] = useState(
     audioMixer.config.systemAudioVolume,
@@ -1065,14 +1146,24 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
         }
       },
     );
-    const unbindPublications = cloudflareRealtimeService.onPublicationsChange((publications) => {
-      setCloudflarePublications(publications);
-    });
-    const unbindWatchState = cloudflareRealtimeService.onStreamWatchChange((state) => {
-      setWatchStates((previous) => new Map(previous).set(state.publisherSessionId, state));
-    });
+    const unbindPublications = cloudflareRealtimeService.onPublicationsChange(
+      (publications) => {
+        setCloudflarePublications(publications);
+      },
+    );
+    const unbindWatchState = cloudflareRealtimeService.onStreamWatchChange(
+      (state) => {
+        setWatchStates((previous) =>
+          new Map(previous).set(state.publisherSessionId, state),
+        );
+      },
+    );
     const unbindP2P = p2pStreamManager.onStreamChange((stream, ownerId) => {
-      setP2PRemoteAudio(stream && ownerId !== currentUser.id && stream.getAudioTracks().length ? { stream, userId: ownerId } : null);
+      setP2PRemoteAudio(
+        stream && ownerId !== currentUser.id && stream.getAudioTracks().length
+          ? { stream, userId: ownerId }
+          : null,
+      );
       setP2pScreenShares((prev) => {
         const next = new Map(prev);
         if (!stream) {
@@ -1102,7 +1193,8 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
   }, [currentUser.id]);
 
   useEffect(() => {
-    if (!p2pRemoteAudio || watchedP2PStreamerId !== p2pRemoteAudio.userId) return;
+    if (!p2pRemoteAudio || watchedP2PStreamerId !== p2pRemoteAudio.userId)
+      return;
     const audio = new MediaStream(p2pRemoteAudio.stream.getAudioTracks());
     if (!audio.getAudioTracks().length) return;
     const context = new AudioContext();
@@ -1112,7 +1204,9 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
     p2pAudioContextRef.current = context;
     p2pAudioGainRef.current = gain;
     if (outputDeviceId && "setSinkId" in context) {
-      void (context as AudioContext & { setSinkId(id: string): Promise<void> }).setSinkId(outputDeviceId).catch(console.warn);
+      void (context as AudioContext & { setSinkId(id: string): Promise<void> })
+        .setSinkId(outputDeviceId)
+        .catch(console.warn);
     }
     void context.resume();
     return () => {
@@ -1122,12 +1216,23 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
       p2pAudioContextRef.current = null;
       void context.close();
     };
-  }, [p2pRemoteAudio?.stream, p2pRemoteAudio?.userId, watchedP2PStreamerId, outputDeviceId]);
+  }, [
+    p2pRemoteAudio?.stream,
+    p2pRemoteAudio?.userId,
+    watchedP2PStreamerId,
+    outputDeviceId,
+  ]);
 
   useEffect(() => {
-    if (!p2pAudioGainRef.current || !p2pAudioContextRef.current || !p2pRemoteAudio) return;
+    if (
+      !p2pAudioGainRef.current ||
+      !p2pAudioContextRef.current ||
+      !p2pRemoteAudio
+    )
+      return;
     p2pAudioGainRef.current.gain.setTargetAtTime(
-      ((streamVolumes.get(p2pRemoteAudio.userId) ?? 100) / 100) * (outputVolume / 100),
+      ((streamVolumes.get(p2pRemoteAudio.userId) ?? 100) / 100) *
+        (outputVolume / 100),
       p2pAudioContextRef.current.currentTime,
       0.02,
     );
@@ -1158,11 +1263,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
       }
       setWatchedP2PStreamerId(null);
     }
-  }, [
-    p2pStreamerId,
-    watchedP2PStreamerId,
-    currentUser.id,
-  ]);
+  }, [p2pStreamerId, watchedP2PStreamerId, currentUser.id]);
 
   // 组件卸载时释放拉流连接（主播端保留推流）
   useEffect(() => {
@@ -1272,16 +1373,82 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
         p2pLocalShare
       : null;
 
+    // 协议守卫：若远端成员并未处于推流状态 (p.streaming 为 false)，绝不返回陈旧屏幕分享轨，防止黑屏残影
     const participantScreenShare = isMe
       ? myScreenShare
-      : screenShares.get(p.userId) || p2pScreenShares.get(p.userId);
+      : p.streaming
+        ? screenShares.get(p.userId) || p2pScreenShares.get(p.userId)
+        : null;
+
+    // 活性检测：排除 readyState === "ended" 的已销毁媒体轨
+    const rawTrack = participantScreenShare?.track;
+    const isTrackAlive =
+      rawTrack &&
+      ((rawTrack as any).mediaStreamTrack
+        ? (rawTrack as any).mediaStreamTrack.readyState !== "ended"
+        : (rawTrack as any).readyState !== "ended");
+
+    const validScreenShareTrack = isTrackAlive ? rawTrack : null;
 
     return {
       cameraTrack,
-      screenShareTrack: participantScreenShare?.track || null,
-      screenShareInfo: participantScreenShare || null,
+      screenShareTrack: validScreenShareTrack,
+      screenShareInfo: validScreenShareTrack ? participantScreenShare : null,
     };
   };
+
+  // 监听推流停止：当观看的主播停止推流时，自动清理观看队列与本地陈旧屏幕轨
+  useEffect(() => {
+    watchedLiveKitUsers.forEach((streamerId) => {
+      const p = currentParticipants.find((item) => item.userId === streamerId);
+      if (!p || !p.streaming) {
+        livekitService.setScreenWatching(streamerId, false);
+        setWatchedLiveKitUsers((prev) => {
+          const next = new Set(prev);
+          next.delete(streamerId);
+          return next;
+        });
+        setScreenShares((prev) => {
+          if (!prev.has(streamerId)) return prev;
+          const next = new Map(prev);
+          next.delete(streamerId);
+          return next;
+        });
+      }
+    });
+
+    if (watchedP2PStreamerId) {
+      const p = currentParticipants.find(
+        (item) => item.userId === watchedP2PStreamerId,
+      );
+      if (!p || !p.streaming) {
+        p2pStreamManager.stopAll();
+        setWatchedP2PStreamerId(null);
+      }
+    }
+  }, [currentParticipants, watchedLiveKitUsers, watchedP2PStreamerId]);
+
+  // 需求 3：如果直播被关闭或用户自己关闭直播，右上角媒体属性/实时统计 HUD 自动关闭展示
+  useEffect(() => {
+    if (!statsUserId) return;
+    const target = displayParticipants.find((p) => p.userId === statsUserId);
+    if (!target) {
+      setStatsUserId(null);
+      return;
+    }
+    const media = getParticipantMedia(target);
+    const hasAnyVideo = Boolean(media.cameraTrack || media.screenShareTrack);
+    if (!hasAnyVideo) {
+      setStatsUserId(null);
+    }
+  }, [
+    displayParticipants,
+    statsUserId,
+    isVideoEnabled,
+    cameraTracks,
+    screenShares,
+    p2pScreenShares,
+  ]);
 
   // 监听远端音量、网络健康、活跃讲话者及声卡异常变动
   useEffect(() => {
@@ -1290,21 +1457,29 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
       setNetworkStats(new Map(stats));
     });
 
-    const unbindCloudflareStats = cloudflareRealtimeService.onNetworkStatsUpdate((stats) => {
-      if (VOICE_ENGINE === "cloudflare_realtime") setNetworkStats(new Map(stats));
-    });
+    const unbindCloudflareStats =
+      cloudflareRealtimeService.onNetworkStatsUpdate((stats) => {
+        if (VOICE_ENGINE === "cloudflare_realtime")
+          setNetworkStats(new Map(stats));
+      });
 
-    const unbindVol = (VOICE_ENGINE === "cloudflare_realtime" ? cloudflareRealtimeService : livekitService).onParticipantVolumeChange(
-      (identity, vol) => {
-        setParticipantVolumes((prev) => ({ ...prev, [identity]: vol }));
-      },
-    );
+    const unbindVol = (
+      VOICE_ENGINE === "cloudflare_realtime"
+        ? cloudflareRealtimeService
+        : livekitService
+    ).onParticipantVolumeChange((identity, vol) => {
+      setParticipantVolumes((prev) => ({ ...prev, [identity]: vol }));
+    });
 
     const unbindPTT = audioEngine.onPTTChange((active) => {
       setIsPTTPressed(active);
     });
 
-    const unbindSpeakers = (VOICE_ENGINE === "cloudflare_realtime" ? cloudflareRealtimeService : livekitService).onActiveSpeakersChange((speakers) => {
+    const unbindSpeakers = (
+      VOICE_ENGINE === "cloudflare_realtime"
+        ? cloudflareRealtimeService
+        : livekitService
+    ).onActiveSpeakersChange((speakers) => {
       setActiveSpeakers([...speakers]);
     });
 
@@ -1342,18 +1517,29 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
   const getVolume = (userId: string) => {
     return participantVolumes[userId] !== undefined
       ? participantVolumes[userId]
-      : (VOICE_ENGINE === "cloudflare_realtime" ? cloudflareRealtimeService : livekitService).getParticipantVolume(userId);
+      : (VOICE_ENGINE === "cloudflare_realtime"
+          ? cloudflareRealtimeService
+          : livekitService
+        ).getParticipantVolume(userId);
   };
 
-  const getScreenPublication = (userId: string) => cloudflarePublications.find(
-    (publication) => publication.userId === userId && publication.source === "screen",
-  ) || cloudflareRealtimeService.getScreenPublicationForUser(userId);
+  const getScreenPublication = (userId: string) =>
+    cloudflarePublications.find(
+      (publication) =>
+        publication.userId === userId && publication.source === "screen",
+    ) || cloudflareRealtimeService.getScreenPublicationForUser(userId);
 
   const isWatchingStream = (userId: string, mode?: string): boolean => {
-    if (mode === "p2p_direct" || mode === "p2p_relay") return watchedP2PStreamerId === userId;
+    if (mode === "p2p_direct" || mode === "p2p_relay")
+      return watchedP2PStreamerId === userId;
     if (VOICE_ENGINE === "cloudflare_realtime") {
       const publication = getScreenPublication(userId);
-      return publication ? (watchStates.get(publication.sessionId) || cloudflareRealtimeService.getWatchState(publication.sessionId))?.watching === true : false;
+      return publication
+        ? (
+            watchStates.get(publication.sessionId) ||
+            cloudflareRealtimeService.getWatchState(publication.sessionId)
+          )?.watching === true
+        : false;
     }
     return watchedLiveKitUsers.has(userId);
   };
@@ -1362,28 +1548,54 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
     if (VOICE_ENGINE !== "cloudflare_realtime") return null;
     const publication = getScreenPublication(userId);
     if (!publication) return null;
-    return (watchStates.get(publication.sessionId) || cloudflareRealtimeService.getWatchState(publication.sessionId))?.viewerCount ?? null;
+    return (
+      (
+        watchStates.get(publication.sessionId) ||
+        cloudflareRealtimeService.getWatchState(publication.sessionId)
+      )?.viewerCount ?? null
+    );
   };
 
-  const handleToggleWatching = async (participant: VoiceState): Promise<void> => {
+  const handleToggleWatching = async (
+    participant: VoiceState,
+  ): Promise<void> => {
     const userId = participant.userId;
     if (watchPending.has(userId)) return;
     setWatchPending((previous) => new Set(previous).add(userId));
-    setWatchErrors((previous) => { const next = new Map(previous); next.delete(userId); return next; });
+    setWatchErrors((previous) => {
+      const next = new Map(previous);
+      next.delete(userId);
+      return next;
+    });
     try {
-      if (participant.streamMode === "p2p_direct" || participant.streamMode === "p2p_relay") {
+      if (
+        participant.streamMode === "p2p_direct" ||
+        participant.streamMode === "p2p_relay"
+      ) {
         if (watchedP2PStreamerId === userId) {
           p2pStreamManager.stopAll();
           setWatchedP2PStreamerId(null);
         } else {
-          await p2pStreamManager.joinStream(channel.id, channel.guildId || "", userId, participant.streamMode);
+          await p2pStreamManager.joinStream(
+            channel.id,
+            channel.guildId || "",
+            userId,
+            participant.streamMode,
+          );
           setWatchedP2PStreamerId(userId);
         }
       } else if (VOICE_ENGINE === "cloudflare_realtime") {
         const publication = getScreenPublication(userId);
-        if (!publication) throw new Error("主播的视频轨道尚未准备好，请稍后重试");
-        if (isWatchingStream(userId, participant.streamMode)) await cloudflareRealtimeService.stopWatchingStream(publication.sessionId);
-        else await cloudflareRealtimeService.startWatchingStream(publication.sessionId);
+        if (!publication)
+          throw new Error("主播的视频轨道尚未准备好，请稍后重试");
+        if (isWatchingStream(userId, participant.streamMode))
+          await cloudflareRealtimeService.stopWatchingStream(
+            publication.sessionId,
+          );
+        else
+          await cloudflareRealtimeService.startWatchingStream(
+            publication.sessionId,
+          );
       } else {
         const next = !watchedLiveKitUsers.has(userId);
         livekitService.setScreenWatching(userId, next);
@@ -1395,9 +1607,18 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
         });
       }
     } catch (error) {
-      setWatchErrors((previous) => new Map(previous).set(userId, error instanceof Error ? error.message : "直播连接失败"));
+      setWatchErrors((previous) =>
+        new Map(previous).set(
+          userId,
+          error instanceof Error ? error.message : "直播连接失败",
+        ),
+      );
     } finally {
-      setWatchPending((previous) => { const next = new Set(previous); next.delete(userId); return next; });
+      setWatchPending((previous) => {
+        const next = new Set(previous);
+        next.delete(userId);
+        return next;
+      });
     }
   };
 
@@ -1624,16 +1845,29 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                     cameraTrack={media.cameraTrack}
                     screenShareTrack={media.screenShareTrack}
                     screenShareInfo={media.screenShareInfo}
-                    streamAvailable={p.streaming || Boolean(media.screenShareTrack) || (VOICE_ENGINE === "cloudflare_realtime" && Boolean(getScreenPublication(p.userId)))}
+                    streamAvailable={
+                      p.streaming ||
+                      Boolean(media.screenShareTrack) ||
+                      (VOICE_ENGINE === "cloudflare_realtime" &&
+                        Boolean(getScreenPublication(p.userId)))
+                    }
                     watching={isWatchingStream(p.userId, p.streamMode)}
                     viewerCount={getStreamViewerCount(p.userId)}
                     watchPending={watchPending.has(p.userId)}
                     watchError={watchErrors.get(p.userId)}
                     onToggleWatching={() => void handleToggleWatching(p)}
-                    streamVolume={streamVolumes.get(p.userId) ?? cloudflareRealtimeService.getStreamVolume(p.userId)}
+                    streamVolume={
+                      streamVolumes.get(p.userId) ??
+                      cloudflareRealtimeService.getStreamVolume(p.userId)
+                    }
                     onStreamVolumeChange={(volume) => {
-                      cloudflareRealtimeService.setStreamVolume(p.userId, volume);
-                      setStreamVolumes((previous) => new Map(previous).set(p.userId, volume));
+                      cloudflareRealtimeService.setStreamVolume(
+                        p.userId,
+                        volume,
+                      );
+                      setStreamVolumes((previous) =>
+                        new Map(previous).set(p.userId, volume),
+                      );
                     }}
                     guild={guild}
                     currentUser={currentUser}
@@ -1697,16 +1931,29 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                     cameraTrack={media.cameraTrack}
                     screenShareTrack={media.screenShareTrack}
                     screenShareInfo={media.screenShareInfo}
-                    streamAvailable={p.streaming || Boolean(media.screenShareTrack) || (VOICE_ENGINE === "cloudflare_realtime" && Boolean(getScreenPublication(p.userId)))}
+                    streamAvailable={
+                      p.streaming ||
+                      Boolean(media.screenShareTrack) ||
+                      (VOICE_ENGINE === "cloudflare_realtime" &&
+                        Boolean(getScreenPublication(p.userId)))
+                    }
                     watching={isWatchingStream(p.userId, p.streamMode)}
                     viewerCount={getStreamViewerCount(p.userId)}
                     watchPending={watchPending.has(p.userId)}
                     watchError={watchErrors.get(p.userId)}
                     onToggleWatching={() => void handleToggleWatching(p)}
-                    streamVolume={streamVolumes.get(p.userId) ?? cloudflareRealtimeService.getStreamVolume(p.userId)}
+                    streamVolume={
+                      streamVolumes.get(p.userId) ??
+                      cloudflareRealtimeService.getStreamVolume(p.userId)
+                    }
                     onStreamVolumeChange={(volume) => {
-                      cloudflareRealtimeService.setStreamVolume(p.userId, volume);
-                      setStreamVolumes((previous) => new Map(previous).set(p.userId, volume));
+                      cloudflareRealtimeService.setStreamVolume(
+                        p.userId,
+                        volume,
+                      );
+                      setStreamVolumes((previous) =>
+                        new Map(previous).set(p.userId, volume),
+                      );
                     }}
                     guild={guild}
                     currentUser={currentUser}

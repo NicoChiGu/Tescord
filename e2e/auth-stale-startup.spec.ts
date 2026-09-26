@@ -14,12 +14,27 @@ for (const path of ["/", "/invite/7326a0ae"]) {
     }) => {
       const errors: string[] = [];
       page.on("response", (response) => {
-        if (response.status() >= 400 && response.status() !== 401 && !(path.startsWith("/invite/") && response.status() === 404 && response.url().includes("/api/invites/")))
+        if (
+          response.status() >= 400 &&
+          response.status() !== 401 &&
+          !(
+            path.startsWith("/invite/") &&
+            response.status() === 404 &&
+            response.url().includes("/api/invites/")
+          )
+        )
           errors.push(`${response.status()} ${response.url()}`);
       });
       page.on("pageerror", (error) => errors.push(error.message));
       page.on("console", (message) => {
-        if (message.type() === "error" && !message.text().includes("401") && !(path.startsWith("/invite/") && message.text().includes("404 (Not Found)")))
+        if (
+          message.type() === "error" &&
+          !message.text().includes("401") &&
+          !(
+            path.startsWith("/invite/") &&
+            message.text().includes("404 (Not Found)")
+          )
+        )
           errors.push(message.text());
       });
       await page.addInitScript((mode) => {
@@ -145,7 +160,9 @@ test("authenticated invite deep link shows invalid and existing-member states", 
   await page.goto("/invite/7326a0ae");
   const modal = page.getByTestId("invite-landing-modal");
   await expect(modal).toBeVisible();
-  await expect(modal.getByRole("heading", { name: "邀请已失效" })).toBeVisible();
+  await expect(
+    modal.getByRole("heading", { name: "邀请已失效" }),
+  ).toBeVisible();
   await expect(page.getByRole("progressbar", { name: "Loading" })).toHaveCount(
     0,
   );
@@ -156,8 +173,12 @@ test("authenticated invite deep link shows invalid and existing-member states", 
   expect(invite.ok()).toBe(true);
   const { code }: { code: string } = await invite.json();
   await page.goto(`/invite/${code}`);
-  await expect(modal.getByRole("heading", { name: "Tescord 极客总部" })).toBeVisible();
-  await expect(page.getByTestId("invite-landing-accept-btn")).toContainText("已是该服务器成员");
+  await expect(
+    modal.getByRole("heading", { name: "Tescord 极客总部" }),
+  ).toBeVisible();
+  await expect(page.getByTestId("invite-landing-accept-btn")).toContainText(
+    "已是该服务器成员",
+  );
   await page.getByTestId("invite-landing-accept-btn").click();
   await expect(modal).toHaveCount(0);
   await expect(page).toHaveURL("/");

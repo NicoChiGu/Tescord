@@ -78,13 +78,16 @@ export class CloudflareRealtimeService {
 
   private remoteStreams = new Map<string, MediaStream>();
   private audioElements = new Map<string, HTMLAudioElement>();
-  private audioRoutes = new Map<string, {
-    source: MediaStreamAudioSourceNode;
-    gain: GainNode;
-    analyser?: AnalyserNode;
-    publication?: CfMediaPublication;
-    track: MediaStreamTrack;
-  }>();
+  private audioRoutes = new Map<
+    string,
+    {
+      source: MediaStreamAudioSourceNode;
+      gain: GainNode;
+      analyser?: AnalyserNode;
+      publication?: CfMediaPublication;
+      track: MediaStreamTrack;
+    }
+  >();
   private playbackContext: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private masterVolume = 100;
@@ -93,18 +96,27 @@ export class CloudflareRealtimeService {
   private activeSpeakers = new Set<string>();
   private speakerTimer: ReturnType<typeof setInterval> | null = null;
   private speakerListeners = new Set<(speakers: string[]) => void>();
-  private volumeListeners = new Set<(identity: string, volume: number) => void>();
-  private networkListeners = new Set<(stats: Map<string, NetworkStats>) => void>();
+  private volumeListeners = new Set<
+    (identity: string, volume: number) => void
+  >();
+  private networkListeners = new Set<
+    (stats: Map<string, NetworkStats>) => void
+  >();
   private networkStats = new Map<string, NetworkStats>();
   private detailedStats = new Map<string, StreamDetailedStats>();
   private statsTimer: ReturnType<typeof setInterval> | null = null;
-  private previousStats = new Map<string, { bytes: number; timestamp: number }>();
+  private previousStats = new Map<
+    string,
+    { bytes: number; timestamp: number }
+  >();
   private subscribedMids = new Map<string, string>();
   private watchingSessions = new Set<string>();
   private pendingWatches = new Map<string, Promise<CfStreamWatchState>>();
   private watchStates = new Map<string, CfStreamWatchState>();
   private watchListeners = new Set<(state: CfStreamWatchState) => void>();
-  private publicationListeners = new Set<(publications: CfMediaPublication[]) => void>();
+  private publicationListeners = new Set<
+    (publications: CfMediaPublication[]) => void
+  >();
   private unbindViewers: (() => void) | null = null;
   private unbindSettings: (() => void) | null = null;
   private listeners = new Set<CfRealtimeStateListener>();
@@ -133,15 +145,23 @@ export class CloudflareRealtimeService {
     const settings = useSettingsStore.getState();
     this.masterVolume = clampVolume(settings.outputVolume);
     try {
-      const saved = JSON.parse(localStorage.getItem("tescord_stream_volumes") || "{}") as Record<string, unknown>;
+      const saved = JSON.parse(
+        localStorage.getItem("tescord_stream_volumes") || "{}",
+      ) as Record<string, unknown>;
       for (const [userId, volume] of Object.entries(saved)) {
-        if (typeof volume === "number") this.streamVolumes.set(userId, clampVolume(volume));
+        if (typeof volume === "number")
+          this.streamVolumes.set(userId, clampVolume(volume));
       }
-    } catch { /* Invalid preferences must not interrupt media setup. */ }
+    } catch {
+      /* Invalid preferences must not interrupt media setup. */
+    }
     this.unbindSettings = useSettingsStore.subscribe((state, previous) => {
-      if (state.outputVolume !== previous.outputVolume) this.setMasterVolume(state.outputVolume);
-      if (state.userVolumes !== previous.userVolumes) this.updatePlaybackGains();
-      if (state.audio.outputDeviceId !== previous.audio.outputDeviceId) void this.applyOutputDevice();
+      if (state.outputVolume !== previous.outputVolume)
+        this.setMasterVolume(state.outputVolume);
+      if (state.userVolumes !== previous.userVolumes)
+        this.updatePlaybackGains();
+      if (state.audio.outputDeviceId !== previous.audio.outputDeviceId)
+        void this.applyOutputDevice();
     });
   }
 
@@ -153,19 +173,31 @@ export class CloudflareRealtimeService {
       this.updatePlaybackGains();
       void this.applyOutputDevice();
     }
-    if (this.playbackContext.state === "suspended") void this.playbackContext.resume().catch(() => undefined);
+    if (this.playbackContext.state === "suspended")
+      void this.playbackContext.resume().catch(() => undefined);
     return this.playbackContext;
   }
 
   private async applyOutputDevice(): Promise<void> {
-    const deviceId = useSettingsStore.getState().audio.outputDeviceId || "default";
-    const context = this.playbackContext as (AudioContext & { setSinkId?: (id: string) => Promise<void> }) | null;
+    const deviceId =
+      useSettingsStore.getState().audio.outputDeviceId || "default";
+    const context = this.playbackContext as
+      (AudioContext & { setSinkId?: (id: string) => Promise<void> }) | null;
     if (context?.setSinkId) {
-      await context.setSinkId(deviceId).catch((error) => console.warn("[CF Realtime] Output device change failed", error));
+      await context
+        .setSinkId(deviceId)
+        .catch((error) =>
+          console.warn("[CF Realtime] Output device change failed", error),
+        );
     }
     for (const audio of this.audioElements.values()) {
-      const sinkAudio = audio as HTMLAudioElement & { setSinkId?: (id: string) => Promise<void> };
-      if (!this.audioRoutes.has(audio.dataset.trackId || "") && sinkAudio.setSinkId) {
+      const sinkAudio = audio as HTMLAudioElement & {
+        setSinkId?: (id: string) => Promise<void>;
+      };
+      if (
+        !this.audioRoutes.has(audio.dataset.trackId || "") &&
+        sinkAudio.setSinkId
+      ) {
         await sinkAudio.setSinkId(deviceId).catch(() => undefined);
       }
     }
@@ -173,71 +205,108 @@ export class CloudflareRealtimeService {
 
   private updatePlaybackGains(): void {
     if (this.masterGain && this.playbackContext) {
-      this.masterGain.gain.setValueAtTime(this.deafened ? 0 : this.masterVolume / 100, this.playbackContext.currentTime);
+      this.masterGain.gain.setValueAtTime(
+        this.deafened ? 0 : this.masterVolume / 100,
+        this.playbackContext.currentTime,
+      );
     }
     for (const [trackId, route] of this.audioRoutes) {
       const identity = route.publication?.userId;
-      const volume = route.publication?.source === "screen-audio"
-        ? this.getStreamVolume(identity || "")
-        : this.getParticipantVolume(identity || "");
-      route.gain.gain.setValueAtTime(volume / 100, this.playbackContext?.currentTime || 0);
+      const volume =
+        route.publication?.source === "screen-audio"
+          ? this.getStreamVolume(identity || "")
+          : this.getParticipantVolume(identity || "");
+      route.gain.gain.setValueAtTime(
+        volume / 100,
+        this.playbackContext?.currentTime || 0,
+      );
       const fallback = this.audioElements.get(trackId);
       if (fallback) fallback.muted = true;
     }
     for (const [trackId, audio] of this.audioElements) {
       if (this.audioRoutes.has(trackId)) continue;
       const publication = this.audioPublicationByTrackId(trackId);
-      const volume = publication?.source === "screen-audio"
-        ? this.getStreamVolume(publication.userId) : this.getParticipantVolume(publication?.userId || "");
+      const volume =
+        publication?.source === "screen-audio"
+          ? this.getStreamVolume(publication.userId)
+          : this.getParticipantVolume(publication?.userId || "");
       audio.muted = this.deafened;
       audio.volume = Math.min(1, (volume / 100) * (this.masterVolume / 100));
     }
   }
 
-  private audioPublicationByTrackId(trackId: string): CfMediaPublication | undefined {
-    for (const route of this.audioRoutes.values()) if (route.track.id === trackId) return route.publication;
+  private audioPublicationByTrackId(
+    trackId: string,
+  ): CfMediaPublication | undefined {
+    for (const route of this.audioRoutes.values())
+      if (route.track.id === trackId) return route.publication;
     return undefined;
   }
 
   public setMasterVolume(volume: number): void {
     this.masterVolume = clampVolume(volume);
-    if (useSettingsStore.getState().outputVolume !== this.masterVolume) useSettingsStore.getState().setOutputVolume(this.masterVolume);
+    if (useSettingsStore.getState().outputVolume !== this.masterVolume)
+      useSettingsStore.getState().setOutputVolume(this.masterVolume);
     this.updatePlaybackGains();
   }
 
-  public getMasterVolume(): number { return this.masterVolume; }
+  public getMasterVolume(): number {
+    return this.masterVolume;
+  }
 
   public setParticipantVolume(identity: string, volume: number): void {
     const clamped = clampVolume(volume);
-    if (useSettingsStore.getState().userVolumes[identity] !== clamped) useSettingsStore.getState().setUserVolume(identity, clamped);
+    if (useSettingsStore.getState().userVolumes[identity] !== clamped)
+      useSettingsStore.getState().setUserVolume(identity, clamped);
     this.updatePlaybackGains();
     for (const listener of this.volumeListeners) listener(identity, clamped);
   }
 
   public getParticipantVolume(identity: string): number {
-    return clampVolume(useSettingsStore.getState().userVolumes[identity] ?? 100);
+    return clampVolume(
+      useSettingsStore.getState().userVolumes[identity] ?? 100,
+    );
   }
 
-  public onParticipantVolumeChange(listener: (identity: string, volume: number) => void): () => void {
+  public onParticipantVolumeChange(
+    listener: (identity: string, volume: number) => void,
+  ): () => void {
     this.volumeListeners.add(listener);
-    return () => { this.volumeListeners.delete(listener); };
+    return () => {
+      this.volumeListeners.delete(listener);
+    };
   }
 
   public setStreamVolume(identity: string, volume: number): void {
     this.streamVolumes.set(identity, clampVolume(volume));
-    try { localStorage.setItem("tescord_stream_volumes", JSON.stringify(Object.fromEntries(this.streamVolumes))); } catch { /* Best effort. */ }
+    try {
+      localStorage.setItem(
+        "tescord_stream_volumes",
+        JSON.stringify(Object.fromEntries(this.streamVolumes)),
+      );
+    } catch {
+      /* Best effort. */
+    }
     this.updatePlaybackGains();
   }
 
-  public getStreamVolume(identity: string): number { return this.streamVolumes.get(identity) ?? 100; }
-
-  public onActiveSpeakersChange(listener: (speakers: string[]) => void): () => void {
-    this.speakerListeners.add(listener);
-    listener([...this.activeSpeakers]);
-    return () => { this.speakerListeners.delete(listener); };
+  public getStreamVolume(identity: string): number {
+    return this.streamVolumes.get(identity) ?? 100;
   }
 
-  public isParticipantSpeaking(identity: string): boolean { return this.activeSpeakers.has(identity); }
+  public onActiveSpeakersChange(
+    listener: (speakers: string[]) => void,
+  ): () => void {
+    this.speakerListeners.add(listener);
+    listener([...this.activeSpeakers]);
+    return () => {
+      this.speakerListeners.delete(listener);
+    };
+  }
+
+  public isParticipantSpeaking(identity: string): boolean {
+    return this.activeSpeakers.has(identity);
+  }
 
   private emitSpeakers(): void {
     const speakers = [...this.activeSpeakers];
@@ -249,14 +318,26 @@ export class CloudflareRealtimeService {
     this.speakerTimer = setInterval(() => {
       const active = new Set<string>();
       for (const route of this.audioRoutes.values()) {
-        if (route.publication?.source !== "microphone" || !route.analyser || !route.publication.userId) continue;
+        if (
+          route.publication?.source !== "microphone" ||
+          !route.analyser ||
+          !route.publication.userId
+        )
+          continue;
         const samples = new Uint8Array(route.analyser.fftSize);
         route.analyser.getByteTimeDomainData(samples);
         let energy = 0;
-        for (const sample of samples) { const centered = (sample - 128) / 128; energy += centered * centered; }
-        if (Math.sqrt(energy / samples.length) > 0.025) active.add(route.publication.userId);
+        for (const sample of samples) {
+          const centered = (sample - 128) / 128;
+          energy += centered * centered;
+        }
+        if (Math.sqrt(energy / samples.length) > 0.025)
+          active.add(route.publication.userId);
       }
-      if (active.size !== this.activeSpeakers.size || [...active].some((id) => !this.activeSpeakers.has(id))) {
+      if (
+        active.size !== this.activeSpeakers.size ||
+        [...active].some((id) => !this.activeSpeakers.has(id))
+      ) {
         this.activeSpeakers = active;
         this.emitSpeakers();
       }
@@ -309,14 +390,29 @@ export class CloudflareRealtimeService {
   ): () => void {
     this.remoteVideoListeners.add(listener);
     for (const published of this.publishedTracks.values()) {
-      if (published.stream.getVideoTracks().length && this.sessionId && this.currentChannelId) {
-        listener({ sessionId: this.sessionId, channelId: this.currentChannelId,
-          userId: useAuthStore.getState().user?.id || "", trackName: published.trackName,
-          kind: "video", source: published.trackName.startsWith("screen-") ? "screen" : "camera" }, published.stream);
+      if (
+        published.stream.getVideoTracks().length &&
+        this.sessionId &&
+        this.currentChannelId
+      ) {
+        listener(
+          {
+            sessionId: this.sessionId,
+            channelId: this.currentChannelId,
+            userId: useAuthStore.getState().user?.id || "",
+            trackName: published.trackName,
+            kind: "video",
+            source: published.trackName.startsWith("screen-")
+              ? "screen"
+              : "camera",
+          },
+          published.stream,
+        );
       }
     }
     for (const [key, publication] of this.currentPublications) {
-      if (publication.kind === "video") listener(publication, this.remoteStreams.get(key) || null);
+      if (publication.kind === "video")
+        listener(publication, this.remoteStreams.get(key) || null);
     }
     return () => {
       this.remoteVideoListeners.delete(listener);
@@ -336,10 +432,18 @@ export class CloudflareRealtimeService {
     const localUserId = useAuthStore.getState().user?.id;
     if (this.sessionId && this.currentChannelId && localUserId) {
       for (const [source, published] of this.publishedTracks) {
-        publications.push({ sessionId: this.sessionId, channelId: this.currentChannelId,
-          userId: localUserId, trackName: published.trackName, mid: published.mid,
-          kind: source === "microphone" || source === "screen-audio" ? "audio" : "video",
-          source: source as CfMediaPublication["source"] });
+        publications.push({
+          sessionId: this.sessionId,
+          channelId: this.currentChannelId,
+          userId: localUserId,
+          trackName: published.trackName,
+          mid: published.mid,
+          kind:
+            source === "microphone" || source === "screen-audio"
+              ? "audio"
+              : "video",
+          source: source as CfMediaPublication["source"],
+        });
       }
     }
     return publications;
@@ -441,21 +545,30 @@ export class CloudflareRealtimeService {
           void this.syncPublications(event.tracks);
       },
     );
-    this.unbindViewers = gatewayClient.on("CF_STREAM_VIEWERS", (event: CfStreamViewersEvent) => {
-      if (event.channelId !== this.currentChannelId) return;
-      this.setWatchState({ ...event, watching: this.watchingSessions.has(event.publisherSessionId) });
-    });
+    this.unbindViewers = gatewayClient.on(
+      "CF_STREAM_VIEWERS",
+      (event: CfStreamViewersEvent) => {
+        if (event.channelId !== this.currentChannelId) return;
+        this.setWatchState({
+          ...event,
+          watching: this.watchingSessions.has(event.publisherSessionId),
+        });
+      },
+    );
     return sessionData.sessionId;
   }
 
   private async leaveMediaSession(sessionId: string): Promise<void> {
     try {
-      const response = await apiFetch(`${API_BASE}/api/cloudflare-realtime/session/leave`, {
-        method: "POST",
-        headers: this.authHeaders,
-        body: JSON.stringify({ sessionId }),
-        signal: AbortSignal.timeout(3_000),
-      });
+      const response = await apiFetch(
+        `${API_BASE}/api/cloudflare-realtime/session/leave`,
+        {
+          method: "POST",
+          headers: this.authHeaders,
+          body: JSON.stringify({ sessionId }),
+          signal: AbortSignal.timeout(3_000),
+        },
+      );
       if (response.ok || response.status === 403 || response.status === 404) {
         this.pendingSessionLeaves.delete(sessionId);
         return;
@@ -606,7 +719,9 @@ export class CloudflareRealtimeService {
           this.audioElements.set(trackId, audioEl);
           try {
             const context = this.getOrCreatePlaybackContext();
-            const source = context.createMediaStreamSource(new MediaStream([event.track]));
+            const source = context.createMediaStreamSource(
+              new MediaStream([event.track]),
+            );
             const gain = context.createGain();
             source.connect(gain);
             gain.connect(this.masterGain!);
@@ -617,15 +732,35 @@ export class CloudflareRealtimeService {
               source.connect(analyser);
               this.startSpeakerMonitor();
             }
-            this.audioRoutes.set(trackId, { source, gain, analyser, publication, track: event.track });
+            this.audioRoutes.set(trackId, {
+              source,
+              gain,
+              analyser,
+              publication,
+              track: event.track,
+            });
             audioEl.muted = true;
           } catch (error) {
-            console.warn("[CF Realtime] Web Audio unavailable; falling back to HTMLAudioElement", error);
+            console.warn(
+              "[CF Realtime] Web Audio unavailable; falling back to HTMLAudioElement",
+              error,
+            );
             void this.applyOutputDevice();
-            audioEl.play().catch((playErr) => console.warn("[CF Realtime] Remote audio autoplay blocked", playErr));
+            audioEl
+              .play()
+              .catch((playErr) =>
+                console.warn(
+                  "[CF Realtime] Remote audio autoplay blocked",
+                  playErr,
+                ),
+              );
           }
           this.updatePlaybackGains();
-          event.track.addEventListener("ended", () => this.releaseRemoteTrack(trackId), { once: true });
+          event.track.addEventListener(
+            "ended",
+            () => this.releaseRemoteTrack(trackId),
+            { once: true },
+          );
         }
       };
 
@@ -694,9 +829,20 @@ export class CloudflareRealtimeService {
       this.audioRoutes.delete(trackId);
     }
     const audio = this.audioElements.get(trackId);
-    if (audio) { audio.pause(); audio.srcObject = null; this.audioElements.delete(trackId); }
-    if (route?.publication?.userId && this.activeSpeakers.delete(route.publication.userId)) this.emitSpeakers();
-    if (!this.audioRoutes.size && this.speakerTimer) { clearInterval(this.speakerTimer); this.speakerTimer = null; }
+    if (audio) {
+      audio.pause();
+      audio.srcObject = null;
+      this.audioElements.delete(trackId);
+    }
+    if (
+      route?.publication?.userId &&
+      this.activeSpeakers.delete(route.publication.userId)
+    )
+      this.emitSpeakers();
+    if (!this.audioRoutes.size && this.speakerTimer) {
+      clearInterval(this.speakerTimer);
+      this.speakerTimer = null;
+    }
   }
 
   /**
@@ -999,8 +1145,13 @@ export class CloudflareRealtimeService {
     );
     for (const [key, old] of this.currentPublications) {
       if (!desired.has(key)) {
-        if (old.source === "screen" && this.watchingSessions.has(old.sessionId)) {
-          await this.stopWatchingStream(old.sessionId).catch((error) => console.warn("[CF Realtime] Stop vanished stream failed", error));
+        if (
+          old.source === "screen" &&
+          this.watchingSessions.has(old.sessionId)
+        ) {
+          await this.stopWatchingStream(old.sessionId).catch((error) =>
+            console.warn("[CF Realtime] Stop vanished stream failed", error),
+          );
         }
         this.emitVideo(old, null);
         this.currentPublications.delete(key);
@@ -1009,7 +1160,10 @@ export class CloudflareRealtimeService {
         if (mid) this.remoteByMid.delete(mid);
         this.subscribedMids.delete(key);
         const stream = this.remoteStreams.get(key);
-        stream?.getTracks().forEach((track) => { this.releaseRemoteTrack(track.id); track.stop(); });
+        stream?.getTracks().forEach((track) => {
+          this.releaseRemoteTrack(track.id);
+          track.stop();
+        });
         this.remoteStreams.delete(key);
       }
     }
@@ -1017,11 +1171,16 @@ export class CloudflareRealtimeService {
       if (track.sessionId === this.sessionId) continue;
       const key = `${track.sessionId}:${track.trackName}`;
       this.currentPublications.set(key, track);
-      if (this.subscribedTracks.has(key) || (
-        track.source !== "microphone" &&
-        track.source !== "camera" &&
-        !(this.watchingSessions.has(track.sessionId) && (track.source === "screen" || track.source === "screen-audio"))
-      )) continue;
+      if (
+        this.subscribedTracks.has(key) ||
+        (track.source !== "microphone" &&
+          track.source !== "camera" &&
+          !(
+            this.watchingSessions.has(track.sessionId) &&
+            (track.source === "screen" || track.source === "screen-audio")
+          ))
+      )
+        continue;
       this.subscribedTracks.add(key);
       try {
         await this.subscribeRemoteTrack(track.sessionId, track.trackName);
@@ -1033,7 +1192,10 @@ export class CloudflareRealtimeService {
     const publications = this.allPublications();
     this.emitPublications();
     for (const publication of publications) {
-      if (publication.source === "screen" && !this.watchStates.has(publication.sessionId)) {
+      if (
+        publication.source === "screen" &&
+        !this.watchStates.has(publication.sessionId)
+      ) {
         void this.refreshViewerCount(publication.sessionId);
       }
     }
@@ -1043,32 +1205,59 @@ export class CloudflareRealtimeService {
     if (!this.currentChannelId || !this.sessionId) return;
     const channelId = this.currentChannelId;
     try {
-      const query = new URLSearchParams({ channelId, publisherSessionId, sessionId: this.sessionId });
-      const response = await apiFetch(`${API_BASE}/api/cloudflare-realtime/streams/viewers?${query}`, { headers: this.authHeaders });
+      const query = new URLSearchParams({
+        channelId,
+        publisherSessionId,
+        sessionId: this.sessionId,
+      });
+      const response = await apiFetch(
+        `${API_BASE}/api/cloudflare-realtime/streams/viewers?${query}`,
+        { headers: this.authHeaders },
+      );
       if (!response.ok || this.currentChannelId !== channelId) return;
-      const event = await response.json() as CfStreamViewersEvent;
-      this.setWatchState({ ...event, watching: this.watchingSessions.has(publisherSessionId) });
-    } catch (error) { console.warn("[CF Realtime] Viewer count refresh failed", error); }
+      const event = (await response.json()) as CfStreamViewersEvent;
+      this.setWatchState({
+        ...event,
+        watching: this.watchingSessions.has(publisherSessionId),
+      });
+    } catch (error) {
+      console.warn("[CF Realtime] Viewer count refresh failed", error);
+    }
   }
 
-  public getScreenPublicationForUser(userId: string): CfMediaPublication | null {
-    return this.allPublications().find((publication) => publication.userId === userId && publication.source === "screen") || null;
+  public getScreenPublicationForUser(
+    userId: string,
+  ): CfMediaPublication | null {
+    return (
+      this.allPublications().find(
+        (publication) =>
+          publication.userId === userId && publication.source === "screen",
+      ) || null
+    );
   }
 
-  public onPublicationsChange(listener: (publications: CfMediaPublication[]) => void): () => void {
+  public onPublicationsChange(
+    listener: (publications: CfMediaPublication[]) => void,
+  ): () => void {
     this.publicationListeners.add(listener);
     listener(this.allPublications());
-    return () => { this.publicationListeners.delete(listener); };
+    return () => {
+      this.publicationListeners.delete(listener);
+    };
   }
 
   public getWatchState(publisherSessionId: string): CfStreamWatchState | null {
     return this.watchStates.get(publisherSessionId) || null;
   }
 
-  public onStreamWatchChange(listener: (state: CfStreamWatchState) => void): () => void {
+  public onStreamWatchChange(
+    listener: (state: CfStreamWatchState) => void,
+  ): () => void {
     this.watchListeners.add(listener);
     for (const state of this.watchStates.values()) listener(state);
-    return () => { this.watchListeners.delete(listener); };
+    return () => {
+      this.watchListeners.delete(listener);
+    };
   }
 
   private setWatchState(state: CfStreamWatchState): void {
@@ -1081,80 +1270,158 @@ export class CloudflareRealtimeService {
     await new Promise<void>((resolve, reject) => {
       const deadline = Date.now() + 5_000;
       const timer = setInterval(() => {
-        if (this.remoteStreams.has(key)) { clearInterval(timer); resolve(); }
-        else if (!this.sessionId || Date.now() >= deadline) { clearInterval(timer); reject(new Error("Subscribed stream did not arrive")); }
+        if (this.remoteStreams.has(key)) {
+          clearInterval(timer);
+          resolve();
+        } else if (!this.sessionId || Date.now() >= deadline) {
+          clearInterval(timer);
+          reject(new Error("Subscribed stream did not arrive"));
+        }
       }, 50);
     });
   }
 
-  public startWatchingStream(publisherSessionId: string): Promise<CfStreamWatchState> {
+  public startWatchingStream(
+    publisherSessionId: string,
+  ): Promise<CfStreamWatchState> {
     const pending = this.pendingWatches.get(publisherSessionId);
     if (pending) return pending;
     const operation = this.startWatchingStreamNow(publisherSessionId);
     this.pendingWatches.set(publisherSessionId, operation);
-    void operation.finally(() => {
-      if (this.pendingWatches.get(publisherSessionId) === operation) this.pendingWatches.delete(publisherSessionId);
-    }).catch(() => undefined);
+    void operation
+      .finally(() => {
+        if (this.pendingWatches.get(publisherSessionId) === operation)
+          this.pendingWatches.delete(publisherSessionId);
+      })
+      .catch(() => undefined);
     return operation;
   }
 
-  private async subscribeNewWatchTracks(publisherSessionId: string): Promise<void> {
+  private async subscribeNewWatchTracks(
+    publisherSessionId: string,
+  ): Promise<void> {
     for (const publication of this.currentPublications.values()) {
-      if (publication.sessionId !== publisherSessionId || (publication.source !== "screen" && publication.source !== "screen-audio")) continue;
+      if (
+        publication.sessionId !== publisherSessionId ||
+        (publication.source !== "screen" &&
+          publication.source !== "screen-audio")
+      )
+        continue;
       const key = `${publication.sessionId}:${publication.trackName}`;
       if (this.subscribedTracks.has(key)) continue;
       this.subscribedTracks.add(key);
       try {
-        await this.subscribeRemoteTrack(publication.sessionId, publication.trackName);
+        await this.subscribeRemoteTrack(
+          publication.sessionId,
+          publication.trackName,
+        );
       } catch (error) {
         this.subscribedTracks.delete(key);
-        console.error("[CF Realtime] Watched stream track subscribe failed", error);
+        console.error(
+          "[CF Realtime] Watched stream track subscribe failed",
+          error,
+        );
       }
     }
   }
 
-  private async startWatchingStreamNow(publisherSessionId: string): Promise<CfStreamWatchState> {
-    if (!this.sessionId || !this.currentChannelId) throw new Error("No Cloudflare media session");
-    const screen = [...this.currentPublications.values()].find((publication) => publication.sessionId === publisherSessionId && publication.source === "screen");
+  private async startWatchingStreamNow(
+    publisherSessionId: string,
+  ): Promise<CfStreamWatchState> {
+    if (!this.sessionId || !this.currentChannelId)
+      throw new Error("No Cloudflare media session");
+    const screen = [...this.currentPublications.values()].find(
+      (publication) =>
+        publication.sessionId === publisherSessionId &&
+        publication.source === "screen",
+    );
     if (!screen) throw new Error("Screen publication unavailable");
-    if (this.watchingSessions.has(publisherSessionId)) return this.watchStates.get(publisherSessionId) || {
-      channelId: this.currentChannelId, publisherSessionId, hostUserId: screen.userId, viewerCount: 0, watching: true,
-    };
-    const tracks = [...this.currentPublications.values()].filter((publication) => publication.sessionId === publisherSessionId && (publication.source === "screen" || publication.source === "screen-audio"));
+    if (this.watchingSessions.has(publisherSessionId))
+      return (
+        this.watchStates.get(publisherSessionId) || {
+          channelId: this.currentChannelId,
+          publisherSessionId,
+          hostUserId: screen.userId,
+          viewerCount: 0,
+          watching: true,
+        }
+      );
+    const tracks = [...this.currentPublications.values()].filter(
+      (publication) =>
+        publication.sessionId === publisherSessionId &&
+        (publication.source === "screen" ||
+          publication.source === "screen-audio"),
+    );
     try {
       for (const publication of tracks) {
         const key = `${publication.sessionId}:${publication.trackName}`;
         if (!this.subscribedTracks.has(key)) {
-          await this.subscribeRemoteTrack(publication.sessionId, publication.trackName);
+          await this.subscribeRemoteTrack(
+            publication.sessionId,
+            publication.trackName,
+          );
           this.subscribedTracks.add(key);
         }
       }
       await this.waitForRemoteStream(`${screen.sessionId}:${screen.trackName}`);
-      const response = await apiFetch(`${API_BASE}/api/cloudflare-realtime/streams/watch`, {
-        method: "POST", headers: this.authHeaders,
-        body: JSON.stringify({ channelId: this.currentChannelId, sessionId: this.sessionId, publisherSessionId }),
-      });
-      if (!response.ok) throw new Error(`Watch registration failed (${response.status})`);
-      const state = await response.json() as CfStreamWatchState;
+      const response = await apiFetch(
+        `${API_BASE}/api/cloudflare-realtime/streams/watch`,
+        {
+          method: "POST",
+          headers: this.authHeaders,
+          body: JSON.stringify({
+            channelId: this.currentChannelId,
+            sessionId: this.sessionId,
+            publisherSessionId,
+          }),
+        },
+      );
+      if (!response.ok)
+        throw new Error(`Watch registration failed (${response.status})`);
+      const state = (await response.json()) as CfStreamWatchState;
       this.watchingSessions.add(publisherSessionId);
       this.setWatchState(state);
       await this.subscribeNewWatchTracks(publisherSessionId);
       return state;
     } catch (error) {
-      await this.releaseScreenSubscriptions(publisherSessionId).catch(() => undefined);
+      await this.releaseScreenSubscriptions(publisherSessionId).catch(
+        () => undefined,
+      );
       throw error;
     }
   }
 
-  private async releaseScreenSubscriptions(publisherSessionId: string): Promise<void> {
-    const publications = [...this.currentPublications.values()].filter((publication) => publication.sessionId === publisherSessionId && (publication.source === "screen" || publication.source === "screen-audio"));
-    const mids = publications.map((publication) => this.subscribedMids.get(`${publication.sessionId}:${publication.trackName}`)).filter((mid): mid is string => !!mid);
+  private async releaseScreenSubscriptions(
+    publisherSessionId: string,
+  ): Promise<void> {
+    const publications = [...this.currentPublications.values()].filter(
+      (publication) =>
+        publication.sessionId === publisherSessionId &&
+        (publication.source === "screen" ||
+          publication.source === "screen-audio"),
+    );
+    const mids = publications
+      .map((publication) =>
+        this.subscribedMids.get(
+          `${publication.sessionId}:${publication.trackName}`,
+        ),
+      )
+      .filter((mid): mid is string => !!mid);
     if (mids.length && this.sessionId && this.currentChannelId) {
-      const response = await apiFetch(`${API_BASE}/api/cloudflare-realtime/tracks/unsubscribe`, {
-        method: "PUT", headers: this.authHeaders,
-        body: JSON.stringify({ channelId: this.currentChannelId, sessionId: this.sessionId, tracks: mids.map((mid) => ({ mid })) }),
-      });
-      if (!response.ok) throw new Error(`Unsubscribe failed (${response.status})`);
+      const response = await apiFetch(
+        `${API_BASE}/api/cloudflare-realtime/tracks/unsubscribe`,
+        {
+          method: "PUT",
+          headers: this.authHeaders,
+          body: JSON.stringify({
+            channelId: this.currentChannelId,
+            sessionId: this.sessionId,
+            tracks: mids.map((mid) => ({ mid })),
+          }),
+        },
+      );
+      if (!response.ok)
+        throw new Error(`Unsubscribe failed (${response.status})`);
     }
     for (const publication of publications) {
       const key = `${publication.sessionId}:${publication.trackName}`;
@@ -1163,7 +1430,12 @@ export class CloudflareRealtimeService {
       if (mid) this.remoteByMid.delete(mid);
       this.subscribedMids.delete(key);
       const stream = this.remoteStreams.get(key);
-      if (stream) { for (const track of stream.getTracks()) { this.releaseRemoteTrack(track.id); track.stop(); } }
+      if (stream) {
+        for (const track of stream.getTracks()) {
+          this.releaseRemoteTrack(track.id);
+          track.stop();
+        }
+      }
       this.remoteStreams.delete(key);
       if (publication.kind === "video") this.emitVideo(publication, null);
     }
@@ -1172,25 +1444,49 @@ export class CloudflareRealtimeService {
   public async stopWatchingStream(publisherSessionId: string): Promise<void> {
     await this.pendingWatches.get(publisherSessionId)?.catch(() => undefined);
     if (!this.sessionId || !this.currentChannelId) return;
-    const publication = [...this.currentPublications.values()].find((item) => item.sessionId === publisherSessionId && item.source === "screen");
+    const publication = [...this.currentPublications.values()].find(
+      (item) =>
+        item.sessionId === publisherSessionId && item.source === "screen",
+    );
     this.watchingSessions.delete(publisherSessionId);
     const previous = this.watchStates.get(publisherSessionId);
     if (previous) this.setWatchState({ ...previous, watching: false });
-    const response = await apiFetch(`${API_BASE}/api/cloudflare-realtime/streams/unwatch`, {
-      method: "POST", headers: this.authHeaders,
-      body: JSON.stringify({ channelId: this.currentChannelId, sessionId: this.sessionId, publisherSessionId }),
-    }).catch(() => null);
-    try { await this.releaseScreenSubscriptions(publisherSessionId); }
-    finally {
-      if (response?.ok) this.setWatchState(await response.json() as CfStreamWatchState);
-      else if (publication) this.setWatchState({ channelId: this.currentChannelId, publisherSessionId, hostUserId: publication.userId, viewerCount: previous?.viewerCount || 0, watching: false });
+    const response = await apiFetch(
+      `${API_BASE}/api/cloudflare-realtime/streams/unwatch`,
+      {
+        method: "POST",
+        headers: this.authHeaders,
+        body: JSON.stringify({
+          channelId: this.currentChannelId,
+          sessionId: this.sessionId,
+          publisherSessionId,
+        }),
+      },
+    ).catch(() => null);
+    try {
+      await this.releaseScreenSubscriptions(publisherSessionId);
+    } finally {
+      if (response?.ok)
+        this.setWatchState((await response.json()) as CfStreamWatchState);
+      else if (publication)
+        this.setWatchState({
+          channelId: this.currentChannelId,
+          publisherSessionId,
+          hostUserId: publication.userId,
+          viewerCount: previous?.viewerCount || 0,
+          watching: false,
+        });
     }
   }
 
-  public onNetworkStatsUpdate(listener: (stats: Map<string, NetworkStats>) => void): () => void {
+  public onNetworkStatsUpdate(
+    listener: (stats: Map<string, NetworkStats>) => void,
+  ): () => void {
     this.networkListeners.add(listener);
     listener(new Map(this.networkStats));
-    return () => { this.networkListeners.delete(listener); };
+    return () => {
+      this.networkListeners.delete(listener);
+    };
   }
 
   public getNetworkStats(identity?: string): NetworkStats | null {
@@ -1200,21 +1496,47 @@ export class CloudflareRealtimeService {
   }
 
   public getAllNetworkStats(): NetworkStats[] {
-    return [...this.networkStats.values()].filter((stats) => Date.now() - stats.timestamp < 5_000);
+    return [...this.networkStats.values()].filter(
+      (stats) => Date.now() - stats.timestamp < 5_000,
+    );
   }
 
-  public async getDetailedStats(identity?: string): Promise<StreamDetailedStats> {
-    if (this.pc && this.connectionStatus === "connected") await this.refreshStats();
+  public async getDetailedStats(
+    identity?: string,
+  ): Promise<StreamDetailedStats> {
+    if (this.pc && this.connectionStatus === "connected")
+      await this.refreshStats();
     const userId = identity || useAuthStore.getState().user?.id || "local";
-    return this.detailedStats.get(userId) || this.emptyDetailedStats(userId, !identity || identity === useAuthStore.getState().user?.id);
+    return (
+      this.detailedStats.get(userId) ||
+      this.emptyDetailedStats(
+        userId,
+        !identity || identity === useAuthStore.getState().user?.id,
+      )
+    );
   }
 
-  private emptyDetailedStats(identity: string, isLocal: boolean): StreamDetailedStats {
+  private emptyDetailedStats(
+    identity: string,
+    isLocal: boolean,
+  ): StreamDetailedStats {
     return {
-      participantIdentity: identity, isLocal, mimeType: "暂无媒体数据", playerCore: "WebRTC / Cloudflare Realtime",
-      audioInfo: "暂无音轨", encoder: "未知", streamHost: "Cloudflare SFU", connectionMode: "等待媒体数据",
-      topology: "SFU_SERVER", protocol: "未知", bufferLength: "WebRTC 自适应", downloadBitrate: "暂无数据",
-      uploadBitrate: "暂无数据", rtt: "暂无数据（本机 ↔ SFU）", packetLoss: "暂无数据", jitter: "暂无数据",
+      participantIdentity: identity,
+      isLocal,
+      mimeType: "暂无媒体数据",
+      playerCore: "WebRTC / Cloudflare Realtime",
+      audioInfo: "暂无音轨",
+      encoder: "未知",
+      streamHost: "Cloudflare SFU",
+      connectionMode: "等待媒体数据",
+      topology: "SFU_SERVER",
+      protocol: "未知",
+      bufferLength: "WebRTC 自适应",
+      downloadBitrate: "暂无数据",
+      uploadBitrate: "暂无数据",
+      rtt: "暂无数据（本机 ↔ SFU）",
+      packetLoss: "暂无数据",
+      jitter: "暂无数据",
       transportVerified: false,
     };
   }
@@ -1222,15 +1544,21 @@ export class CloudflareRealtimeService {
   private startStatsPolling(): void {
     if (this.statsTimer) return;
     void this.refreshStats();
-    this.statsTimer = setInterval(() => { void this.refreshStats(); }, 1_000);
+    this.statsTimer = setInterval(() => {
+      void this.refreshStats();
+    }, 1_000);
   }
 
   private statsInFlight: Promise<void> | null = null;
   private refreshStats(): Promise<void> {
     if (this.statsInFlight) return this.statsInFlight;
-    this.statsInFlight = this.collectStats().catch((error) => {
-      console.warn("[CF Realtime] RTC stats collection failed", error);
-    }).finally(() => { this.statsInFlight = null; });
+    this.statsInFlight = this.collectStats()
+      .catch((error) => {
+        console.warn("[CF Realtime] RTC stats collection failed", error);
+      })
+      .finally(() => {
+        this.statsInFlight = null;
+      });
     return this.statsInFlight;
   }
 
@@ -1241,89 +1569,201 @@ export class CloudflareRealtimeService {
     if (this.pc !== pc) return;
     const stats = [...report.values()] as RtcRecord[];
     const byId = new Map(stats.map((item) => [item.id, item]));
-    const selectedId = stats.find((item) => item.type === "transport" && item.selectedCandidatePairId)?.selectedCandidatePairId;
-    const pair = selectedId ? byId.get(selectedId) : stats.find((item) => item.type === "candidate-pair" && item.state === "succeeded" && item.nominated);
-    const localCandidate = pair?.localCandidateId ? byId.get(pair.localCandidateId) : undefined;
-    const remoteCandidate = pair?.remoteCandidateId ? byId.get(pair.remoteCandidateId) : undefined;
-    const rttMs = typeof pair?.currentRoundTripTime === "number" ? Math.round(pair.currentRoundTripTime * 1000) : undefined;
-    const protocol = (remoteCandidate?.protocol || localCandidate?.protocol || "未知").toUpperCase();
-    const candidateType = localCandidate?.candidateType || remoteCandidate?.candidateType;
-    const connectionMode = candidateType === "relay" ? `SFU 经 TURN (${protocol})` : `SFU ${candidateType || "ICE"} (${protocol})`;
-    const host = remoteCandidate?.address ? `${remoteCandidate.address}:${remoteCandidate.port || ""}` : "Cloudflare SFU";
-    const ipVersion = remoteCandidate?.address ? (remoteCandidate.address.includes(":") ? "IPv6" : "IPv4") : undefined;
+    const selectedId = stats.find(
+      (item) => item.type === "transport" && item.selectedCandidatePairId,
+    )?.selectedCandidatePairId;
+    const pair = selectedId
+      ? byId.get(selectedId)
+      : stats.find(
+          (item) =>
+            item.type === "candidate-pair" &&
+            item.state === "succeeded" &&
+            item.nominated,
+        );
+    const localCandidate = pair?.localCandidateId
+      ? byId.get(pair.localCandidateId)
+      : undefined;
+    const remoteCandidate = pair?.remoteCandidateId
+      ? byId.get(pair.remoteCandidateId)
+      : undefined;
+    const rttMs =
+      typeof pair?.currentRoundTripTime === "number"
+        ? Math.round(pair.currentRoundTripTime * 1000)
+        : undefined;
+    const protocol = (
+      remoteCandidate?.protocol ||
+      localCandidate?.protocol ||
+      "未知"
+    ).toUpperCase();
+    const candidateType =
+      localCandidate?.candidateType || remoteCandidate?.candidateType;
+    const connectionMode =
+      candidateType === "relay"
+        ? `SFU 经 TURN (${protocol})`
+        : `SFU ${candidateType || "ICE"} (${protocol})`;
+    const host = remoteCandidate?.address
+      ? `${remoteCandidate.address}:${remoteCandidate.port || ""}`
+      : "Cloudflare SFU";
+    const ipVersion = remoteCandidate?.address
+      ? remoteCandidate.address.includes(":")
+        ? "IPv6"
+        : "IPv4"
+      : undefined;
     const localId = useAuthStore.getState().user?.id || "local";
     const identities = new Set<string>([localId]);
-    for (const publication of this.remoteByMid.values()) if (publication.userId) identities.add(publication.userId);
+    for (const publication of this.remoteByMid.values())
+      if (publication.userId) identities.add(publication.userId);
     const nextNetwork = new Map<string, NetworkStats>();
     const nextDetailed = new Map<string, StreamDetailedStats>();
     for (const identity of identities) {
       const isLocal = identity === localId;
       const mids = new Set<string>();
-      if (isLocal) for (const published of this.publishedTracks.values()) mids.add(published.mid);
-      else for (const [mid, publication] of this.remoteByMid) if (publication.userId === identity) mids.add(mid);
+      if (isLocal)
+        for (const published of this.publishedTracks.values())
+          mids.add(published.mid);
+      else
+        for (const [mid, publication] of this.remoteByMid)
+          if (publication.userId === identity) mids.add(mid);
       const trackIds = new Set<string>();
-      if (!isLocal) for (const [key, stream] of this.remoteStreams) {
-        const publication = this.currentPublications.get(key);
-        if (publication?.userId === identity) stream.getTracks().forEach((track) => trackIds.add(track.id));
-      }
+      if (!isLocal)
+        for (const [key, stream] of this.remoteStreams) {
+          const publication = this.currentPublications.get(key);
+          if (publication?.userId === identity)
+            stream.getTracks().forEach((track) => trackIds.add(track.id));
+        }
       const media = stats.filter((item) => {
-        if (item.type !== (isLocal ? "outbound-rtp" : "inbound-rtp")) return false;
+        if (item.type !== (isLocal ? "outbound-rtp" : "inbound-rtp"))
+          return false;
         if (item.mid) return mids.has(item.mid);
         return !!item.trackIdentifier && trackIds.has(item.trackIdentifier);
       });
-      let received = 0, sent = 0, downBps = 0, upBps = 0, packets = 0, lost = 0, jitterMs = 0, jitterCount = 0, decoded = 0;
-      let audioCodec: string | undefined, videoCodec: string | undefined, videoInfo: string | undefined;
+      let received = 0,
+        sent = 0,
+        downBps = 0,
+        upBps = 0,
+        packets = 0,
+        lost = 0,
+        jitterMs = 0,
+        jitterCount = 0,
+        decoded = 0;
+      let audioCodec: string | undefined,
+        videoCodec: string | undefined,
+        videoInfo: string | undefined;
       for (const item of media) {
-        const codec = item.codecId ? byId.get(item.codecId)?.mimeType : undefined;
-        const kind = item.kind || item.mediaType || (codec?.startsWith("video/") ? "video" : "audio");
+        const codec = item.codecId
+          ? byId.get(item.codecId)?.mimeType
+          : undefined;
+        const kind =
+          item.kind ||
+          item.mediaType ||
+          (codec?.startsWith("video/") ? "video" : "audio");
         if (codec && !/\/((rtx)|(red)|(ulpfec)|(flexfec)|(cn))$/i.test(codec)) {
-          if (kind === "video") videoCodec = codec; else audioCodec = codec;
+          if (kind === "video") videoCodec = codec;
+          else audioCodec = codec;
         }
         const bytes = isLocal ? item.bytesSent || 0 : item.bytesReceived || 0;
-        if (isLocal) sent += bytes; else received += bytes;
+        if (isLocal) sent += bytes;
+        else received += bytes;
         const prior = this.previousStats.get(item.id);
         if (prior && item.timestamp > prior.timestamp && bytes >= prior.bytes) {
-          const rate = (bytes - prior.bytes) * 8_000 / (item.timestamp - prior.timestamp);
-          if (isLocal) upBps += rate; else downBps += rate;
+          const rate =
+            ((bytes - prior.bytes) * 8_000) /
+            (item.timestamp - prior.timestamp);
+          if (isLocal) upBps += rate;
+          else downBps += rate;
         }
         this.previousStats.set(item.id, { bytes, timestamp: item.timestamp });
         packets += isLocal ? item.packetsSent || 0 : item.packetsReceived || 0;
         lost += item.packetsLost || 0;
-        if (typeof item.jitter === "number") { jitterMs += item.jitter * 1_000; jitterCount++; }
+        if (typeof item.jitter === "number") {
+          jitterMs += item.jitter * 1_000;
+          jitterCount++;
+        }
         if (kind === "video") {
           decoded += item.framesDecoded || 0;
-          if (item.frameWidth && item.frameHeight) videoInfo = `${item.frameWidth}×${item.frameHeight}${item.framesPerSecond ? ` @ ${Math.round(item.framesPerSecond)} FPS` : ""}`;
+          if (item.frameWidth && item.frameHeight)
+            videoInfo = `${item.frameWidth}×${item.frameHeight}${item.framesPerSecond ? ` @ ${Math.round(item.framesPerSecond)} FPS` : ""}`;
         }
       }
       if (media.length === 0 && !isLocal) continue;
-      const loss = packets + lost > 0 ? Math.round(lost / (packets + lost) * 10_000) / 100 : undefined;
-      const jitter = jitterCount ? Math.round(jitterMs / jitterCount) : undefined;
+      const loss =
+        packets + lost > 0
+          ? Math.round((lost / (packets + lost)) * 10_000) / 100
+          : undefined;
+      const jitter = jitterCount
+        ? Math.round(jitterMs / jitterCount)
+        : undefined;
       const bitrate = Math.round((isLocal ? upBps : downBps) / 1_000);
-      const quality: NetworkStats["quality"] = !media.length || rttMs === undefined ? "unknown" :
-        (rttMs > 250 || (loss ?? 0) > 5) ? "poor" : (rttMs > 120 || (loss ?? 0) > 2) ? "good" : "excellent";
-      nextNetwork.set(identity, { identity, rtt: rttMs, packetLoss: loss, jitter, bitrate,
-        codec: audioCodec, videoCodec, videoResolution: videoInfo?.split(" @ ")[0],
-        videoFramerate: videoInfo?.includes(" @ ") ? Number(videoInfo.split(" @ ")[1].split(" ")[0]) : undefined,
-        videoBitrate: videoCodec ? bitrate : undefined, quality, timestamp: Date.now() });
-      const formatRate = (bps: number, bytes: number) => `${bps > 0 ? `${Math.round(bps / 1_000)} kbps` : "暂无速率"} (${(bytes / 1_048_576).toFixed(2)} MiB)`;
+      const quality: NetworkStats["quality"] =
+        !media.length || rttMs === undefined
+          ? "unknown"
+          : rttMs > 250 || (loss ?? 0) > 5
+            ? "poor"
+            : rttMs > 120 || (loss ?? 0) > 2
+              ? "good"
+              : "excellent";
+      nextNetwork.set(identity, {
+        identity,
+        rtt: rttMs,
+        packetLoss: loss,
+        jitter,
+        bitrate,
+        codec: audioCodec,
+        videoCodec,
+        videoResolution: videoInfo?.split(" @ ")[0],
+        videoFramerate: videoInfo?.includes(" @ ")
+          ? Number(videoInfo.split(" @ ")[1].split(" ")[0])
+          : undefined,
+        videoBitrate: videoCodec ? bitrate : undefined,
+        quality,
+        timestamp: Date.now(),
+      });
+      const formatRate = (bps: number, bytes: number) =>
+        `${bps > 0 ? `${Math.round(bps / 1_000)} kbps` : "暂无速率"} (${(bytes / 1_048_576).toFixed(2)} MiB)`;
       nextDetailed.set(identity, {
-        participantIdentity: identity, isLocal, mimeType: videoCodec || audioCodec || "暂无协商编解码器",
-        playerCore: "WebRTC / Cloudflare Realtime", videoInfo, audioInfo: audioCodec || "暂无音轨",
-        encoder: isLocal ? (videoCodec || audioCodec || "未知") : "远端编码器不可见",
-        streamHost: host, connectionMode, topology: "SFU_SERVER", protocol, bufferLength: "WebRTC 自适应",
+        participantIdentity: identity,
+        isLocal,
+        mimeType: videoCodec || audioCodec || "暂无协商编解码器",
+        playerCore: "WebRTC / Cloudflare Realtime",
+        videoInfo,
+        audioInfo: audioCodec || "暂无音轨",
+        encoder: isLocal
+          ? videoCodec || audioCodec || "未知"
+          : "远端编码器不可见",
+        streamHost: host,
+        connectionMode,
+        topology: "SFU_SERVER",
+        protocol,
+        bufferLength: "WebRTC 自适应",
         decodedFrames: videoInfo ? String(decoded) : undefined,
-        downloadBitrate: formatRate(downBps, received), uploadBitrate: formatRate(upBps, sent),
-        rawDownloadBitrateBps: downBps, rawUploadBitrateBps: upBps, totalBytesReceived: received, totalBytesSent: sent,
-        rtt: rttMs === undefined ? "暂无数据（本机 ↔ SFU）" : `${rttMs} ms（本机 ↔ SFU）`,
-        packetLoss: loss === undefined ? "暂无数据" : `${loss}%`, jitter: jitter === undefined ? "暂无数据" : `${jitter} ms`,
-        ipVersion, candidateType, actualSendCodec: isLocal ? videoCodec || audioCodec : undefined,
+        downloadBitrate: formatRate(downBps, received),
+        uploadBitrate: formatRate(upBps, sent),
+        rawDownloadBitrateBps: downBps,
+        rawUploadBitrateBps: upBps,
+        totalBytesReceived: received,
+        totalBytesSent: sent,
+        rtt:
+          rttMs === undefined
+            ? "暂无数据（本机 ↔ SFU）"
+            : `${rttMs} ms（本机 ↔ SFU）`,
+        packetLoss: loss === undefined ? "暂无数据" : `${loss}%`,
+        jitter: jitter === undefined ? "暂无数据" : `${jitter} ms`,
+        ipVersion,
+        candidateType,
+        actualSendCodec: isLocal ? videoCodec || audioCodec : undefined,
         actualReceiveCodec: !isLocal ? videoCodec || audioCodec : undefined,
-        transportVerified: !!pair && media.some((item) => (isLocal ? item.bytesSent || 0 : item.bytesReceived || 0) > 0),
+        transportVerified:
+          !!pair &&
+          media.some(
+            (item) =>
+              (isLocal ? item.bytesSent || 0 : item.bytesReceived || 0) > 0,
+          ),
       });
     }
     this.networkStats = nextNetwork;
     this.detailedStats = nextDetailed;
-    for (const listener of this.networkListeners) listener(new Map(nextNetwork));
+    for (const listener of this.networkListeners)
+      listener(new Map(nextNetwork));
   }
 
   public setDeafened(deafened: boolean): void {
@@ -1418,8 +1858,10 @@ export class CloudflareRealtimeService {
     const oldSessionId = this.sessionId;
     if (oldSessionId) await this.leaveMediaSession(oldSessionId);
     // 释放远端播放 Audio 元素
-    for (const trackId of [...this.audioElements.keys()]) this.releaseRemoteTrack(trackId);
-    if (this.playbackContext) await this.playbackContext.close().catch(() => undefined);
+    for (const trackId of [...this.audioElements.keys()])
+      this.releaseRemoteTrack(trackId);
+    if (this.playbackContext)
+      await this.playbackContext.close().catch(() => undefined);
     this.playbackContext = null;
     this.masterGain = null;
     this.activeSpeakers.clear();

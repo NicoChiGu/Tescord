@@ -24,7 +24,9 @@ test.describe("直播推流传输拓扑独立解耦 (Live Streaming Topology Mod
       const authHeaders = { Authorization: `Bearer ${token}` };
 
       // 获取公会列表
-      const guildsRes = await request.get("/api/guilds", { headers: authHeaders });
+      const guildsRes = await request.get("/api/guilds", {
+        headers: authHeaders,
+      });
       if (guildsRes.ok()) {
         const guilds = await guildsRes.json();
         const firstGuild = guilds[0];
@@ -146,15 +148,25 @@ test.describe("直播推流传输拓扑独立解耦 (Live Streaming Topology Mod
         await expect(modal).toBeVisible();
 
         // 验证语音传输架构选项存在
-        const voiceSfuCard = page.locator("[data-testid='edit-channel-voicemode-sfu']");
-        const voiceMeshCard = page.locator("[data-testid='edit-channel-voicemode-mesh']");
+        const voiceSfuCard = page.locator(
+          "[data-testid='edit-channel-voicemode-sfu']",
+        );
+        const voiceMeshCard = page.locator(
+          "[data-testid='edit-channel-voicemode-mesh']",
+        );
         await expect(voiceSfuCard).toBeVisible();
         await expect(voiceMeshCard).toBeVisible();
 
         // 验证直播推流架构独立选项存在（3 个平级选项：SFU / P2P Mesh / Mesh Tree Beta）
-        const streamSfuCard = page.locator("[data-testid='edit-channel-streammode-sfu']");
-        const streamDirectCard = page.locator("[data-testid='edit-channel-streammode-direct']");
-        const streamRelayCard = page.locator("[data-testid='edit-channel-streammode-relay']");
+        const streamSfuCard = page.locator(
+          "[data-testid='edit-channel-streammode-sfu']",
+        );
+        const streamDirectCard = page.locator(
+          "[data-testid='edit-channel-streammode-direct']",
+        );
+        const streamRelayCard = page.locator(
+          "[data-testid='edit-channel-streammode-relay']",
+        );
 
         await expect(streamSfuCard).toBeVisible();
         await expect(streamDirectCard).toBeVisible();

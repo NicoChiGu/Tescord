@@ -2823,18 +2823,31 @@ server.post("/api/guilds/:guildId/channels", async (request, reply) => {
       .send({ error: "缺少管理频道权限 (MANAGE_CHANNELS)" });
   }
 
-  const { name, type, topic, parentId, isE2EE, voiceMode, streamMode } = (request.body ||
-    {}) as CreateChannelDTO;
+  const { name, type, topic, parentId, isE2EE, voiceMode, streamMode } =
+    (request.body || {}) as CreateChannelDTO;
   if (!name || !name.trim()) {
     return reply.status(400).send({ error: "频道名称不能为空" });
   }
 
-  if (voiceMode !== undefined && voiceMode !== "sfu" && voiceMode !== "p2p_mesh") {
-    return reply.status(400).send({ error: "voiceMode 必须为 'sfu' 或 'p2p_mesh'" });
+  if (
+    voiceMode !== undefined &&
+    voiceMode !== "sfu" &&
+    voiceMode !== "p2p_mesh"
+  ) {
+    return reply
+      .status(400)
+      .send({ error: "voiceMode 必须为 'sfu' 或 'p2p_mesh'" });
   }
 
-  if (streamMode !== undefined && streamMode !== "sfu" && streamMode !== "p2p_direct" && streamMode !== "p2p_relay") {
-    return reply.status(400).send({ error: "streamMode 必须为 'sfu', 'p2p_direct' 或 'p2p_relay'" });
+  if (
+    streamMode !== undefined &&
+    streamMode !== "sfu" &&
+    streamMode !== "p2p_direct" &&
+    streamMode !== "p2p_relay"
+  ) {
+    return reply
+      .status(400)
+      .send({ error: "streamMode 必须为 'sfu', 'p2p_direct' 或 'p2p_relay'" });
   }
 
   const maxPosChannel = await prisma.channel.findFirst({
@@ -2954,21 +2967,35 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
       .send({ error: "缺少管理频道权限 (MANAGE_CHANNELS)" });
   }
 
-  const { name, topic, parentId, position, voiceMode, streamMode } = (request.body || {}) as {
-    name?: string;
-    topic?: string;
-    parentId?: string | null;
-    position?: number;
-    voiceMode?: "sfu" | "p2p_mesh";
-    streamMode?: "sfu" | "p2p_direct" | "p2p_relay";
-  };
+  const { name, topic, parentId, position, voiceMode, streamMode } =
+    (request.body || {}) as {
+      name?: string;
+      topic?: string;
+      parentId?: string | null;
+      position?: number;
+      voiceMode?: "sfu" | "p2p_mesh";
+      streamMode?: "sfu" | "p2p_direct" | "p2p_relay";
+    };
 
-  if (voiceMode !== undefined && voiceMode !== "sfu" && voiceMode !== "p2p_mesh") {
-    return reply.status(400).send({ error: "voiceMode 必须为 'sfu' 或 'p2p_mesh'" });
+  if (
+    voiceMode !== undefined &&
+    voiceMode !== "sfu" &&
+    voiceMode !== "p2p_mesh"
+  ) {
+    return reply
+      .status(400)
+      .send({ error: "voiceMode 必须为 'sfu' 或 'p2p_mesh'" });
   }
 
-  if (streamMode !== undefined && streamMode !== "sfu" && streamMode !== "p2p_direct" && streamMode !== "p2p_relay") {
-    return reply.status(400).send({ error: "streamMode 必须为 'sfu', 'p2p_direct' 或 'p2p_relay'" });
+  if (
+    streamMode !== undefined &&
+    streamMode !== "sfu" &&
+    streamMode !== "p2p_direct" &&
+    streamMode !== "p2p_relay"
+  ) {
+    return reply
+      .status(400)
+      .send({ error: "streamMode 必须为 'sfu', 'p2p_direct' 或 'p2p_relay'" });
   }
 
   const updatedChannel = await prisma.channel.update({

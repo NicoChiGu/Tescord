@@ -309,7 +309,10 @@ export class LiveKitService {
     else this.watchedScreenParticipants.delete(identity);
     const participant = this.room?.remoteParticipants.get(identity);
     participant?.trackPublications.forEach((publication) => {
-      if (publication.source === Track.Source.ScreenShare || publication.source === Track.Source.ScreenShareAudio) {
+      if (
+        publication.source === Track.Source.ScreenShare ||
+        publication.source === Track.Source.ScreenShareAudio
+      ) {
         publication.setSubscribed(watching);
       }
     });
@@ -651,8 +654,13 @@ export class LiveKitService {
       await this.room.connect(targetUrl, token);
       this.room.remoteParticipants.forEach((participant) => {
         participant.trackPublications.forEach((publication) => {
-          if (publication.source === Track.Source.ScreenShare || publication.source === Track.Source.ScreenShareAudio) {
-            publication.setSubscribed(this.watchedScreenParticipants.has(participant.identity));
+          if (
+            publication.source === Track.Source.ScreenShare ||
+            publication.source === Track.Source.ScreenShareAudio
+          ) {
+            publication.setSubscribed(
+              this.watchedScreenParticipants.has(participant.identity),
+            );
           }
         });
       });
@@ -785,8 +793,13 @@ export class LiveKitService {
 
     // Screen video and screen audio are selected explicitly by each viewer.
     this.room.on(RoomEvent.TrackPublished, (publication, participant) => {
-      if (publication.source === Track.Source.ScreenShare || publication.source === Track.Source.ScreenShareAudio) {
-        publication.setSubscribed(this.watchedScreenParticipants.has(participant.identity));
+      if (
+        publication.source === Track.Source.ScreenShare ||
+        publication.source === Track.Source.ScreenShareAudio
+      ) {
+        publication.setSubscribed(
+          this.watchedScreenParticipants.has(participant.identity),
+        );
       }
     });
 
@@ -794,7 +807,11 @@ export class LiveKitService {
     this.room.on(
       RoomEvent.TrackSubscribed,
       (track, publication, participant) => {
-        if ((publication.source === Track.Source.ScreenShare || publication.source === Track.Source.ScreenShareAudio) && !this.watchedScreenParticipants.has(participant.identity)) {
+        if (
+          (publication.source === Track.Source.ScreenShare ||
+            publication.source === Track.Source.ScreenShareAudio) &&
+          !this.watchedScreenParticipants.has(participant.identity)
+        ) {
           publication.setSubscribed(false);
           return;
         }
@@ -864,6 +881,23 @@ export class LiveKitService {
         }
       },
     );
+
+    // 4.2.1 远端音视频轨取消发布 (Host 停止推流/摄像头，主动释放轨道映射)
+    this.room.on(RoomEvent.TrackUnpublished, (publication, participant) => {
+      if (publication.kind === Track.Kind.Video) {
+        if (this.screenSharesMap.has(participant.identity)) {
+          this.screenSharesMap.delete(participant.identity);
+          this.activeScreenShare =
+            this.screenSharesMap.values().next().value || null;
+          this.notifyScreenSharesChanged();
+          this.notifyScreenShareChanged();
+        }
+        if (this.cameraTracksMap.has(participant.identity)) {
+          this.cameraTracksMap.delete(participant.identity);
+          this.notifyCameraTracksChanged();
+        }
+      }
+    });
 
     // 4.3 活跃讲话者监听 (Active Speakers)
     this.room.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {

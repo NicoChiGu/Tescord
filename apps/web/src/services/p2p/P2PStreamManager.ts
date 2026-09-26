@@ -807,7 +807,10 @@ export class P2PStreamManager {
       try {
         await this.sendOfferToChild(childId);
       } catch (err) {
-        console.error(`[P2PStream] relayTrackToChildren to child ${childId} failed:`, err);
+        console.error(
+          `[P2PStream] relayTrackToChildren to child ${childId} failed:`,
+          err,
+        );
       }
     }
   }

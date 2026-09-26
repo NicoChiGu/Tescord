@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { VOICE_ENGINE } from "../config.js";
+import { VoiceConnectionStatusPopover } from "./VoiceConnectionStatusPopover.js";
 import {
   DndContext,
   DragOverlay,
@@ -632,6 +633,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   };
 
   const qualityColor = getQualityColor(networkStats?.quality);
+  const [isConnectionPopoverOpen, setIsConnectionPopoverOpen] = useState(false);
   const currentRtt =
     typeof networkStats?.rtt === "number" && networkStats.rtt > 0
       ? networkStats.rtt
@@ -1174,14 +1176,23 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
 
       {/* 底部连接控制面板 (接入语音连接中或已连接时显示) */}
       {activeVoiceChannel && voiceConnectionStatus !== "disconnected" && (
-        <div className="bg-[#202225] border-b border-[#2b2d31] p-2.5 flex flex-col space-y-2 animate-fadeIn">
+        <div className="bg-[#202225] border-b border-[#2b2d31] p-2.5 flex flex-col space-y-2 animate-fadeIn relative">
+          <VoiceConnectionStatusPopover
+            isOpen={isConnectionPopoverOpen}
+            onClose={() => setIsConnectionPopoverOpen(false)}
+            onOpenMoreStats={() => {
+              onOpenNetworkStats?.();
+            }}
+            channel={activeVoiceChannel}
+          />
           <div className="flex items-center justify-between">
             <button
               type="button"
+              data-testid="voice-connection-status-btn"
               onClick={
                 voiceConnectionStatus === "connecting"
                   ? undefined
-                  : onOpenNetworkStats
+                  : () => setIsConnectionPopoverOpen((prev) => !prev)
               }
               className={`flex items-center space-x-2 text-left p-1 -ml-1 rounded-lg transition group max-w-[calc(100%-36px)] ${
                 voiceConnectionStatus === "connecting"
@@ -1260,7 +1271,8 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                         );
                       const finalRtt =
                         meshMetrics.rtt > 0 ? meshMetrics.rtt : currentRtt;
-                      const latencyStr = finalRtt === null ? "--ms" : `${finalRtt}ms`;
+                      const latencyStr =
+                        finalRtt === null ? "--ms" : `${finalRtt}ms`;
                       return isP2P ? `P2P ${latencyStr}` : latencyStr;
                     })()}
                   </span>
@@ -1288,7 +1300,9 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                     if (peerLatencies.size > 0) {
                       return t("voice:medianLatency");
                     }
-                    return VOICE_ENGINE === "cloudflare_realtime" ? "Cloudflare SFU" : "LiveKit SFU";
+                    return VOICE_ENGINE === "cloudflare_realtime"
+                      ? "Cloudflare SFU"
+                      : "LiveKit SFU";
                   })()}
                 </div>
               </div>

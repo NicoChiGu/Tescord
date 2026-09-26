@@ -1,7 +1,9 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("语音频道传输拓扑模式 (Voice Channel Topology: SFU vs P2P Mesh)", () => {
-  test("API 接口安全性校验：非法 voiceMode 拒绝 400，未授权拒绝 401", async ({ request }) => {
+  test("API 接口安全性校验：非法 voiceMode 拒绝 400，未授权拒绝 401", async ({
+    request,
+  }) => {
     // 1. 未授权请求校验
     const unauthRes = await request.patch("/api/channels/test-channel-id", {
       data: { voiceMode: "p2p_mesh" },
@@ -23,30 +25,41 @@ test.describe("语音频道传输拓扑模式 (Voice Channel Topology: SFU vs P2
       const authHeaders = { Authorization: `Bearer ${token}` };
 
       // 获取用户的公会列表
-      const guildsRes = await request.get("/api/guilds", { headers: authHeaders });
+      const guildsRes = await request.get("/api/guilds", {
+        headers: authHeaders,
+      });
       if (guildsRes.ok()) {
         const guilds = await guildsRes.json();
         const firstGuild = guilds[0];
         if (firstGuild) {
-          const channelsRes = await request.get(`/api/guilds/${firstGuild.id}/channels`, {
-            headers: authHeaders,
-          });
+          const channelsRes = await request.get(
+            `/api/guilds/${firstGuild.id}/channels`,
+            {
+              headers: authHeaders,
+            },
+          );
           const channels = await channelsRes.json();
           const voiceChannel = channels.find((c: any) => c.type === "VOICE");
 
           if (voiceChannel) {
             // 发送非法 voiceMode
-            const badRes = await request.patch(`/api/channels/${voiceChannel.id}`, {
-              headers: authHeaders,
-              data: { voiceMode: "invalid_topology_mode" },
-            });
+            const badRes = await request.patch(
+              `/api/channels/${voiceChannel.id}`,
+              {
+                headers: authHeaders,
+                data: { voiceMode: "invalid_topology_mode" },
+              },
+            );
             expect(badRes.status()).toBe(400);
 
             // 发送合法 voiceMode: p2p_mesh
-            const goodRes = await request.patch(`/api/channels/${voiceChannel.id}`, {
-              headers: authHeaders,
-              data: { voiceMode: "p2p_mesh" },
-            });
+            const goodRes = await request.patch(
+              `/api/channels/${voiceChannel.id}`,
+              {
+                headers: authHeaders,
+                data: { voiceMode: "p2p_mesh" },
+              },
+            );
             expect(goodRes.status()).toBe(200);
             const updated = await goodRes.json();
             expect(updated.voiceMode).toBe("p2p_mesh");
@@ -89,17 +102,25 @@ test.describe("语音频道传输拓扑模式 (Voice Channel Topology: SFU vs P2
     await page.waitForLoadState("networkidle");
 
     // 2. 选择左侧公会服务器
-    const serverButton = page.locator("button[data-testid^='guild-item-'], button[title*='极客']").first();
+    const serverButton = page
+      .locator("button[data-testid^='guild-item-'], button[title*='极客']")
+      .first();
     if (await serverButton.isVisible({ timeout: 5000 }).catch(() => false)) {
       await serverButton.click();
     }
 
     // 3. 找到语音频道右侧的设置小齿轮或者右键菜单
-    const voiceChannel = page.locator("button[data-channel-type='VOICE'], button:has-text('语音'), button:has-text('Voice')").first();
+    const voiceChannel = page
+      .locator(
+        "button[data-channel-type='VOICE'], button:has-text('语音'), button:has-text('Voice')",
+      )
+      .first();
     if (await voiceChannel.isVisible({ timeout: 5000 }).catch(() => false)) {
       // 右键触发菜单
       await voiceChannel.click({ button: "right" });
-      const editOption = page.locator("text=编辑频道, text=Edit Channel").first();
+      const editOption = page
+        .locator("text=编辑频道, text=Edit Channel")
+        .first();
       if (await editOption.isVisible({ timeout: 2000 }).catch(() => false)) {
         await editOption.click();
 
@@ -108,8 +129,12 @@ test.describe("语音频道传输拓扑模式 (Voice Channel Topology: SFU vs P2
         await expect(modal).toBeVisible();
 
         // 验证拓扑选项存在
-        const sfuCard = page.locator("[data-testid='edit-channel-voicemode-sfu']");
-        const meshCard = page.locator("[data-testid='edit-channel-voicemode-mesh']");
+        const sfuCard = page.locator(
+          "[data-testid='edit-channel-voicemode-sfu']",
+        );
+        const meshCard = page.locator(
+          "[data-testid='edit-channel-voicemode-mesh']",
+        );
 
         await expect(sfuCard).toBeVisible();
         await expect(meshCard).toBeVisible();
@@ -132,7 +157,9 @@ test.describe("语音频道传输拓扑模式 (Voice Channel Topology: SFU vs P2
     expect(criticalErrors.length).toBe(0);
   });
 
-  test("P2P 与 SFU 模式下 Ping 延迟与左下角文字差异性验证", async ({ page }) => {
+  test("P2P 与 SFU 模式下 Ping 延迟与左下角文字差异性验证", async ({
+    page,
+  }) => {
     // 1. 初始化登录状态与 API Mock
     await page.addInitScript(() => {
       localStorage.setItem(

@@ -351,7 +351,12 @@ const UserMenuItems: React.FC<UserMenuItemsProps> = ({
   const isMe = currentUser?.id === targetUser.id;
   const [volume, setVolume] = useState<number>(() => {
     if (!isMe) {
-      return (VOICE_ENGINE === "cloudflare_realtime" ? cloudflareRealtimeService : livekitService).getParticipantVolume(targetUser.id) ?? 100;
+      return (
+        (VOICE_ENGINE === "cloudflare_realtime"
+          ? cloudflareRealtimeService
+          : livekitService
+        ).getParticipantVolume(targetUser.id) ?? 100
+      );
     }
     return 100;
   });

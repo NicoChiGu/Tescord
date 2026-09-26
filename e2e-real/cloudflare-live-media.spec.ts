@@ -57,8 +57,7 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   const testP2PFallback = process.env.TESCORD_TEST_P2P_FALLBACK === "1";
   if (testP2PFallback) test.setTimeout(180_000);
   if (process.env.TESCORD_TEST_SERVER_RESTART === "1") test.setTimeout(240_000);
-  if (testNetworkRecovery)
-    test.setTimeout(240_000);
+  if (testNetworkRecovery) test.setTimeout(240_000);
   const adminLogin = await request.post("/api/auth/login", {
     data: {
       emailOrUsername: onTarget
@@ -70,19 +69,29 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     },
   });
   expect(adminLogin.ok()).toBeTruthy();
-  const adminSession = await adminLogin.json() as { accessToken: string; user: { id: string } };
+  const adminSession = (await adminLogin.json()) as {
+    accessToken: string;
+    user: { id: string };
+  };
   const adminToken = adminSession.accessToken;
-  const targetResourcesPath = resolve("test-results/cloudflare-target/resources.json");
+  const targetResourcesPath = resolve(
+    "test-results/cloudflare-target/resources.json",
+  );
   const marker = process.env.TESCORD_ACCEPTANCE_MARKER || "";
   if (onTarget && !/^[a-f0-9]{10}$/.test(marker))
-    throw new Error("TESCORD_ACCEPTANCE_MARKER must be ten lowercase hex characters");
+    throw new Error(
+      "TESCORD_ACCEPTANCE_MARKER must be ten lowercase hex characters",
+    );
   const targetResources: Record<string, string> = onTarget
     ? { marker, adminUserId: adminSession.user.id }
     : {};
   const saveTargetResources = async () => {
     if (!onTarget) return;
     await mkdir(resolve("test-results/cloudflare-target"), { recursive: true });
-    await writeFile(targetResourcesPath, JSON.stringify(targetResources, null, 2));
+    await writeFile(
+      targetResourcesPath,
+      JSON.stringify(targetResources, null, 2),
+    );
   };
   await saveTargetResources();
   let guildId = "gld_default_01";
@@ -111,7 +120,10 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
         },
       });
       expect(response.ok()).toBeTruthy();
-      const session = await response.json() as { accessToken: string; user: { id: string } };
+      const session = (await response.json()) as {
+        accessToken: string;
+        user: { id: string };
+      };
       targetResources[`${label}UserId`] = session.user.id;
       await saveTargetResources();
       return session.accessToken;
@@ -306,7 +318,9 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
       }
     });
     page.on("console", (message) => {
-      const expectedOfflineRequest = testNetworkRecovery && index === 0 &&
+      const expectedOfflineRequest =
+        testNetworkRecovery &&
+        index === 0 &&
         message.text().includes("net::ERR_INTERNET_DISCONNECTED");
       if (message.type() === "error" && !tearingDown && !expectedOfflineRequest)
         activeConsoleErrors.push(`browser ${index}: ${message.text()}`);
@@ -561,14 +575,18 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     .getByTestId("screen-share-audio-checkbox")
     .check({ force: true });
   await pages[0].getByTestId("start-screen-share-confirm-btn").click();
-  const watchButtons = [pages[1], pages[2]].map((page) => page.locator('[data-testid^="stream-watch-toggle-"]').first());
+  const watchButtons = [pages[1], pages[2]].map((page) =>
+    page.locator('[data-testid^="stream-watch-toggle-"]').first(),
+  );
   for (const watchButton of watchButtons) {
     await expect(watchButton).toBeVisible({ timeout: 20_000 });
     await expect(watchButton).toHaveText("播放直播");
     await watchButton.click();
     await expect(watchButton).toHaveText("停止观看", { timeout: 20_000 });
   }
-  await expect(pages[0].locator('[data-testid^="stream-viewer-count-"]').first()).toContainText("2 人观看", { timeout: 20_000 });
+  await expect(
+    pages[0].locator('[data-testid^="stream-viewer-count-"]').first(),
+  ).toContainText("2 人观看", { timeout: 20_000 });
   try {
     await expect
       .poll(
@@ -594,15 +612,25 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
       )
       .toBe(true);
   } catch (error) {
-    console.log(JSON.stringify({ stage: "screen", snapshots: await Promise.all(pages.map(mediaSnapshot)), diagnostics }));
+    console.log(
+      JSON.stringify({
+        stage: "screen",
+        snapshots: await Promise.all(pages.map(mediaSnapshot)),
+        diagnostics,
+      }),
+    );
     throw error;
   }
   const screenReceiver = await mediaSnapshot(pages[1]);
   await pages[1].waitForTimeout(1200);
-  expect(videoBytes(await mediaSnapshot(pages[1]))).toBeGreaterThan(videoBytes(screenReceiver));
+  expect(videoBytes(await mediaSnapshot(pages[1]))).toBeGreaterThan(
+    videoBytes(screenReceiver),
+  );
   await watchButtons[1].click();
   await expect(watchButtons[1]).toHaveText("播放直播", { timeout: 20_000 });
-  await expect(pages[0].locator('[data-testid^="stream-viewer-count-"]').first()).toContainText("1 人观看", { timeout: 20_000 });
+  await expect(
+    pages[0].locator('[data-testid^="stream-viewer-count-"]').first(),
+  ).toContainText("1 人观看", { timeout: 20_000 });
   await pages[0].getByTestId("voice-toggle-screen-btn").click();
   let networkReceiver: Awaited<ReturnType<typeof mediaSnapshot>> | undefined;
   if (onTarget && testNetworkRecovery) {
@@ -739,11 +767,9 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   expect(activeConsoleErrors, JSON.stringify(diagnostics)).toEqual([]);
   tearingDown = true;
   for (const page of pages) {
-    const shareModal = page
-      .locator(".fixed.inset-0.z-50")
-      .filter({
-        has: page.getByRole("heading", { name: /屏幕与应用直播分享/ }),
-      });
+    const shareModal = page.locator(".fixed.inset-0.z-50").filter({
+      has: page.getByRole("heading", { name: /屏幕与应用直播分享/ }),
+    });
     if (await shareModal.isVisible().catch(() => false))
       await shareModal.getByRole("button", { name: "关闭" }).click();
     await page.getByRole("button", { name: "断开连接" }).first().click();

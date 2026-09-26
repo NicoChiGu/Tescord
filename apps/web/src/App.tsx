@@ -2205,13 +2205,14 @@ export const App: React.FC = () => {
       }
     });
 
-    const unbindSpeakers = VOICE_ENGINE === "cloudflare_realtime"
-      ? cloudflareRealtimeService.onActiveSpeakersChange((speakers) => {
-          setActiveSpeakers([...speakers]);
-        })
-      : livekitService.onActiveSpeakersChange((speakers) => {
-          setActiveSpeakers([...speakers]);
-        });
+    const unbindSpeakers =
+      VOICE_ENGINE === "cloudflare_realtime"
+        ? cloudflareRealtimeService.onActiveSpeakersChange((speakers) => {
+            setActiveSpeakers([...speakers]);
+          })
+        : livekitService.onActiveSpeakersChange((speakers) => {
+            setActiveSpeakers([...speakers]);
+          });
 
     const unbindConnStatus = livekitService.onConnectionStatusChange(
       (status) => {
@@ -2806,7 +2807,9 @@ export const App: React.FC = () => {
 
     let joinSuccess = false;
     const effectiveVoiceMode =
-      channel.voiceMode || useSettingsStore.getState().voiceTransmissionMode || "sfu";
+      channel.voiceMode ||
+      useSettingsStore.getState().voiceTransmissionMode ||
+      "sfu";
     const isP2PMesh = effectiveVoiceMode === "p2p_mesh";
     const isCloudflareActive =
       !isP2PMesh &&

@@ -84,7 +84,10 @@ test.describe("编辑频道与服务器设置自适应模态框 (Modal) 交互�
 
   test("频道悬浮齿轮打开编辑弹窗并可用 ESC 关闭", async ({ page }) => {
     await page.goto("/");
-    await page.getByRole("button", { name: /Tescord 极客总部|极客/i }).first().click();
+    await page
+      .getByRole("button", { name: /Tescord 极客总部|极客/i })
+      .first()
+      .click();
     const channelRow = page.getByTestId("channel-button-general");
     await expect(channelRow).toBeVisible();
     const channelId = await channelRow.getAttribute("data-channel-id");

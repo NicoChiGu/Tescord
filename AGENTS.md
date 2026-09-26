@@ -15,6 +15,9 @@
 3. **极简主上下文与按需代理 (Context Hygiene)**：
    - 遵守长思维链与高思考等级（High Thinking）推演。
    - 避免在主对话上下文中做大规模的冗余文件吞吐，善用专职子代理完成查阅与方案验证。
+4. **全域国际化与无硬编码文案 (Full-Stack i18n & Zero Hardcoded Copy)**：
+   - 系统全面支持 5 种官方语言区域：**简体中文 (`zh-CN`)、繁体中文（台湾）(`zh-TW`)、繁体中文（香港）(`zh-HK`)、英语 (`en-US`)、日本語 (`ja-JP`)**。
+   - 坚决杜绝在前端组件（JSX/TSX）或后端返回中出现任何未经 i18n 抽离的硬编码展示文本与中文错误字符串。
 
 ---
 
@@ -97,6 +100,46 @@ pnpm test:e2e
 pnpm format
 ```
 
+### 4.4 国际化与本地化工程规范 (i18n & Localization Standards)
+
+为保障全球化与多区域用户的原生体验，所有智能体在开发任何功能、界面或协议时，必须严格执行以下 i18n 规范：
+
+1. **官方支持语言矩阵（Strict 5 Locales）**：
+   - `zh-CN`：简体中文（系统核心默认与兜底回退语言）
+   - `zh-TW`：繁體中文（台灣，正体中文习惯、本地术语）
+   - `zh-HK`：繁體中文（香港，港式用语习惯）
+   - `en-US`：English (United States)
+   - `ja-JP`：日本語（日语音系、敬语与本地化表达）
+   - 强类型定义统一受控于 `@tescord/types` 的 `SupportedLocale` 联合类型与 `SUPPORTED_LOCALES` 元数据数组。
+
+2. **多语言资源包组织与命名空间划分 (`apps/web/src/i18n/locales/`)**：
+   - 每种语言必须在对应目录完整包含 10 个标准业务域 JSON 字典，严禁随意新增根目录孤立文件：
+     - `common.json`：全局通用操作（确认、取消、保存、搜索、重试、加载等）
+     - `auth.json`：登录、注册、找回密码、双因子验证、快速登入
+     - `settings.json`：用户设置面板、语言选择、音频视频设备与偏好文案
+     - `chat.json`：聊天输入、消息操作、频道通知、历史消息横幅与系统提示
+     - `voice.json`：语音频道控制面板、网络连线状态、静音/开麦、屏幕共享
+     - `server.json`：公会设置、频道管理、身份组权限、成员列表与管理
+     - `contextMenu.json`：消息/用户/频道/服务器全局右键上下文菜单
+     - `modals.json`：各类交互模态确认弹窗、加入公会、创建频道
+     - `admin.json`：平台治理、审计日志与超级管理后台
+     - `errors.json`：全系统标准错误码提示字典映射
+   - **键名对称性红线**：修改或新增任何多语言键值时，**必须同时且完整地更新全部 5 种语言的对应 JSON 文件**。键路径必须 100% 对齐，杜绝漏键；严禁在某个语言中留下空键或拼写不一致。
+
+3. **前端代码研发与组件呈现准则**：
+   - **严禁裸写文案**：禁止在 JSX/TSX 中硬编码任何人类可读的展示文本（包括按钮文字、标题、描述、placeholder、title、aria-label 及 tooltip 等）。
+   - **规范化调用**：React 组件中必须使用 `const { t } = useTranslation('namespace')`；非 React 上下文（如工具类、全局通知）必须使用 `tGlobal('namespace:key')`。
+   - **样式与排版适应**：UI 必须支持不同语言长度的自适应（如英语通常较中文更长，日语需要适配换行），容器必须合理使用 `truncate`、`text-ellipsis`、弹性布局（Flex/Grid）或动态最小宽度，严禁因多语言文本长度不一导致布局破碎或内容截断不可见。
+
+4. **桌面端（Electron）原生环境适配**：
+   - Electron 主进程的原生托盘（Tray Tooltip/ContextMenu）、应用主菜单（App Menu）、编辑器右键菜单（撤销/复制/粘贴/检查元素）及启动屏（Splash Screen）必须统一通过 `apps/desktop/src/locales.ts` 中的 `desktopLocales` 管理。
+   - 必须通过 IPC 监听前端同步指令（`syncLocale`），实现用户在前端切换语言时，桌面原生组件无缝、零重启即时热更新，并持久化到本地用户配置。
+
+5. **服务端错误码与协议响应契约**：
+   - 服务端（Fastify REST / WebSocket Gateway）**严禁向客户端直接返回硬编码的人类语言错误字符串**（如 `reply.send({ error: "密码错误" })`）。
+   - 服务端必须使用 `packages/types` 中导出的标准 `ErrorCode` 枚举，并调用 `sendApiError(reply, status, ErrorCode.XXX, fallbackMsg)` 返回标准结构 `{ code: ErrorCode, error: string }`。
+   - 客户端（Web/Desktop）统一通过 `getErrorMessage(err)` 与 `errors.json` 字典完成当前语言的动态映射呈现，确保错误提示与当前界面语言绝对一致。
+
 ---
 
 ## 5. 质量保证与安全检查清单 (Checklist for Agents)
@@ -113,6 +156,11 @@ pnpm format
    - 凡涉及 Web/Desktop 前端界面展示、用户交互行为、音视频面板、右键菜单或端到端核心链路的改动，**在最终交付前必须运行并通过 Playwright 自动化验收测试**（`pnpm test:e2e` 或专项 Playwright 脚本）。
    - **验收指标与凭证**：测试用例必须 100% 通过（PASS），控制台无未捕获的严重错误（Console Error）。Agent 在任务完成汇报中，**必须附带 Playwright 测试通过的执行日志或测试凭据**。
    - **用例补充红线**：若开发了新交互功能或重构了核心交互流程，必须同步在 `e2e/` 补充配套的 Playwright 测试用例，严禁未经浏览器真实渲染验证即交付。
+5. **国际化与多语言完整性验收 (i18n Completeness & UI Integrity)**：
+   - 任何涉及用户界面文案或错误提示的修改，必须检查并确保 `zh-CN`、`zh-TW`、`zh-HK`、`en-US`、`ja-JP` 全部 5 套语言字典同步更新，键名保持 100% 对称，严禁遗漏任何目标语言翻译。
+   - 代码库自查中严禁遗留未抽离的硬编码中英文字符串。
+   - 切换 5 种语言测试验证时，界面布局严禁出现文字溢出（Text Overflow）、按钮换行破损或样式崩坏。
+   - 凡涉及新界面或核心流程改动，必须确保或扩展现有的多语言自动化验收测试（`e2e/i18n-language-switch.spec.ts`），确保 5 种语言即时热切换与本地持久化测试通过（PASS）。
 
 ### 5.1 安全边界与负向测试（所有 AI 必须遵守）
 
