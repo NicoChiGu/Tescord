@@ -78,9 +78,16 @@ export class P2PStreamManager {
    * 动态拉取服务端 Coturn TURN 与双栈 STUN 列表
    */
   public async fetchIceServers(): Promise<RTCIceServer[]> {
-    if (this.isIceServersLoaded && Date.now() - this.iceServersLoadedAt < 60 * 60 * 1000) return this.currentIceServers;
+    if (
+      this.isIceServersLoaded &&
+      Date.now() - this.iceServersLoadedAt < 60 * 60 * 1000
+    )
+      return this.currentIceServers;
     try {
-      const token = useAuthStore.getState().token || sessionStorage.getItem("tescord_access_token") || localStorage.getItem("tescord_access_token");
+      const token =
+        useAuthStore.getState().token ||
+        sessionStorage.getItem("tescord_access_token") ||
+        localStorage.getItem("tescord_access_token");
       const res = await apiFetch(`${API_BASE}/api/network/ice-servers`, {
         headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
       });

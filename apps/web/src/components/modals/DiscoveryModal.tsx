@@ -17,6 +17,7 @@ import { getErrorMessage } from "../../i18n/index.js";
 
 interface DiscoveryModalProps {
   isOpen: boolean;
+  initialInviteCode?: string;
   onClose: () => void;
   onGuildJoined: (guildId: string) => void;
   onOpenCreateModal: () => void;
@@ -24,6 +25,7 @@ interface DiscoveryModalProps {
 
 export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
   isOpen,
+  initialInviteCode = "",
   onClose,
   onGuildJoined,
   onOpenCreateModal,
@@ -45,6 +47,14 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
   const [inviteCode, setInviteCode] = useState("");
   const [isSubmittingInvite, setIsSubmittingInvite] = useState(false);
   const [inviteError, setInviteError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isOpen && initialInviteCode) {
+      setActiveTab("invite");
+      setInviteCode(initialInviteCode);
+      setInviteError(null);
+    }
+  }, [isOpen, initialInviteCode]);
 
   // 打开弹窗时拉取公开服务器
   useEffect(() => {

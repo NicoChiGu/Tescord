@@ -30,8 +30,18 @@ if (process.env.NODE_ENV === "production") {
     "DATABASE_URL",
     "JWT_SECRET",
     ...(cloudflareMedia
-      ? ["CLOUDFLARE_CALLS_APP_ID", "CLOUDFLARE_CALLS_APP_SECRET", "CLOUDFLARE_CALLS_TURN_KEY_ID", "CLOUDFLARE_CALLS_TURN_API_TOKEN"]
-      : ["LIVEKIT_API_KEY", "LIVEKIT_API_SECRET", "LIVEKIT_URL", "LIVEKIT_HTTP_URL"]),
+      ? [
+          "CLOUDFLARE_CALLS_APP_ID",
+          "CLOUDFLARE_CALLS_APP_SECRET",
+          "CLOUDFLARE_CALLS_TURN_KEY_ID",
+          "CLOUDFLARE_CALLS_TURN_API_TOKEN",
+        ]
+      : [
+          "LIVEKIT_API_KEY",
+          "LIVEKIT_API_SECRET",
+          "LIVEKIT_URL",
+          "LIVEKIT_HTTP_URL",
+        ]),
     "UPLOAD_SIGNING_SECRET",
     "MINIO_ACCESS_KEY",
     "MINIO_SECRET_KEY",
@@ -110,7 +120,10 @@ if (process.env.NODE_ENV === "production") {
   }
   if (!cloudflareMedia && !/^wss:\/\//.test(process.env.LIVEKIT_URL || ""))
     invalid.push("LIVEKIT_URL");
-  if (!cloudflareMedia && !/^https?:\/\//.test(process.env.LIVEKIT_HTTP_URL || ""))
+  if (
+    !cloudflareMedia &&
+    !/^https?:\/\//.test(process.env.LIVEKIT_HTTP_URL || "")
+  )
     invalid.push("LIVEKIT_HTTP_URL");
   const allowedOrigins = (process.env.CORS_ORIGINS || "")
     .split(",")
@@ -136,7 +149,9 @@ if (process.env.NODE_ENV === "production") {
   const cfTurnKeyId = process.env.CLOUDFLARE_CALLS_TURN_KEY_ID?.trim() || "";
   const cfTurnToken = process.env.CLOUDFLARE_CALLS_TURN_API_TOKEN?.trim() || "";
   if (Boolean(cfTurnKeyId) !== Boolean(cfTurnToken)) {
-    invalid.push("CLOUDFLARE_CALLS_TURN_KEY_ID/CLOUDFLARE_CALLS_TURN_API_TOKEN pair");
+    invalid.push(
+      "CLOUDFLARE_CALLS_TURN_KEY_ID/CLOUDFLARE_CALLS_TURN_API_TOKEN pair",
+    );
   }
 
   if (invalid.length > 0) {

@@ -495,55 +495,70 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
               )}
             </span>
           </div>
-          {/* 右上角固定关闭按钮与 ESC 提示 */}
-          <div className="absolute top-2.5 right-3 md:top-6 md:right-8 flex flex-col items-center z-40">
+          {/* 移动端右上角固定关闭按钮 */}
+          <div className="md:hidden absolute top-2.5 right-3 flex items-center z-40">
             <button
               data-testid="close-server-settings-btn"
               onClick={onClose}
-              className="w-9 h-9 rounded-full border-2 border-white/20 hover:border-white flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+              className="w-8 h-8 rounded-full border border-white/20 hover:border-white flex items-center justify-center text-gray-300 hover:text-white bg-[#1e1f22]/90 transition-all cursor-pointer shadow-md"
               title={`${t("common:close")} (ESC)`}
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
-            <span className="text-[10px] font-bold text-gray-400 mt-1 select-none">
-              ESC
-            </span>
           </div>
 
-          {/* 内容画布容器 */}
-          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 md:px-10 py-5 md:py-10 pb-[max(1.25rem,env(safe-area-inset-bottom))] max-w-4xl">
-            {activeTab === "overview" && (
-              <OverviewTab guild={guild} onUpdateGuild={handleUpdateGuild} />
-            )}
+          {/* 桌面端内容与独立工具列的水平容器 */}
+          <div className="flex-1 min-h-0 flex flex-row">
+            {/* 内容画布容器 */}
+            <div className="flex-1 min-w-0 min-h-0 overflow-y-auto overscroll-contain px-4 md:px-10 py-5 md:py-10 pb-[max(1.25rem,env(safe-area-inset-bottom))] custom-scrollbar">
+              {activeTab === "overview" && (
+                <OverviewTab guild={guild} onUpdateGuild={handleUpdateGuild} />
+              )}
 
-            {activeTab === "roles" && (
-              <RolesTab
-                guild={guild}
-                roles={roles}
-                onCreateRole={handleCreateRole}
-                onUpdateRole={handleUpdateRole}
-                onDeleteRole={handleDeleteRole}
-              />
-            )}
+              {activeTab === "roles" && (
+                <RolesTab
+                  guild={guild}
+                  roles={roles}
+                  onCreateRole={handleCreateRole}
+                  onUpdateRole={handleUpdateRole}
+                  onDeleteRole={handleDeleteRole}
+                />
+              )}
 
-            {activeTab === "members" && (
-              <MembersTab
-                guild={guild}
-                roles={roles}
-                onUpdateMember={handleUpdateMember}
-                onKickMember={handleKickMember}
-                onBanMember={handleBanMember}
-                onTransferOwnership={handleTransferOwnership}
-              />
-            )}
+              {activeTab === "members" && (
+                <MembersTab
+                  guild={guild}
+                  roles={roles}
+                  onUpdateMember={handleUpdateMember}
+                  onKickMember={handleKickMember}
+                  onBanMember={handleBanMember}
+                  onTransferOwnership={handleTransferOwnership}
+                />
+              )}
 
-            {activeTab === "invites" && <InvitesTab guild={guild} />}
+              {activeTab === "invites" && <InvitesTab guild={guild} />}
 
-            {activeTab === "bans" && (
-              <BansTab guild={guild} onUnbanMember={handleUnbanMember} />
-            )}
+              {activeTab === "bans" && (
+                <BansTab guild={guild} onUnbanMember={handleUnbanMember} />
+              )}
 
-            {activeTab === "audit-log" && <AuditLogTab guild={guild} />}
+              {activeTab === "audit-log" && <AuditLogTab guild={guild} />}
+            </div>
+
+            {/* 桌面端 Discord 经典右侧独立工具列 (Tools Column) */}
+            <div className="hidden md:flex flex-col items-center w-16 pt-8 pr-3 flex-shrink-0 select-none">
+              <button
+                data-testid="close-server-settings-btn"
+                onClick={onClose}
+                className="w-9 h-9 rounded-full border-2 border-white/20 hover:border-white flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+                title={`${t("common:close")} (ESC)`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <span className="text-[10px] font-bold text-gray-400 mt-1.5 select-none tracking-wide">
+                ESC
+              </span>
+            </div>
           </div>
         </div>
 

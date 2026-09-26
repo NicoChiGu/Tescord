@@ -109,7 +109,7 @@ test.describe("移动端 Web 与较小视口“编辑个人资料 / 用户设置
     await expect(modal).toBeVisible({ timeout: 5000 });
 
     // 4. 验证移动端顶部统一关闭按钮位于顶部易于触控的位置
-    const closeBtn = page.getByTestId("close-user-settings-btn");
+    const closeBtn = page.getByTestId("close-user-settings-mobile-btn");
     await expect(closeBtn).toBeVisible();
     const closeBtnBox = await closeBtn.boundingBox();
     expect(closeBtnBox).not.toBeNull();
@@ -269,7 +269,7 @@ test.describe("移动端 Web 与较小视口“编辑个人资料 / 用户设置
     await expect(simulateBtn).toBeVisible();
 
     // 关闭 Modal
-    const closeBtn = page.getByTestId("close-user-settings-btn");
+    const closeBtn = page.getByTestId("close-user-settings-mobile-btn");
     await closeBtn.click();
     await expect(modal).not.toBeVisible();
 

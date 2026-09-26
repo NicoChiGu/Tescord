@@ -62,6 +62,7 @@ export class AudioEngine {
   private processedStream: MediaStream | null = null;
   private sourceNode: MediaStreamAudioSourceNode | null = null;
   private analyser: AnalyserNode | null = null;
+  private outputAnalyser: AnalyserNode | null = null;
   private rnnoiseNode: RnnoiseWorkletNode | DtlnWorkletNode | null = null;
   private dtlnNode: DtlnWorkletNode | null = null;
   private dfn3Node: Dfn3WorkletNode | null = null;
@@ -377,7 +378,7 @@ export class AudioEngine {
     // 2.1 手动输入增益节点 (0% ~ 200% 可调)
     this.inputGainNode = this.audioContext.createGain();
 
-    // 2.2 分析器节点 (用于实时提取 0~100 音量及 VAD 判定，连接于增益后以真实反映有效音量)
+    // Keep the VAD input independent of the manual transmit gain.
     this.analyser = this.audioContext.createAnalyser();
     this.analyser.fftSize = 512;
     this.analyser.smoothingTimeConstant = 0.3;
@@ -401,6 +402,10 @@ export class AudioEngine {
 
     // 2.5 最终目标流输出节点 (作为推流给 LiveKit 的干净流)
     this.destinationNode = this.audioContext.createMediaStreamDestination();
+    this.outputAnalyser = this.audioContext.createAnalyser();
+    this.outputAnalyser.fftSize = 512;
+    this.outputAnalyser.smoothingTimeConstant = 0.3;
+    this.outputAnalyser.connect(this.destinationNode);
     if (!this.config.highFidelityMusic) {
       const base = new URL(
         import.meta.env.BASE_URL || "./",
@@ -419,9 +424,10 @@ export class AudioEngine {
         },
       );
       this.vadGainNode.connect(this.voicePostNode);
-      this.voicePostNode.connect(this.destinationNode);
+      this.voicePostNode.connect(this.outputAnalyser);
     } else {
-      this.inputGainNode.connect(this.destinationNode);
+      this.inputGainNode.connect(this.postGainNode);
+      this.postGainNode.connect(this.outputAnalyser);
     }
     this.processedStream = this.destinationNode.stream;
 
@@ -516,8 +522,6 @@ export class AudioEngine {
       } catch (error) {
         this.lastError = String(error);
         node?.destroy();
-        this.rnnoiseNode?.destroy();
-        this.rnnoiseNode = null;
         return false;
       }
     }
@@ -552,6 +556,7 @@ export class AudioEngine {
       console.log("✅ RNNoise 神经网络 AudioWorklet AI 降噪引擎加载完成");
       return true;
     } catch (err) {
+      this.lastError = String(err);
       console.warn("⚠️ RNNoise AudioWorklet 加载回退:", err);
       return false;
     }
@@ -571,32 +576,33 @@ export class AudioEngine {
     if (this.isDtlnReady && this.dtlnNode) return true;
     if (!this.audioContext || !this.audioContext.audioWorklet) return false;
     const context = this.audioContext;
+    let node: DtlnWorkletNode | null = null;
 
     try {
       const loaded = await loadDtlnWorklet(context);
       if (!loaded || context !== this.audioContext) return false;
 
-      this.dtlnNode = new DtlnWorkletNode(context);
-      await this.dtlnNode.ready();
+      node = new DtlnWorkletNode(context);
+      await node.ready();
       if (context !== this.audioContext) {
-        this.dtlnNode.destroy();
-        this.dtlnNode = null;
+        node.destroy();
         return false;
       }
-      this.dtlnNode.onFailure = (reason) => {
+      node.onFailure = (reason) => {
+        if (this.dtlnNode !== node) return;
         this.lastError = `DTLN 推理中断：${reason}`;
         if (this.isDtlnActive)
           void this.applyNoiseSuppressionRouting("rnnoise");
       };
-      this.dtlnNode.onStats = (stats) => {
+      node.onStats = (stats) => {
         if (this.isDtlnActive) Object.assign(this.noiseStatus, stats);
       };
+      this.dtlnNode = node;
       this.isDtlnReady = true;
       console.log("DTLN 双阶段 ONNX 降噪引擎已就绪");
       return true;
     } catch (err) {
-      this.dtlnNode?.destroy();
-      this.dtlnNode = null;
+      node?.destroy();
       this.lastError = String(err);
       console.warn("⚠️ DTLN AudioWorklet 加载回退:", err);
       return false;
@@ -617,30 +623,31 @@ export class AudioEngine {
     if (this.isDfn3Ready && this.dfn3Node) return true;
     if (!this.audioContext?.audioWorklet) return false;
     const context = this.audioContext;
+    let node: Dfn3WorkletNode | null = null;
     try {
       await loadDfn3Worklet(context);
       if (context !== this.audioContext) return false;
-      this.dfn3Node = new Dfn3WorkletNode(context);
-      await this.dfn3Node.ready();
+      node = new Dfn3WorkletNode(context);
+      await node.ready();
       if (context !== this.audioContext) {
-        this.dfn3Node.destroy();
-        this.dfn3Node = null;
+        node.destroy();
         return false;
       }
-      this.dfn3Node.onFailure = (reason) => {
+      node.onFailure = (reason) => {
+        if (this.dfn3Node !== node) return;
         this.lastError = `DeepFilterNet3 推理中断：${reason}`;
         if (this.isDfn3Active)
           void this.applyNoiseSuppressionRouting("rnnoise");
       };
-      this.dfn3Node.onStats = (stats) => {
+      node.onStats = (stats) => {
         if (this.isDfn3Active) Object.assign(this.noiseStatus, stats);
       };
+      this.dfn3Node = node;
       this.isDfn3Ready = true;
       return true;
     } catch (error) {
       this.lastError = String(error);
-      this.dfn3Node?.destroy();
-      this.dfn3Node = null;
+      node?.destroy();
       return false;
     }
   }
@@ -666,17 +673,38 @@ export class AudioEngine {
 
     // Keep the old route audible while the new engine loads.
     if (requested === "dtln" && !(await this.ensureDtlnInitialized())) {
-      effective = "rnnoise";
       reason = this.lastError || "DTLN model unavailable";
     } else if (requested === "dfn3" && !(await this.ensureDfn3Initialized())) {
-      effective = "rnnoise";
       reason = this.lastError || "DeepFilterNet3 model unavailable";
+    } else if (
+      requested === "rnnoise" &&
+      !(await this.ensureRnnoiseInitialized())
+    ) {
+      reason = this.lastError || "RNNoise unavailable";
     }
-    if (effective === "rnnoise" && !(await this.ensureRnnoiseInitialized())) {
+    if (generation !== this.routingGeneration) {
+      this.releaseUnusedEngines();
+      return;
+    }
+    if (reason && this.activeRoute) {
+      this.noiseStatus = {
+        ...this.noiseStatus,
+        effectiveMode: this.activeRoute.mode,
+        phase: "failed",
+        reason,
+      };
+      this.onErrorCallbacks.forEach((cb) => cb(reason!));
+      this.releaseUnusedEngines();
+      return;
+    }
+    if (
+      reason &&
+      effective !== "rnnoise" &&
+      (await this.ensureRnnoiseInitialized())
+    ) {
+      effective = "rnnoise";
+    } else if (reason) {
       effective = "off";
-      reason = reason
-        ? reason + "; RNNoise unavailable"
-        : "RNNoise unavailable";
     }
     if (
       generation !== this.routingGeneration ||
@@ -827,7 +855,7 @@ export class AudioEngine {
 
   // 4. VAD 智能语音活动判定与声学能量计算 (采用 setInterval 30ms 保证切后台/最小化时不挂起断音)
   private startVADLoop() {
-    if (!this.analyser) return;
+    if (!this.analyser || !this.outputAnalyser) return;
 
     if (this.vadTimer) {
       clearInterval(this.vadTimer);
@@ -835,6 +863,7 @@ export class AudioEngine {
     }
 
     const timeData = new Float32Array(this.analyser.fftSize);
+    const outputData = new Float32Array(this.outputAnalyser.fftSize);
 
     const checkVolume = () => {
       if (!this.analyser) return;
@@ -910,8 +939,16 @@ export class AudioEngine {
         this.updateGating();
       }
 
+      this.outputAnalyser?.getFloatTimeDomainData(outputData);
+      let outputEnergy = 0;
+      for (const sample of outputData) outputEnergy += sample * sample;
+      const outputRms = Math.sqrt(outputEnergy / outputData.length);
+      const outputDb = 20 * Math.log10(Math.max(outputRms, 1e-6));
+      const outputLevel = this.isManualMuted
+        ? 0
+        : Math.max(0, Math.min(100, Math.round((outputDb + 55) / 0.4)));
       this.onSpeakingChangeCallbacks.forEach((cb) =>
-        cb(this.isTalking, volumeLevel),
+        cb(this.isTalking, outputLevel),
       );
     };
 
@@ -1491,6 +1528,12 @@ export class AudioEngine {
         this.analyser.disconnect();
       } catch {}
       this.analyser = null;
+    }
+    if (this.outputAnalyser) {
+      try {
+        this.outputAnalyser.disconnect();
+      } catch {}
+      this.outputAnalyser = null;
     }
     if (this.vadGainNode) {
       try {

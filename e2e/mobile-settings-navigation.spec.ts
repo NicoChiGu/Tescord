@@ -46,7 +46,7 @@ test("320px 用户设置目录和详情均可阅读，返回保留表单", async
   await page.getByTestId("tab-profile-btn").click();
   await expect(nameInput).toHaveValue("Mobile Draft");
   await page.getByTestId("reset-profile-changes-btn").click();
-  await page.getByTestId("close-user-settings-btn").click();
+  await page.getByTestId("close-user-settings-mobile-btn").click();
   expect(errors).toEqual([]);
 });
 

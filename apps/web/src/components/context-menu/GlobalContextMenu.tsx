@@ -8,6 +8,8 @@ import {
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { usePermissions } from "../../hooks/usePermissions.js";
 import { livekitService } from "../../services/livekit.js";
+import { cloudflareRealtimeService } from "../../services/cloudflare_realtime/index.js";
+import { VOICE_ENGINE } from "../../config.js";
 import {
   Reply,
   Pin,
@@ -349,7 +351,7 @@ const UserMenuItems: React.FC<UserMenuItemsProps> = ({
   const isMe = currentUser?.id === targetUser.id;
   const [volume, setVolume] = useState<number>(() => {
     if (!isMe) {
-      return livekitService.getParticipantVolume(targetUser.id) ?? 100;
+      return (VOICE_ENGINE === "cloudflare_realtime" ? cloudflareRealtimeService : livekitService).getParticipantVolume(targetUser.id) ?? 100;
     }
     return 100;
   });
@@ -371,6 +373,7 @@ const UserMenuItems: React.FC<UserMenuItemsProps> = ({
   const handleVolumeChange = (newVol: number) => {
     setVolume(newVol);
     livekitService.setParticipantVolume(targetUser.id, newVol);
+    cloudflareRealtimeService.setParticipantVolume(targetUser.id, newVol);
   };
 
   return (

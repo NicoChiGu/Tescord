@@ -327,21 +327,18 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-150 p-0 sm:p-4 md:p-6"
     >
       <div className="relative w-full h-[100dvh] min-h-0 sm:h-[90vh] sm:max-h-[850px] sm:max-w-6xl rounded-none sm:rounded-2xl bg-[#313338] shadow-2xl overflow-hidden flex flex-col md:flex-row border border-transparent sm:border-white/5">
-        {/* 全局右上角关闭按钮 (移动端与桌面端自适应位置，保证全局唯一无歧义) */}
-        <div className="absolute top-2.5 right-3 md:top-6 md:right-8 flex flex-col items-center z-50">
+        {/* 移动端右上角关闭按钮 */}
+        <div className="md:hidden absolute top-2.5 right-3 flex items-center z-50">
           <button
             type="button"
-            data-testid="close-user-settings-btn"
+            data-testid="close-user-settings-mobile-btn"
             onClick={onClose}
             aria-label="关闭"
-            className="w-8 h-8 md:w-9 md:h-9 rounded-full border border-white/20 md:border-2 hover:border-white flex items-center justify-center text-gray-300 hover:text-white bg-[#1e1f22]/90 md:bg-transparent hover:bg-white/10 transition-all cursor-pointer shadow-md md:shadow-none"
+            className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center text-gray-300 hover:text-white bg-[#1e1f22]/90 transition-all cursor-pointer shadow-md"
             title="关闭设置 (ESC)"
           >
-            <X className="w-4 h-4 md:w-5 md:h-5" />
+            <X className="w-4 h-4" />
           </button>
-          <span className="hidden md:block text-[10px] font-bold text-gray-400 mt-1 select-none">
-            ESC
-          </span>
         </div>
 
         {/* 移动端先展示目录，选择后使用全宽详情。 */}
@@ -516,509 +513,529 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                     : t("settings:updatesTab", "版本与更新")}
             </span>
           </div>
-          {/* 内容画布容器 */}
-          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-10 py-5 sm:py-8 pb-[max(1.25rem,env(safe-area-inset-bottom))] custom-scrollbar">
-            {activeTab === "profile" && (
-              <div className="space-y-6 max-w-5xl">
-                <div>
-                  <h2 className="text-xl font-bold text-white flex items-center gap-2">
-                    <Palette className="w-6 h-6 text-[#5865f2]" />
-                    <span>展示卡与个人资料 (Profiles)</span>
-                  </h2>
-                  <p className="text-xs text-discord-textMuted mt-1">
-                    在此个性化您的个人信息展示卡外观，设置游戏侦测状态，并随时通过右侧
-                    1:1 卡片查看实时预览。
-                  </p>
-                </div>
+          {/* 桌面端内容与独立工具列的水平容器 */}
+          <div className="flex-1 min-h-0 flex flex-row">
+            {/* 内容画布容器 */}
+            <div className="flex-1 min-w-0 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-10 py-5 sm:py-8 pb-[max(1.25rem,env(safe-area-inset-bottom))] custom-scrollbar">
+              {activeTab === "profile" && (
+                <div className="space-y-6 max-w-5xl">
+                  <div>
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                      <Palette className="w-6 h-6 text-[#5865f2]" />
+                      <span>展示卡与个人资料 (Profiles)</span>
+                    </h2>
+                    <p className="text-xs text-discord-textMuted mt-1">
+                      在此个性化您的个人信息展示卡外观，设置游戏侦测状态，并随时通过右侧
+                      1:1 卡片查看实时预览。
+                    </p>
+                  </div>
 
-                {/* 左右双栏：左侧配置表单，右侧 1:1 动态实时预览 */}
-                <div className="flex flex-col lg:flex-row gap-8 items-start">
-                  {/* 左侧：个性化属性配置 */}
-                  <div className="flex-1 space-y-6 w-full min-w-0">
-                    {/* 1. 头像与基本信息 */}
-                    <div className="rounded-2xl bg-[#2b2d31] p-5 border border-white/5 flex flex-col sm:flex-row items-center gap-5 shadow-sm">
-                      <div className="relative group">
-                        <img
-                          src={
-                            avatarUrl ||
-                            user.avatarUrl ||
-                            "https://api.dicebear.com/7.x/bottts/svg?seed=fallback"
-                          }
-                          alt={user.username}
-                          className="w-18 h-18 rounded-full bg-[#1e1f22] object-cover ring-4 ring-[#313338] shadow-inner"
-                        />
-                        <button
-                          type="button"
-                          onClick={handleRandomAvatar}
-                          title="随机换一个头像"
-                          className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-[#5865f2] hover:bg-[#4752c4] text-white shadow-md transition-transform hover:scale-110"
-                        >
-                          <Dices className="w-4 h-4" />
-                        </button>
-                      </div>
-
-                      <div className="flex-1 text-center sm:text-left">
-                        <div className="flex items-center justify-center sm:justify-start gap-2">
-                          <h4 className="text-lg font-bold text-white">
-                            {displayName || userPrefix}
-                          </h4>
-                          <span className="flex items-center gap-1 text-[11px] font-bold bg-[#5865f2]/20 text-[#5865f2] px-2 py-0.5 rounded-full">
-                            <Shield className="w-3 h-3" />
-                            已鉴权
-                          </span>
+                  {/* 左右双栏：左侧配置表单，右侧 1:1 动态实时预览 */}
+                  <div className="flex flex-col lg:flex-row gap-8 items-start">
+                    {/* 左侧：个性化属性配置 */}
+                    <div className="flex-1 space-y-6 w-full min-w-0">
+                      {/* 1. 头像与基本信息 */}
+                      <div className="rounded-2xl bg-[#2b2d31] p-5 border border-white/5 flex flex-col sm:flex-row items-center gap-5 shadow-sm">
+                        <div className="relative group">
+                          <img
+                            src={
+                              avatarUrl ||
+                              user.avatarUrl ||
+                              "https://api.dicebear.com/7.x/bottts/svg?seed=fallback"
+                            }
+                            alt={user.username}
+                            className="w-18 h-18 rounded-full bg-[#1e1f22] object-cover ring-4 ring-[#313338] shadow-inner"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleRandomAvatar}
+                            title="随机换一个头像"
+                            className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-[#5865f2] hover:bg-[#4752c4] text-white shadow-md transition-transform hover:scale-110"
+                          >
+                            <Dices className="w-4 h-4" />
+                          </button>
                         </div>
-                        <p className="text-xs text-gray-400 mt-0.5 font-mono">
-                          @{usernamePrefix}#{userTag}
-                        </p>
-                      </div>
-                    </div>
 
-                    {/* 1.1 显示昵称与用户识别码 (图1 核心功能) */}
-                    <div className="space-y-4 p-4 rounded-xl bg-[#2b2d31] border border-white/5">
-                      <div className="space-y-1.5">
+                        <div className="flex-1 text-center sm:text-left">
+                          <div className="flex items-center justify-center sm:justify-start gap-2">
+                            <h4 className="text-lg font-bold text-white">
+                              {displayName || userPrefix}
+                            </h4>
+                            <span className="flex items-center gap-1 text-[11px] font-bold bg-[#5865f2]/20 text-[#5865f2] px-2 py-0.5 rounded-full">
+                              <Shield className="w-3 h-3" />
+                              已鉴权
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-400 mt-0.5 font-mono">
+                            @{usernamePrefix}#{userTag}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* 1.1 显示昵称与用户识别码 (图1 核心功能) */}
+                      <div className="space-y-4 p-4 rounded-xl bg-[#2b2d31] border border-white/5">
+                        <div className="space-y-1.5">
+                          <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">
+                            显示昵称 (Display Name)
+                          </label>
+                          <input
+                            type="text"
+                            value={displayName}
+                            onChange={(e) => setDisplayName(e.target.value)}
+                            placeholder={userPrefix || "设置向大家展示的昵称"}
+                            data-testid="profile-display-name-input"
+                            className="w-full rounded-xl bg-[#1e1f22] border border-white/5 px-4 py-2.5 text-base sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
+                          />
+                          <p className="text-[11px] text-gray-400">
+                            这是您在聊天、成员列表和个人卡片中展示的专属昵称。您可以随时调整，无修改次数限制。
+                          </p>
+                        </div>
+
+                        <div className="space-y-1.5 pt-2 border-t border-white/5">
+                          <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">
+                            用户识别码 (Unique Identifier)
+                          </label>
+                          <div className="flex items-center bg-[#1e1f22] rounded-xl border border-white/5 focus-within:ring-2 focus-within:ring-[#5865f2] px-3 py-2">
+                            <span className="text-gray-400 text-sm font-mono mr-1 select-none">
+                              @
+                            </span>
+                            <input
+                              type="text"
+                              value={usernamePrefix}
+                              onChange={(e) =>
+                                setUsernamePrefix(
+                                  e.target.value.replace(/#/g, ""),
+                                )
+                              }
+                              data-testid="profile-username-prefix-input"
+                              className="flex-1 bg-transparent text-white text-base sm:text-sm focus:outline-none"
+                              placeholder="用户名"
+                            />
+                            <span
+                              className="bg-[#2b2d31] text-gray-400 font-mono text-xs px-2.5 py-1 rounded-md border border-white/10 select-none ml-2"
+                              title="数字标签终身唯一绑定不可修改"
+                            >
+                              #{userTag}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-gray-400">
+                            识别码前缀可自由定制；后面的 5 位数字标签{" "}
+                            <span className="font-mono text-zinc-300">
+                              #{userTag}
+                            </span>{" "}
+                            为终身唯一绑定不可更改。
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* 2. 在线状态单选 */}
+                      <div className="space-y-2.5">
                         <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">
-                          显示昵称 (Display Name)
+                          {t("settings:presence", "在线状态 (Presence)")}
+                        </label>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                          {STATUS_OPTIONS.map((opt) => {
+                            const isSelected = status === opt.value;
+                            return (
+                              <button
+                                key={opt.value}
+                                type="button"
+                                onClick={() => setStatus(opt.value)}
+                                className={`flex items-center gap-2 p-3 rounded-xl border text-left transition-all ${
+                                  isSelected
+                                    ? "bg-[#5865f2]/10 border-[#5865f2] ring-1 ring-[#5865f2]"
+                                    : "bg-[#2b2d31] border-white/5 hover:bg-white/5"
+                                }`}
+                              >
+                                <span
+                                  className={`w-3 h-3 rounded-full ${opt.color} shrink-0`}
+                                />
+                                <div className="min-w-0">
+                                  <div className="text-xs font-semibold text-white truncate">
+                                    {t(opt.labelKey, opt.defaultLabel)}
+                                  </div>
+                                  <div className="text-[10px] text-gray-400 truncate">
+                                    {t(opt.descKey, opt.defaultDesc)}
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* 3. 展示卡横幅个性化 (Profile Banner) */}
+                      <div className="space-y-3 p-4 rounded-xl bg-[#2b2d31] border border-white/5">
+                        <div className="flex items-center justify-between">
+                          <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                            <Palette className="w-3.5 h-3.5 text-[#5865f2]" />
+                            <span>展示卡横幅 (Profile Banner)</span>
+                          </label>
+                          {bannerColor && (
+                            <button
+                              type="button"
+                              onClick={() => setBannerColor("")}
+                              className="text-[11px] text-gray-400 hover:text-white underline"
+                            >
+                              重置为默认渐变
+                            </button>
+                          )}
+                        </div>
+
+                        {/* 经典预设色板 */}
+                        <div className="space-y-1.5">
+                          <div className="text-[11px] text-gray-400">
+                            预设纯色主题：
+                          </div>
+                          <div className="flex flex-wrap gap-2 items-center">
+                            {PRESET_BANNER_COLORS.map((c) => (
+                              <button
+                                key={c.value}
+                                type="button"
+                                title={c.name}
+                                onClick={() => setBannerColor(c.value)}
+                                className={`w-7 h-7 rounded-full transition-transform border-2 ${
+                                  bannerColor === c.value
+                                    ? "scale-110 border-white ring-2 ring-[#5865f2]"
+                                    : "border-transparent hover:scale-105"
+                                }`}
+                                style={{ backgroundColor: c.value }}
+                              />
+                            ))}
+                            <div className="flex items-center gap-1.5 ml-1">
+                              <input
+                                type="color"
+                                value={bannerColor || "#5865f2"}
+                                onChange={(e) => setBannerColor(e.target.value)}
+                                className="w-7 h-7 rounded cursor-pointer bg-transparent border-0"
+                                title="自定义取色器"
+                              />
+                              <span className="text-[11px] text-gray-400 font-mono">
+                                {bannerColor || "默认"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 自定义横幅图片 URL */}
+                        <div className="space-y-1.5 pt-2 border-t border-white/5">
+                          <div className="text-[11px] text-gray-400 flex items-center gap-1">
+                            <ImageIcon className="w-3.5 h-3.5" />
+                            <span>自定义横幅图片链接 (Banner Image URL)：</span>
+                          </div>
+                          <input
+                            type="url"
+                            data-testid="input-banner-url"
+                            value={bannerUrl}
+                            onChange={(e) => setBannerUrl(e.target.value)}
+                            placeholder="https://... (粘贴外部图片直链，优先于纯色展示)"
+                            className="w-full rounded-xl bg-[#1e1f22] border border-white/5 px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-[#5865f2]"
+                          />
+                        </div>
+                      </div>
+
+                      {/* 4. 卡片强调色 / 主题 (Theme Accent Color) */}
+                      <div className="space-y-2.5 p-4 rounded-xl bg-[#2b2d31] border border-white/5">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                          <span>卡片名称强调色 (Theme Accent)</span>
+                        </label>
+                        <div className="flex flex-wrap gap-2 items-center">
+                          {PRESET_THEME_COLORS.map((tc) => (
+                            <button
+                              key={tc.name}
+                              type="button"
+                              onClick={() => setThemeColor(tc.value)}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                                themeColor === tc.value
+                                  ? "bg-white/10 border-white text-white"
+                                  : "bg-[#1e1f22] border-white/5 text-gray-400 hover:text-white"
+                              }`}
+                            >
+                              {tc.value && (
+                                <span
+                                  className="inline-block w-2.5 h-2.5 rounded-full mr-1.5 align-middle"
+                                  style={{ backgroundColor: tc.value }}
+                                />
+                              )}
+                              <span>{tc.name}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* 5. 游戏状态侦测与展示设置 (Game Activity Settings) */}
+                      <div
+                        data-testid="game-activity-settings-section"
+                        className="space-y-3.5 p-4 rounded-xl bg-[#2b2d31] border border-white/5"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Gamepad2 className="w-4 h-4 text-emerald-400" />
+                            <div>
+                              <span className="text-xs font-bold text-white">
+                                在个人展示卡与状态中显示正在运行的游戏
+                              </span>
+                              <p className="text-[11px] text-gray-400">
+                                开启后，系统侦测到您正在玩的游戏将自动同步展示给同服好友与频道成员。
+                              </p>
+                            </div>
+                          </div>
+                          <input
+                            type="checkbox"
+                            data-testid="toggle-show-activity"
+                            checked={showActivity}
+                            onChange={(e) => setShowActivity(e.target.checked)}
+                            className="w-4 h-4 accent-emerald-500 cursor-pointer"
+                          />
+                        </div>
+
+                        {/* 侦测状态卡片 */}
+                        <div className="p-3 rounded-lg bg-[#1e1f22] border border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+                          <div className="flex items-center gap-2.5">
+                            <div
+                              className={`w-2.5 h-2.5 rounded-full ${
+                                detectedGame || testGameActive
+                                  ? "bg-emerald-500 animate-pulse"
+                                  : "bg-gray-500"
+                              }`}
+                            />
+                            <div>
+                              <div className="font-semibold text-white">
+                                {detectedGame
+                                  ? `已侦测到游戏：${detectedGame.name}`
+                                  : testGameActive
+                                    ? "正在模拟游戏：英雄联盟 (League of Legends)"
+                                    : isElectron
+                                      ? "当前未检测到支持的游戏进程"
+                                      : "Web 端模式：自动侦测仅在桌面客户端生效"}
+                              </div>
+                              <div className="text-[10px] text-gray-400">
+                                {isElectron
+                                  ? "后台每 5 秒低开销扫描系统前台进程"
+                                  : "建议下载并使用 Tescord 桌面客户端获得全自动感知体验"}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* 提供快捷测试开关 (方便无客户端或调试预览) */}
+                          <button
+                            type="button"
+                            onClick={() => setTestGameActive(!testGameActive)}
+                            className="text-[11px] px-2.5 py-1 rounded bg-[#2b2d31] hover:bg-[#35373c] text-gray-300 hover:text-white border border-white/5 transition self-end sm:self-auto shrink-0"
+                          >
+                            {testGameActive ? "停止测试游戏" : "模拟测试游戏"}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 6. 自定义状态与签名 */}
+                      <div className="space-y-2">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">
+                          自定义个性签名 (Custom Status)
                         </label>
                         <input
                           type="text"
-                          value={displayName}
-                          onChange={(e) => setDisplayName(e.target.value)}
-                          placeholder={userPrefix || "设置向大家展示的昵称"}
-                          data-testid="profile-display-name-input"
-                          className="w-full rounded-xl bg-[#1e1f22] border border-white/5 px-4 py-2.5 text-base sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
+                          value={customStatus}
+                          onChange={(e) => setCustomStatus(e.target.value)}
+                          placeholder="分享你现在在做什么... (例如: 正在开黑 🎮)"
+                          className="w-full rounded-xl bg-[#2b2d31] border border-white/5 px-4 py-3 text-base sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
                         />
-                        <p className="text-[11px] text-gray-400">
-                          这是您在聊天、成员列表和个人卡片中展示的专属昵称。您可以随时调整，无修改次数限制。
-                        </p>
                       </div>
 
-                      <div className="space-y-1.5 pt-2 border-t border-white/5">
+                      {/* 7. 自我介绍 / Bio */}
+                      <div className="space-y-2">
                         <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">
-                          用户识别码 (Unique Identifier)
+                          自我介绍 (About Me)
                         </label>
-                        <div className="flex items-center bg-[#1e1f22] rounded-xl border border-white/5 focus-within:ring-2 focus-within:ring-[#5865f2] px-3 py-2">
-                          <span className="text-gray-400 text-sm font-mono mr-1 select-none">
-                            @
-                          </span>
-                          <input
-                            type="text"
-                            value={usernamePrefix}
-                            onChange={(e) =>
-                              setUsernamePrefix(
-                                e.target.value.replace(/#/g, ""),
-                              )
-                            }
-                            data-testid="profile-username-prefix-input"
-                            className="flex-1 bg-transparent text-white text-base sm:text-sm focus:outline-none"
-                            placeholder="用户名"
-                          />
-                          <span
-                            className="bg-[#2b2d31] text-gray-400 font-mono text-xs px-2.5 py-1 rounded-md border border-white/10 select-none ml-2"
-                            title="数字标签终身唯一绑定不可修改"
-                          >
-                            #{userTag}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-gray-400">
-                          识别码前缀可自由定制；后面的 5 位数字标签{" "}
-                          <span className="font-mono text-zinc-300">
-                            #{userTag}
-                          </span>{" "}
-                          为终身唯一绑定不可更改。
-                        </p>
+                        <textarea
+                          rows={3}
+                          value={bio}
+                          onChange={(e) => setBio(e.target.value)}
+                          placeholder="写一小段介绍展示在个人资料卡片上..."
+                          className="w-full rounded-xl bg-[#2b2d31] border border-white/5 p-3.5 text-base sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2] resize-none"
+                        />
                       </div>
-                    </div>
 
-                    {/* 2. 在线状态单选 */}
-                    <div className="space-y-2.5">
-                      <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">
-                        {t("settings:presence", "在线状态 (Presence)")}
-                      </label>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                        {STATUS_OPTIONS.map((opt) => {
-                          const isSelected = status === opt.value;
-                          return (
-                            <button
-                              key={opt.value}
-                              type="button"
-                              onClick={() => setStatus(opt.value)}
-                              className={`flex items-center gap-2 p-3 rounded-xl border text-left transition-all ${
-                                isSelected
-                                  ? "bg-[#5865f2]/10 border-[#5865f2] ring-1 ring-[#5865f2]"
-                                  : "bg-[#2b2d31] border-white/5 hover:bg-white/5"
-                              }`}
-                            >
-                              <span
-                                className={`w-3 h-3 rounded-full ${opt.color} shrink-0`}
-                              />
-                              <div className="min-w-0">
-                                <div className="text-xs font-semibold text-white truncate">
-                                  {t(opt.labelKey, opt.defaultLabel)}
-                                </div>
-                                <div className="text-[10px] text-gray-400 truncate">
-                                  {t(opt.descKey, opt.defaultDesc)}
-                                </div>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    {/* 3. 展示卡横幅个性化 (Profile Banner) */}
-                    <div className="space-y-3 p-4 rounded-xl bg-[#2b2d31] border border-white/5">
-                      <div className="flex items-center justify-between">
-                        <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
-                          <Palette className="w-3.5 h-3.5 text-[#5865f2]" />
-                          <span>展示卡横幅 (Profile Banner)</span>
+                      {/* 8. 自定义头像链接 */}
+                      <div className="space-y-2">
+                        <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">
+                          自定义头像 URL
                         </label>
-                        {bannerColor && (
-                          <button
-                            type="button"
-                            onClick={() => setBannerColor("")}
-                            className="text-[11px] text-gray-400 hover:text-white underline"
-                          >
-                            重置为默认渐变
-                          </button>
-                        )}
-                      </div>
-
-                      {/* 经典预设色板 */}
-                      <div className="space-y-1.5">
-                        <div className="text-[11px] text-gray-400">
-                          预设纯色主题：
-                        </div>
-                        <div className="flex flex-wrap gap-2 items-center">
-                          {PRESET_BANNER_COLORS.map((c) => (
-                            <button
-                              key={c.value}
-                              type="button"
-                              title={c.name}
-                              onClick={() => setBannerColor(c.value)}
-                              className={`w-7 h-7 rounded-full transition-transform border-2 ${
-                                bannerColor === c.value
-                                  ? "scale-110 border-white ring-2 ring-[#5865f2]"
-                                  : "border-transparent hover:scale-105"
-                              }`}
-                              style={{ backgroundColor: c.value }}
-                            />
-                          ))}
-                          <div className="flex items-center gap-1.5 ml-1">
-                            <input
-                              type="color"
-                              value={bannerColor || "#5865f2"}
-                              onChange={(e) => setBannerColor(e.target.value)}
-                              className="w-7 h-7 rounded cursor-pointer bg-transparent border-0"
-                              title="自定义取色器"
-                            />
-                            <span className="text-[11px] text-gray-400 font-mono">
-                              {bannerColor || "默认"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* 自定义横幅图片 URL */}
-                      <div className="space-y-1.5 pt-2 border-t border-white/5">
-                        <div className="text-[11px] text-gray-400 flex items-center gap-1">
-                          <ImageIcon className="w-3.5 h-3.5" />
-                          <span>自定义横幅图片链接 (Banner Image URL)：</span>
-                        </div>
                         <input
                           type="url"
-                          data-testid="input-banner-url"
-                          value={bannerUrl}
-                          onChange={(e) => setBannerUrl(e.target.value)}
-                          placeholder="https://... (粘贴外部图片直链，优先于纯色展示)"
-                          className="w-full rounded-xl bg-[#1e1f22] border border-white/5 px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-[#5865f2]"
+                          value={avatarUrl}
+                          onChange={(e) => setAvatarUrl(e.target.value)}
+                          placeholder="https://... (支持外部图片直链或 DiceBear SVG)"
+                          className="w-full rounded-xl bg-[#2b2d31] border border-white/5 px-4 py-3 text-base sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
                         />
                       </div>
                     </div>
 
-                    {/* 4. 卡片强调色 / 主题 (Theme Accent Color) */}
-                    <div className="space-y-2.5 p-4 rounded-xl bg-[#2b2d31] border border-white/5">
-                      <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
-                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                        <span>卡片名称强调色 (Theme Accent)</span>
-                      </label>
-                      <div className="flex flex-wrap gap-2 items-center">
-                        {PRESET_THEME_COLORS.map((tc) => (
-                          <button
-                            key={tc.name}
-                            type="button"
-                            onClick={() => setThemeColor(tc.value)}
-                            className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
-                              themeColor === tc.value
-                                ? "bg-white/10 border-white text-white"
-                                : "bg-[#1e1f22] border-white/5 text-gray-400 hover:text-white"
-                            }`}
-                          >
-                            {tc.value && (
-                              <span
-                                className="inline-block w-2.5 h-2.5 rounded-full mr-1.5 align-middle"
-                                style={{ backgroundColor: tc.value }}
-                              />
-                            )}
-                            <span>{tc.name}</span>
-                          </button>
-                        ))}
-                      </div>
+                    {/* 右侧：1:1 动态实时卡片预览区 (桌面大屏 Sticky 悬停，小屏隐藏并转由悬浮按钮呼出) */}
+                    <div className="hidden lg:flex w-80 shrink-0 justify-center sticky top-2">
+                      <ProfileCardPreview
+                        user={user}
+                        displayName={displayName}
+                        usernamePrefix={usernamePrefix}
+                        avatarUrl={avatarUrl}
+                        status={status}
+                        customStatus={customStatus}
+                        bio={bio}
+                        bannerColor={bannerColor}
+                        bannerUrl={bannerUrl}
+                        themeColor={themeColor}
+                        showActivity={showActivity}
+                        activeGame={activeGameForPreview}
+                      />
                     </div>
+                  </div>
 
-                    {/* 5. 游戏状态侦测与展示设置 (Game Activity Settings) */}
-                    <div
-                      data-testid="game-activity-settings-section"
-                      className="space-y-3.5 p-4 rounded-xl bg-[#2b2d31] border border-white/5"
+                  {/* 移动端轻量悬浮“查看卡片预览”按钮 (FAB) */}
+                  <div className="lg:hidden fixed bottom-6 right-4 sm:right-6 z-40">
+                    <button
+                      type="button"
+                      data-testid="open-profile-preview-fab"
+                      onClick={() => setIsMobilePreviewOpen(true)}
+                      className="flex items-center gap-2 bg-[#5865f2] hover:bg-[#4752c4] active:scale-95 text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-2xl border border-white/20 transition-all cursor-pointer backdrop-blur-md"
+                      aria-label="查看卡片预览"
                     >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Gamepad2 className="w-4 h-4 text-emerald-400" />
-                          <div>
-                            <span className="text-xs font-bold text-white">
-                              在个人展示卡与状态中显示正在运行的游戏
+                      <Eye className="w-4 h-4" />
+                      <span>
+                        {t("settings:previewProfileCard", "预览资料卡")}
+                      </span>
+                    </button>
+                  </div>
+
+                  {/* 移动端卡片预览半模态弹窗 */}
+                  {isMobilePreviewOpen && (
+                    <div
+                      data-testid="mobile-profile-preview-modal"
+                      className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-150"
+                      onClick={() => setIsMobilePreviewOpen(false)}
+                    >
+                      <div
+                        className="relative w-full max-w-[360px] bg-[#313338] rounded-2xl shadow-2xl p-4 border border-[#3f4147] flex flex-col items-center animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto custom-scrollbar"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="w-full flex items-center justify-between pb-3 mb-3 border-b border-white/10">
+                          <div className="flex items-center gap-2 text-white font-bold text-sm">
+                            <Palette className="w-4 h-4 text-[#5865f2]" />
+                            <span>
+                              {t("settings:realtimePreview", "实时卡片预览")}
                             </span>
-                            <p className="text-[11px] text-gray-400">
-                              开启后，系统侦测到您正在玩的游戏将自动同步展示给同服好友与频道成员。
-                            </p>
                           </div>
+                          <button
+                            type="button"
+                            data-testid="close-mobile-preview-btn"
+                            onClick={() => setIsMobilePreviewOpen(false)}
+                            className="text-gray-400 hover:text-white p-1 rounded-md hover:bg-white/10 transition cursor-pointer"
+                            aria-label="关闭预览"
+                          >
+                            <X className="w-5 h-5" />
+                          </button>
                         </div>
-                        <input
-                          type="checkbox"
-                          data-testid="toggle-show-activity"
-                          checked={showActivity}
-                          onChange={(e) => setShowActivity(e.target.checked)}
-                          className="w-4 h-4 accent-emerald-500 cursor-pointer"
-                        />
-                      </div>
-
-                      {/* 侦测状态卡片 */}
-                      <div className="p-3 rounded-lg bg-[#1e1f22] border border-white/5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
-                        <div className="flex items-center gap-2.5">
-                          <div
-                            className={`w-2.5 h-2.5 rounded-full ${
-                              detectedGame || testGameActive
-                                ? "bg-emerald-500 animate-pulse"
-                                : "bg-gray-500"
-                            }`}
+                        <div className="w-full flex justify-center">
+                          <ProfileCardPreview
+                            user={user}
+                            displayName={displayName}
+                            usernamePrefix={usernamePrefix}
+                            avatarUrl={avatarUrl}
+                            status={status}
+                            customStatus={customStatus}
+                            bio={bio}
+                            bannerColor={bannerColor}
+                            bannerUrl={bannerUrl}
+                            themeColor={themeColor}
+                            showActivity={showActivity}
+                            activeGame={activeGameForPreview}
                           />
-                          <div>
-                            <div className="font-semibold text-white">
-                              {detectedGame
-                                ? `已侦测到游戏：${detectedGame.name}`
-                                : testGameActive
-                                  ? "正在模拟游戏：英雄联盟 (League of Legends)"
-                                  : isElectron
-                                    ? "当前未检测到支持的游戏进程"
-                                    : "Web 端模式：自动侦测仅在桌面客户端生效"}
-                            </div>
-                            <div className="text-[10px] text-gray-400">
-                              {isElectron
-                                ? "后台每 5 秒低开销扫描系统前台进程"
-                                : "建议下载并使用 Tescord 桌面客户端获得全自动感知体验"}
-                            </div>
-                          </div>
                         </div>
-
-                        {/* 提供快捷测试开关 (方便无客户端或调试预览) */}
-                        <button
-                          type="button"
-                          onClick={() => setTestGameActive(!testGameActive)}
-                          className="text-[11px] px-2.5 py-1 rounded bg-[#2b2d31] hover:bg-[#35373c] text-gray-300 hover:text-white border border-white/5 transition self-end sm:self-auto shrink-0"
-                        >
-                          {testGameActive ? "停止测试游戏" : "模拟测试游戏"}
-                        </button>
                       </div>
                     </div>
+                  )}
 
-                    {/* 6. 自定义状态与签名 */}
-                    <div className="space-y-2">
-                      <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">
-                        自定义个性签名 (Custom Status)
-                      </label>
-                      <input
-                        type="text"
-                        value={customStatus}
-                        onChange={(e) => setCustomStatus(e.target.value)}
-                        placeholder="分享你现在在做什么... (例如: 正在开黑 🎮)"
-                        className="w-full rounded-xl bg-[#2b2d31] border border-white/5 px-4 py-3 text-base sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
-                      />
-                    </div>
-
-                    {/* 7. 自我介绍 / Bio */}
-                    <div className="space-y-2">
-                      <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">
-                        自我介绍 (About Me)
-                      </label>
-                      <textarea
-                        rows={3}
-                        value={bio}
-                        onChange={(e) => setBio(e.target.value)}
-                        placeholder="写一小段介绍展示在个人资料卡片上..."
-                        className="w-full rounded-xl bg-[#2b2d31] border border-white/5 p-3.5 text-base sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2] resize-none"
-                      />
-                    </div>
-
-                    {/* 8. 自定义头像链接 */}
-                    <div className="space-y-2">
-                      <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">
-                        自定义头像 URL
-                      </label>
-                      <input
-                        type="url"
-                        value={avatarUrl}
-                        onChange={(e) => setAvatarUrl(e.target.value)}
-                        placeholder="https://... (支持外部图片直链或 DiceBear SVG)"
-                        className="w-full rounded-xl bg-[#2b2d31] border border-white/5 px-4 py-3 text-base sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
-                      />
-                    </div>
-                  </div>
-
-                  {/* 右侧：1:1 动态实时卡片预览区 (桌面大屏 Sticky 悬停，小屏隐藏并转由悬浮按钮呼出) */}
-                  <div className="hidden lg:flex w-80 shrink-0 justify-center sticky top-2">
-                    <ProfileCardPreview
-                      user={user}
-                      displayName={displayName}
-                      usernamePrefix={usernamePrefix}
-                      avatarUrl={avatarUrl}
-                      status={status}
-                      customStatus={customStatus}
-                      bio={bio}
-                      bannerColor={bannerColor}
-                      bannerUrl={bannerUrl}
-                      themeColor={themeColor}
-                      showActivity={showActivity}
-                      activeGame={activeGameForPreview}
-                    />
-                  </div>
-                </div>
-
-                {/* 移动端轻量悬浮“查看卡片预览”按钮 (FAB) */}
-                <div className="lg:hidden fixed bottom-6 right-4 sm:right-6 z-40">
-                  <button
-                    type="button"
-                    data-testid="open-profile-preview-fab"
-                    onClick={() => setIsMobilePreviewOpen(true)}
-                    className="flex items-center gap-2 bg-[#5865f2] hover:bg-[#4752c4] active:scale-95 text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-2xl border border-white/20 transition-all cursor-pointer backdrop-blur-md"
-                    aria-label="查看卡片预览"
-                  >
-                    <Eye className="w-4 h-4" />
-                    <span>
-                      {t("settings:previewProfileCard", "预览资料卡")}
-                    </span>
-                  </button>
-                </div>
-
-                {/* 移动端卡片预览半模态弹窗 */}
-                {isMobilePreviewOpen && (
-                  <div
-                    data-testid="mobile-profile-preview-modal"
-                    className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 animate-in fade-in duration-150"
-                    onClick={() => setIsMobilePreviewOpen(false)}
-                  >
+                  {/* 底部浮动“未保存更改提示条” (自适应移动端与窄屏) */}
+                  {hasChanges && (
                     <div
-                      className="relative w-full max-w-[360px] bg-[#313338] rounded-2xl shadow-2xl p-4 border border-[#3f4147] flex flex-col items-center animate-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto custom-scrollbar"
-                      onClick={(e) => e.stopPropagation()}
+                      data-testid="unsaved-changes-notice-bar"
+                      className="fixed bottom-4 left-3 right-3 sm:left-1/2 sm:-translate-x-1/2 sm:w-auto max-w-xl z-50 bg-[#111214] border border-white/10 rounded-2xl shadow-2xl p-3 sm:px-6 sm:py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-6 animate-in slide-in-from-bottom-5 duration-200"
                     >
-                      <div className="w-full flex items-center justify-between pb-3 mb-3 border-b border-white/10">
-                        <div className="flex items-center gap-2 text-white font-bold text-sm">
-                          <Palette className="w-4 h-4 text-[#5865f2]" />
-                          <span>
-                            {t("settings:realtimePreview", "实时卡片预览")}
-                          </span>
-                        </div>
+                      <div className="flex items-center gap-2 text-xs font-semibold text-white w-full sm:w-auto justify-center sm:justify-start">
+                        <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+                        <span className="truncate">
+                          注意 — 您有未保存的更改！
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
                         <button
                           type="button"
-                          data-testid="close-mobile-preview-btn"
-                          onClick={() => setIsMobilePreviewOpen(false)}
-                          className="text-gray-400 hover:text-white p-1 rounded-md hover:bg-white/10 transition cursor-pointer"
-                          aria-label="关闭预览"
+                          data-testid="reset-profile-changes-btn"
+                          onClick={handleResetChanges}
+                          className="text-xs text-gray-300 hover:text-white hover:underline px-2 py-1 flex items-center gap-1 transition"
                         >
-                          <X className="w-5 h-5" />
+                          <RotateCcw className="w-3 h-3" />
+                          <span>重置</span>
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="save-profile-changes-btn"
+                          disabled={isSaving}
+                          onClick={handleSave}
+                          className="bg-[#23a55a] hover:bg-[#1a8044] active:scale-95 text-white text-xs font-semibold px-4 sm:px-5 py-2 rounded-xl shadow-lg transition-all flex items-center gap-1.5 disabled:opacity-50"
+                        >
+                          {isSaving ? (
+                            <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            <Save className="w-3.5 h-3.5" />
+                          )}
+                          <span>{isSaving ? "保存中..." : "保存更改"}</span>
                         </button>
                       </div>
-                      <div className="w-full flex justify-center">
-                        <ProfileCardPreview
-                          user={user}
-                          displayName={displayName}
-                          usernamePrefix={usernamePrefix}
-                          avatarUrl={avatarUrl}
-                          status={status}
-                          customStatus={customStatus}
-                          bio={bio}
-                          bannerColor={bannerColor}
-                          bannerUrl={bannerUrl}
-                          themeColor={themeColor}
-                          showActivity={showActivity}
-                          activeGame={activeGameForPreview}
-                        />
-                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                {/* 底部浮动“未保存更改提示条” (自适应移动端与窄屏) */}
-                {hasChanges && (
-                  <div
-                    data-testid="unsaved-changes-notice-bar"
-                    className="fixed bottom-4 left-3 right-3 sm:left-1/2 sm:-translate-x-1/2 sm:w-auto max-w-xl z-50 bg-[#111214] border border-white/10 rounded-2xl shadow-2xl p-3 sm:px-6 sm:py-3.5 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-6 animate-in slide-in-from-bottom-5 duration-200"
-                  >
-                    <div className="flex items-center gap-2 text-xs font-semibold text-white w-full sm:w-auto justify-center sm:justify-start">
-                      <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
+                  {/* 保存成功提示 (自适应小屏居中) */}
+                  {saveSuccess && (
+                    <div className="fixed bottom-4 left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 bg-emerald-900/95 border border-emerald-500/30 text-white rounded-2xl shadow-2xl px-4 sm:px-6 py-3 flex items-center justify-center gap-2 text-xs font-semibold animate-in fade-in">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                       <span className="truncate">
-                        注意 — 您有未保存的更改！
+                        展示卡个性化设置已成功保存并全网同步！
                       </span>
                     </div>
+                  )}
+                </div>
+              )}
 
-                    <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
-                      <button
-                        type="button"
-                        data-testid="reset-profile-changes-btn"
-                        onClick={handleResetChanges}
-                        className="text-xs text-gray-300 hover:text-white hover:underline px-2 py-1 flex items-center gap-1 transition"
-                      >
-                        <RotateCcw className="w-3 h-3" />
-                        <span>重置</span>
-                      </button>
-                      <button
-                        type="button"
-                        data-testid="save-profile-changes-btn"
-                        disabled={isSaving}
-                        onClick={handleSave}
-                        className="bg-[#23a55a] hover:bg-[#1a8044] active:scale-95 text-white text-xs font-semibold px-4 sm:px-5 py-2 rounded-xl shadow-lg transition-all flex items-center gap-1.5 disabled:opacity-50"
-                      >
-                        {isSaving ? (
-                          <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        ) : (
-                          <Save className="w-3.5 h-3.5" />
-                        )}
-                        <span>{isSaving ? "保存中..." : "保存更改"}</span>
-                      </button>
-                    </div>
-                  </div>
-                )}
+              {activeTab === "audio" && (
+                <AudioSettingsTab
+                  isInCall={isInCall}
+                  initialSubSection={initialSubSection}
+                />
+              )}
 
-                {/* 保存成功提示 (自适应小屏居中) */}
-                {saveSuccess && (
-                  <div className="fixed bottom-4 left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 bg-emerald-900/95 border border-emerald-500/30 text-white rounded-2xl shadow-2xl px-4 sm:px-6 py-3 flex items-center justify-center gap-2 text-xs font-semibold animate-in fade-in">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="truncate">
-                      展示卡个性化设置已成功保存并全网同步！
-                    </span>
-                  </div>
-                )}
-              </div>
-            )}
+              {activeTab === "language" && <LanguageSettingsTab />}
 
-            {activeTab === "audio" && (
-              <AudioSettingsTab
-                isInCall={isInCall}
-                initialSubSection={initialSubSection}
-              />
-            )}
+              {activeTab === "updates" && <AboutUpdatesTab />}
+            </div>
 
-            {activeTab === "language" && <LanguageSettingsTab />}
-
-            {activeTab === "updates" && <AboutUpdatesTab />}
+            {/* 桌面端 Discord 经典右侧独立工具列 (Tools Column) */}
+            <div className="hidden md:flex flex-col items-center w-16 pt-8 pr-3 flex-shrink-0 select-none">
+              <button
+                type="button"
+                data-testid="close-user-settings-btn"
+                onClick={onClose}
+                aria-label="关闭"
+                className="w-9 h-9 rounded-full border-2 border-white/20 hover:border-white flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+                title="关闭设置 (ESC)"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <span className="text-[10px] font-bold text-gray-400 mt-1.5 select-none tracking-wide">
+                ESC
+              </span>
+            </div>
           </div>
         </div>
       </div>

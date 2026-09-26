@@ -302,6 +302,18 @@ export class LiveKitService {
   private localScreenStream: MediaStream | null = null;
   public activeScreenShare: ActiveScreenShare | null = null;
   public screenSharesMap: Map<string, ActiveScreenShare> = new Map();
+  private watchedScreenParticipants = new Set<string>();
+
+  public setScreenWatching(identity: string, watching: boolean): void {
+    if (watching) this.watchedScreenParticipants.add(identity);
+    else this.watchedScreenParticipants.delete(identity);
+    const participant = this.room?.remoteParticipants.get(identity);
+    participant?.trackPublications.forEach((publication) => {
+      if (publication.source === Track.Source.ScreenShare || publication.source === Track.Source.ScreenShareAudio) {
+        publication.setSubscribed(watching);
+      }
+    });
+  }
   private onScreenShareChangedCallbacks: Set<
     (share: ActiveScreenShare | null) => void
   > = new Set();
@@ -620,7 +632,7 @@ export class LiveKitService {
         e2ee = { keyProvider, worker: new LiveKitE2EEWorker() };
       }
       this.room = new Room({
-        adaptiveStream: true,
+        adaptiveStream: false,
         dynacast: true,
         videoCaptureDefaults: {
           resolution: VideoPresets.h720.resolution,
@@ -637,6 +649,13 @@ export class LiveKitService {
 
       const targetUrl = resolveLiveKitUrl(url);
       await this.room.connect(targetUrl, token);
+      this.room.remoteParticipants.forEach((participant) => {
+        participant.trackPublications.forEach((publication) => {
+          if (publication.source === Track.Source.ScreenShare || publication.source === Track.Source.ScreenShareAudio) {
+            publication.setSubscribed(this.watchedScreenParticipants.has(participant.identity));
+          }
+        });
+      });
       if (e2ee) await this.room.setE2EEEnabled(true);
       this.isConnected = true;
       this.setConnectionStatus("connected");
@@ -764,10 +783,21 @@ export class LiveKitService {
   private setupRoomEvents() {
     if (!this.room) return;
 
+    // Screen video and screen audio are selected explicitly by each viewer.
+    this.room.on(RoomEvent.TrackPublished, (publication, participant) => {
+      if (publication.source === Track.Source.ScreenShare || publication.source === Track.Source.ScreenShareAudio) {
+        publication.setSubscribed(this.watchedScreenParticipants.has(participant.identity));
+      }
+    });
+
     // 4.1 远端音视频轨订阅 (含屏幕分享与摄像头)
     this.room.on(
       RoomEvent.TrackSubscribed,
       (track, publication, participant) => {
+        if ((publication.source === Track.Source.ScreenShare || publication.source === Track.Source.ScreenShareAudio) && !this.watchedScreenParticipants.has(participant.identity)) {
+          publication.setSubscribed(false);
+          return;
+        }
         if (track.kind === Track.Kind.Audio) {
           this.handleRemoteAudioSubscribed(track, participant);
         } else if (
@@ -2255,6 +2285,7 @@ export class LiveKitService {
   leaveRoom() {
     this.stopScreenShare();
     this.cleanup();
+    this.watchedScreenParticipants.clear();
     if (this.room) {
       this.room.disconnect();
       this.room = null;

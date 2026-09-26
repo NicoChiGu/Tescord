@@ -25,6 +25,46 @@ test.afterAll(async () => {
   await server?.close();
 });
 
+test("发送端电平反映手动增益并在静音时归零", async ({ page }) => {
+  await page.route(`${origin}audio-test`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/html",
+      body: "<html></html>",
+    }),
+  );
+  await page.goto(`${origin}audio-test`);
+  const levels = await page.evaluate(async () => {
+    const { audioEngine } = await import("/src/services/audioEngine.ts");
+    audioEngine.config.inputMode = "PTT";
+    const stream = await audioEngine.initMicrophone();
+    if (!stream) throw new Error(audioEngine.lastError || "Microphone failed");
+    await audioEngine.applyNoiseSuppressionRouting("off");
+    audioEngine.setPTTActive(true);
+    const samples: number[] = [];
+    const unbind = audioEngine.onSpeakingChange((_speaking, volume) => {
+      samples.push(volume);
+    });
+    const sample = async () => {
+      samples.length = 0;
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      return Math.max(...samples, 0);
+    };
+    audioEngine.updateConfig({ manualGain: 0 });
+    const zero = await sample();
+    audioEngine.updateConfig({ manualGain: 100 });
+    const normal = await sample();
+    audioEngine.setMute(true);
+    const muted = await sample();
+    unbind();
+    audioEngine.stop();
+    return { zero, normal, muted };
+  });
+  expect(levels.zero).toBe(0);
+  expect(levels.normal).toBeGreaterThan(0);
+  expect(levels.muted).toBe(0);
+});
+
 test("真实三引擎切换、关闭、PTT 与资源释放", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(String(error)));
@@ -193,7 +233,7 @@ test("RNNoise 无法加载时明确直通且保留用户选择", async ({ page }
     backend: "bypass",
     phase: "failed",
   });
-  expect(result.status.reason).toContain("RNNoise unavailable");
+  expect(result.status.reason).toContain("RNNoise WASM checksum mismatch");
   expect(result.savedMode).toBe("rnnoise");
 });
 

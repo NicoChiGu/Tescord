@@ -55,7 +55,7 @@ const proxyConfig = {
 };
 
 export default defineConfig({
-  base: "./",
+  base: process.env.BUILD_TARGET === "desktop" ? "./" : "/",
   plugins: [react(), basicSsl()],
   server: {
     host: "0.0.0.0",

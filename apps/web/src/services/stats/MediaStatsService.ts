@@ -2,6 +2,7 @@ import { StreamDetailedStats } from "@tescord/types";
 import { livekitService } from "../livekit.js";
 import { voiceMeshManager } from "../p2p/VoiceMeshManager.js";
 import { p2pStreamManager } from "../p2p/P2PStreamManager.js";
+import { cloudflareRealtimeService } from "../cloudflare_realtime/CloudflareRealtimeService.js";
 
 /**
  * 统一媒体统计集线器 (Unified Media Stats Service)
@@ -15,6 +16,9 @@ export class MediaStatsService {
   public async getDetailedStats(
     participantIdentity?: string,
   ): Promise<StreamDetailedStats> {
+    if (cloudflareRealtimeService.status === "connected") {
+      return cloudflareRealtimeService.getDetailedStats(participantIdentity);
+    }
     // 1. 优先检查 P2P 屏幕直播流
     const streamOwnerId = p2pStreamManager.getStreamOwnerId();
     const hasLocalP2P = Boolean(p2pStreamManager.getLocalStream());

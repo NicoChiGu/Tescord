@@ -123,6 +123,13 @@ export async function apiFetch(
   // 4. 若为 401 Unauthorized，启动双层拦截处理
   const authStore = useAuthStore.getState();
 
+  // 启动校验由 initAuth 负责续期和回退登录页。此时主界面尚未挂载，
+  // 将请求挂起等待重登弹窗会使 initAuth 永远无法结束加载。
+  // 匿名请求同样必须直接返回，不能进入已登录用户的重放队列。
+  if (!authStore.isAuthenticated || !authStore.user) {
+    return response;
+  }
+
   // 若前端根本没有登录或无 refresh_token，直接返回 401 响应
   const refreshToken =
     authStore.refreshToken ||

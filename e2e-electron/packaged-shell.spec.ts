@@ -3,7 +3,10 @@ import { mkdir } from "node:fs/promises";
 
 test("packaged Windows app loads its bundled file UI with an isolated profile", async ({}, testInfo) => {
   const executablePath = process.env.TESCORD_E2E_PACKAGED_EXE;
-  test.skip(!executablePath, "Set TESCORD_E2E_PACKAGED_EXE to the packaged Tescord.exe");
+  test.skip(
+    !executablePath,
+    "Set TESCORD_E2E_PACKAGED_EXE to the packaged Tescord.exe",
+  );
   const userData = testInfo.outputPath("packaged-user-data");
   await mkdir(userData, { recursive: true });
   const app = await electron.launch({
@@ -24,7 +27,9 @@ test("packaged Windows app loads its bundled file UI with an isolated profile", 
       timeout: 20000,
     });
     await expect.poll(() => window.url()).toMatch(/^file:\/\//);
-    await expect(window.getByTestId("auth-email-input")).toBeVisible({ timeout: 15000 });
+    await expect(window.getByTestId("auth-email-input")).toBeVisible({
+      timeout: 15000,
+    });
     const boundary = await window.evaluate(() => ({
       nodeRequire: typeof (window as any).require,
       nodeProcess: typeof (window as any).process,

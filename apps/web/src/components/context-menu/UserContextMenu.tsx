@@ -21,6 +21,8 @@ import { useFriendStore } from "../../stores/useFriendStore.js";
 import { dialog } from "../../stores/useDialogStore.js";
 import { toast } from "../../stores/useToastStore.js";
 import { livekitService } from "../../services/livekit.js";
+import { cloudflareRealtimeService } from "../../services/cloudflare_realtime/index.js";
+import { VOICE_ENGINE } from "../../config.js";
 import { gatewayClient } from "../../services/gateway.js";
 import {
   AtSign,
@@ -221,20 +223,20 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
   // 远端用户音量 (0 - 200)
   const [volume, setVolume] = useState<number>(() => {
     if (!isMe) {
-      return livekitService.getParticipantVolume(targetUser.id) ?? 100;
+      return (VOICE_ENGINE === "cloudflare_realtime" ? cloudflareRealtimeService : livekitService).getParticipantVolume(targetUser.id) ?? 100;
     }
     return 100;
   });
 
   useEffect(() => {
     if (!isMe) {
-      const currentVol = livekitService.getParticipantVolume(targetUser.id);
+      const currentVol = (VOICE_ENGINE === "cloudflare_realtime" ? cloudflareRealtimeService : livekitService).getParticipantVolume(targetUser.id);
       if (currentVol !== undefined) {
         setVolume(currentVol);
       }
 
       // 订阅底层全局音量变动，确保与中间卡片滑块以及其他位置的改动双向同步
-      const unsubscribe = livekitService.onParticipantVolumeChange(
+      const unsubscribe = (VOICE_ENGINE === "cloudflare_realtime" ? cloudflareRealtimeService : livekitService).onParticipantVolumeChange(
         (identity, newVol) => {
           if (identity === targetUser.id) {
             setVolume(newVol);
@@ -262,6 +264,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
   const handleVolumeChange = (newVol: number) => {
     setVolume(newVol);
     livekitService.setParticipantVolume(targetUser.id, newVol);
+    cloudflareRealtimeService.setParticipantVolume(targetUser.id, newVol);
   };
 
   const handleToggleMute = () => {
@@ -284,7 +287,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
       onOpenChange={(open) => {
         if (open && !isMe) {
           // 菜单弹出瞬间强制同步最新音量快照，防止旧值反向覆盖
-          const latestVol = livekitService.getParticipantVolume(targetUser.id);
+          const latestVol = (VOICE_ENGINE === "cloudflare_realtime" ? cloudflareRealtimeService : livekitService).getParticipantVolume(targetUser.id);
           if (latestVol !== undefined) {
             setVolume(latestVol);
           }

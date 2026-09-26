@@ -46,6 +46,7 @@ import { UserSettingsModal } from "./components/settings/UserSettingsModal.js";
 import { ServerSettingsModal } from "./components/server-settings/ServerSettingsModal.js";
 import { CreateGuildModal } from "./components/modals/CreateGuildModal.js";
 import { DiscoveryModal } from "./components/modals/DiscoveryModal.js";
+import { InviteLandingModal } from "./components/modals/InviteLandingModal.js";
 import { EmptyGuildsWelcome } from "./components/EmptyGuildsWelcome.js";
 import { CreateChannelModal } from "./components/modals/CreateChannelModal.js";
 import { EditChannelModal } from "./components/modals/EditChannelModal.js";
@@ -352,6 +353,43 @@ export const App: React.FC = () => {
     useState<Guild | null>(null);
   const [isCreateGuildOpen, setIsCreateGuildOpen] = useState(false);
   const [isJoinGuildOpen, setIsJoinGuildOpen] = useState(false);
+  const [pendingInviteCode, setPendingInviteCode] = useState(
+    () =>
+      window.location.pathname.match(/^\/invite\/([a-zA-Z0-9_-]+)\/?$/)?.[1] ||
+      "",
+  );
+  // 登录后自动消费暂存的邀请码并加入对应服务器
+  useEffect(() => {
+    if (!isAuthenticated || !currentUser || isLoading) return;
+    try {
+      const pending = sessionStorage.getItem("tescord_pending_invite");
+      if (pending) {
+        sessionStorage.removeItem("tescord_pending_invite");
+        fetch(`${API_BASE}/api/invites/${pending}/join`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...useAuthStore.getState().getAuthHeaders(),
+          },
+          body: JSON.stringify({}),
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((result) => {
+            if (result) {
+              const targetGuildId =
+                result.guildId || result.guild?.id || result.id;
+              if (targetGuildId) {
+                refreshGuilds();
+                setSelectedGuildId(targetGuildId);
+              }
+            }
+          })
+          .catch(() => {});
+      }
+    } catch {
+      // 忽略存储或解析异常
+    }
+  }, [isAuthenticated, currentUser, isLoading]);
   const [isCreateChannelOpen, setIsCreateChannelOpen] = useState(false);
   const [selectedCategoryForChannel, setSelectedCategoryForChannel] =
     useState<ChannelCategory | null>(null);
@@ -2161,9 +2199,13 @@ export const App: React.FC = () => {
       }
     });
 
-    const unbindSpeakers = livekitService.onActiveSpeakersChange((speakers) => {
-      setActiveSpeakers([...speakers]);
-    });
+    const unbindSpeakers = VOICE_ENGINE === "cloudflare_realtime"
+      ? cloudflareRealtimeService.onActiveSpeakersChange((speakers) => {
+          setActiveSpeakers([...speakers]);
+        })
+      : livekitService.onActiveSpeakersChange((speakers) => {
+          setActiveSpeakers([...speakers]);
+        });
 
     const unbindConnStatus = livekitService.onConnectionStatusChange(
       (status) => {
@@ -3779,6 +3821,28 @@ export const App: React.FC = () => {
         <TitleBar />
         <div className="flex-1 overflow-hidden relative">
           <AuthModal />
+          {pendingInviteCode && (
+            <InviteLandingModal
+              code={pendingInviteCode}
+              onClose={() => {
+                setPendingInviteCode("");
+                window.history.replaceState(
+                  null,
+                  "",
+                  "/" + window.location.search + window.location.hash,
+                );
+              }}
+              onJoinedServer={() => {}}
+              onRequireAuth={() => {
+                setPendingInviteCode("");
+                window.history.replaceState(
+                  null,
+                  "",
+                  "/" + window.location.search + window.location.hash,
+                );
+              }}
+            />
+          )}
         </div>
       </div>
     );
@@ -4285,7 +4349,10 @@ export const App: React.FC = () => {
       {/* 8. 探索与加入服务器弹窗 */}
       <DiscoveryModal
         isOpen={isJoinGuildOpen}
-        onClose={() => setIsJoinGuildOpen(false)}
+        initialInviteCode=""
+        onClose={() => {
+          setIsJoinGuildOpen(false);
+        }}
         onGuildJoined={(guildId) => {
           const token = useAuthStore.getState().token;
           fetch(`${API_BASE}/api/guilds`, {
@@ -4323,6 +4390,63 @@ export const App: React.FC = () => {
         }}
         onOpenCreateModal={() => setIsCreateGuildOpen(true)}
       />
+
+      {/* 8.1 独立 Discord 风格全屏邀请卡片落地弹窗 (已登录直接访问 /invite/:code) */}
+      {pendingInviteCode && (
+        <InviteLandingModal
+          code={pendingInviteCode}
+          onClose={() => {
+            setPendingInviteCode("");
+            window.history.replaceState(
+              null,
+              "",
+              "/" + window.location.search + window.location.hash,
+            );
+          }}
+          onJoinedServer={(guildId) => {
+            setPendingInviteCode("");
+            window.history.replaceState(
+              null,
+              "",
+              "/" + window.location.search + window.location.hash,
+            );
+            refreshGuilds();
+            setSelectedGuildId(guildId);
+            const token = useAuthStore.getState().token;
+            fetch(`${API_BASE}/api/guilds`, {
+              headers: {
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+            })
+              .then((res) => res.json())
+              .then((data: Guild[]) => {
+                setGuilds(data);
+                setSelectedGuildId(guildId);
+                const target = data.find((g) => g.id === guildId);
+                if (target) {
+                  const lastChId = useChannelNavStore
+                    .getState()
+                    .getLastVisitedChannel(target.id);
+                  const targetChannel = resolveGuildChannel(
+                    target,
+                    lastChId,
+                    true,
+                  );
+                  setSelectedChannel(targetChannel);
+                  if (targetChannel?.guildId) {
+                    useChannelNavStore
+                      .getState()
+                      .recordChannelVisit(
+                        targetChannel.guildId,
+                        targetChannel.id,
+                      );
+                  }
+                }
+              })
+              .catch(() => {});
+          }}
+        />
+      )}
 
       {/* 9. 创建频道弹窗 */}
       {selectedGuildId && (

@@ -28,6 +28,8 @@ import type {
   CfCallsSubscribeTrackRequest,
   CfCallsRenegotiateRequest,
   CfCallsCloseTracksRequest,
+  CfCallsUnsubscribeRequest,
+  CfStreamWatchRequest,
 } from "@tescord/types";
 
 import {
@@ -304,7 +306,9 @@ const publicApiPaths = new Set([
 server.addHook("preHandler", async (request, reply) => {
   if (request.method === "OPTIONS" || !request.url.startsWith("/api/")) return;
   const pathOnly = request.url.split("?", 1)[0];
-  if (publicApiPaths.has(pathOnly)) return;
+  const isPublicInviteQuery =
+    request.method === "GET" && pathOnly.startsWith("/api/invites/");
+  if (publicApiPaths.has(pathOnly) || isPublicInviteQuery) return;
 
   await (server as any).authenticate(request, reply);
   if (reply.sent) return;
@@ -517,7 +521,9 @@ server.get(
     }
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
-      return reply.status(404).send({ error: "用户不存在" });
+      return reply
+        .status(401)
+        .send({ error: "用户不存在或会话已失效", code: "USER_NOT_FOUND" });
     }
     return authService.formatUser(user);
   },
@@ -5304,6 +5310,33 @@ async function cfSendTracks(channelId: string) {
   }
 }
 
+async function cfSendViewerEvents() {
+  for (const event of cloudflareRealtimeService.drainViewerEvents()) {
+    const channel = await prisma.channel.findUnique({
+      where: { id: event.channelId },
+      include: { recipients: true },
+    });
+    if (!channel) continue;
+    const payload = {
+      op: GatewayOpCode.DISPATCH,
+      t: GatewayEvents.CF_STREAM_VIEWERS,
+      d: event,
+    };
+    if (channel.type === "DM" || channel.type === "GROUP_DM") {
+      for (const recipient of channel.recipients)
+        gatewayManager.sendToUser(recipient.userId, payload);
+    } else if (channel.guildId) {
+      const members = await prisma.guildMember.findMany({
+        where: { guildId: channel.guildId },
+        select: { userId: true },
+      });
+      for (const member of members)
+        if (await cfCanUseChannel(member.userId, event.channelId))
+          gatewayManager.sendToUser(member.userId, payload);
+    }
+  }
+}
+
 // 6.1 获取 Cloudflare Realtime 服务端配置状态
 server.get("/api/cloudflare-realtime/config", async () => {
   return cloudflareRealtimeService.getConfig();
@@ -5361,6 +5394,7 @@ server.post("/api/cloudflare-realtime/session/new", async (request, reply) => {
       channelId,
       cfLoginSession(request),
     );
+    await cfSendViewerEvents();
     const channel = await prisma.channel.findUnique({
       where: { id: channelId },
       select: { type: true, isE2EE: true },
@@ -5493,9 +5527,11 @@ server.post(
       );
       cloudflareRealtimeService.recordSubscriptions(
         session.sessionId,
-        result.tracks
-          .map((track) => track.mid)
-          .filter((mid): mid is string => !!mid),
+        result.tracks.map((track, index) => ({
+          mid: track.mid!,
+          publisherSessionId: body.tracks![index].publisherSessionId!,
+          trackName: body.tracks![index].trackName!,
+        })),
       );
       return result;
     } catch (err: any) {
@@ -5518,6 +5554,150 @@ server.post(
       );
       return reply.status(502).send({ error: "Failed to subscribe tracks" });
     }
+  },
+);
+
+// A remote MID belongs to one authenticated media session. Closing it releases
+// the SFU subscription without letting a viewer close the host's publication.
+server.put(
+  "/api/cloudflare-realtime/tracks/unsubscribe",
+  async (request, reply) => {
+    const body = cfBody(request) as CfCallsUnsubscribeRequest;
+    const session = await cfSessionForRequest(request, body.sessionId);
+    if (!session)
+      return reply.status(403).send({ error: "Invalid media session" });
+    if (
+      body.channelId !== session.channelId ||
+      !Array.isArray(body.tracks) ||
+      body.tracks.length < 1 ||
+      body.tracks.length > 16 ||
+      body.tracks.some(
+        (track) =>
+          typeof track.mid !== "string" ||
+          !/^\d{1,3}$/.test(track.mid) ||
+          !cloudflareRealtimeService.ownsSubscriptionMid(
+            session.sessionId,
+            session.channelId,
+            track.mid,
+          ),
+      )
+    )
+      return reply
+        .status(400)
+        .send({ error: "Invalid unsubscribe request body" });
+    const mids = [...new Set(body.tracks.map((track) => track.mid))];
+    const publishers = new Set(
+      mids.map((mid) =>
+        cloudflareRealtimeService.publisherForSubscriptionMid(
+          session.sessionId,
+          mid,
+        ),
+      ),
+    );
+    try {
+      await cloudflareRealtimeService.closeTracks({
+        sessionId: session.sessionId,
+        tracks: mids.map((mid) => ({ mid })),
+      });
+      cloudflareRealtimeService.forgetSubscriptions(session.sessionId, mids);
+      for (const publisherSessionId of publishers) {
+        if (
+          publisherSessionId &&
+          !cloudflareRealtimeService.hasConfirmedScreenSubscription(
+            session.sessionId,
+            publisherSessionId,
+          )
+        )
+          cloudflareRealtimeService.unwatchStream(
+            session.sessionId,
+            publisherSessionId,
+          );
+      }
+      await cfSendViewerEvents();
+      return { ok: true };
+    } catch (error) {
+      request.log.warn({ error }, "Cloudflare unsubscribe failed");
+      return reply.status(502).send({ error: "Failed to unsubscribe tracks" });
+    }
+  },
+);
+
+server.post(
+  "/api/cloudflare-realtime/streams/watch",
+  async (request, reply) => {
+    const body = cfBody(request) as CfStreamWatchRequest;
+    const session = await cfSessionForRequest(request, body.sessionId);
+    if (!session)
+      return reply.status(403).send({ error: "Invalid media session" });
+    if (
+      body.channelId !== session.channelId ||
+      typeof body.publisherSessionId !== "string" ||
+      !/^[a-f0-9-]{20,80}$/i.test(body.publisherSessionId)
+    )
+      return reply.status(400).send({ error: "Invalid stream watch request" });
+    const state = cloudflareRealtimeService.watchStream(
+      session.sessionId,
+      body.publisherSessionId,
+    );
+    if (!state)
+      return reply.status(403).send({
+        error: "Stream unavailable or screen subscription not established",
+      });
+    await cfSendViewerEvents();
+    return state;
+  },
+);
+
+server.post(
+  "/api/cloudflare-realtime/streams/unwatch",
+  async (request, reply) => {
+    const body = cfBody(request) as CfStreamWatchRequest;
+    const session = await cfSessionForRequest(request, body.sessionId);
+    if (!session)
+      return reply.status(403).send({ error: "Invalid media session" });
+    if (
+      body.channelId !== session.channelId ||
+      typeof body.publisherSessionId !== "string" ||
+      !/^[a-f0-9-]{20,80}$/i.test(body.publisherSessionId)
+    )
+      return reply.status(400).send({ error: "Invalid stream watch request" });
+    const state = cloudflareRealtimeService.unwatchStream(
+      session.sessionId,
+      body.publisherSessionId,
+    );
+    await cfSendViewerEvents();
+    return (
+      state || {
+        channelId: session.channelId,
+        publisherSessionId: body.publisherSessionId,
+        hostUserId: "",
+        viewerCount: 0,
+        watching: false,
+      }
+    );
+  },
+);
+
+server.get(
+  "/api/cloudflare-realtime/streams/viewers",
+  async (request, reply) => {
+    const query = request.query as Partial<CfStreamWatchRequest>;
+    const session = await cfSessionForRequest(request, query.sessionId);
+    if (!session)
+      return reply.status(403).send({ error: "Invalid media session" });
+    if (
+      query.channelId !== session.channelId ||
+      typeof query.publisherSessionId !== "string" ||
+      !/^[a-f0-9-]{20,80}$/i.test(query.publisherSessionId)
+    )
+      return reply.status(400).send({ error: "Invalid stream viewer query" });
+    const state = cloudflareRealtimeService.streamWatchState(
+      session.sessionId,
+      query.publisherSessionId,
+    );
+    if (!state || state.channelId !== session.channelId)
+      return reply.status(404).send({ error: "Stream unavailable" });
+    return state;
   },
 );
 
@@ -5549,6 +5729,7 @@ server.put(
       await cloudflareRealtimeService.renegotiate(
         body as CfCallsRenegotiateRequest,
       );
+      cloudflareRealtimeService.confirmSubscriptions(body.sessionId!);
       return { ok: true };
     } catch (err: any) {
       server.log.error(err, "Failed to renegotiate Cloudflare Calls session");
@@ -5601,6 +5782,7 @@ server.put("/api/cloudflare-realtime/tracks/close", async (request, reply) => {
       body.tracks.map((t) => t.trackName!),
     );
     await cfSendTracks(session.channelId);
+    await cfSendViewerEvents();
     return { ok: true };
   } catch (err: any) {
     server.log.error(err, "Failed to close Cloudflare Calls tracks");
@@ -5644,6 +5826,7 @@ server.post(
         request.log.warn({ error }, "Cloudflare session teardown incomplete"),
       );
     await cfSendTracks(session.channelId);
+    await cfSendViewerEvents();
     return { ok: true };
   },
 );
@@ -5670,6 +5853,7 @@ const cloudflareMediaSweep = setInterval(async () => {
         continue;
       await cloudflareRealtimeService.revokeSession(sessionId);
       await cfSendTracks(session.channelId);
+      await cfSendViewerEvents();
     } catch (error) {
       server.log.warn({ error }, "Cloudflare media revocation retry pending");
     }

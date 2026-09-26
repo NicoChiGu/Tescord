@@ -110,7 +110,9 @@ test.describe("真实用户在线状态 (Online Presence / Status) 端到端全�
     await expect(
       page.getByRole("menuitemradio", { name: /请勿打扰/i }),
     ).toBeVisible();
-    await expect(page.getByRole("menuitemradio", { name: /隐身/i })).toBeVisible();
+    await expect(
+      page.getByRole("menuitemradio", { name: /隐身/i }),
+    ).toBeVisible();
 
     // 2. 切换至“请勿打扰 (DND)”
     await page.getByRole("menuitemradio", { name: /请勿打扰/i }).click();

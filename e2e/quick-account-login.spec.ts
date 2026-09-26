@@ -64,7 +64,9 @@ test.describe("邮箱记忆与 Discord 快捷多账号登录及7天免密端到�
     await expect(accountPicker).toBeVisible({ timeout: 10000 });
 
     // 验证账号卡片存在，展示头像、用户名和邮箱
-    const accountCard = page.locator("[data-testid^='saved-account-card-']").first();
+    const accountCard = page
+      .locator("[data-testid^='saved-account-card-']")
+      .first();
     await expect(accountCard).toBeVisible();
     await expect(accountCard).toContainText("admin@tescord.local");
   });
@@ -156,7 +158,9 @@ test.describe("邮箱记忆与 Discord 快捷多账号登录及7天免密端到�
     await page.goto("/");
 
     // 1. 验证首屏展示该账号卡片
-    await expect(page.getByTestId("account-picker")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId("account-picker")).toBeVisible({
+      timeout: 10000,
+    });
     await expect(page.getByText("临时用户")).toBeVisible();
 
     // 2. 点击该卡片右上角 ✕ 移除按钮
@@ -170,7 +174,9 @@ test.describe("邮箱记忆与 Discord 快捷多账号登录及7天免密端到�
     await expect(page.getByTestId("account-picker")).not.toBeVisible();
 
     // 验证 localStorage 已同步清空
-    const stored = await page.evaluate(() => localStorage.getItem("tescord_saved_accounts"));
+    const stored = await page.evaluate(() =>
+      localStorage.getItem("tescord_saved_accounts"),
+    );
     expect(stored ? JSON.parse(stored).length : 0).toBe(0);
   });
 
@@ -197,7 +203,9 @@ test.describe("邮箱记忆与 Discord 快捷多账号登录及7天免密端到�
     await page.goto("/");
 
     // 1. 处于账号选择界面
-    await expect(page.getByTestId("account-picker")).toBeVisible({ timeout: 10000 });
+    await expect(page.getByTestId("account-picker")).toBeVisible({
+      timeout: 10000,
+    });
 
     // 2. 点击“使用其他账号登录”
     const useOtherBtn = page.getByTestId("use-other-account-btn");

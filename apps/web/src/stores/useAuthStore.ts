@@ -273,86 +273,104 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   initAuth: async () => {
     set({ isLoading: true, error: null });
-    const accounts = getStoredSavedAccounts();
-    set({ savedAccounts: accounts });
+    try {
+      const accounts = getStoredSavedAccounts();
+      set({ savedAccounts: accounts });
 
-    const accessToken =
-      sessionStorage.getItem(ACCESS_KEY) || localStorage.getItem(ACCESS_KEY);
-    const refreshToken = currentRefreshToken();
+      const accessToken =
+        sessionStorage.getItem(ACCESS_KEY) || localStorage.getItem(ACCESS_KEY);
+      const refreshToken = currentRefreshToken();
 
-    // 1. 优先尝试本地活跃的 access/refresh token
-    if (accessToken || refreshToken) {
-      try {
-        if (accessToken) {
-          const res = await fetch(`${API_BASE}/api/auth/me`, {
-            headers: { Authorization: `Bearer ${accessToken}` },
-          });
-
-          if (res.ok) {
-            const user: User = await res.json();
-            localStorage.setItem("tescord_last_user", JSON.stringify(user));
-            const remember = Boolean(localStorage.getItem(REFRESH_KEY));
-            const updated = upsertSavedAccount(
-              user,
-              { refreshToken: refreshToken || undefined },
-              remember,
-            );
-            set({
-              user,
-              lastActiveUser: user,
-              accessToken,
-              token: accessToken,
-              refreshToken,
-              isAuthenticated: true,
-              isLoading: false,
-              savedAccounts: updated,
+      // 1. 优先尝试本地活跃的 access/refresh token
+      if (accessToken || refreshToken) {
+        try {
+          if (accessToken) {
+            const res = await fetch(`${API_BASE}/api/auth/me`, {
+              headers: { Authorization: `Bearer ${accessToken}` },
             });
-            syncDesktopWindowMode("main");
-            scheduleProactiveRefresh(() => get().refreshAuth());
-            return;
-          }
-        }
 
-        if (refreshToken) {
-          const refreshed = await get().refreshAuth();
-          if (refreshed) {
-            syncDesktopWindowMode("main");
-            return;
+            if (res.ok) {
+              const user: User = await res.json();
+              localStorage.setItem("tescord_last_user", JSON.stringify(user));
+              const remember = Boolean(localStorage.getItem(REFRESH_KEY));
+              const updated = upsertSavedAccount(
+                user,
+                { refreshToken: refreshToken || undefined },
+                remember,
+              );
+              set({
+                user,
+                lastActiveUser: user,
+                accessToken,
+                token: accessToken,
+                refreshToken,
+                isAuthenticated: true,
+                isLoading: false,
+                savedAccounts: updated,
+              });
+              syncDesktopWindowMode("main");
+              scheduleProactiveRefresh(() => get().refreshAuth());
+              return;
+            }
           }
+
+          if (refreshToken) {
+            const refreshed = await get().refreshAuth();
+            if (refreshed) {
+              syncDesktopWindowMode("main");
+              return;
+            }
+          }
+        } catch {
+          // 出错继续尝试免密账号检查
         }
-      } catch {
-        // 出错继续尝试免密账号检查
       }
-    }
 
-    if (get().refreshFailure === "transient") {
-      set({ isLoading: false });
-      return;
-    }
-
-    // 2. 检查已保存的免密账号
-    const autoLoginAccount = accounts.find(
-      (a) => a.rememberPassword && Boolean(a.refreshToken),
-    );
-    if (autoLoginAccount) {
-      const ok = await get().loginWithSavedAccount(autoLoginAccount);
-      if (ok) {
+      if (get().refreshFailure === "transient") {
+        set({ isLoading: false });
         return;
       }
-    }
 
-    // 3. 无有效令牌或免密失败，停留在未登录态并进入账号选择
-    clearProactiveRefreshTimer();
-    if (get().refreshFailure !== "transient") clearActiveTokens();
-    set({
-      user: null,
-      accessToken: null,
-      token: null,
-      refreshToken: null,
-      isAuthenticated: false,
-      isLoading: false,
-    });
-    syncDesktopWindowMode("auth");
+      // 2. 检查已保存的免密账号
+      const autoLoginAccount = accounts.find(
+        (a) => a.rememberPassword && Boolean(a.refreshToken),
+      );
+      if (autoLoginAccount) {
+        const ok = await get().loginWithSavedAccount(autoLoginAccount);
+        if (ok) {
+          return;
+        }
+      }
+
+      // 3. 无有效令牌或免密失败，停留在未登录态并进入账号选择
+      clearProactiveRefreshTimer();
+      cancelPendingRequests("会话未授权或已失效");
+      if (get().refreshFailure !== "transient") clearActiveTokens();
+      set({
+        user: null,
+        accessToken: null,
+        token: null,
+        refreshToken: null,
+        isAuthenticated: false,
+        isLoading: false,
+      });
+      syncDesktopWindowMode("auth");
+    } catch {
+      clearProactiveRefreshTimer();
+      cancelPendingRequests("初始化认证失败");
+      clearActiveTokens();
+      set({
+        user: null,
+        accessToken: null,
+        token: null,
+        refreshToken: null,
+        isAuthenticated: false,
+        isLoading: false,
+      });
+      syncDesktopWindowMode("auth");
+    } finally {
+      set({ isLoading: false });
+    }
   },
 
   login: async (dto: LoginDTO) => {

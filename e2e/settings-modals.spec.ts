@@ -80,18 +80,22 @@ test.describe("编辑频道与服务器设置自适应模态框 (Modal) 交互�
       await closeBtn.click();
       await expect(editModal).not.toBeVisible();
     }
+  });
 
-    // 6. 测试通过频道悬浮小齿轮打开“编辑频道”
-    const gearBtn = page.locator("[data-testid^='edit-channel-gear-']").first();
-    if ((await gearBtn.count()) > 0) {
-      await gearBtn.click({ force: true });
-      const editModal = page.getByTestId("edit-channel-modal");
-      await expect(editModal).toBeVisible();
-
-      // 验证 ESC 快捷键退出
-      await page.keyboard.press("Escape");
-      await expect(editModal).not.toBeVisible();
-    }
+  test("频道悬浮齿轮打开编辑弹窗并可用 ESC 关闭", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: /Tescord 极客总部|极客/i }).first().click();
+    const channelRow = page.getByTestId("channel-button-general");
+    await expect(channelRow).toBeVisible();
+    const channelId = await channelRow.getAttribute("data-channel-id");
+    const gearBtn = page.getByTestId(`edit-channel-gear-${channelId}`);
+    await channelRow.hover();
+    await expect(gearBtn).toBeVisible();
+    await gearBtn.click();
+    const editModal = page.getByTestId("edit-channel-modal");
+    await expect(editModal).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(editModal).not.toBeVisible();
   });
 
   test("验证服务器设置自适应响应式 Modal：居中卡片挂载、导航切换与关闭", async ({

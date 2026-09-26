@@ -6,6 +6,7 @@ import {
   ArrowRight,
   LogOut,
   ShieldAlert,
+  X,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { flushPendingRequests } from "../../services/apiClient.js";
@@ -30,7 +31,7 @@ export const ReauthModal: React.FC = () => {
 
   const currentUser = user || lastActiveUser;
 
-  // 模态阻断：阻止按下 ESC 键退出
+  // 允许按下 ESC 键退出重新验证（自动取消挂起请求并返回登录页）
   useEffect(() => {
     if (!isReauthModalOpen) return;
 
@@ -38,6 +39,7 @@ export const ReauthModal: React.FC = () => {
       if (e.key === "Escape") {
         e.preventDefault();
         e.stopPropagation();
+        handleSwitchAccount();
       }
     };
 
@@ -117,6 +119,18 @@ export const ReauthModal: React.FC = () => {
         className="relative w-full max-w-md overflow-hidden rounded-2xl bg-[#313338] p-8 shadow-2xl border border-white/10 animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* 右上角关闭/返回登录按钮 */}
+        <button
+          type="button"
+          data-testid="reauth-close-btn"
+          onClick={handleSwitchAccount}
+          className="absolute top-4 right-4 text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"
+          title="返回登录页 (ESC)"
+          aria-label="关闭并返回登录"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
         {/* 顶部警示图标与用户卡片 */}
         <div className="flex flex-col items-center text-center mb-6">
           <div className="relative mb-3">
@@ -216,26 +230,28 @@ export const ReauthModal: React.FC = () => {
           </button>
         </form>
 
-        {/* 底部：切换账号 */}
+        {/* 底部：返回登录 / 切换账号 */}
         <div className="mt-6 pt-4 border-t border-white/5 flex items-center justify-between text-xs text-gray-400">
           <span>
             {t("auth:reauthModal.notYourAccount", {
-              defaultValue: "不是您的账号？",
+              defaultValue: "账号异常或非本人？",
             })}
           </span>
-          <button
-            type="button"
-            data-testid="reauth-switch-account-btn"
-            onClick={handleSwitchAccount}
-            className="text-gray-300 hover:text-white hover:underline flex items-center gap-1 transition-colors"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>
-              {t("auth:reauthModal.switchAccount", {
-                defaultValue: "切换其他账号",
-              })}
-            </span>
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              data-testid="reauth-switch-account-btn"
+              onClick={handleSwitchAccount}
+              className="text-[#5865f2] hover:text-[#7983f5] hover:underline flex items-center gap-1 font-medium transition-colors"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>
+                {t("auth:reauthModal.returnToLogin", {
+                  defaultValue: "返回登录 / 切换账号",
+                })}
+              </span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

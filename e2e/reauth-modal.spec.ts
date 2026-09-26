@@ -185,11 +185,7 @@ test.describe("令牌失效重新登录 Modal 与会话无感恢复验收", () =
       reauthBackdrop.getByText("jackey@tescord.local"),
     ).toBeVisible();
 
-    // 4. 验证模态阻断特性：按 Escape 键不可退出
-    await page.keyboard.press("Escape");
-    await expect(reauthBackdrop).toBeVisible();
-
-    // 验证点击遮罩背景不可关闭
+    // 4. 验证点击遮罩背景不可意外关闭
     await reauthBackdrop.click({ position: { x: 10, y: 10 } });
     await expect(reauthBackdrop).toBeVisible();
 
@@ -322,5 +318,72 @@ test.describe("令牌失效重新登录 Modal 与会话无感恢复验收", () =
       localStorage.getItem("tescord_access_token"),
     );
     expect(tokenInStorage).toBeNull();
+  });
+
+  test("ReauthModal 允许通过按 ESC 键或右上角关闭按钮退出并重定向至登录页", async ({
+    page,
+  }) => {
+    await page.routeWebSocket("**/gateway", (socket) => socket.close());
+    await page.addInitScript(() => {
+      localStorage.setItem("tescord_access_token", "mock_esc_token");
+      localStorage.setItem("tescord_refresh_token", "mock_esc_refresh");
+      localStorage.setItem(
+        "tescord_last_user",
+        JSON.stringify({
+          id: "esc_user",
+          username: "EscTester",
+          email: "esc@tescord.local",
+          status: "ONLINE",
+        }),
+      );
+    });
+
+    await page.route("**/api/auth/me", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "esc_user",
+          username: "EscTester",
+          email: "esc@tescord.local",
+          status: "ONLINE",
+        }),
+      });
+    });
+
+    await page.route("**/api/guilds", (route) =>
+      route.fulfill({ status: 200, json: [] }),
+    );
+    await page.route("**/api/users/@me/dm-channels", (route) =>
+      route.fulfill({ status: 200, json: [] }),
+    );
+
+    await page.goto("/");
+    const root = page.locator("#root");
+    await expect(root).toBeVisible({ timeout: 10000 });
+
+    const reauthBackdrop = page.locator(
+      '[data-testid="reauth-modal-backdrop"]',
+    );
+
+    await page.evaluate(() => {
+      (window as any).useAuthStore
+        ?.getState()
+        .openReauthModal("登录会话已过期，请重新登录");
+    });
+
+    await expect(reauthBackdrop).toBeVisible();
+
+    // 验证右上角关闭按钮存在
+    const closeBtn = page.locator('[data-testid="reauth-close-btn"]');
+    await expect(closeBtn).toBeVisible();
+
+    // 按下 ESC 键
+    await page.keyboard.press("Escape");
+
+    // 验证 ReauthModal 关闭并回退到登录页
+    await expect(reauthBackdrop).not.toBeVisible();
+    const loginBtn = page.getByRole("button", { name: /登\s*录/i });
+    await expect(loginBtn).toBeVisible({ timeout: 5000 });
   });
 });

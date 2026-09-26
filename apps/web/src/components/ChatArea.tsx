@@ -25,6 +25,7 @@ import {
   Pin,
   Trash2,
   X,
+  ZoomIn,
   FileText,
   Download,
   Loader2,
@@ -1034,7 +1035,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       });
 
       // 核心优化：若滚动触底，说明用户已经浏览至最新内容，立即核销未读红线并同步已读状态
-      if (nearBottom && displayedMessages.length > 0) {
+      if (
+        isInitialPositionedRef.current &&
+        nearBottom &&
+        displayedMessages.length > 0
+      ) {
         if (dividerVisibleTimerRef.current) {
           clearTimeout(dividerVisibleTimerRef.current);
           dividerVisibleTimerRef.current = null;
@@ -1060,6 +1065,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     checkUnreadDividerVisibility,
   ]);
 
+  const scrollJumpTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollToBottom = (smooth = true) => {
     if (scrollContainerRef.current) {
       scrollContainerRef.current.scrollTo({
@@ -1067,7 +1073,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         behavior: smooth ? "smooth" : "auto",
       });
       // 延迟二次校准，彻底防止虚拟列表动态尺寸测量撑大导致的未完全触底
-      setTimeout(() => {
+      if (scrollJumpTimeoutRef.current) clearTimeout(scrollJumpTimeoutRef.current);
+      scrollJumpTimeoutRef.current = setTimeout(() => {
+        scrollJumpTimeoutRef.current = null;
         if (scrollContainerRef.current) {
           scrollContainerRef.current.scrollTop =
             scrollContainerRef.current.scrollHeight;
@@ -1094,6 +1102,23 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       }
     }
   };
+
+  // Virtual rows and image previews can grow after the message update. Keep
+  // following only while the user is at the latest message.
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    const list = container?.querySelector(
+      '[data-testid="virtual-message-list-container"]',
+    );
+    if (!container || !list || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      if (!isInitialPositionedRef.current || !isNearBottomRef.current) return;
+      container.scrollTop = container.scrollHeight;
+      currentScrollTopRef.current = container.scrollTop;
+    });
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, [channel.id, displayedMessages.length]);
 
   const handleJumpToMessage = (targetMessageId: string) => {
     if (!targetMessageId) return;
@@ -1259,6 +1284,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   // 切换频道时：从 IndexedDB/metaCache 读取滚动记忆与已读游标，离开时持久化保存最新游标与滚动坐标
   useEffect(() => {
     let isCancelled = false;
+    if (scrollJumpTimeoutRef.current) {
+      clearTimeout(scrollJumpTimeoutRef.current);
+      scrollJumpTimeoutRef.current = null;
+    }
     isInitialPositionedRef.current = false;
     lastMessageIdRef.current = null;
     setHighlightedMessageId(null);
@@ -1310,11 +1339,20 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
   // 当初次加载消息到达时，执行纯物理位置恢复（无论是否有未读，始终精准还原上次离开时的 scrollTop）
   useEffect(() => {
-    if (messages.length === 0 || isInitialPositionedRef.current) return;
+    // The channel prop can change one render before App replaces the previous
+    // channel's messages. Never position the new channel using stale rows.
+    if (
+      messages.length === 0 ||
+      messages.some((message) => message.channelId !== channel.id) ||
+      isInitialPositionedRef.current
+    )
+      return;
 
+    let cancelled = false;
     messageDb.getChannelMeta(channel.id).then((meta) => {
+      if (cancelled) return;
       requestAnimationFrame(() => {
-        if (!scrollContainerRef.current) return;
+        if (cancelled || !scrollContainerRef.current) return;
 
         const isValidSavedScrollTop =
           meta && typeof meta.scrollTop === "number" && meta.scrollTop > 20;
@@ -1368,6 +1406,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
         // 延迟二次校准，解决虚拟列表子项在初次 DOM 测量高度完成后发生位移抖动
         setTimeout(() => {
+          if (cancelled) return;
           if (scrollContainerRef.current && restoreReadPosition) {
             if (
               Math.abs(
@@ -1388,6 +1427,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         }, 50);
       });
     });
+    return () => {
+      cancelled = true;
+    };
   }, [
     messages.length,
     displayedMessages,
@@ -1402,8 +1444,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     const latestMsg = messages[messages.length - 1];
     if (latestMsg && latestMsg.id !== lastMessageIdRef.current) {
       lastMessageIdRef.current = latestMsg.id;
-      if (isNearBottomRef.current) {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+      if (latestMsg.authorId === currentUser.id || isNearBottomRef.current) {
+        // Sending a message always returns to the latest one. A measured image
+        // or virtual row can grow after this render, so use the same follow-up
+        // alignment as the explicit jump-to-latest action.
+        scrollToBottom(latestMsg.authorId !== currentUser.id);
         // 核心优化：在最底部接收实时新消息，直接同步已读游标，避免在其上方误弹出红线
         if (latestMsg.sequence) {
           lastReadSequenceRef.current = Math.max(
@@ -2195,44 +2240,120 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
         {/* 待发送附件预览栏 */}
         {pendingAttachments.length > 0 && (
-          <div className="bg-[#2b2d31] p-2 border-l border-r border-[#3f4147] flex flex-wrap gap-2">
-            {pendingAttachments.map((att, idx) => (
-              <div
-                key={att.id || idx}
-                className="relative bg-[#1e1f22] rounded p-1.5 flex items-center space-x-2 border border-[#3f4147] max-w-xs"
-              >
-                {isImageMime(att.mimeType, att.fileName) ? (
-                  <img
-                    src={pendingImageUrls[att.id] || resolveServerUrl(att.url)}
-                    alt={att.fileName}
-                    className="w-8 h-8 rounded object-cover"
-                  />
-                ) : (
-                  <FileText className="w-6 h-6 text-discord-brand" />
-                )}
-                <span className="text-xs text-discord-textNormal truncate max-w-[120px]">
-                  {att.fileName}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const url = pendingImageUrls[att.id];
-                    if (url) URL.revokeObjectURL(url);
-                    setPendingImageUrls((prev) => {
-                      const next = { ...prev };
-                      delete next[att.id];
-                      return next;
-                    });
-                    setPendingAttachments((prev) =>
-                      prev.filter((_, i) => i !== idx),
-                    );
-                  }}
-                  className="text-discord-textMuted hover:text-red-400 p-0.5 rounded"
+          <div className="bg-[#2b2d31] p-3 border-l border-r border-[#3f4147] flex flex-wrap gap-3 overflow-x-auto max-h-48">
+            {pendingAttachments.map((att, idx) => {
+              const isImg = isImageMime(att.mimeType, att.fileName);
+              const previewUrl =
+                pendingImageUrls[att.id] || resolveServerUrl(att.url);
+
+              const handleRemove = () => {
+                const url = pendingImageUrls[att.id];
+                if (url) URL.revokeObjectURL(url);
+                setPendingImageUrls((prev) => {
+                  const next = { ...prev };
+                  delete next[att.id];
+                  return next;
+                });
+                setPendingAttachments((prev) =>
+                  prev.filter((_, i) => i !== idx),
+                );
+              };
+
+              if (isImg) {
+                return (
+                  <div
+                    key={att.id || idx}
+                    className="relative group/card rounded-lg overflow-hidden border border-[#3f4147] bg-[#1e1f22] w-28 h-28 flex-shrink-0 shadow-md transition hover:border-discord-brand/70"
+                  >
+                    {/* 图片缩略底图 */}
+                    <img
+                      src={previewUrl}
+                      alt={att.fileName}
+                      className="absolute inset-0 w-full h-full object-cover transition-transform duration-200 group-hover/card:scale-105"
+                    />
+
+                    {/* 悬停半透明蒙层与快捷预览 */}
+                    <button
+                      type="button"
+                      onClick={() => setLightboxImage(att)}
+                      className="absolute inset-0 bg-black/40 opacity-0 group-hover/card:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 text-white z-10"
+                      title="点击预览大图"
+                      aria-label={`预览 ${att.fileName}`}
+                    >
+                      <ZoomIn className="w-5 h-5 drop-shadow" />
+                      <span className="text-[10px] font-medium bg-black/60 px-1.5 py-0.5 rounded shadow">
+                        预览
+                      </span>
+                    </button>
+
+                    {/* 右上角删除按钮 */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemove();
+                      }}
+                      className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/60 text-white/80 hover:text-white hover:bg-red-500/90 transition shadow z-20"
+                      title="移除图片"
+                      aria-label={`移除 ${att.fileName}`}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+
+                    {/* 底部文件名与文件大小 */}
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/85 via-black/50 to-transparent p-1.5 pt-3 pointer-events-none z-10">
+                      <p className="text-[11px] text-white/95 truncate font-medium drop-shadow-sm">
+                        {att.fileName}
+                      </p>
+                      {att.fileSize > 0 && (
+                        <p className="text-[9px] text-white/70">
+                          {att.fileSize < 1024
+                            ? `${att.fileSize} B`
+                            : att.fileSize < 1024 * 1024
+                              ? `${(att.fileSize / 1024).toFixed(1)} KB`
+                              : `${(att.fileSize / (1024 * 1024)).toFixed(1)} MB`}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+
+              // 非图片附件卡片
+              return (
+                <div
+                  key={att.id || idx}
+                  className="relative group/card bg-[#1e1f22] rounded-lg p-2.5 flex items-center space-x-2.5 border border-[#3f4147] hover:border-discord-brand/70 max-w-xs shadow-md transition"
                 >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            ))}
+                  <div className="w-9 h-9 rounded bg-[#2b2d31] flex items-center justify-center flex-shrink-0">
+                    <FileText className="w-5 h-5 text-discord-brand" />
+                  </div>
+                  <div className="min-w-0 pr-6">
+                    <p className="text-xs text-discord-textNormal truncate max-w-[130px] font-medium">
+                      {att.fileName}
+                    </p>
+                    {att.fileSize > 0 && (
+                      <p className="text-[10px] text-discord-textMuted">
+                        {att.fileSize < 1024
+                          ? `${att.fileSize} B`
+                          : att.fileSize < 1024 * 1024
+                            ? `${(att.fileSize / 1024).toFixed(1)} KB`
+                            : `${(att.fileSize / (1024 * 1024)).toFixed(1)} MB`}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemove}
+                    className="absolute top-2 right-2 text-discord-textMuted hover:text-red-400 p-0.5 rounded transition"
+                    title="移除附件"
+                    aria-label={`移除 ${att.fileName}`}
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -2397,6 +2518,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       {/* 图片灯箱放大预览模态框 */}
       <LightboxModal
         attachment={lightboxImage}
+        fallbackUrl={
+          lightboxImage
+            ? pendingImageUrls[lightboxImage.id] ||
+              resolveServerUrl(lightboxImage.url)
+            : undefined
+        }
         onClose={() => setLightboxImage(null)}
       />
 

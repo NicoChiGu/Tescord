@@ -1241,6 +1241,7 @@ export const GatewayEvents = {
   MESSAGE_PIN_UPDATE: "MESSAGE_PIN_UPDATE",
   VOICE_STATE_UPDATE: "VOICE_STATE_UPDATE",
   CF_MEDIA_TRACKS: "CF_MEDIA_TRACKS",
+  CF_STREAM_VIEWERS: "CF_STREAM_VIEWERS",
   USER_UPDATE: "USER_UPDATE",
   PRESENCE_UPDATE: "PRESENCE_UPDATE",
   GUILD_CREATE: "GUILD_CREATE",
@@ -3293,6 +3294,24 @@ export interface CfMediaTracksEvent {
   tracks: CfMediaPublication[];
 }
 
+/** A stream is identified by the host's Cloudflare media session. */
+export interface CfStreamWatchRequest {
+  channelId: string;
+  sessionId: string;
+  publisherSessionId: string;
+}
+
+export interface CfStreamViewersEvent {
+  channelId: string;
+  publisherSessionId: string;
+  hostUserId: string;
+  viewerCount: number;
+}
+
+export interface CfStreamWatchState extends CfStreamViewersEvent {
+  watching: boolean;
+}
+
 export interface CfCallsPublishTrackRequest {
   channelId: string;
   sessionId: string;
@@ -3333,6 +3352,12 @@ export interface CfCallsCloseTracksRequest {
   sessionId: string;
   tracks: Array<{ mid?: string; trackName?: string }>;
   sessionDescription?: CfCallsSessionDescription;
+}
+
+export interface CfCallsUnsubscribeRequest {
+  channelId: string;
+  sessionId: string;
+  tracks: Array<{ mid: string }>;
 }
 
 export interface CfRealtimeConfigResponse {

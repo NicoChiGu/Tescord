@@ -2,6 +2,14 @@
 <html lang="zh-CN" class="h-full bg-discord-chat text-discord-textNormal">
   <head>
     <meta charset="UTF-8" />
+    <script>
+      // Web deep links resolve assets from the site root; Electron keeps file-relative assets.
+      if (location.protocol === "http:" || location.protocol === "https:") {
+        const base = document.createElement("base");
+        base.href = "/";
+        document.head.appendChild(base);
+      }
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta
       name="viewport"
@@ -9,7 +17,8 @@
     />
     <title>Tescord - 本地私有化语音聊天与直播</title>
     <style>
-      html, body {
+      html,
+      body {
         margin: 0;
         padding: 0;
         width: 100%;

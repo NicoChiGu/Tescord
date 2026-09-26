@@ -90,7 +90,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
 
   // 输出音量与测试音频状态 (从 livekitService 读取持久化全局输出音量)
   const [outputVolume, setOutputVolume] = useState<number>(() =>
-    livekitService.getMasterVolume(),
+    (VOICE_ENGINE === "cloudflare_realtime" ? cloudflareRealtimeService : livekitService).getMasterVolume(),
   );
   const [isPlayingTestSound, setIsPlayingTestSound] = useState(false);
   const testAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -680,6 +680,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                   const val = Number(e.target.value);
                   setOutputVolume(val);
                   livekitService.setMasterVolume(val);
+                  cloudflareRealtimeService.setMasterVolume(val);
                 }}
                 className="w-full h-1.5 bg-[#1e1f22] rounded-lg appearance-none cursor-pointer accent-discord-brand"
               />

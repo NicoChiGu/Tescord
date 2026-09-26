@@ -58,6 +58,7 @@ test.describe("消息滚动记忆、新消息红线消除与多类型附件上�
     await page.route(
       "**/api/channels/chn_default_text_01/messages*",
       (route) => {
+        if (route.request().method() !== "GET") return route.continue();
         route.fulfill({
           status: 200,
           contentType: "application/json",
@@ -304,5 +305,42 @@ test.describe("消息滚动记忆、新消息红线消除与多类型附件上�
     // 核心断言：由于处于最底端，顶部“跳到最新消息”横幅绝不呈现
     const floatingBanner = page.getByTitle("跳到最新消息");
     await expect(floatingBanner).not.toBeVisible();
+  });
+
+  test("5. 阅读历史时发送自己的消息后回到最新消息", async ({ page }) => {
+    await page.goto("/");
+    await page
+      .getByRole("button", { name: /Tescord 极客总部|极客/i })
+      .first()
+      .click();
+    await page.getByRole("button", { name: "general" }).click();
+    const container = page.getByTestId("chat-scroll-container");
+    await expect(page.locator("#message-msg_general_scroll_1")).toBeVisible();
+    await container.evaluate((element) => {
+      element.scrollTop = 0;
+      element.dispatchEvent(new Event("scroll"));
+    });
+    await expect
+      .poll(() =>
+        container.evaluate(
+          (element) =>
+            element.scrollHeight - element.scrollTop - element.clientHeight,
+        ),
+      )
+      .toBeGreaterThan(150);
+
+    const content = `self-scroll-${Date.now()}`;
+    const composer = page.locator('[contenteditable="true"]').first();
+    await composer.fill(content);
+    await composer.press("Enter");
+    await expect(page.getByText(content)).toBeVisible({ timeout: 10000 });
+    await expect
+      .poll(() =>
+        container.evaluate(
+          (element) =>
+            element.scrollHeight - element.scrollTop - element.clientHeight,
+        ),
+      )
+      .toBeLessThan(20);
   });
 });

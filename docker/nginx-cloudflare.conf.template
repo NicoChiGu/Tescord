@@ -17,6 +17,25 @@ server {
         proxy_read_timeout 3600s;
     }
     location ^~ /uploads/ { return 404; }
+    # ONNX Runtime imports this module dynamically. NGINX's default MIME
+    # table in the pinned image does not label .mjs as JavaScript.
+    location ^~ /ort/ {
+        root /usr/share/nginx/html;
+        types {
+            application/javascript mjs;
+            application/wasm wasm;
+        }
+        try_files $uri =404;
+    }
+    # Model and worklet files must never resolve to the SPA HTML shell.
+    location ^~ /models/ {
+        root /usr/share/nginx/html;
+        try_files $uri =404;
+    }
+    location ^~ /rnnoise/ {
+        root /usr/share/nginx/html;
+        try_files $uri =404;
+    }
     location / {
         root /usr/share/nginx/html;
         try_files $uri $uri/ /index.html;

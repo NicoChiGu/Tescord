@@ -211,7 +211,7 @@ test.describe("附件上传与发信授权验收 (Attachment Upload & Message Se
     await expect(
       page.getByRole("dialog", { name: "预览 e2e_pure_attachment.png" }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "查看原图" }).click();
+    await page.getByTitle("查看原图").click();
     await expect(
       page.getByText("e2e_pure_attachment.png · 原图"),
     ).toBeVisible();
