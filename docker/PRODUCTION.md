@@ -8,6 +8,16 @@ podman-compose -f "$root/docker/docker-compose-cloudflare.yml" --env-file "$root
 podman-compose -f "$root/docker/docker-compose-cloudflare.yml" --env-file "$root/docker/.env.cloudflare" up -d --build --remove-orphans
 ```
 
+日常查看这套 Cloudflare 服务时，使用封装了绝对 Compose 路径和私有环境文件的入口：
+
+```sh
+cd /home/tera/apps/tescord/docker
+./scripts/compose-cloudflare.sh ps
+./scripts/compose-cloudflare.sh logs --tail=100 server
+```
+
+直接运行 `podman-compose ps` 或 `podman compose ps` 会读取本目录默认的旧 `docker-compose.yml`，且不会自动加载 `.env.cloudflare`；因此可能报 `set MINIO_ACCESS_KEY`。这只是配置解析失败，不表示正在运行的容器停止。不要为了消除报错把 `.env.cloudflare` 链接为 `.env`，否则无参数的 `up` 可能操作旧 LiveKit 编排。
+
 验收后若需创建首个超级管理员，在目标机执行 `sh docker/scripts/create-admin.sh admin admin@example.com`；脚本隐藏输入并确认密码，通过 `podman exec -i` 在 API 容器内创建账号。已有用户名或邮箱会被拒绝，不会提升已有账号或修改其密码。
 
 `docker-compose-without-coturn.yml` 是 rootless Podman + Cloudflare Tunnel 的部署入口，示例配置在 `.env.without-coturn.example`。它将 Web 源站仅绑定到 `127.0.0.1:18080`，由同网络的 `cloudflared` 转发至 `http://web:80`。Cloudflare 控制台需将公开主机名指向该 Tunnel 的 `http://web:80`；Tunnel 不承载 LiveKit 的 UDP/TCP 媒体端口。
