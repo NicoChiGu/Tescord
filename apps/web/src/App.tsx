@@ -3174,16 +3174,23 @@ export const App: React.FC = () => {
   // 接听呼叫
   const handleAcceptCall = async () => {
     if (!incomingCall) return;
+    const call = incomingCall;
     if (!sframeManager.getStats().enabled) {
       try {
         const token = useAuthStore.getState().token;
         if (!token) throw new Error("登录已失效");
+        // 来电可以先于对端的密钥信封到达；优先等实时密钥事件，避免正常接听产生 404。
+        for (let attempt = 0; attempt < 15 && !sframeManager.getStats().enabled; attempt++) {
+          if (activeDMCallRef.current?.callId !== call.callId) return;
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
         let lastError: unknown = new Error("等待对端媒体密钥超时");
         for (let attempt = 0; attempt < 20 && !sframeManager.getStats().enabled; attempt++) {
+          if (activeDMCallRef.current?.callId !== call.callId) return;
           try {
             const envelope = await deviceKeyService.fetchMediaKey(
-              incomingCall.channelId,
-              incomingCall.callId,
+              call.channelId,
+              call.callId,
               token,
             );
             const negotiated = await deviceKeyService.openMediaKey(envelope);
@@ -3209,7 +3216,7 @@ export const App: React.FC = () => {
         return;
       }
     }
-    const call = incomingCall;
+    if (activeDMCallRef.current?.callId !== call.callId) return;
     setIncomingCall(null);
     gatewayClient.send({
       op: GatewayOpCode.DISPATCH,

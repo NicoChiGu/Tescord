@@ -13,10 +13,13 @@ declare global {
 async function snapshot(page: Page) {
   return page.evaluate(async () => Promise.all((window.__dmAcceptancePcs || []).map(async pc => {
     const report = await pc.getStats();
+    const selectedPairId = [...report.values()].find(item => item.type === "transport" && item.selectedCandidatePairId)?.selectedCandidatePairId;
+    const pair = report.get(selectedPairId || "");
     const rtp = [...report.values()].filter(item => item.type === "inbound-rtp" || item.type === "outbound-rtp")
       .map(item => ({ direction: item.type, kind: item.kind, bytes: item.bytesReceived || item.bytesSent || 0,
         codec: report.get(item.codecId)?.mimeType || null }));
-    return { state: pc.connectionState, rtp };
+    return { state: pc.connectionState, localCandidateType: report.get(pair?.localCandidateId)?.candidateType || null,
+      remoteCandidateType: report.get(pair?.remoteCandidateId)?.candidateType || null, rtp };
   })));
 }
 
@@ -149,6 +152,15 @@ test("public DM call negotiates E2EE and exchanges audio after Cloudflare SFU fa
       expect(hook.receive).toBeGreaterThan(0);
     }
     const before = await Promise.all(pages.map(snapshot));
+    for (const peers of before) {
+      expect(peers.length).toBeGreaterThanOrEqual(2);
+      expect(peers[0].state).toBe("closed");
+      expect(peers.some(peer => peer.state === "connected" && peer.localCandidateType)).toBe(true);
+    }
+    for (const rows of diagnostics) {
+      expect(rows.some(item => item.event.endsWith("/session/new") && item.status === 200)).toBe(true);
+      expect(rows.some(item => item.event.endsWith("/tracks/publish") && item.status === 200)).toBe(true);
+    }
     await pages[0].waitForTimeout(1500);
     const after = await Promise.all(pages.map(snapshot));
     for (let index = 0; index < pages.length; index++) {
@@ -160,7 +172,8 @@ test("public DM call negotiates E2EE and exchanges audio after Cloudflare SFU fa
     }
     const directory = resolve("test-results/cloudflare-target");
     await mkdir(directory, { recursive: true });
-    await writeFile(resolve(directory, "dm-media-stats.json"), JSON.stringify({ before, after, hooks }, null, 2));
+    await writeFile(resolve(directory, "dm-media-stats.json"), JSON.stringify({ before, after, hooks,
+      cloudflareStatuses: diagnostics.map(rows => rows.filter(item => item.event.startsWith("/api/cloudflare-realtime/"))) }, null, 2));
     await pages[1].screenshot({ path: resolve(directory, "dm-call.png"), fullPage: true });
   } catch (error) {
     console.log(JSON.stringify({ stage: "dm_media", stats: await Promise.all(pages.map(snapshot)),
