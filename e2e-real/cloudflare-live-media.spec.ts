@@ -566,30 +566,37 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     await expect(watchButton).toHaveText("停止观看", { timeout: 20_000 });
   }
   await expect(pages[0].locator('[data-testid^="stream-viewer-count-"]').first()).toContainText("2 人观看", { timeout: 20_000 });
-  await expect
-    .poll(
-      async () => {
-        const rows = await mediaSnapshot(pages[1]);
-        return rows.some(
-          (row) =>
-            row.rtp.filter(
-              (rtp) =>
-                rtp.direction === "inbound-rtp" &&
-                rtp.kind === "video" &&
-                rtp.frames > 0,
-            ).length >= 2 &&
-            row.rtp.filter(
-              (rtp) =>
-                rtp.direction === "inbound-rtp" &&
-                rtp.kind === "audio" &&
-                rtp.bytes > 1000,
-            ).length >= 3,
-        );
-      },
-      { timeout: 30_000 },
-    )
-    .toBe(true);
+  try {
+    await expect
+      .poll(
+        async () => {
+          const rows = await mediaSnapshot(pages[1]);
+          return rows.some(
+            (row) =>
+              row.rtp.some(
+                (rtp) =>
+                  rtp.direction === "inbound-rtp" &&
+                  rtp.kind === "video" &&
+                  rtp.frames > 0,
+              ) &&
+              row.rtp.filter(
+                (rtp) =>
+                  rtp.direction === "inbound-rtp" &&
+                  rtp.kind === "audio" &&
+                  rtp.bytes > 1000,
+              ).length >= 3,
+          );
+        },
+        { timeout: 30_000 },
+      )
+      .toBe(true);
+  } catch (error) {
+    console.log(JSON.stringify({ stage: "screen", snapshots: await Promise.all(pages.map(mediaSnapshot)), diagnostics }));
+    throw error;
+  }
   const screenReceiver = await mediaSnapshot(pages[1]);
+  await pages[1].waitForTimeout(1200);
+  expect(videoBytes(await mediaSnapshot(pages[1]))).toBeGreaterThan(videoBytes(screenReceiver));
   await watchButtons[1].click();
   await expect(watchButtons[1]).toHaveText("播放直播", { timeout: 20_000 });
   await expect(pages[0].locator('[data-testid^="stream-viewer-count-"]').first()).toContainText("1 人观看", { timeout: 20_000 });

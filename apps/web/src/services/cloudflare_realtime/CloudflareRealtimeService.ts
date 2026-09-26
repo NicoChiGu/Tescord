@@ -990,7 +990,11 @@ export class CloudflareRealtimeService {
       if (track.sessionId === this.sessionId) continue;
       const key = `${track.sessionId}:${track.trackName}`;
       this.currentPublications.set(key, track);
-      if (this.subscribedTracks.has(key) || (track.source !== "microphone" && track.source !== "camera")) continue;
+      if (this.subscribedTracks.has(key) || (
+        track.source !== "microphone" &&
+        track.source !== "camera" &&
+        !(this.watchingSessions.has(track.sessionId) && (track.source === "screen" || track.source === "screen-audio"))
+      )) continue;
       this.subscribedTracks.add(key);
       try {
         await this.subscribeRemoteTrack(track.sessionId, track.trackName);
@@ -1067,6 +1071,21 @@ export class CloudflareRealtimeService {
     return operation;
   }
 
+  private async subscribeNewWatchTracks(publisherSessionId: string): Promise<void> {
+    for (const publication of this.currentPublications.values()) {
+      if (publication.sessionId !== publisherSessionId || (publication.source !== "screen" && publication.source !== "screen-audio")) continue;
+      const key = `${publication.sessionId}:${publication.trackName}`;
+      if (this.subscribedTracks.has(key)) continue;
+      this.subscribedTracks.add(key);
+      try {
+        await this.subscribeRemoteTrack(publication.sessionId, publication.trackName);
+      } catch (error) {
+        this.subscribedTracks.delete(key);
+        console.error("[CF Realtime] Watched stream track subscribe failed", error);
+      }
+    }
+  }
+
   private async startWatchingStreamNow(publisherSessionId: string): Promise<CfStreamWatchState> {
     if (!this.sessionId || !this.currentChannelId) throw new Error("No Cloudflare media session");
     const screen = [...this.currentPublications.values()].find((publication) => publication.sessionId === publisherSessionId && publication.source === "screen");
@@ -1092,6 +1111,7 @@ export class CloudflareRealtimeService {
       const state = await response.json() as CfStreamWatchState;
       this.watchingSessions.add(publisherSessionId);
       this.setWatchState(state);
+      await this.subscribeNewWatchTracks(publisherSessionId);
       return state;
     } catch (error) {
       await this.releaseScreenSubscriptions(publisherSessionId).catch(() => undefined);
