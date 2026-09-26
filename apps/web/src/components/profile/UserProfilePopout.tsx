@@ -248,10 +248,10 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
       }
     };
 
-    // 延迟一帧绑定事件，防止触发展开的当前点击事件冒泡立即关闭
+    // 键盘关闭必须立即可用；仅点击外部事件需要避开打开弹窗的当前指针事件。
+    document.addEventListener("keydown", handleKeyDown);
     const timer = setTimeout(() => {
       document.addEventListener("pointerdown", handlePointerDown);
-      document.addEventListener("keydown", handleKeyDown);
     }, 10);
 
     return () => {
