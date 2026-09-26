@@ -12,8 +12,9 @@ Before deployment, PostgreSQL and MinIO backups were saved under `/home/tera/tes
 | `pnpm test:e2e` | 171/171 Playwright tests passed | [local-e2e.log](local-e2e.log) |
 | `pnpm test:security-media` | media crypto checks passed | [local-security-media.log](local-security-media.log) |
 | `pnpm exec playwright test e2e/camera-live-stream.spec.ts e2e/cloudflare-media-security.spec.ts` | 4/4 passed after the final media change | Console output captured during the release run |
+| `BUILD_TARGET=desktop pnpm --filter @tescord/web build`, then `pnpm test:e2e:electron` | Desktop Web build passed; `file://` session test 1/1 passed, packaged-shell test 1 skipped | [desktop build](local-desktop-build.log), [Electron E2E](local-electron-e2e.log) |
 
-An Electron `file://` test passed after the desktop-target Web build. The packaged-shell test was skipped because no packaged installer was available.
+The packaged-shell test was skipped because no packaged installer was available.
 
 ## Production media verification
 
