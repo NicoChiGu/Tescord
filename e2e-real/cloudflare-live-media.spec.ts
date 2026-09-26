@@ -53,10 +53,11 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   const onTarget = Boolean(process.env.TESCORD_TARGET_BASE_URL);
   if (onTarget) test.setTimeout(180_000);
   const forceRelay = process.env.TESCORD_FORCE_RELAY === "1";
+  const testNetworkRecovery = process.env.TESCORD_TEST_NETWORK_RECOVERY === "1";
   const testP2PFallback = process.env.TESCORD_TEST_P2P_FALLBACK === "1";
   if (testP2PFallback) test.setTimeout(180_000);
   if (process.env.TESCORD_TEST_SERVER_RESTART === "1") test.setTimeout(240_000);
-  if (process.env.TESCORD_TEST_NETWORK_RECOVERY === "1")
+  if (testNetworkRecovery)
     test.setTimeout(240_000);
   const adminLogin = await request.post("/api/auth/login", {
     data: {
@@ -305,7 +306,9 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
       }
     });
     page.on("console", (message) => {
-      if (message.type() === "error" && !tearingDown)
+      const expectedOfflineRequest = testNetworkRecovery && index === 0 &&
+        message.text().includes("net::ERR_INTERNET_DISCONNECTED");
+      if (message.type() === "error" && !tearingDown && !expectedOfflineRequest)
         activeConsoleErrors.push(`browser ${index}: ${message.text()}`);
       if (message.type() === "error" || message.type() === "warning")
         console.log(`browser ${index} ${message.type()}: ${message.text()}`);
@@ -602,7 +605,7 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   await expect(pages[0].locator('[data-testid^="stream-viewer-count-"]').first()).toContainText("1 人观看", { timeout: 20_000 });
   await pages[0].getByTestId("voice-toggle-screen-btn").click();
   let networkReceiver: Awaited<ReturnType<typeof mediaSnapshot>> | undefined;
-  if (onTarget && process.env.TESCORD_TEST_NETWORK_RECOVERY === "1") {
+  if (onTarget && testNetworkRecovery) {
     await pages[0].context().setOffline(true);
     await pages[0].waitForTimeout(4_000);
     await pages[0].context().setOffline(false);

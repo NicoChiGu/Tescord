@@ -68,6 +68,7 @@ type RtcRecord = RTCStats & {
 export class CloudflareRealtimeService {
   private pc: RTCPeerConnection | null = null;
   private sessionId: string | null = null;
+  private pendingSessionLeaves = new Set<string>();
   private currentChannelId: string | null = null;
   private connectionStatus: CfRealtimeConnectionStatus = "disconnected";
 
@@ -407,6 +408,7 @@ export class CloudflareRealtimeService {
 
   private async createMediaSession(): Promise<string> {
     if (!this.currentChannelId) throw new Error("No media channel selected");
+    await this.flushPendingSessionLeaves();
     const sessionRes = await apiFetch(
       `${API_BASE}/api/cloudflare-realtime/session/new`,
       {
@@ -444,6 +446,31 @@ export class CloudflareRealtimeService {
       this.setWatchState({ ...event, watching: this.watchingSessions.has(event.publisherSessionId) });
     });
     return sessionData.sessionId;
+  }
+
+  private async leaveMediaSession(sessionId: string): Promise<void> {
+    try {
+      const response = await apiFetch(`${API_BASE}/api/cloudflare-realtime/session/leave`, {
+        method: "POST",
+        headers: this.authHeaders,
+        body: JSON.stringify({ sessionId }),
+        signal: AbortSignal.timeout(3_000),
+      });
+      if (response.ok || response.status === 403 || response.status === 404) {
+        this.pendingSessionLeaves.delete(sessionId);
+        return;
+      }
+    } catch {
+      // A disconnected browser cannot revoke its old SFU session yet.
+    }
+    this.pendingSessionLeaves.add(sessionId);
+  }
+
+  private async flushPendingSessionLeaves(): Promise<void> {
+    for (const sessionId of this.pendingSessionLeaves)
+      await this.leaveMediaSession(sessionId);
+    if (this.pendingSessionLeaves.size)
+      throw new Error("Previous media session cleanup pending");
   }
 
   /**
@@ -1389,14 +1416,7 @@ export class CloudflareRealtimeService {
     if (this.turnRefreshTimer) clearTimeout(this.turnRefreshTimer);
     this.turnRefreshTimer = null;
     const oldSessionId = this.sessionId;
-    if (oldSessionId) {
-      await apiFetch(`${API_BASE}/api/cloudflare-realtime/session/leave`, {
-        method: "POST",
-        headers: this.authHeaders,
-        body: JSON.stringify({ sessionId: oldSessionId }),
-        signal: AbortSignal.timeout(3_000),
-      }).catch(() => undefined);
-    }
+    if (oldSessionId) await this.leaveMediaSession(oldSessionId);
     // 释放远端播放 Audio 元素
     for (const trackId of [...this.audioElements.keys()]) this.releaseRemoteTrack(trackId);
     if (this.playbackContext) await this.playbackContext.close().catch(() => undefined);
