@@ -33,6 +33,7 @@ import {
   BellOff,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { VOICE_ENGINE } from "../config.js";
 import {
   DndContext,
   DragOverlay,
@@ -1280,7 +1281,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                     if (peerLatencies.size > 0) {
                       return t("voice:medianLatency");
                     }
-                    return "LiveKit SFU";
+                    return VOICE_ENGINE === "cloudflare_realtime" ? "Cloudflare SFU" : "LiveKit SFU";
                   })()}
                 </div>
               </div>

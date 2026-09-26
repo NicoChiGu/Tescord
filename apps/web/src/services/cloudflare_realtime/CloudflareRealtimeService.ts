@@ -990,7 +990,7 @@ export class CloudflareRealtimeService {
       if (track.sessionId === this.sessionId) continue;
       const key = `${track.sessionId}:${track.trackName}`;
       this.currentPublications.set(key, track);
-      if (this.subscribedTracks.has(key) || track.source !== "microphone") continue;
+      if (this.subscribedTracks.has(key) || (track.source !== "microphone" && track.source !== "camera")) continue;
       this.subscribedTracks.add(key);
       try {
         await this.subscribeRemoteTrack(track.sessionId, track.trackName);

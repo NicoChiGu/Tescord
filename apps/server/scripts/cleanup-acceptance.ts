@@ -34,7 +34,10 @@ async function main(): Promise<void> {
   const users = await prisma.user.findMany({ where: { id: { in: ids } }, select: { id: true, username: true, email: true, role: true, registeredWithInviteCode: true } });
   for (const entry of identities) {
     const user = users.find((item) => item.id === entry.id);
-    if (!user || user.username !== entry.username || user.email !== entry.email || user.role !== entry.role)
+    const usernameMatches = entry.role === "SUPER_ADMIN"
+      ? user?.username === entry.username
+      : !!user && new RegExp(`^${entry.username}#[0-9]{5}$`).test(user.username);
+    if (!user || !usernameMatches || user.email !== entry.email || user.role !== entry.role)
       throw new Error(`Account identity check failed for ${entry.id}`);
     if (entry.role === "USER" && resources.registrationInviteCode && user.registeredWithInviteCode !== resources.registrationInviteCode)
       throw new Error(`Registration invite mismatch for ${entry.id}`);
