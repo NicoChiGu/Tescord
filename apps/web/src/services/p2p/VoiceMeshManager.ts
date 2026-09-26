@@ -39,6 +39,7 @@ export class VoiceMeshManager {
   private hasConnectedPeer = false;
   private isFallbackToSFU: boolean = false;
   private fallbackReason: string = "";
+  private allowFallbackToSFU: boolean = true;
   private fallbackCallbacks = new Set<VoiceFallbackCallback>();
 
   // 动态 ICE 服务器 (双栈 STUN + Coturn TURN)
@@ -134,9 +135,17 @@ export class VoiceMeshManager {
     return count;
   }
 
+  public setAllowFallbackToSFU(allow: boolean): void {
+    this.allowFallbackToSFU = allow;
+  }
+
   public triggerFallbackToSFU(
     reason: string = "网络穿透协商受阻，已平滑降级回退至 LiveKit SFU 服务器",
   ): void {
+    if (!this.allowFallbackToSFU) {
+      console.log(`[VoiceMesh] 频道配置为强制纯 P2P Mesh，阻止自动降级至 SFU: ${reason}`);
+      return;
+    }
     if (!this.isMeshActive || this.isFallbackToSFU || !this.activeChannelId)
       return;
     this.isFallbackToSFU = true;
@@ -173,12 +182,14 @@ export class VoiceMeshManager {
     localStream: MediaStream,
     otherUserIds: string[],
     callId?: string,
+    options?: { allowFallbackToSFU?: boolean },
   ): Promise<void> {
     this.stopAll();
 
     this.activeChannelId = channelId;
     this.activeGuildId = guildId;
     this.activeCallId = callId || null;
+    this.allowFallbackToSFU = options?.allowFallbackToSFU ?? true;
     this.isMeshActive = true;
     this.hasConnectedPeer = false;
     this.isFallbackToSFU = false;
@@ -433,6 +444,7 @@ export class VoiceMeshManager {
 
     pc = new RTCPeerConnection({
       iceServers: this.currentIceServers,
+      iceTransportPolicy: "all",
       bundlePolicy: "max-bundle",
       ...(sframeManager.getStats().enabled
         ? { encodedInsertableStreams: true }

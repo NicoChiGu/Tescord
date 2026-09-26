@@ -6,6 +6,8 @@ import {
   ShieldCheck,
   Trash2,
   AlertTriangle,
+  Radio,
+  Network,
 } from "lucide-react";
 import { Channel, Guild } from "@tescord/types";
 import { useTranslation } from "react-i18next";
@@ -33,6 +35,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
   const [name, setName] = useState("");
   const [topic, setTopic] = useState("");
   const [parentId, setParentId] = useState<string | null>(null);
+  const [voiceMode, setVoiceMode] = useState<"sfu" | "p2p_mesh">("sfu");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -43,6 +46,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
       setName(channel.name || "");
       setTopic(channel.topic || "");
       setParentId(channel.parentId || null);
+      setVoiceMode(channel.voiceMode || "sfu");
       setError(null);
       setConfirmDelete(false);
     }
@@ -83,6 +87,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
           name: name.trim(),
           topic: topic.trim(),
           parentId: parentId || null,
+          ...(channel.type === "VOICE" ? { voiceMode } : {}),
         }),
       });
 
@@ -256,6 +261,80 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
               ))}
             </select>
           </div>
+
+          {/* 语音频道传输拓扑设置 */}
+          {isVoice && (
+            <div className="space-y-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted">
+                音频传输架构 (Audio Transmission Topology)
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* 选项 1: SFU */}
+                <div
+                  data-testid="edit-channel-voicemode-sfu"
+                  onClick={() => setVoiceMode("sfu")}
+                  className={`p-3 rounded-lg border cursor-pointer transition flex flex-col justify-between ${
+                    voiceMode === "sfu"
+                      ? "bg-discord-brand/10 border-discord-brand text-white"
+                      : "bg-[#2b2d31] border-[#383a40] text-gray-300 hover:border-gray-500"
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Radio
+                        className={`w-4 h-4 ${
+                          voiceMode === "sfu"
+                            ? "text-discord-brand"
+                            : "text-gray-400"
+                        }`}
+                      />
+                      <span className="text-xs font-bold">
+                        边缘转发 (SFU)
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                      经由 Cloudflare Anycast 边缘服务器转发，适合多人规模通话，连接更稳定。
+                    </p>
+                  </div>
+                  <div className="mt-2 text-[10px] text-discord-brand font-semibold">
+                    {voiceMode === "sfu" && "✓ 当前已启用"}
+                  </div>
+                </div>
+
+                {/* 选项 2: P2P Mesh */}
+                <div
+                  data-testid="edit-channel-voicemode-mesh"
+                  onClick={() => setVoiceMode("p2p_mesh")}
+                  className={`p-3 rounded-lg border cursor-pointer transition flex flex-col justify-between ${
+                    voiceMode === "p2p_mesh"
+                      ? "bg-discord-brand/10 border-discord-brand text-white"
+                      : "bg-[#2b2d31] border-[#383a40] text-gray-300 hover:border-gray-500"
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      <Network
+                        className={`w-4 h-4 ${
+                          voiceMode === "p2p_mesh"
+                            ? "text-discord-brand"
+                            : "text-gray-400"
+                        }`}
+                      />
+                      <span className="text-xs font-bold">
+                        纯网状直连 (P2P Mesh)
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                      客户端间端到端直连，零服务器延迟；受限时由 Anycast TURN 智能穿透，绝不降级 SFU。
+                    </p>
+                  </div>
+                  <div className="mt-2 text-[10px] text-discord-brand font-semibold">
+                    {voiceMode === "p2p_mesh" && "✓ 当前已启用"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* 频道属性信息卡片 */}
           <div className="bg-[#2b2d31] p-3.5 rounded-lg border border-[#383a40] space-y-2.5">

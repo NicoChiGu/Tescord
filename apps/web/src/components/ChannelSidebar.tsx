@@ -1236,6 +1236,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                         : t("voice:voiceConnected")}
                   </span>
                   <span
+                    data-testid="voice-connection-latency"
                     className={`text-[10px] font-mono px-1.5 py-0.2 rounded bg-[#1e1f22] border border-[#2b2d31] ${
                       voiceConnectionStatus === "connecting"
                         ? "text-[#faa61a]"
@@ -1243,7 +1244,12 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                     } group-hover:border-discord-brand transition-colors`}
                   >
                     {(() => {
-                      if (voiceConnectionStatus === "connecting") return "--ms";
+                      const isP2P =
+                        activeVoiceChannel?.voiceMode === "p2p_mesh" ||
+                        voiceMeshManager.getIsMeshActive();
+                      if (voiceConnectionStatus === "connecting") {
+                        return isP2P ? "P2P --ms" : "--ms";
+                      }
                       const activeSpeakerId =
                         activeSpeakers && activeSpeakers.length > 0
                           ? activeSpeakers[0]
@@ -1254,7 +1260,8 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                         );
                       const finalRtt =
                         meshMetrics.rtt > 0 ? meshMetrics.rtt : currentRtt;
-                      return finalRtt === null ? "--ms" : `${finalRtt}ms`;
+                      const latencyStr = finalRtt === null ? "--ms" : `${finalRtt}ms`;
+                      return isP2P ? `P2P ${latencyStr}` : latencyStr;
                     })()}
                   </span>
                 </div>

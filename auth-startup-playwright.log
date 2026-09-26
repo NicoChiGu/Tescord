@@ -1,0 +1,42 @@
+[WebServer] (node:19800) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:38192) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:20384) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:20384) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] [Cache] Redis unavailable (connection error). Seamlessly falling back to in-memory store.
+[WebServer] (node:6568) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] $ vite preview "--port" "4173"
+[WebServer] (node:39652) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 19 tests using 1 worker
+
+(node:36452) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  1 [setup] › e2e\auth.setup.ts:10:6 › create a real signed admin session for legacy UI fixtures (188ms)
+(node:36548) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok  2 [chromium] › e2e\auth-session-lifecycle.spec.ts:23:7 › session rotation and saved-account recovery › session-only login refreshes without persisting credentials (579ms)
+  ok  3 [chromium] › e2e\auth-session-lifecycle.spec.ts:49:7 › session rotation and saved-account recovery › temporary refresh outage retains credentials and does not ask for password (608ms)
+  ok  4 [chromium] › e2e\auth-session-lifecycle.spec.ts:82:7 › session rotation and saved-account recovery › switching A to B and back keeps each remembered login (666ms)
+  ok  5 [chromium] › e2e\auth-session-lifecycle.spec.ts:120:7 › session rotation and saved-account recovery › logout revokes the current session (288ms)
+  ok  6 [chromium] › e2e\auth-session-lifecycle.spec.ts:143:7 › session rotation and saved-account recovery › refresh lifetime is 30 days and rotation is atomic (278ms)
+  ok  7 [chromium] › e2e\auth-session-lifecycle.spec.ts:200:7 › session rotation and saved-account recovery › two tabs share one rotation without losing login (850ms)
+  ok  8 [chromium] › e2e\auth-stale-startup.spec.ts:12:9 › invalid retained local credentials return to login at / (461ms)
+  ok  9 [chromium] › e2e\auth-stale-startup.spec.ts:12:9 › invalid retained session credentials return to login at / (511ms)
+  ok 10 [chromium] › e2e\auth-stale-startup.spec.ts:12:9 › invalid retained access-only credentials return to login at / (457ms)
+  ok 11 [chromium] › e2e\auth-stale-startup.spec.ts:12:9 › invalid retained saved-only credentials return to login at / (475ms)
+  ok 12 [chromium] › e2e\auth-stale-startup.spec.ts:12:9 › invalid retained local credentials return to login at /invite/7326a0ae (477ms)
+  ok 13 [chromium] › e2e\auth-stale-startup.spec.ts:12:9 › invalid retained session credentials return to login at /invite/7326a0ae (473ms)
+  ok 14 [chromium] › e2e\auth-stale-startup.spec.ts:12:9 › invalid retained access-only credentials return to login at /invite/7326a0ae (464ms)
+  ok 15 [chromium] › e2e\auth-stale-startup.spec.ts:12:9 › invalid retained saved-only credentials return to login at /invite/7326a0ae (501ms)
+  ok 16 [chromium] › e2e\auth-stale-startup.spec.ts:98:5 › startup 401 still refreshes a valid remembered session (532ms)
+  ok 17 [chromium] › e2e\auth-stale-startup.spec.ts:122:5 › authenticated invite deep link loads assets and shows a usable join form (762ms)
+  ok 18 [chromium] › e2e\reauth-modal.spec.ts:4:7 › 令牌失效重新登录 Modal 与会话无感恢复验收 › 401 拦截后弹出毛玻璃重新登录 Modal、阻断关闭并在验证密码后无缝恢复 (819ms)
+  ok 19 [chromium] › e2e\reauth-modal.spec.ts:232:7 › 令牌失效重新登录 Modal 与会话无感恢复验收 › WebSocket 会话失效事件可唤起 ReauthModal，且支持切换账号彻底登出 (561ms)
+
+  19 passed (25.1s)

@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, Hash, Volume2, ShieldCheck } from "lucide-react";
+import { X, Hash, Volume2, ShieldCheck, Radio, Network } from "lucide-react";
 import { Channel, ChannelCategory, ChannelType } from "@tescord/types";
 import { useTranslation } from "react-i18next";
 import { API_BASE } from "../../config.js";
@@ -27,6 +27,7 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
   const [type, setType] = useState<ChannelType>("TEXT");
   const [parentId, setParentId] = useState<string | null>(initialCategoryId);
   const [topic, setTopic] = useState("");
+  const [voiceMode, setVoiceMode] = useState<"sfu" | "p2p_mesh">("sfu");
   const [isE2EE, setIsE2EE] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +37,7 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
       setParentId(initialCategoryId || null);
       setName("");
       setTopic("");
+      setVoiceMode("sfu");
       setIsE2EE(false);
       setError(null);
     }
@@ -64,6 +66,7 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
           parentId: parentId || undefined,
           topic: topic.trim() || undefined,
           isE2EE,
+          ...(type === "VOICE" ? { voiceMode } : {}),
         }),
       });
 
@@ -170,6 +173,47 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
                 </div>
               </label>
             </div>
+
+            {type === "VOICE" && (
+              <div className="mt-3 space-y-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted">
+                  音频传输架构 (Audio Transmission Topology)
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <div
+                    data-testid="create-channel-voicemode-sfu"
+                    onClick={() => setVoiceMode("sfu")}
+                    className={`p-2.5 rounded-lg border cursor-pointer transition flex flex-col justify-between ${
+                      voiceMode === "sfu"
+                        ? "bg-discord-brand/10 border-discord-brand text-white"
+                        : "bg-[#2b2d31] border-[#383a40] text-gray-300 hover:border-gray-500"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Radio className="w-3.5 h-3.5 text-discord-brand" />
+                      <span className="text-xs font-bold">边缘 SFU</span>
+                    </div>
+                    <p className="text-[10px] text-gray-400">稳定多播转发</p>
+                  </div>
+
+                  <div
+                    data-testid="create-channel-voicemode-mesh"
+                    onClick={() => setVoiceMode("p2p_mesh")}
+                    className={`p-2.5 rounded-lg border cursor-pointer transition flex flex-col justify-between ${
+                      voiceMode === "p2p_mesh"
+                        ? "bg-discord-brand/10 border-discord-brand text-white"
+                        : "bg-[#2b2d31] border-[#383a40] text-gray-300 hover:border-gray-500"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Network className="w-3.5 h-3.5 text-discord-brand" />
+                      <span className="text-xs font-bold">纯 Mesh</span>
+                    </div>
+                    <p className="text-[10px] text-gray-400">P2P + Anycast TURN</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 频道名称 */}

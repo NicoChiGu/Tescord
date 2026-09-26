@@ -389,6 +389,7 @@ export interface Channel {
   position: number; // 排序位置
   isE2EE?: boolean;
   bitrate?: number; // 语音比特率 (默认 64000)
+  voiceMode?: "sfu" | "p2p_mesh";
   recipients?: User[];
   lastMessage?: Message;
   unreadCount?: number;
@@ -547,6 +548,7 @@ export interface CreateChannelDTO {
   parentId?: string | null;
   position?: number;
   isE2EE?: boolean;
+  voiceMode?: "sfu" | "p2p_mesh";
 }
 
 export interface UpdateChannelDTO {
@@ -555,6 +557,7 @@ export interface UpdateChannelDTO {
   parentId?: string | null;
   position?: number;
   isE2EE?: boolean;
+  voiceMode?: "sfu" | "p2p_mesh";
 }
 
 export interface CreateCategoryDTO {

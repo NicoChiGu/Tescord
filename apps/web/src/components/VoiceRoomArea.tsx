@@ -142,6 +142,7 @@ interface ParticipantCardProps {
   isSpotlight?: boolean;
   onStopScreenShare?: () => void;
   peerLatency?: PeerLatencyReport | null;
+  isP2P?: boolean;
   showStatsHUD?: boolean;
   onToggleStats?: () => void;
   onCloseStats?: () => void;
@@ -175,6 +176,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
   isSpotlight = false,
   onStopScreenShare,
   peerLatency,
+  isP2P = false,
   showStatsHUD,
   onToggleStats,
   onCloseStats,
@@ -502,6 +504,26 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
         <div
           className={`absolute top-2 right-2 flex items-center space-x-1.5 z-20 ${controlsVisibilityClass}`}
         >
+          {/* 语音 P2P 模式下右上角成员独立 Ping 延迟展示 (SFU 模式下不展示) */}
+          {isP2P && !isMe && (
+            <div
+              data-testid={`participant-p2p-ping-${participant.userId}`}
+              className={`flex items-center space-x-1 px-1.5 py-0.5 rounded-md text-[10px] font-mono border backdrop-blur-md transition shadow-sm select-none ${
+                peerLatency && peerLatency.rtt > 0
+                  ? peerLatency.rtt < 50
+                    ? "bg-discord-green/20 text-discord-green border-discord-green/40"
+                    : peerLatency.rtt < 120
+                      ? "bg-[#faa61a]/20 text-[#faa61a] border-[#faa61a]/40"
+                      : "bg-discord-danger/20 text-discord-danger border-discord-danger/40"
+                  : "bg-black/60 text-gray-400 border-white/10"
+              }`}
+              title={`与该成员的 P2P 直连延迟: ${peerLatency && peerLatency.rtt > 0 ? `${peerLatency.rtt}ms` : "探测中..."} (${peerLatency?.connectionType || "P2P"})`}
+            >
+              <Wifi className="w-3 h-3 flex-shrink-0" />
+              <span>{peerLatency && peerLatency.rtt > 0 ? `${peerLatency.rtt}ms` : "--ms"}</span>
+            </div>
+          )}
+
           {/* 全屏播放切换按钮 (双击亦可切换，快捷键 F) */}
           {hasAnyVideo && (
             <button
@@ -672,23 +694,6 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             </div>
           )}
 
-          {/* 点对点独立物理直连延迟徽标 */}
-          {!isMe && peerLatency && peerLatency.rtt > 0 && (
-            <span
-              className={`text-[10px] px-1.5 py-0.5 rounded font-mono flex items-center space-x-1 border ${
-                peerLatency.rtt < 50
-                  ? "bg-discord-green/10 text-discord-green border-discord-green/30"
-                  : peerLatency.rtt < 120
-                    ? "bg-[#faa61a]/10 text-[#faa61a] border-[#faa61a]/30"
-                    : "bg-discord-danger/10 text-discord-danger border-discord-danger/30"
-              }`}
-              title={`点对点物理直连延迟: ${peerLatency.rtt}ms (${peerLatency.connectionType})`}
-            >
-              <Wifi className="w-2.5 h-2.5" />
-              <span>{peerLatency.rtt}ms</span>
-            </span>
-          )}
-
           {/* 对非本人的远端成员提供独立 0%~200% 音量调节 */}
           {!isMe && (
             <div className="relative flex-shrink-0">
@@ -847,6 +852,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
     voiceConnectionStatus === "connected" ||
     (voiceConnectionStatus === undefined && isConnected);
   const isConnecting = voiceConnectionStatus === "connecting";
+  const isP2P = channel.voiceMode === "p2p_mesh" || voiceMeshManager.getIsMeshActive();
 
   const [cameraTracks, setCameraTracks] = useState<Map<string, any>>(
     new Map(livekitService.cameraTracksMap),
@@ -1637,6 +1643,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                     isSpotlight={true}
                     onStopScreenShare={onStopScreenShare || onToggleScreenShare}
                     peerLatency={peerLatencies.get(p.userId)}
+                    isP2P={isP2P}
                     showStatsHUD={statsUserId === p.userId}
                     onToggleStats={() => handleToggleStats(p.userId)}
                     onCloseStats={() => setStatsUserId(null)}
@@ -1709,6 +1716,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                     isSpotlight={false}
                     onStopScreenShare={onStopScreenShare || onToggleScreenShare}
                     peerLatency={peerLatencies.get(p.userId)}
+                    isP2P={isP2P}
                     showStatsHUD={false}
                     onToggleStats={() => handleToggleStats(p.userId)}
                     onCloseStats={() => setStatsUserId(null)}

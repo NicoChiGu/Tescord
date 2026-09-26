@@ -1,0 +1,58 @@
+[WebServer] (node:11328) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:672) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:24784) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] (node:24784) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] [Cache] Redis unavailable (connection error). Seamlessly falling back to in-memory store.
+[WebServer] (node:39724) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+[WebServer] $ vite preview "--port" "4173"
+[WebServer] (node:35944) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+[WebServer] (Use `node --trace-warnings ...` to show where the warning was created)
+
+Running 2 tests using 1 worker
+
+(node:39784) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 [setup] › e2e\auth.setup.ts:10:6 › create a real signed admin session for legacy UI fixtures (224ms)
+(node:24612) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  x  2 [chromium] › e2e\auth-stale-startup.spec.ts:12:9 › invalid retained local credentials return to login at /invite/7326a0ae (577ms)
+
+
+  1) [chromium] › e2e\auth-stale-startup.spec.ts:12:9 › invalid retained local credentials return to login at /invite/7326a0ae 
+
+    Error: expect(received).toEqual(expected) // deep equality
+
+    - Expected  - 1
+    + Received  + 6
+
+    - Array []
+    + Array [
+    +   "404 https://localhost:4173/invite/assets/index-DU6JiROJ.js",
+    +   "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    +   "404 https://localhost:4173/invite/assets/index-DU6JiROJ.js",
+    +   "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    + ]
+
+      90 |       await page.getByTestId("use-other-account-btn").click();
+      91 |       await expect(page.getByTestId("auth-email-input")).toBeVisible();
+    > 92 |       expect(errors).toEqual([]);
+         |                      ^
+      93 |     });
+      94 |   }
+      95 | }
+        at E:\nodejs_project\Tescord\e2e\auth-stale-startup.spec.ts:92:22
+
+    attachment #1: screenshot (image/png) ──────────────────────────────────────────────────────────
+    test-results\auth-stale-startup-invalid-44cf0-to-login-at-invite-7326a0ae-chromium\test-failed-1.png
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+    Error Context: test-results\auth-stale-startup-invalid-44cf0-to-login-at-invite-7326a0ae-chromium\error-context.md
+
+  1 failed
+    [chromium] › e2e\auth-stale-startup.spec.ts:12:9 › invalid retained local credentials return to login at /invite/7326a0ae 
+  1 passed (15.5s)

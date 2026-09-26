@@ -254,6 +254,12 @@ export const App: React.FC = () => {
       const channel = guildsRef.current
         .flatMap((guild) => guild.channels)
         .find((candidate) => candidate.id === channelId);
+      if (channel?.voiceMode === "p2p_mesh") {
+        console.log(
+          `[VoiceFallback] 频道 ${channelId} 设定为强制 P2P Mesh，拦截降级 SFU 行为`,
+        );
+        return false;
+      }
       const requireE2EE = Boolean(callId || channel?.isE2EE);
       if (
         !user ||
@@ -2799,12 +2805,15 @@ export const App: React.FC = () => {
     const processedStream = audioEngine.getStream();
 
     let joinSuccess = false;
-    const voiceMode = useSettingsStore.getState().voiceTransmissionMode;
+    const effectiveVoiceMode =
+      channel.voiceMode || useSettingsStore.getState().voiceTransmissionMode || "sfu";
+    const isP2PMesh = effectiveVoiceMode === "p2p_mesh";
     const isCloudflareActive =
-      voiceMode === "cloudflare_realtime" ||
-      VOICE_ENGINE === "cloudflare_realtime";
+      !isP2PMesh &&
+      (effectiveVoiceMode === "cloudflare_realtime" ||
+        VOICE_ENGINE === "cloudflare_realtime");
 
-    if (voiceMode === "p2p_mesh" && processedStream && channel.guildId) {
+    if (isP2PMesh && processedStream && channel.guildId) {
       gatewayClient.updateVoiceState(channel.guildId, channel.id, {
         selfMute: isMuted,
         selfDeaf: isDeafened,
@@ -2823,19 +2832,18 @@ export const App: React.FC = () => {
           channel.guildId,
           processedStream,
           otherMembers,
+          undefined,
+          { allowFallbackToSFU: false },
         );
-        joinSuccess =
-          otherMembers.length === 0 ||
-          (await voiceMeshManager.waitForConnectedPeer(8_000));
-        if (joinSuccess) livekitService.setConnectionStatus("connected");
+        joinSuccess = true;
+        livekitService.setConnectionStatus("connected");
       } catch (error) {
-        console.warn("公会 Mesh P2P 协商失败，准备回退 SFU:", error);
+        console.warn("公会 Mesh P2P 启动异常:", error);
       }
-      if (!joinSuccess) voiceMeshManager.stopAll();
     }
 
-    // 显式 P2P 失败时使用部署所选 SFU；Cloudflare 实例不请求 LiveKit 令牌。
-    if (!joinSuccess && isCloudflareActive && processedStream) {
+    // 仅在 SFU 模式下进入 Cloudflare Realtime 边缘转发
+    if (!isP2PMesh && isCloudflareActive && processedStream) {
       try {
         const cfSessionId = await cloudflareRealtimeService.connect(
           channel.id,
@@ -2852,7 +2860,7 @@ export const App: React.FC = () => {
     }
 
     try {
-      if (!isCloudflareActive && !joinSuccess) {
+      if (!isP2PMesh && !isCloudflareActive && !joinSuccess) {
         const token = useAuthStore.getState().token;
         const res = await fetch(`${API_BASE}/api/livekit/token`, {
           method: "POST",

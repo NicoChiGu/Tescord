@@ -1010,6 +1010,7 @@ server.get("/api/guilds/:guildId/channels", async (request, reply) => {
     position: c.position,
     isE2EE: c.isE2EE,
     bitrate: c.bitrate,
+    voiceMode: ((c as any).voiceMode || "sfu") as any,
     createdAt: c.createdAt.toISOString(),
   }));
 });
@@ -2813,10 +2814,14 @@ server.post("/api/guilds/:guildId/channels", async (request, reply) => {
       .send({ error: "缺少管理频道权限 (MANAGE_CHANNELS)" });
   }
 
-  const { name, type, topic, parentId, isE2EE } = (request.body ||
+  const { name, type, topic, parentId, isE2EE, voiceMode } = (request.body ||
     {}) as CreateChannelDTO;
   if (!name || !name.trim()) {
     return reply.status(400).send({ error: "频道名称不能为空" });
+  }
+
+  if (voiceMode !== undefined && voiceMode !== "sfu" && voiceMode !== "p2p_mesh") {
+    return reply.status(400).send({ error: "voiceMode 必须为 'sfu' 或 'p2p_mesh'" });
   }
 
   const maxPosChannel = await prisma.channel.findFirst({
@@ -2834,6 +2839,7 @@ server.post("/api/guilds/:guildId/channels", async (request, reply) => {
       parentId: parentId || null,
       position,
       isE2EE: !!isE2EE,
+      voiceMode: voiceMode || "sfu",
     },
   });
 
@@ -2847,6 +2853,7 @@ server.post("/api/guilds/:guildId/channels", async (request, reply) => {
     position: channel.position,
     isE2EE: channel.isE2EE,
     bitrate: channel.bitrate,
+    voiceMode: ((channel as any).voiceMode || "sfu") as any,
     createdAt: channel.createdAt.toISOString(),
   };
 
@@ -2932,12 +2939,18 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
       .send({ error: "缺少管理频道权限 (MANAGE_CHANNELS)" });
   }
 
-  const { name, topic, parentId, position } = (request.body || {}) as {
+  const { name, topic, parentId, position, voiceMode } = (request.body || {}) as {
     name?: string;
     topic?: string;
     parentId?: string | null;
     position?: number;
+    voiceMode?: "sfu" | "p2p_mesh";
   };
+
+  if (voiceMode !== undefined && voiceMode !== "sfu" && voiceMode !== "p2p_mesh") {
+    return reply.status(400).send({ error: "voiceMode 必须为 'sfu' 或 'p2p_mesh'" });
+  }
+
   const updatedChannel = await prisma.channel.update({
     where: { id: channelId },
     data: {
@@ -2945,6 +2958,7 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
       ...(topic !== undefined ? { topic } : {}),
       ...(parentId !== undefined ? { parentId } : {}),
       ...(position !== undefined ? { position } : {}),
+      ...(voiceMode !== undefined ? { voiceMode } : {}),
     },
   });
 
@@ -2958,6 +2972,7 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
     position: updatedChannel.position,
     isE2EE: updatedChannel.isE2EE,
     bitrate: updatedChannel.bitrate,
+    voiceMode: ((updatedChannel as any).voiceMode || "sfu") as any,
     createdAt: updatedChannel.createdAt.toISOString(),
   };
 
