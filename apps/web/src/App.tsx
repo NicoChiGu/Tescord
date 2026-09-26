@@ -3178,21 +3178,28 @@ export const App: React.FC = () => {
       try {
         const token = useAuthStore.getState().token;
         if (!token) throw new Error("登录已失效");
-        const envelope = await deviceKeyService.fetchMediaKey(
-          incomingCall.channelId,
-          incomingCall.callId,
-          token,
-        );
-        const negotiated = await deviceKeyService.openMediaKey(envelope);
-        if (!negotiated) throw new Error("媒体密钥未发给当前设备");
-        sframeManager.setNegotiatedKey(negotiated.key);
-        livekitService.setNegotiatedE2EEKey(negotiated.key);
-        cloudflareRealtimeService.setNegotiatedE2EEKey(negotiated.key);
-
-        setCallEncryption({
-          status: negotiated.trust,
-          fingerprint: negotiated.fingerprint,
-        });
+        let lastError: unknown = new Error("等待对端媒体密钥超时");
+        for (let attempt = 0; attempt < 20 && !sframeManager.getStats().enabled; attempt++) {
+          try {
+            const envelope = await deviceKeyService.fetchMediaKey(
+              incomingCall.channelId,
+              incomingCall.callId,
+              token,
+            );
+            const negotiated = await deviceKeyService.openMediaKey(envelope);
+            if (!negotiated) throw new Error("媒体密钥未发给当前设备");
+            sframeManager.setNegotiatedKey(negotiated.key);
+            livekitService.setNegotiatedE2EEKey(negotiated.key);
+            cloudflareRealtimeService.setNegotiatedE2EEKey(negotiated.key);
+            setCallEncryption({ status: negotiated.trust, fingerprint: negotiated.fingerprint });
+          } catch (error) {
+            lastError = error;
+            if (!sframeManager.getStats().enabled && attempt < 19) {
+              await new Promise((resolve) => setTimeout(resolve, 250));
+            }
+          }
+        }
+        if (!sframeManager.getStats().enabled) throw lastError;
       } catch (error) {
         setCallEncryption({ status: "failed" });
         showGlobalToast(
