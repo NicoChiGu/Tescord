@@ -2,6 +2,7 @@ import { Client as MinioClient } from "minio";
 import path from "path";
 import fs from "fs";
 import { createHmac, randomUUID, timingSafeEqual } from "crypto";
+import sharp from "sharp";
 import {
   PresignedUploadRequest,
   PresignedUploadResponse,
@@ -26,8 +27,11 @@ export class StorageService {
       purpose: "attachment" | "guild-icon";
       channelId?: string;
       guildId?: string;
+      preview?: { url: string; size: number; width: number; height: number };
     }
   >();
+  private activePreviewJobs = 0;
+  private previewWaiters: Array<() => void> = [];
 
   constructor() {
     this.bucketName = process.env.MINIO_BUCKET || "tescord-assets";
@@ -209,6 +213,7 @@ export class StorageService {
     fileName: string;
     fileSize: number;
     mimeType: string;
+    preview?: { url: string; size: number; width: number; height: number };
   } | null {
     const candidate = String(input.url || "").trim();
     if (!candidate) return null;
@@ -270,6 +275,7 @@ export class StorageService {
       fileName: path.basename(String(input.fileName || fileKey)).slice(0, 255),
       fileSize: grant.fileSize,
       mimeType: grant.mimeType,
+      preview: grant.preview,
     };
   }
 
@@ -338,6 +344,9 @@ export class StorageService {
   public async createDownloadUrl(
     fileUrl: string,
     channelId: string,
+    scope: { userId: string; sessionId: string; sessionVersion: number },
+    variant: "original" | "preview" = "original",
+    download = false,
   ): Promise<string> {
     const fileKey = decodeURIComponent(
       new URL(fileUrl).pathname.split("/").pop() || "",
@@ -345,8 +354,20 @@ export class StorageService {
     if (!fileKey || path.basename(fileKey) !== fileKey)
       throw new Error("非法附件对象键");
     const expiresAt = Math.floor(Date.now() / 1000) + 5 * 60;
-    const signature = this.signDownload(fileKey, channelId, expiresAt);
-    return `${this.baseUrl}/attachments/${encodeURIComponent(fileKey)}?channelId=${encodeURIComponent(channelId)}&expires=${expiresAt}&signature=${encodeURIComponent(signature)}`;
+    const signature = this.signDownload(
+      fileKey,
+      channelId,
+      expiresAt,
+      variant,
+      download,
+      scope,
+    );
+    return `${this.baseUrl}/attachments/${encodeURIComponent(fileKey)}?channelId=${encodeURIComponent(channelId)}&expires=${expiresAt}&variant=${variant}&download=${download ? "1" : "0"}&userId=${encodeURIComponent(scope.userId)}&sessionId=${encodeURIComponent(scope.sessionId)}&sessionVersion=${scope.sessionVersion}&signature=${encodeURIComponent(signature)}`;
+  }
+
+  public getDownloadExpiry(): number {
+    // Report a conservative bound when URLs were minted across a second boundary.
+    return (Math.floor(Date.now() / 1000) + 5 * 60 - 1) * 1000;
   }
 
   public verifyUploadMetadata(
@@ -412,6 +433,94 @@ export class StorageService {
       await fs.promises.writeFile(filePath, bytes, { flag: "wx" });
     }
     grant.uploaded = true;
+    if (
+      grant.purpose === "attachment" &&
+      /^(image\/jpeg|image\/png|image\/webp|image\/avif)$/i.test(grant.mimeType)
+    ) {
+      try {
+        await this.withPreviewSlot(async () => {
+          const pipeline = sharp(bytes, {
+            limitInputPixels: 40_000_000,
+            failOn: "error",
+          }).rotate();
+          const metadata = await pipeline.metadata();
+          if (!metadata.width || !metadata.height) return;
+          const output = await pipeline
+            .resize({
+              width: 1920,
+              height: 1920,
+              fit: "inside",
+              withoutEnlargement: true,
+            })
+            .webp({ quality: 82 })
+            .toBuffer({ resolveWithObject: true });
+          if (output.data.length >= bytes.length) return;
+          const previewKey = `${fileKey}.preview.webp`;
+          try {
+            if (this.isMinioAvailable && this.minioClient) {
+              await this.minioClient.putObject(
+                this.bucketName,
+                previewKey,
+                output.data,
+                output.data.length,
+                { "Content-Type": "image/webp" },
+              );
+            } else {
+              const previewPath = this.resolveLocalUploadPath(previewKey);
+              if (!previewPath) return;
+              await fs.promises.writeFile(previewPath, output.data, {
+                flag: "wx",
+              });
+            }
+          } catch (error) {
+            // A failed write can leave a partial local file or remote object.
+            await this.removePreviewObject(previewKey).catch((cleanupError) =>
+              console.warn(
+                "[StorageService] Preview cleanup failed:",
+                cleanupError,
+              ),
+            );
+            throw error;
+          }
+          grant.preview = {
+            url: `${this.baseUrl}/uploads/${encodeURIComponent(previewKey)}`,
+            size: output.data.length,
+            width: output.info.width,
+            height: output.info.height,
+          };
+        });
+      } catch (error) {
+        console.warn(
+          "[StorageService] Image preview generation failed:",
+          error,
+        );
+      }
+    }
+  }
+
+  private async removePreviewObject(previewKey: string): Promise<void> {
+    if (this.isMinioAvailable && this.minioClient) {
+      await this.minioClient.removeObject(this.bucketName, previewKey);
+      return;
+    }
+    const previewPath = this.resolveLocalUploadPath(previewKey);
+    if (!previewPath) throw new Error("Invalid preview path");
+    await fs.promises.rm(previewPath, { force: true });
+  }
+
+  private async withPreviewSlot<T>(task: () => Promise<T>): Promise<T> {
+    if (this.activePreviewJobs >= 2) {
+      await new Promise<void>((resolve) => this.previewWaiters.push(resolve));
+    } else {
+      this.activePreviewJobs++;
+    }
+    try {
+      return await task();
+    } finally {
+      const next = this.previewWaiters.shift();
+      if (next) next();
+      else this.activePreviewJobs--;
+    }
   }
 
   public async openObject(fileUrl: string): Promise<NodeJS.ReadableStream> {
@@ -428,18 +537,79 @@ export class StorageService {
     return this.minioClient.getObject(this.bucketName, fileKey);
   }
 
+  public async statObject(
+    fileUrl: string,
+  ): Promise<{ size: number; etag: string }> {
+    const fileKey = decodeURIComponent(
+      new URL(fileUrl, this.baseUrl).pathname.split("/").pop() || "",
+    );
+    const localPath = this.resolveLocalUploadPath(fileKey);
+    if (!localPath) throw new Error("Invalid object key");
+    if (process.env.NODE_ENV !== "production" && fs.existsSync(localPath)) {
+      const stat = await fs.promises.stat(localPath);
+      return {
+        size: stat.size,
+        etag: `"${stat.size.toString(16)}-${Math.floor(stat.mtimeMs).toString(16)}"`,
+      };
+    }
+    if (!this.isMinioAvailable || !this.minioClient)
+      throw new Error("MinIO is unavailable");
+    const stat = await this.minioClient.statObject(this.bucketName, fileKey);
+    return { size: stat.size, etag: `"${stat.etag}"` };
+  }
+
+  public async openObjectRange(
+    fileUrl: string,
+    offset: number,
+    length: number,
+  ): Promise<NodeJS.ReadableStream> {
+    const fileKey = decodeURIComponent(
+      new URL(fileUrl, this.baseUrl).pathname.split("/").pop() || "",
+    );
+    const localPath = this.resolveLocalUploadPath(fileKey);
+    if (!localPath) throw new Error("Invalid object key");
+    if (process.env.NODE_ENV !== "production" && fs.existsSync(localPath)) {
+      return fs.createReadStream(localPath, {
+        start: offset,
+        end: offset + length - 1,
+      });
+    }
+    if (!this.isMinioAvailable || !this.minioClient)
+      throw new Error("MinIO is unavailable");
+    return this.minioClient.getPartialObject(
+      this.bucketName,
+      fileKey,
+      offset,
+      length,
+    );
+  }
+
   public verifyDownload(
     fileKey: string,
     channelId: string,
     expiresAt: number,
     signature: string,
+    scope: { userId: string; sessionId: string; sessionVersion: number },
+    variant: "original" | "preview" = "original",
+    download = false,
   ): boolean {
     if (
       !Number.isSafeInteger(expiresAt) ||
-      expiresAt < Math.floor(Date.now() / 1000)
+      expiresAt < Math.floor(Date.now() / 1000) ||
+      !scope.userId ||
+      !scope.sessionId ||
+      !Number.isSafeInteger(scope.sessionVersion) ||
+      scope.sessionVersion < 0
     )
       return false;
-    const expected = this.signDownload(fileKey, channelId, expiresAt);
+    const expected = this.signDownload(
+      fileKey,
+      channelId,
+      expiresAt,
+      variant,
+      download,
+      scope,
+    );
     const providedBuffer = Buffer.from(signature);
     const expectedBuffer = Buffer.from(expected);
     return (
@@ -466,13 +636,18 @@ export class StorageService {
     fileKey: string,
     channelId: string,
     expiresAt: number,
+    variant: "original" | "preview",
+    download: boolean,
+    scope: { userId: string; sessionId: string; sessionVersion: number },
   ): string {
     const secret =
       process.env.UPLOAD_SIGNING_SECRET ||
       process.env.JWT_SECRET ||
       "development-upload-secret";
     return createHmac("sha256", secret)
-      .update(`download:${fileKey}:${channelId}:${expiresAt}`)
+      .update(
+        `download:${fileKey}:${channelId}:${expiresAt}:${variant}:${download ? 1 : 0}:${scope.userId}:${scope.sessionId}:${scope.sessionVersion}`,
+      )
       .digest("base64url");
   }
 

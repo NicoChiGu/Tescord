@@ -23,7 +23,12 @@ import { dmService } from "./services/dm.service.js";
 import { dmCallService } from "./services/dm-call.service.js";
 import { registrationInviteService } from "./services/registration-invite.service.js";
 import { cloudflareRealtimeService } from "./services/cloudflare-realtime.service.js";
-import type { CfCallsPublishTrackRequest, CfCallsSubscribeTrackRequest, CfCallsRenegotiateRequest, CfCallsCloseTracksRequest } from "@tescord/types";
+import type {
+  CfCallsPublishTrackRequest,
+  CfCallsSubscribeTrackRequest,
+  CfCallsRenegotiateRequest,
+  CfCallsCloseTracksRequest,
+} from "@tescord/types";
 
 import {
   CreateRegistrationInviteDTO,
@@ -44,6 +49,8 @@ import {
   CreateInviteDTO,
   JoinInviteDTO,
   PresignedUploadRequest,
+  AttachmentAccessRequest,
+  AttachmentAccessResponse,
   PermissionFlags,
   buildSecurityHeaders,
   RegisterPreKeyDTO,
@@ -113,9 +120,11 @@ server.addHook("onRequest", async (request, reply) => {
       ? { name: "auth", limit: 10, windowMs: 60_000 }
       : path.includes("/call-token")
         ? { name: "call", limit: 20, windowMs: 60_000 }
-        : path.startsWith("/api/attachments/")
-          ? { name: "upload", limit: 40, windowMs: 60_000 }
-          : null;
+        : path === "/api/attachments/access"
+          ? { name: "attachment-access", limit: 120, windowMs: 60_000 }
+          : path.startsWith("/api/attachments/")
+            ? { name: "upload", limit: 40, windowMs: 60_000 }
+            : null;
   if (!rule) return;
   const key = `${rule.name}:${request.ip}`;
   const now = Date.now();
@@ -165,7 +174,8 @@ await server.register(cors, {
       !origin ||
       allowed.has(origin) ||
       isLocalDevelopment ||
-      ((origin === "null" || origin === "file://") && process.env.ALLOW_FILE_ORIGIN === "true")
+      ((origin === "null" || origin === "file://") &&
+        process.env.ALLOW_FILE_ORIGIN === "true")
     ) {
       callback(null, true);
       return;
@@ -265,21 +275,17 @@ server.decorate(
         session.userId !== user.id ||
         session.expiresAt <= new Date()
       ) {
-        return reply
-          .status(401)
-          .send({
-            error: "会话已撤销，请重新登录",
-            code: "AUTH_SESSION_REVOKED",
-          });
+        return reply.status(401).send({
+          error: "会话已撤销，请重新登录",
+          code: "AUTH_SESSION_REVOKED",
+        });
       }
     } catch (err) {
       request.log.error({ err }, "session validation failed");
-      return reply
-        .status(503)
-        .send({
-          error: "会话服务暂时不可用",
-          code: "AUTH_SERVICE_UNAVAILABLE",
-        });
+      return reply.status(503).send({
+        error: "会话服务暂时不可用",
+        code: "AUTH_SERVICE_UNAVAILABLE",
+      });
     }
   },
 );
@@ -3355,6 +3361,7 @@ server.get("/api/channels/:channelId/messages", async (request, reply) => {
         (recipient) => recipient.userId === currentUserId,
       );
   if (!canRead) return reply.status(403).send({ error: "无权读取该频道" });
+  const attachmentScope = getAttachmentScope(request);
 
   const take = queryLimit
     ? Math.min(Math.max(parseInt(queryLimit as string, 10) || 50, 1), 100)
@@ -3460,7 +3467,29 @@ server.get("/api/channels/:channelId/messages", async (request, reply) => {
         attachments: await Promise.all(
           m.attachments.map(async (a) => ({
             id: a.id,
-            url: await storageService.createDownloadUrl(a.url, channelId),
+            url: await storageService.createDownloadUrl(
+              a.url,
+              channelId,
+              attachmentScope,
+            ),
+            ...(a.previewUrl
+              ? {
+                  previewUrl: await storageService.createDownloadUrl(
+                    a.url,
+                    channelId,
+                    attachmentScope,
+                    "preview",
+                  ),
+                }
+              : {}),
+            downloadUrl: await storageService.createDownloadUrl(
+              a.url,
+              channelId,
+              attachmentScope,
+              "original",
+              true,
+            ),
+            expiresAt: storageService.getDownloadExpiry(),
             fileName: a.fileName,
             fileSize: a.fileSize,
             mimeType: a.mimeType,
@@ -3499,6 +3528,7 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
   if (!targetChannel) {
     return reply.status(404).send({ error: "目标频道不存在" });
   }
+  const attachmentScope = getAttachmentScope(request);
 
   const isDM = targetChannel.type === "DM" || targetChannel.type === "GROUP_DM";
   if (isDM) {
@@ -3591,6 +3621,10 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
                 fileName: a!.fileName,
                 fileSize: a!.fileSize,
                 mimeType: a!.mimeType,
+                previewUrl: a!.preview?.url,
+                previewSize: a!.preview?.size,
+                previewWidth: a!.preview?.width,
+                previewHeight: a!.preview?.height,
               })),
             }
           : undefined,
@@ -3612,7 +3646,29 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
   const publicAttachments = await Promise.all(
     createdMessage.attachments.map(async (a) => ({
       id: a.id,
-      url: await storageService.createDownloadUrl(a.url, channelId),
+      url: await storageService.createDownloadUrl(
+        a.url,
+        channelId,
+        attachmentScope,
+      ),
+      ...(a.previewUrl
+        ? {
+            previewUrl: await storageService.createDownloadUrl(
+              a.url,
+              channelId,
+              attachmentScope,
+              "preview",
+            ),
+          }
+        : {}),
+      downloadUrl: await storageService.createDownloadUrl(
+        a.url,
+        channelId,
+        attachmentScope,
+        "original",
+        true,
+      ),
+      expiresAt: storageService.getDownloadExpiry(),
       fileName: a.fileName,
       fileSize: a.fileSize,
       mimeType: a.mimeType,
@@ -4034,6 +4090,112 @@ server.delete(
 // 4. 对象存储与附件直传 API (Storage & Attachments)
 // ==========================================
 
+function getAttachmentScope(request: FastifyRequest): {
+  userId: string;
+  sessionId: string;
+  sessionVersion: number;
+} {
+  const claims = request.user as {
+    sub: string;
+    sessionId: string;
+    sessionVersion?: number;
+  };
+  return {
+    userId: claims.sub,
+    sessionId: claims.sessionId,
+    sessionVersion: Number(claims.sessionVersion ?? 0),
+  };
+}
+
+server.post("/api/attachments/access", async (request, reply) => {
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) return reply.status(401).send({ error: "需要登录" });
+  const attachmentScope = getAttachmentScope(request);
+  const body = request.body as AttachmentAccessRequest | undefined;
+  if (
+    !Array.isArray(body?.attachmentIds) ||
+    body.attachmentIds.length < 1 ||
+    body.attachmentIds.length > 50 ||
+    body.attachmentIds.some(
+      (id) => typeof id !== "string" || !id || id.length > 128,
+    )
+  ) {
+    return reply.status(400).send({ error: "附件 ID 列表无效" });
+  }
+  const ids = [...new Set(body.attachmentIds)];
+  const attachments = await prisma.attachment.findMany({
+    where: { id: { in: ids }, messageId: { not: null } },
+    include: {
+      message: { include: { channel: { include: { recipients: true } } } },
+    },
+  });
+  if (attachments.length !== ids.length)
+    return reply.status(404).send({ error: "附件不存在" });
+  const allowedByChannel = new Map<string, boolean>();
+  for (const attachment of attachments) {
+    const channel = attachment.message?.channel;
+    if (!channel) return reply.status(404).send({ error: "附件不存在" });
+    let allowed = allowedByChannel.get(channel.id);
+    if (allowed === undefined) {
+      allowed = channel.guildId
+        ? (await permissionService.hasChannelPermission(
+            userId,
+            channel.id,
+            PermissionFlags.VIEW_CHANNEL,
+          )) &&
+          (await permissionService.hasChannelPermission(
+            userId,
+            channel.id,
+            PermissionFlags.READ_MESSAGE_HISTORY,
+          )) &&
+          !(await prisma.ban.findUnique({
+            where: { guildId_userId: { guildId: channel.guildId, userId } },
+          }))
+        : (channel.type === "DM" || channel.type === "GROUP_DM") &&
+          channel.recipients.some((r) => r.userId === userId);
+      allowedByChannel.set(channel.id, allowed);
+    }
+    if (!allowed) return reply.status(403).send({ error: "无权读取附件" });
+  }
+  const entries = await Promise.all(
+    attachments.map(async (attachment) => {
+      const channelId = attachment.message!.channelId;
+      return {
+        id: attachment.id,
+        url: await storageService.createDownloadUrl(
+          attachment.url,
+          channelId,
+          attachmentScope,
+        ),
+        ...(attachment.previewUrl
+          ? {
+              previewUrl: await storageService.createDownloadUrl(
+                attachment.url,
+                channelId,
+                attachmentScope,
+                "preview",
+              ),
+            }
+          : {}),
+        downloadUrl: await storageService.createDownloadUrl(
+          attachment.url,
+          channelId,
+          attachmentScope,
+          "original",
+          true,
+        ),
+        expiresAt: storageService.getDownloadExpiry(),
+      };
+    }),
+  );
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+  const response: AttachmentAccessResponse = {
+    attachments: ids.map((id) => byId.get(id)!),
+  };
+  reply.header("Cache-Control", "no-store");
+  return response;
+});
+
 server.post("/api/attachments/presigned-url", async (request, reply) => {
   try {
     const userId = await getUserIdFromRequest(request);
@@ -4181,14 +4343,35 @@ server.put("/api/attachments/upload/:fileName", async (request, reply) => {
   }
 });
 
-server.get("/attachments/:fileName", async (request, reply) => {
+async function servePrivateAttachment(
+  request: FastifyRequest,
+  reply: FastifyReply,
+) {
   const { fileName } = request.params as { fileName: string };
   const decodedFileName = decodeURIComponent(fileName);
   const query = request.query as {
     channelId?: string;
     expires?: string;
     signature?: string;
+    variant?: string;
+    download?: string;
+    userId?: string;
+    sessionId?: string;
+    sessionVersion?: string;
   };
+  const variant = query.variant === "preview" ? "preview" : "original";
+  const download = query.download === "1";
+  const scope = {
+    userId: query.userId || "",
+    sessionId: query.sessionId || "",
+    sessionVersion: Number(query.sessionVersion),
+  };
+  if (
+    (query.variant && query.variant !== variant) ||
+    (query.download && !["0", "1"].includes(query.download))
+  ) {
+    return reply.status(403).send({ error: "附件访问授权无效" });
+  }
   if (
     !query.channelId ||
     !query.signature ||
@@ -4197,33 +4380,135 @@ server.get("/attachments/:fileName", async (request, reply) => {
       query.channelId,
       Number(query.expires),
       query.signature,
+      scope,
+      variant,
+      download,
     )
   ) {
     return reply.status(403).send({ error: "附件访问授权无效或已过期" });
   }
-  const attachment = await prisma.attachment.findFirst({
-    where: {
-      url: { endsWith: `/${decodedFileName}` },
-      message: { channelId: query.channelId },
-    },
-  });
+  const [user, session, attachment] = await Promise.all([
+    prisma.user.findUnique({
+      where: { id: scope.userId },
+      select: { isBanned: true, sessionVersion: true },
+    }),
+    prisma.refreshToken.findUnique({
+      where: { id: scope.sessionId },
+      select: { userId: true, expiresAt: true },
+    }),
+    prisma.attachment.findFirst({
+      where: {
+        url: { endsWith: `/${decodedFileName}` },
+        message: { channelId: query.channelId },
+      },
+      include: {
+        message: { include: { channel: { include: { recipients: true } } } },
+      },
+    }),
+  ]);
+  if (
+    !user ||
+    user.isBanned ||
+    user.sessionVersion !== scope.sessionVersion ||
+    !session ||
+    session.userId !== scope.userId ||
+    session.expiresAt <= new Date()
+  ) {
+    return reply.status(403).send({ error: "附件访问会话已失效" });
+  }
   if (!attachment) return reply.status(404).send({ error: "附件不存在" });
+  const channel = attachment.message?.channel;
+  if (!channel) return reply.status(404).send({ error: "附件不存在" });
+  const canRead = channel.guildId
+    ? (await permissionService.hasChannelPermission(
+        scope.userId,
+        channel.id,
+        PermissionFlags.VIEW_CHANNEL,
+      )) &&
+      (await permissionService.hasChannelPermission(
+        scope.userId,
+        channel.id,
+        PermissionFlags.READ_MESSAGE_HISTORY,
+      )) &&
+      !(await prisma.ban.findUnique({
+        where: {
+          guildId_userId: { guildId: channel.guildId, userId: scope.userId },
+        },
+      }))
+    : (channel.type === "DM" || channel.type === "GROUP_DM") &&
+      channel.recipients.some((r) => r.userId === scope.userId);
+  if (!canRead)
+    return reply.status(403).send({ error: "附件访问权限已被撤销" });
+  if (variant === "preview" && !attachment.previewUrl)
+    return reply.status(404).send({ error: "预览图不存在" });
+  const objectUrl =
+    variant === "preview" ? attachment.previewUrl! : attachment.url;
   reply.header(
     "Content-Type",
-    attachment.mimeType || "application/octet-stream",
+    variant === "preview"
+      ? "image/webp"
+      : attachment.mimeType || "application/octet-stream",
   );
   reply.header("X-Content-Type-Options", "nosniff");
-  reply.header("Cache-Control", "private, max-age=60");
+  reply.header("Cache-Control", "private, no-cache");
   reply.header(
     "Content-Disposition",
-    `${/^(image\/(png|jpeg|gif|webp)|audio\/(mpeg|ogg|wav|webm)|video\/(mp4|webm))$/i.test(attachment.mimeType) ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(attachment.fileName)}`,
+    `${download || !/^(image\/(png|jpeg|gif|webp|avif)|audio\/(mpeg|ogg|wav|webm)|video\/(mp4|webm))$/i.test(attachment.mimeType) ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(variant === "preview" ? `${attachment.fileName}.webp` : attachment.fileName)}`,
   );
   try {
-    return reply.send(await storageService.openObject(attachment.url));
+    const stat = await storageService.statObject(objectUrl);
+    reply.header("ETag", stat.etag);
+    reply.header("Accept-Ranges", "bytes");
+    if (
+      request.headers["if-none-match"] === stat.etag &&
+      !request.headers.range
+    )
+      return reply.status(304).send();
+    const rangeHeader = request.headers.range;
+    let start = 0;
+    let end = stat.size - 1;
+    if (rangeHeader) {
+      const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader);
+      if (!match || (!match[1] && !match[2])) {
+        reply.header("Content-Range", `bytes */${stat.size}`);
+        return reply.status(416).send();
+      }
+      if (match[1]) {
+        start = Number(match[1]);
+        if (match[2]) end = Number(match[2]);
+      } else {
+        start = Math.max(0, stat.size - Number(match[2]));
+      }
+      if (
+        !Number.isSafeInteger(start) ||
+        !Number.isSafeInteger(end) ||
+        start > end ||
+        start >= stat.size ||
+        stat.size <= 0
+      ) {
+        reply.header("Content-Range", `bytes */${stat.size}`);
+        return reply.status(416).send();
+      }
+      end = Math.min(end, stat.size - 1);
+      reply
+        .status(206)
+        .header("Content-Range", `bytes ${start}-${end}/${stat.size}`);
+    }
+    reply.header("Content-Length", end - start + 1);
+    return reply.send(
+      rangeHeader
+        ? await storageService.openObjectRange(
+            objectUrl,
+            start,
+            end - start + 1,
+          )
+        : await storageService.openObject(objectUrl),
+    );
   } catch {
     return reply.status(503).send({ error: "附件存储暂不可用" });
   }
-});
+}
+server.get("/attachments/:fileName", servePrivateAttachment);
 
 server.get("/public-assets/:fileName", async (request, reply) => {
   const { fileName } = request.params as { fileName: string };
@@ -4775,7 +5060,10 @@ server.get("/api/network/ice-servers", async (request, reply) => {
   // 1. 若配置了 Cloudflare Realtime TURN，优先拉取全球 Anycast 边缘凭据
   if (cloudflareRealtimeService.isTurnConfigured) {
     try {
-      const cfTurn = await cloudflareRealtimeService.generateTurnIceServers(userId, 86400);
+      const cfTurn = await cloudflareRealtimeService.generateTurnIceServers(
+        userId,
+        86400,
+      );
       return {
         iceServers: [
           ...(process.env.ALLOW_PUBLIC_STUN === "true"
@@ -4787,7 +5075,9 @@ server.get("/api/network/ice-servers", async (request, reply) => {
         provider: "cloudflare",
       };
     } catch (err: any) {
-      server.log.warn(`Cloudflare TURN generation failed: ${err.message}, falling back to Coturn`);
+      server.log.warn(
+        `Cloudflare TURN generation failed: ${err.message}, falling back to Coturn`,
+      );
     }
   }
 
@@ -4825,7 +5115,6 @@ server.get("/api/network/ice-servers", async (request, reply) => {
     provider: "coturn",
   };
 });
-
 
 // ==========================================
 // 5. LiveKit 媒体 Token 生成
@@ -4908,7 +5197,13 @@ type CfMediaBody = {
   channelId?: string;
   sessionId?: string;
   sessionDescription?: { type: "offer" | "answer"; sdp: string };
-  tracks?: Array<{ mid?: string; trackName?: string; publisherSessionId?: string; kind?: "audio" | "video"; source?: "microphone" | "camera" | "screen" | "screen-audio" }>;
+  tracks?: Array<{
+    mid?: string;
+    trackName?: string;
+    publisherSessionId?: string;
+    kind?: "audio" | "video";
+    source?: "microphone" | "camera" | "screen" | "screen-audio";
+  }>;
 };
 
 const cfRateBuckets = new Map<string, { count: number; until: number }>();
@@ -4920,50 +5215,91 @@ server.addHook("preHandler", async (request, reply) => {
   const key = `${userId}:${request.url.split("?", 1)[0]}`;
   const bucket = cfRateBuckets.get(key);
   const count = bucket && bucket.until > now ? bucket.count + 1 : 1;
-  cfRateBuckets.set(key, { count, until: bucket && bucket.until > now ? bucket.until : now + 60_000 });
+  cfRateBuckets.set(key, {
+    count,
+    until: bucket && bucket.until > now ? bucket.until : now + 60_000,
+  });
   if (cfRateBuckets.size > 10_000) {
-    for (const [id, entry] of cfRateBuckets) if (entry.until <= now) cfRateBuckets.delete(id);
+    for (const [id, entry] of cfRateBuckets)
+      if (entry.until <= now) cfRateBuckets.delete(id);
   }
-  if (count > (key.endsWith("/session/new") ? 6 : 60)) return reply.status(429).send({ error: "Media request rate exceeded" });
+  if (count > (key.endsWith("/session/new") ? 6 : 60))
+    return reply.status(429).send({ error: "Media request rate exceeded" });
 });
 
 function cfBody(request: FastifyRequest): CfMediaBody {
-  return request.body && typeof request.body === "object" && !Array.isArray(request.body)
-    ? request.body as CfMediaBody : {};
+  return request.body &&
+    typeof request.body === "object" &&
+    !Array.isArray(request.body)
+    ? (request.body as CfMediaBody)
+    : {};
 }
 
 function cfLoginSession(request: FastifyRequest): string {
   return (request.user as { sessionId?: string } | undefined)?.sessionId || "";
 }
 
-async function cfCanUseChannel(userId: string, channelId: string, speak = false): Promise<boolean> {
+async function cfCanUseChannel(
+  userId: string,
+  channelId: string,
+  speak = false,
+): Promise<boolean> {
   const channel = await prisma.channel.findUnique({ where: { id: channelId } });
   if (!channel) return false;
   if (channel.type === "DM" || channel.type === "GROUP_DM") {
     return dmService.isParticipant(userId, channelId);
   }
   if (channel.type !== "VOICE") return false;
-  return permissionService.hasChannelPermission(userId, channelId, speak ? PermissionFlags.SPEAK : PermissionFlags.CONNECT);
+  return permissionService.hasChannelPermission(
+    userId,
+    channelId,
+    speak ? PermissionFlags.SPEAK : PermissionFlags.CONNECT,
+  );
 }
 
-async function cfSessionForRequest(request: FastifyRequest, sessionId: string | undefined) {
+async function cfSessionForRequest(
+  request: FastifyRequest,
+  sessionId: string | undefined,
+) {
   const userId = await getUserIdFromRequest(request);
-  if (!userId || !sessionId || !cloudflareRealtimeService.ownsSession(sessionId, userId, cfLoginSession(request))) return null;
+  if (
+    !userId ||
+    !sessionId ||
+    !cloudflareRealtimeService.ownsSession(
+      sessionId,
+      userId,
+      cfLoginSession(request),
+    )
+  )
+    return null;
   const session = cloudflareRealtimeService.getSession(sessionId);
-  if (!session || !(await cfCanUseChannel(userId, session.channelId))) return null;
+  if (!session || !(await cfCanUseChannel(userId, session.channelId)))
+    return null;
   return { ...session, sessionId };
 }
 
 async function cfSendTracks(channelId: string) {
-  const channel = await prisma.channel.findUnique({ where: { id: channelId }, include: { recipients: true } });
+  const channel = await prisma.channel.findUnique({
+    where: { id: channelId },
+    include: { recipients: true },
+  });
   if (!channel) return;
-  const payload = { op: GatewayOpCode.DISPATCH, t: GatewayEvents.CF_MEDIA_TRACKS, d: { channelId, tracks: cloudflareRealtimeService.getTracks(channelId) } };
+  const payload = {
+    op: GatewayOpCode.DISPATCH,
+    t: GatewayEvents.CF_MEDIA_TRACKS,
+    d: { channelId, tracks: cloudflareRealtimeService.getTracks(channelId) },
+  };
   if (channel.type === "DM" || channel.type === "GROUP_DM") {
-    for (const recipient of channel.recipients) gatewayManager.sendToUser(recipient.userId, payload);
+    for (const recipient of channel.recipients)
+      gatewayManager.sendToUser(recipient.userId, payload);
   } else if (channel.guildId) {
-    const members = await prisma.guildMember.findMany({ where: { guildId: channel.guildId }, select: { userId: true } });
+    const members = await prisma.guildMember.findMany({
+      where: { guildId: channel.guildId },
+      select: { userId: true },
+    });
     for (const member of members) {
-      if (await cfCanUseChannel(member.userId, channelId)) gatewayManager.sendToUser(member.userId, payload);
+      if (await cfCanUseChannel(member.userId, channelId))
+        gatewayManager.sendToUser(member.userId, payload);
     }
   }
 }
@@ -4976,12 +5312,17 @@ server.get("/api/cloudflare-realtime/config", async () => {
 // 6.2 申请 Cloudflare Calls TURN 临时中继凭据
 server.get("/api/cloudflare-realtime/ice-servers", async (request, reply) => {
   if (!cloudflareRealtimeService.isTurnConfigured) {
-    return reply.status(503).send({ error: "Cloudflare TURN is not configured" });
+    return reply
+      .status(503)
+      .send({ error: "Cloudflare TURN is not configured" });
   }
   const userId = await getUserIdFromRequest(request);
   if (!userId) return reply.status(401).send({ error: "Unauthorized" });
   try {
-    const creds = await cloudflareRealtimeService.generateTurnIceServers(userId, 3600);
+    const creds = await cloudflareRealtimeService.generateTurnIceServers(
+      userId,
+      3600,
+    );
     return creds;
   } catch (err: any) {
     server.log.error(err, "Failed to generate Cloudflare TURN credentials");
@@ -4992,7 +5333,9 @@ server.get("/api/cloudflare-realtime/ice-servers", async (request, reply) => {
 // 6.3 创建新的 Cloudflare Calls SFU 会话
 server.post("/api/cloudflare-realtime/session/new", async (request, reply) => {
   if (!cloudflareRealtimeService.isSfuConfigured) {
-    return reply.status(503).send({ error: "Cloudflare Calls SFU is not configured" });
+    return reply
+      .status(503)
+      .send({ error: "Cloudflare Calls SFU is not configured" });
   }
   const userId = await getUserIdFromRequest(request);
   if (!userId) {
@@ -5000,16 +5343,36 @@ server.post("/api/cloudflare-realtime/session/new", async (request, reply) => {
   }
 
   const { channelId } = cfBody(request);
-  if (typeof channelId !== "string" || !channelId || !(await cfCanUseChannel(userId, channelId))) {
+  if (
+    typeof channelId !== "string" ||
+    !channelId ||
+    !(await cfCanUseChannel(userId, channelId))
+  ) {
     return reply.status(403).send({ error: "无权连接该语音频道" });
   }
-  if (!cfLoginSession(request)) return reply.status(401).send({ error: "Invalid login session" });
+  if (!cfLoginSession(request))
+    return reply.status(401).send({ error: "Invalid login session" });
 
   try {
     const session = await cloudflareRealtimeService.createSession();
-    cloudflareRealtimeService.registerSession(session.sessionId, userId, channelId, cfLoginSession(request));
-    const channel = await prisma.channel.findUnique({ where: { id: channelId }, select: { type: true, isE2EE: true } });
-    return { ...session, tracks: cloudflareRealtimeService.getTracks(channelId), requiresE2EE: channel?.type === "DM" || channel?.type === "GROUP_DM" || Boolean(channel?.isE2EE) };
+    cloudflareRealtimeService.registerSession(
+      session.sessionId,
+      userId,
+      channelId,
+      cfLoginSession(request),
+    );
+    const channel = await prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { type: true, isE2EE: true },
+    });
+    return {
+      ...session,
+      tracks: cloudflareRealtimeService.getTracks(channelId),
+      requiresE2EE:
+        channel?.type === "DM" ||
+        channel?.type === "GROUP_DM" ||
+        Boolean(channel?.isE2EE),
+    };
   } catch (err: any) {
     server.log.error(err, "Failed to create Cloudflare Calls session");
     return reply.status(502).send({ error: "Failed to create media session" });
@@ -5017,103 +5380,226 @@ server.post("/api/cloudflare-realtime/session/new", async (request, reply) => {
 });
 
 // 6.4 推送本地音视频轨道 (Publish Tracks / Local Tracks)
-server.post("/api/cloudflare-realtime/tracks/publish", async (request, reply) => {
-  if (!cloudflareRealtimeService.isSfuConfigured) {
-    return reply.status(503).send({ error: "Cloudflare Calls SFU is not configured" });
-  }
-  const userId = await getUserIdFromRequest(request);
-  if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+server.post(
+  "/api/cloudflare-realtime/tracks/publish",
+  async (request, reply) => {
+    if (!cloudflareRealtimeService.isSfuConfigured) {
+      return reply
+        .status(503)
+        .send({ error: "Cloudflare Calls SFU is not configured" });
+    }
+    const userId = await getUserIdFromRequest(request);
+    if (!userId) return reply.status(401).send({ error: "Unauthorized" });
 
-  const body = cfBody(request);
-  const session = await cfSessionForRequest(request, body.sessionId);
-  if (!session) return reply.status(403).send({ error: "Invalid media session" });
-  if (body.channelId !== session.channelId || body.sessionDescription?.type !== "offer" || typeof body.sessionDescription.sdp !== "string" || !Array.isArray(body.tracks) || body.tracks.length < 1 || body.tracks.length > 4 || body.tracks.some(t => typeof t.mid !== "string" || !/^\d{1,3}$/.test(t.mid) || typeof t.trackName !== "string" || t.trackName.length > 100 || !/^(microphone|camera|screen|screen-audio)-[a-f0-9-]{36}$/.test(t.trackName) || !((t.kind === "audio" && (t.source === "microphone" || t.source === "screen-audio")) || (t.kind === "video" && (t.source === "camera" || t.source === "screen"))))) {
-    return reply.status(400).send({ error: "Invalid publish request body" });
-  }
-  if (!(await cfCanUseChannel(userId, session.channelId, true))) return reply.status(403).send({ error: "缺少发言权限" });
+    const body = cfBody(request);
+    const session = await cfSessionForRequest(request, body.sessionId);
+    if (!session)
+      return reply.status(403).send({ error: "Invalid media session" });
+    if (
+      body.channelId !== session.channelId ||
+      body.sessionDescription?.type !== "offer" ||
+      typeof body.sessionDescription.sdp !== "string" ||
+      !Array.isArray(body.tracks) ||
+      body.tracks.length < 1 ||
+      body.tracks.length > 4 ||
+      body.tracks.some(
+        (t) =>
+          typeof t.mid !== "string" ||
+          !/^\d{1,3}$/.test(t.mid) ||
+          typeof t.trackName !== "string" ||
+          t.trackName.length > 100 ||
+          !/^(microphone|camera|screen|screen-audio)-[a-f0-9-]{36}$/.test(
+            t.trackName,
+          ) ||
+          !(
+            (t.kind === "audio" &&
+              (t.source === "microphone" || t.source === "screen-audio")) ||
+            (t.kind === "video" &&
+              (t.source === "camera" || t.source === "screen"))
+          ),
+      )
+    ) {
+      return reply.status(400).send({ error: "Invalid publish request body" });
+    }
+    if (!(await cfCanUseChannel(userId, session.channelId, true)))
+      return reply.status(403).send({ error: "缺少发言权限" });
 
-  try {
-    const result = await cloudflareRealtimeService.publishTracks(body as CfCallsPublishTrackRequest);
-    cloudflareRealtimeService.addTracks(body.tracks.map(t => ({ sessionId: session.sessionId, channelId: session.channelId, userId, trackName: t.trackName!, mid: t.mid, kind: t.kind!, source: t.source! })));
-    return result;
-  } catch (err: any) {
-    server.log.error(err, "Failed to publish tracks to Cloudflare Calls");
-    console.warn("[CF media] publish failed:", err instanceof Error ? err.message : "unknown");
-    return reply.status(502).send({ error: "Failed to publish tracks" });
-  }
-});
+    try {
+      const result = await cloudflareRealtimeService.publishTracks(
+        body as CfCallsPublishTrackRequest,
+      );
+      cloudflareRealtimeService.addTracks(
+        body.tracks.map((t) => ({
+          sessionId: session.sessionId,
+          channelId: session.channelId,
+          userId,
+          trackName: t.trackName!,
+          mid: t.mid,
+          kind: t.kind!,
+          source: t.source!,
+        })),
+      );
+      return result;
+    } catch (err: any) {
+      server.log.error(err, "Failed to publish tracks to Cloudflare Calls");
+      console.warn(
+        "[CF media] publish failed:",
+        err instanceof Error ? err.message : "unknown",
+      );
+      return reply.status(502).send({ error: "Failed to publish tracks" });
+    }
+  },
+);
 
 // 6.5 订阅远端音视频轨道 (Subscribe Tracks / Remote Tracks)
-server.post("/api/cloudflare-realtime/tracks/subscribe", async (request, reply) => {
-  if (!cloudflareRealtimeService.isSfuConfigured) {
-    return reply.status(503).send({ error: "Cloudflare Calls SFU is not configured" });
-  }
-  const userId = await getUserIdFromRequest(request);
-  if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+server.post(
+  "/api/cloudflare-realtime/tracks/subscribe",
+  async (request, reply) => {
+    if (!cloudflareRealtimeService.isSfuConfigured) {
+      return reply
+        .status(503)
+        .send({ error: "Cloudflare Calls SFU is not configured" });
+    }
+    const userId = await getUserIdFromRequest(request);
+    if (!userId) return reply.status(401).send({ error: "Unauthorized" });
 
-  const body = cfBody(request);
-  const session = await cfSessionForRequest(request, body.sessionId);
-  if (!session) return reply.status(403).send({ error: "Invalid media session" });
-  if (body.channelId !== session.channelId || !Array.isArray(body.tracks) || body.tracks.length < 1 || body.tracks.length > 16 || body.tracks.some(t => !t.publisherSessionId || !t.trackName || cloudflareRealtimeService.getReadyTrack(t.publisherSessionId, t.trackName)?.channelId !== session.channelId)) {
-    return reply.status(400).send({ error: "Invalid subscribe request body" });
-  }
+    const body = cfBody(request);
+    const session = await cfSessionForRequest(request, body.sessionId);
+    if (!session)
+      return reply.status(403).send({ error: "Invalid media session" });
+    if (
+      body.channelId !== session.channelId ||
+      !Array.isArray(body.tracks) ||
+      body.tracks.length < 1 ||
+      body.tracks.length > 16 ||
+      body.tracks.some(
+        (t) =>
+          !t.publisherSessionId ||
+          !t.trackName ||
+          cloudflareRealtimeService.getReadyTrack(
+            t.publisherSessionId,
+            t.trackName,
+          )?.channelId !== session.channelId,
+      )
+    ) {
+      return reply
+        .status(400)
+        .send({ error: "Invalid subscribe request body" });
+    }
 
-  try {
-    const result = await cloudflareRealtimeService.subscribeTracks(body as CfCallsSubscribeTrackRequest);
-    cloudflareRealtimeService.recordSubscriptions(session.sessionId, result.tracks.map(track => track.mid).filter((mid): mid is string => !!mid));
-    return result;
-  } catch (err: any) {
-    server.log.error(err, "Failed to subscribe tracks from Cloudflare Calls");
-    const statuses = await Promise.all(body.tracks.slice(0, 3).map(t => cloudflareRealtimeService.publicationStatus(t.publisherSessionId!, t.trackName!)));
-    console.warn("[CF media] subscribe failed:", err instanceof Error ? err.message : "unknown", "publisher statuses:", statuses.join(","));
-    return reply.status(502).send({ error: "Failed to subscribe tracks" });
-  }
-});
+    try {
+      const result = await cloudflareRealtimeService.subscribeTracks(
+        body as CfCallsSubscribeTrackRequest,
+      );
+      cloudflareRealtimeService.recordSubscriptions(
+        session.sessionId,
+        result.tracks
+          .map((track) => track.mid)
+          .filter((mid): mid is string => !!mid),
+      );
+      return result;
+    } catch (err: any) {
+      server.log.error(err, "Failed to subscribe tracks from Cloudflare Calls");
+      const statuses = await Promise.all(
+        body.tracks
+          .slice(0, 3)
+          .map((t) =>
+            cloudflareRealtimeService.publicationStatus(
+              t.publisherSessionId!,
+              t.trackName!,
+            ),
+          ),
+      );
+      console.warn(
+        "[CF media] subscribe failed:",
+        err instanceof Error ? err.message : "unknown",
+        "publisher statuses:",
+        statuses.join(","),
+      );
+      return reply.status(502).send({ error: "Failed to subscribe tracks" });
+    }
+  },
+);
 
 // 6.6 重协商 Answer 提交
-server.put("/api/cloudflare-realtime/tracks/renegotiate", async (request, reply) => {
-  if (!cloudflareRealtimeService.isSfuConfigured) {
-    return reply.status(503).send({ error: "Cloudflare Calls SFU is not configured" });
-  }
-  const userId = await getUserIdFromRequest(request);
-  if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+server.put(
+  "/api/cloudflare-realtime/tracks/renegotiate",
+  async (request, reply) => {
+    if (!cloudflareRealtimeService.isSfuConfigured) {
+      return reply
+        .status(503)
+        .send({ error: "Cloudflare Calls SFU is not configured" });
+    }
+    const userId = await getUserIdFromRequest(request);
+    if (!userId) return reply.status(401).send({ error: "Unauthorized" });
 
-  const body = cfBody(request);
-  if (!(await cfSessionForRequest(request, body.sessionId))) return reply.status(403).send({ error: "Invalid media session" });
-  if (body.sessionDescription?.type !== "answer" || typeof body.sessionDescription.sdp !== "string") {
-    return reply.status(400).send({ error: "Invalid renegotiate request body" });
-  }
+    const body = cfBody(request);
+    if (!(await cfSessionForRequest(request, body.sessionId)))
+      return reply.status(403).send({ error: "Invalid media session" });
+    if (
+      body.sessionDescription?.type !== "answer" ||
+      typeof body.sessionDescription.sdp !== "string"
+    ) {
+      return reply
+        .status(400)
+        .send({ error: "Invalid renegotiate request body" });
+    }
 
-  try {
-    await cloudflareRealtimeService.renegotiate(body as CfCallsRenegotiateRequest);
-    return { ok: true };
-  } catch (err: any) {
-    server.log.error(err, "Failed to renegotiate Cloudflare Calls session");
-    return reply.status(502).send({ error: "Failed to renegotiate" });
-  }
-});
+    try {
+      await cloudflareRealtimeService.renegotiate(
+        body as CfCallsRenegotiateRequest,
+      );
+      return { ok: true };
+    } catch (err: any) {
+      server.log.error(err, "Failed to renegotiate Cloudflare Calls session");
+      return reply.status(502).send({ error: "Failed to renegotiate" });
+    }
+  },
+);
 
 // 6.7 注销/关闭轨道
 server.put("/api/cloudflare-realtime/tracks/close", async (request, reply) => {
   if (!cloudflareRealtimeService.isSfuConfigured) {
-    return reply.status(503).send({ error: "Cloudflare Calls SFU is not configured" });
+    return reply
+      .status(503)
+      .send({ error: "Cloudflare Calls SFU is not configured" });
   }
   const userId = await getUserIdFromRequest(request);
   if (!userId) return reply.status(401).send({ error: "Unauthorized" });
 
   const body = cfBody(request);
   const session = await cfSessionForRequest(request, body.sessionId);
-  if (!session) return reply.status(403).send({ error: "Invalid media session" });
-  if (!Array.isArray(body.tracks) || body.tracks.length < 1 || body.tracks.length > 8 || body.tracks.some(t => {
-    const published = t.trackName ? cloudflareRealtimeService.getTrack(session.sessionId, t.trackName) : undefined;
-    return !published || published.userId !== userId || !published.mid || t.mid !== published.mid;
-  })) {
-    return reply.status(400).send({ error: "Invalid close tracks request body" });
+  if (!session)
+    return reply.status(403).send({ error: "Invalid media session" });
+  if (
+    !Array.isArray(body.tracks) ||
+    body.tracks.length < 1 ||
+    body.tracks.length > 8 ||
+    body.tracks.some((t) => {
+      const published = t.trackName
+        ? cloudflareRealtimeService.getTrack(session.sessionId, t.trackName)
+        : undefined;
+      return (
+        !published ||
+        published.userId !== userId ||
+        !published.mid ||
+        t.mid !== published.mid
+      );
+    })
+  ) {
+    return reply
+      .status(400)
+      .send({ error: "Invalid close tracks request body" });
   }
 
   try {
-    await cloudflareRealtimeService.closeTracks(body as CfCallsCloseTracksRequest);
-    cloudflareRealtimeService.removeTracks(session.sessionId, body.tracks.map(t => t.trackName!));
+    await cloudflareRealtimeService.closeTracks(
+      body as CfCallsCloseTracksRequest,
+    );
+    cloudflareRealtimeService.removeTracks(
+      session.sessionId,
+      body.tracks.map((t) => t.trackName!),
+    );
     await cfSendTracks(session.channelId);
     return { ok: true };
   } catch (err: any) {
@@ -5124,37 +5610,69 @@ server.put("/api/cloudflare-realtime/tracks/close", async (request, reply) => {
 
 server.post("/api/cloudflare-realtime/tracks/ready", async (request, reply) => {
   const session = await cfSessionForRequest(request, cfBody(request).sessionId);
-  if (!session) return reply.status(403).send({ error: "Invalid media session" });
+  if (!session)
+    return reply.status(403).send({ error: "Invalid media session" });
   cloudflareRealtimeService.markTracksReady(session.sessionId);
   await cfSendTracks(session.channelId);
   return { ok: true };
 });
 
-server.post("/api/cloudflare-realtime/session/heartbeat", async (request, reply) => {
-  const session = await cfSessionForRequest(request, cfBody(request).sessionId);
-  if (!session) return reply.status(403).send({ error: "Invalid media session" });
-  cloudflareRealtimeService.touchSession(session.sessionId);
-  return { ok: true };
-});
+server.post(
+  "/api/cloudflare-realtime/session/heartbeat",
+  async (request, reply) => {
+    const session = await cfSessionForRequest(
+      request,
+      cfBody(request).sessionId,
+    );
+    if (!session)
+      return reply.status(403).send({ error: "Invalid media session" });
+    cloudflareRealtimeService.touchSession(session.sessionId);
+    return { ok: true };
+  },
+);
 
-server.post("/api/cloudflare-realtime/session/leave", async (request, reply) => {
-  const body = cfBody(request);
-  const session = await cfSessionForRequest(request, body.sessionId);
-  if (!session) return reply.status(403).send({ error: "Invalid media session" });
-  await cloudflareRealtimeService.revokeSession(session.sessionId).catch(error => request.log.warn({ error }, "Cloudflare session teardown incomplete"));
-  await cfSendTracks(session.channelId);
-  return { ok: true };
-});
+server.post(
+  "/api/cloudflare-realtime/session/leave",
+  async (request, reply) => {
+    const body = cfBody(request);
+    const session = await cfSessionForRequest(request, body.sessionId);
+    if (!session)
+      return reply.status(403).send({ error: "Invalid media session" });
+    await cloudflareRealtimeService
+      .revokeSession(session.sessionId)
+      .catch((error) =>
+        request.log.warn({ error }, "Cloudflare session teardown incomplete"),
+      );
+    await cfSendTracks(session.channelId);
+    return { ok: true };
+  },
+);
 
 const cloudflareMediaSweep = setInterval(async () => {
   for (const [sessionId, session] of cloudflareRealtimeService.listSessions()) {
     try {
-      const login = await prisma.refreshToken.findUnique({ where: { id: session.loginSessionId }, select: { userId: true, expiresAt: true } });
-      const user = await prisma.user.findUnique({ where: { id: session.userId }, select: { isBanned: true } });
-      if (Date.now() - session.lastSeenAt <= 45_000 && login?.userId === session.userId && login.expiresAt > new Date() && user && !user.isBanned && await cfCanUseChannel(session.userId, session.channelId)) continue;
+      const login = await prisma.refreshToken.findUnique({
+        where: { id: session.loginSessionId },
+        select: { userId: true, expiresAt: true },
+      });
+      const user = await prisma.user.findUnique({
+        where: { id: session.userId },
+        select: { isBanned: true },
+      });
+      if (
+        Date.now() - session.lastSeenAt <= 45_000 &&
+        login?.userId === session.userId &&
+        login.expiresAt > new Date() &&
+        user &&
+        !user.isBanned &&
+        (await cfCanUseChannel(session.userId, session.channelId))
+      )
+        continue;
       await cloudflareRealtimeService.revokeSession(sessionId);
       await cfSendTracks(session.channelId);
-    } catch (error) { server.log.warn({ error }, "Cloudflare media revocation retry pending"); }
+    } catch (error) {
+      server.log.warn({ error }, "Cloudflare media revocation retry pending");
+    }
   }
 }, 10_000);
 cloudflareMediaSweep.unref();
@@ -5162,7 +5680,6 @@ cloudflareMediaSweep.unref();
 // ==========================================
 // 7. 超级管理员系统运维与治理 API (Super Admin)
 // ==========================================
-
 
 // 获取系统综合运行指标看板
 server.get(

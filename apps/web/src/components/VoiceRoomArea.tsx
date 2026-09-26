@@ -464,7 +464,10 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
                 } ${speaking ? "speaking-ring" : ""}`}
               />
               {participant.selfMute && (
-                <div className="absolute -bottom-1 -right-1 bg-discord-danger p-1 rounded-full text-white shadow-md">
+                <div
+                  data-testid={`voice-participant-muted-${participant.userId}`}
+                  className="absolute -bottom-1 -right-1 bg-discord-danger p-1 rounded-full text-white shadow-md"
+                >
                   <MicOff className="w-2.5 h-2.5" />
                 </div>
               )}
@@ -663,7 +666,10 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             </span>
           )}
           {participant.selfMute && (
-            <div className="bg-discord-danger p-0.5 rounded-full text-white flex-shrink-0">
+            <div
+              data-testid={`voice-participant-muted-${participant.userId}`}
+              className="bg-discord-danger p-0.5 rounded-full text-white flex-shrink-0"
+            >
               <MicOff className="w-2.5 h-2.5" />
             </div>
           )}
@@ -1006,24 +1012,32 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
     const unbindCamera = livekitService.onCameraTracksChange((tracks) => {
       setCameraTracks(new Map(tracks));
     });
-    const unbindCloudflareVideo = cloudflareRealtimeService.onRemoteVideo((publication, stream) => {
-      const track = stream?.getVideoTracks()[0] || null;
-      if (publication.source === "camera") {
-        setCameraTracks((previous) => {
-          const next = new Map(previous);
-          if (track) next.set(publication.userId, track);
-          else next.delete(publication.userId);
-          return next;
-        });
-      } else if (publication.source === "screen") {
-        setScreenShares((previous) => {
-          const next = new Map(previous);
-          if (track) next.set(publication.userId, { participantIdentity: publication.userId, track, isLocal: publication.userId === currentUser.id, preset: "Cloudflare SFU" });
-          else next.delete(publication.userId);
-          return next;
-        });
-      }
-    });
+    const unbindCloudflareVideo = cloudflareRealtimeService.onRemoteVideo(
+      (publication, stream) => {
+        const track = stream?.getVideoTracks()[0] || null;
+        if (publication.source === "camera") {
+          setCameraTracks((previous) => {
+            const next = new Map(previous);
+            if (track) next.set(publication.userId, track);
+            else next.delete(publication.userId);
+            return next;
+          });
+        } else if (publication.source === "screen") {
+          setScreenShares((previous) => {
+            const next = new Map(previous);
+            if (track)
+              next.set(publication.userId, {
+                participantIdentity: publication.userId,
+                track,
+                isLocal: publication.userId === currentUser.id,
+                preset: "Cloudflare SFU",
+              });
+            else next.delete(publication.userId);
+            return next;
+          });
+        }
+      },
+    );
     const unbindP2P = p2pStreamManager.onStreamChange((stream, ownerId) => {
       setP2pScreenShares((prev) => {
         const next = new Map(prev);
@@ -1123,8 +1137,8 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
 
   // 保证当前用户的 selfVideo 与本地 isVideoEnabled 强同步
   const displayParticipants = rawParticipants.map((p) => {
-    if (p.userId === currentUser.id) {
-      return { ...p, selfVideo: isVideoEnabled };
+    if (p.userId === currentUser.id && isConnected) {
+      return { ...p, selfMute: isMuted, selfVideo: isVideoEnabled };
     }
     return p;
   });

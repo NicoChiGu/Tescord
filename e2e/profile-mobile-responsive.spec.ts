@@ -48,10 +48,7 @@ test.describe("移动端 Web 与较小视口“编辑个人资料 / 用户设置
             data.customStatus !== undefined
               ? data.customStatus
               : "移动端适配体验 📱",
-          bio:
-            data.bio !== undefined
-              ? data.bio
-              : "跨端即时通讯与音视频探索者",
+          bio: data.bio !== undefined ? data.bio : "跨端即时通讯与音视频探索者",
           bannerColor:
             data.bannerColor !== undefined ? data.bannerColor : "#5865f2",
           bannerUrl: data.bannerUrl !== undefined ? data.bannerUrl : null,
@@ -66,7 +63,7 @@ test.describe("移动端 Web 与较小视口“编辑个人资料 / 用户设置
     });
   });
 
-  test("移动端小视口 (375x667)：胶囊栏滑动、全屏Modal、关闭按钮、悬浮FAB预览及无溢出保存条", async ({
+  test("移动端小视口 (375x667)：目录与详情切换、全屏Modal、悬浮预览及无溢出保存条", async ({
     page,
   }) => {
     const consoleErrors: string[] = [];
@@ -75,7 +72,10 @@ test.describe("移动端 Web 与较小视口“编辑个人资料 / 用户设置
     // 1. 设置移动端经典 iPhone 视口
     const viewportWidth = 375;
     const viewportHeight = 667;
-    await page.setViewportSize({ width: viewportWidth, height: viewportHeight });
+    await page.setViewportSize({
+      width: viewportWidth,
+      height: viewportHeight,
+    });
     await page.goto("/");
 
     // 2. 移动端抽屉中打开左下角用户设置 / 资料弹窗
@@ -83,7 +83,10 @@ test.describe("移动端 Web 与较小视口“编辑个人资料 / 用户设置
     const quickLoginBtn = page.getByRole("button", {
       name: /Jackey 系统管理员/i,
     });
-    if ((await quickLoginBtn.count()) > 0 && (await quickLoginBtn.isVisible())) {
+    if (
+      (await quickLoginBtn.count()) > 0 &&
+      (await quickLoginBtn.isVisible())
+    ) {
       await quickLoginBtn.click();
     }
 
@@ -114,22 +117,28 @@ test.describe("移动端 Web 与较小视口“编辑个人资料 / 用户设置
     expect(closeBtnBox!.y).toBeLessThan(60);
     expect(closeBtnBox!.x).toBeGreaterThan(280);
 
-    // 5. 验证移动端水平滚动胶囊选项卡 (Horizontal Scroll Tabs)
+    // 5. 验证移动端目录与全宽详情页切换
     const profileTab = page.getByTestId("tab-profile-btn");
     const audioTab = page.getByTestId("tab-audio-btn");
     const languageTab = page.getByTestId("tab-language-btn");
     const updatesTab = page.getByTestId("tab-updates-btn");
 
+    // 齿轮快捷入口直接打开语音详情，先返回设置目录。
+    await expect(page.getByTestId("user-settings-detail")).toBeVisible();
+    await page.getByTestId("user-settings-back").click();
     await expect(profileTab).toBeVisible();
     await expect(audioTab).toBeVisible();
+    await expect(page.getByTestId("user-settings-detail")).toBeHidden();
 
     // 点击语言 Tab 验证切换顺畅
     await languageTab.click();
+    await expect(page.getByTestId("user-settings-menu")).toBeHidden();
     await expect(page.getByTestId("language-options-list")).toBeVisible({
       timeout: 3000,
     });
 
-    // 切回个人资料与展示卡 Tab
+    // 返回目录后进入个人资料
+    await page.getByTestId("user-settings-back").click();
     await profileTab.click();
     await expect(page.getByTestId("profile-display-name-input")).toBeVisible();
 
@@ -166,7 +175,9 @@ test.describe("移动端 Web 与较小视口“编辑个人资料 / 用户设置
     const noticeBox = await noticeBar.boundingBox();
     expect(noticeBox).not.toBeNull();
     expect(noticeBox!.x).toBeGreaterThanOrEqual(0);
-    expect(noticeBox!.x + noticeBox!.width).toBeLessThanOrEqual(viewportWidth + 2);
+    expect(noticeBox!.x + noticeBox!.width).toBeLessThanOrEqual(
+      viewportWidth + 2,
+    );
 
     // 验证重置按钮有效
     const resetBtn = page.getByTestId("reset-profile-changes-btn");
@@ -204,14 +215,20 @@ test.describe("移动端 Web 与较小视口“编辑个人资料 / 用户设置
 
     const viewportWidth = 360;
     const viewportHeight = 740;
-    await page.setViewportSize({ width: viewportWidth, height: viewportHeight });
+    await page.setViewportSize({
+      width: viewportWidth,
+      height: viewportHeight,
+    });
     await page.goto("/");
 
     // 若在登录界面则一键跳过
     const quickLoginBtn = page.getByRole("button", {
       name: /Jackey 系统管理员/i,
     });
-    if ((await quickLoginBtn.count()) > 0 && (await quickLoginBtn.isVisible())) {
+    if (
+      (await quickLoginBtn.count()) > 0 &&
+      (await quickLoginBtn.isVisible())
+    ) {
       await quickLoginBtn.click();
     }
 
@@ -233,6 +250,7 @@ test.describe("移动端 Web 与较小视口“编辑个人资料 / 用户设置
 
     // 切换至个人资料与展示卡 Tab
     const profileTab = page.getByTestId("tab-profile-btn");
+    await page.getByTestId("user-settings-back").click();
     await expect(profileTab).toBeVisible();
     await profileTab.click();
 

@@ -10,6 +10,7 @@ import {
   Ban,
   FileText,
   Trash2,
+  ChevronLeft,
 } from "lucide-react";
 import { OverviewTab } from "./OverviewTab.js";
 import { RolesTab } from "./RolesTab.js";
@@ -43,10 +44,20 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
   const { t } = useTranslation(["server", "contextMenu", "common", "errors"]);
   const { user: currentUser, token } = useAuthStore();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
+  const [mobileView, setMobileView] = useState<"menu" | "detail">("menu");
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [roles, setRoles] = useState<Role[]>(guild?.roles || []);
 
   const isOwner = guild?.ownerId === currentUser?.id;
+
+  useEffect(() => {
+    if (isOpen) setMobileView("menu");
+  }, [isOpen, guild?.id]);
+
+  const selectTab = (tab: TabType) => {
+    setActiveTab(tab);
+    setMobileView("detail");
+  };
 
   // 监听键盘 ESC 键关闭
   useEffect(() => {
@@ -333,12 +344,23 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
       <div
         data-testid="server-settings-modal"
         onClick={(e) => e.stopPropagation()}
-        className="relative flex w-full h-full sm:h-[88vh] sm:max-h-[850px] sm:max-w-4xl md:max-w-5xl bg-[#313338] text-white sm:rounded-2xl shadow-2xl overflow-hidden border border-transparent sm:border-[#3f4147] animate-in zoom-in-95 duration-150"
+        className="relative flex flex-col md:flex-row w-full h-[100dvh] min-h-0 sm:h-[88vh] sm:max-h-[850px] sm:max-w-4xl md:max-w-5xl bg-[#313338] text-white sm:rounded-2xl shadow-2xl overflow-hidden border border-transparent sm:border-[#3f4147] animate-in zoom-in-95 duration-150"
       >
         {/* 左侧：分类导航栏 */}
-        <div className="w-60 bg-[#2b2d31] p-6 flex flex-col justify-between shrink-0 select-none border-r border-[#1f2023]">
+        <div
+          data-testid="server-settings-menu"
+          className={`${mobileView === "detail" ? "hidden md:flex" : "flex"} w-full md:w-60 flex-1 md:flex-none min-h-0 bg-[#2b2d31] p-5 md:p-6 flex-col justify-between select-none border-r border-[#1f2023] overflow-y-auto overscroll-contain`}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            className="md:hidden absolute right-3 top-3 p-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/10"
+            aria-label="关闭服务器设置"
+          >
+            <X className="w-5 h-5" />
+          </button>
           <div className="space-y-6">
-            <div className="px-2">
+            <div className="px-2 pr-12 md:pr-2">
               <h3 className="text-sm font-bold text-white truncate">
                 {guild.name}
               </h3>
@@ -354,7 +376,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                   {t("server:groups.serverSettings")}
                 </div>
                 <button
-                  onClick={() => setActiveTab("overview")}
+                  onClick={() => selectTab("overview")}
                   className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     activeTab === "overview"
                       ? "bg-white/10 text-white"
@@ -365,7 +387,8 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                   <span>{t("server:nav.overview")}</span>
                 </button>
                 <button
-                  onClick={() => setActiveTab("roles")}
+                  data-testid="server-settings-roles-tab"
+                  onClick={() => selectTab("roles")}
                   className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     activeTab === "roles"
                       ? "bg-white/10 text-white"
@@ -383,7 +406,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                   {t("server:groups.userManagement")}
                 </div>
                 <button
-                  onClick={() => setActiveTab("members")}
+                  onClick={() => selectTab("members")}
                   className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     activeTab === "members"
                       ? "bg-white/10 text-white"
@@ -394,7 +417,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                   <span>{t("server:nav.members")}</span>
                 </button>
                 <button
-                  onClick={() => setActiveTab("invites")}
+                  onClick={() => selectTab("invites")}
                   className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     activeTab === "invites"
                       ? "bg-white/10 text-white"
@@ -405,7 +428,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                   <span>{t("server:nav.invites")}</span>
                 </button>
                 <button
-                  onClick={() => setActiveTab("bans")}
+                  onClick={() => selectTab("bans")}
                   className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     activeTab === "bans"
                       ? "bg-white/10 text-white"
@@ -423,7 +446,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                   {t("server:groups.security")}
                 </div>
                 <button
-                  onClick={() => setActiveTab("audit-log")}
+                  onClick={() => selectTab("audit-log")}
                   className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                     activeTab === "audit-log"
                       ? "bg-white/10 text-white"
@@ -452,9 +475,28 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
         </div>
 
         {/* 右侧：主配置画布 */}
-        <div className="flex-1 flex flex-col min-w-0 bg-[#313338] relative">
+        <div
+          data-testid="server-settings-detail"
+          className={`${mobileView === "menu" ? "hidden md:flex" : "flex"} flex-1 flex-col min-w-0 min-h-0 bg-[#313338] relative`}
+        >
+          <div className="md:hidden flex items-center gap-2 h-14 shrink-0 px-3 pr-14 border-b border-white/10 pt-[env(safe-area-inset-top)]">
+            <button
+              type="button"
+              data-testid="server-settings-back"
+              onClick={() => setMobileView("menu")}
+              className="p-2 rounded-lg hover:bg-white/10 text-white"
+              aria-label="返回服务器设置目录"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <span className="text-sm font-semibold truncate">
+              {t(
+                `server:nav.${activeTab === "audit-log" ? "auditLog" : activeTab}`,
+              )}
+            </span>
+          </div>
           {/* 右上角固定关闭按钮与 ESC 提示 */}
-          <div className="absolute top-4 right-4 sm:top-6 sm:right-8 flex flex-col items-center z-40">
+          <div className="absolute top-2.5 right-3 md:top-6 md:right-8 flex flex-col items-center z-40">
             <button
               data-testid="close-server-settings-btn"
               onClick={onClose}
@@ -469,7 +511,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
           </div>
 
           {/* 内容画布容器 */}
-          <div className="flex-1 overflow-y-auto px-10 py-10 max-w-4xl">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 md:px-10 py-5 md:py-10 pb-[max(1.25rem,env(safe-area-inset-bottom))] max-w-4xl">
             {activeTab === "overview" && (
               <OverviewTab guild={guild} onUpdateGuild={handleUpdateGuild} />
             )}

@@ -48,6 +48,7 @@ import { MobileActionSheet } from "./chat/MobileActionSheet.js";
 import { MentionInput, MentionInputHandle } from "./chat/MentionInput.js";
 import { TypingIndicator } from "./chat/TypingIndicator.js";
 import { ImageAttachment } from "./chat/ImageAttachment.js";
+import { FileAttachment } from "./chat/FileAttachment.js";
 import { ServerInviteEmbed } from "./chat/ServerInviteEmbed.js";
 import { PinnedMessagesPopover } from "./PinnedMessagesPopover.js";
 import { useUserProfilePopoutStore } from "../stores/useUserProfilePopoutStore.js";
@@ -111,7 +112,7 @@ interface ChatMessageItemProps {
   onDeleteMessage?: (id: string) => void;
   onReactionAdd?: (id: string, emoji: string) => void;
   onReactionRemove?: (id: string, emoji: string) => void;
-  setLightboxImage: (img: { url: string; name: string } | null) => void;
+  setLightboxImage: (attachment: Attachment | null) => void;
   setInputText: React.Dispatch<React.SetStateAction<string>>;
   onOpenMobileActions: (msg: Message) => void;
   onMentionUser?: (username: string) => void;
@@ -353,37 +354,12 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
                     <ImageAttachment
                       key={att.id}
                       attachment={att}
-                      onPreview={(targetAtt) =>
-                        setLightboxImage({
-                          url: targetAtt.url,
-                          name: targetAtt.fileName,
-                        })
-                      }
+                      onPreview={setLightboxImage}
                     />
                   );
                 }
 
-                return (
-                  <a
-                    key={att.id}
-                    href={resolveServerUrl(att.url)}
-                    download={att.fileName}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center space-x-2 bg-[#2b2d31] hover:bg-[#35373c] p-2.5 rounded-lg border border-[#3f4147] max-w-xs transition group/file"
-                  >
-                    <FileText className="w-8 h-8 text-discord-brand flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium text-discord-textHeader truncate group-hover/file:underline">
-                        {att.fileName}
-                      </div>
-                      <div className="text-[10px] text-discord-textMuted">
-                        {(att.fileSize / 1024).toFixed(1)} KB
-                      </div>
-                    </div>
-                    <Download className="w-4 h-4 text-discord-textMuted group-hover/file:text-white transition flex-shrink-0" />
-                  </a>
-                );
+                return <FileAttachment key={att.id} attachment={att} />;
               })}
             </div>
           )}
@@ -776,10 +752,23 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     string | null
   >(null);
   const [isInputEmojiOpen, setIsInputEmojiOpen] = useState(false);
-  const [lightboxImage, setLightboxImage] = useState<{
-    url: string;
-    name: string;
-  } | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<Attachment | null>(null);
+  const [pendingImageUrls, setPendingImageUrls] = useState<
+    Record<string, string>
+  >({});
+  const pendingImageUrlsRef = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    pendingImageUrlsRef.current = pendingImageUrls;
+  }, [pendingImageUrls]);
+  useEffect(
+    () => () => {
+      Object.values(pendingImageUrlsRef.current).forEach((url) =>
+        URL.revokeObjectURL(url),
+      );
+    },
+    [],
+  );
 
   // 阶段五：端到端双棘轮解密内容缓存与本地离线搜索状态
   const [decryptedContents, setDecryptedContents] = useState<
@@ -1379,13 +1368,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
         // 延迟二次校准，解决虚拟列表子项在初次 DOM 测量高度完成后发生位移抖动
         setTimeout(() => {
-          if (
-            scrollContainerRef.current &&
-            restoreReadPosition
-          ) {
+          if (scrollContainerRef.current && restoreReadPosition) {
             if (
-              Math.abs(scrollContainerRef.current.scrollTop - (meta?.scrollTop ?? 0)) >
-              5
+              Math.abs(
+                scrollContainerRef.current.scrollTop - (meta?.scrollTop ?? 0),
+              ) > 5
             ) {
               scrollContainerRef.current.scrollTop = meta?.scrollTop ?? 0;
               rowVirtualizer.scrollToOffset(meta?.scrollTop ?? 0);
@@ -1590,6 +1577,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         mimeType: file.type || "application/octet-stream",
       };
 
+      if (isImageMime(newAttachment.mimeType, newAttachment.fileName)) {
+        setPendingImageUrls((prev) => ({
+          ...prev,
+          [newAttachment.id]: URL.createObjectURL(file),
+        }));
+      }
       setPendingAttachments((prev) => [...prev, newAttachment]);
     } catch (err: any) {
       console.error("File upload error:", err);
@@ -1661,6 +1654,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     mentionInputRef.current?.clear();
     setReplyingTo(null);
     setPendingAttachments([]);
+    Object.values(pendingImageUrlsRef.current).forEach((url) =>
+      URL.revokeObjectURL(url),
+    );
+    setPendingImageUrls({});
     lastTypingSentRef.current = 0;
   };
 
@@ -2206,7 +2203,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               >
                 {isImageMime(att.mimeType, att.fileName) ? (
                   <img
-                    src={resolveServerUrl(att.url)}
+                    src={pendingImageUrls[att.id] || resolveServerUrl(att.url)}
                     alt={att.fileName}
                     className="w-8 h-8 rounded object-cover"
                   />
@@ -2218,11 +2215,18 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 </span>
                 <button
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
+                    const url = pendingImageUrls[att.id];
+                    if (url) URL.revokeObjectURL(url);
+                    setPendingImageUrls((prev) => {
+                      const next = { ...prev };
+                      delete next[att.id];
+                      return next;
+                    });
                     setPendingAttachments((prev) =>
                       prev.filter((_, i) => i !== idx),
-                    )
-                  }
+                    );
+                  }}
                   className="text-discord-textMuted hover:text-red-400 p-0.5 rounded"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -2392,9 +2396,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
       {/* 图片灯箱放大预览模态框 */}
       <LightboxModal
-        isOpen={!!lightboxImage}
-        imageUrl={lightboxImage ? resolveServerUrl(lightboxImage.url) : null}
-        fileName={lightboxImage?.name}
+        attachment={lightboxImage}
         onClose={() => setLightboxImage(null)}
       />
 

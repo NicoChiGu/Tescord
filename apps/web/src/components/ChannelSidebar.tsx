@@ -385,7 +385,10 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
                     );
                   })()}
                   {p.selfMute && (
-                    <MicOff className="w-3 h-3 text-discord-danger" />
+                    <MicOff
+                      data-testid={`voice-sidebar-muted-${p.userId}`}
+                      className="w-3 h-3 text-discord-danger"
+                    />
                   )}
                   {p.streaming && (
                     <span className="text-[9px] bg-discord-brand text-white px-1 rounded font-bold">
@@ -463,7 +466,8 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   const [copiedInvite, setCopiedInvite] = useState<string | null>(null);
   const networkStats = useNetworkStats();
   const { ping: gatewayPing } = useGatewayStatus();
-  const { canManageChannels, canCreateInvite } = usePermissions(guild);
+  const { canManageChannels, canManageGuild, canCreateInvite } =
+    usePermissions(guild);
   const [isCurrentUserCardOpen, setIsCurrentUserCardOpen] = useState(false);
   const [userTriggerRect, setUserTriggerRect] = useState<DOMRect | null>(null);
   const userTriggerBtnRef = useRef<HTMLButtonElement | null>(null);
@@ -599,7 +603,13 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
 
   // 获取正在当前语音频道的用户
   const getChannelParticipants = (channelId: string) => {
-    return voiceStates.filter((v) => v.channelId === channelId);
+    return voiceStates
+      .filter((v) => v.channelId === channelId)
+      .map((v) =>
+        v.userId === currentUser.id && channelId === activeVoiceChannelId
+          ? { ...v, selfMute: isMuted, selfDeaf: isDeafened }
+          : v,
+      );
   };
 
   const activeVoiceChannel =
@@ -942,6 +952,21 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
           <div className="h-12 border-b border-[#1f2023] px-4 flex items-center justify-between font-bold text-discord-textHeader shadow-sm hover:bg-[#35373c] transition cursor-pointer">
             <span className="truncate">{guild.name}</span>
             <div className="flex items-center space-x-1">
+              {canManageGuild && onOpenServerSettings && (
+                <button
+                  type="button"
+                  data-testid="mobile-server-settings-btn"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenServerSettings(guild);
+                  }}
+                  className="md:hidden p-1 rounded hover:bg-[#3f4147] text-discord-textMuted hover:text-white transition"
+                  title={t("contextMenu:server.settings")}
+                  aria-label={t("contextMenu:server.settings")}
+                >
+                  <Settings className="w-4 h-4" />
+                </button>
+              )}
               {canManageChannels && onOpenCreateCategory && (
                 <button
                   type="button"

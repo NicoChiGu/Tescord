@@ -30,6 +30,7 @@ import {
   Plus,
   Copy,
   Check,
+  ChevronLeft,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { API_BASE } from "../../config.js";
@@ -52,6 +53,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   const { t } = useTranslation(["admin", "common", "modals", "errors"]);
   const { getAuthHeaders } = useAuthStore();
   const [activeTab, setActiveTab] = useState<TabType>("OVERVIEW");
+  const [mobileView, setMobileView] = useState<"menu" | "detail">("menu");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successNotice, setSuccessNotice] = useState<string | null>(null);
@@ -99,6 +101,15 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
       loadTabData(activeTab);
     }
   }, [isOpen, activeTab]);
+
+  useEffect(() => {
+    if (isOpen) setMobileView("menu");
+  }, [isOpen]);
+
+  const selectTab = (tab: TabType) => {
+    setActiveTab(tab);
+    setMobileView("detail");
+  };
 
   const showSuccess = (msg: string) => {
     setSuccessNotice(msg);
@@ -518,13 +529,24 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm animate-fade-in p-4 sm:p-6 select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-sm animate-fade-in p-0 sm:p-6 select-none">
       <div
         data-testid="admin-dashboard-modal"
-        className="w-full max-w-5xl h-[85vh] bg-[#313338] rounded-xl flex overflow-hidden shadow-2xl border border-[#3f4147]"
+        className="w-full max-w-5xl h-[100dvh] sm:h-[85vh] min-h-0 bg-[#313338] sm:rounded-xl flex flex-col md:flex-row overflow-hidden shadow-2xl border border-[#3f4147]"
       >
         {/* 左侧导航栏 */}
-        <aside className="w-56 bg-[#2b2d31] p-4 flex flex-col border-r border-[#1f2023]">
+        <aside
+          data-testid="admin-settings-menu"
+          className={`${mobileView === "detail" ? "hidden md:flex" : "flex"} w-full md:w-56 flex-1 md:flex-none min-h-0 bg-[#2b2d31] p-4 flex-col border-r border-[#1f2023] overflow-y-auto overscroll-contain`}
+        >
+          <button
+            type="button"
+            onClick={onClose}
+            className="md:hidden absolute right-4 top-4 p-2 rounded-lg text-discord-textMuted hover:text-white hover:bg-white/10"
+            aria-label="关闭管理后台"
+          >
+            <X className="w-5 h-5" />
+          </button>
           <div className="flex items-center space-x-2 px-2 py-3 mb-4">
             <ShieldAlert className="w-6 h-6 text-amber-400" />
             <div>
@@ -539,7 +561,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
           <nav className="flex-1 space-y-1 text-sm">
             <button
-              onClick={() => setActiveTab("OVERVIEW")}
+              onClick={() => selectTab("OVERVIEW")}
               data-testid="admin-tab-overview"
               className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition font-medium ${
                 activeTab === "OVERVIEW"
@@ -552,7 +574,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             </button>
 
             <button
-              onClick={() => setActiveTab("USERS")}
+              onClick={() => selectTab("USERS")}
               data-testid="admin-tab-users"
               className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition font-medium ${
                 activeTab === "USERS"
@@ -565,7 +587,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             </button>
 
             <button
-              onClick={() => setActiveTab("GUILDS")}
+              onClick={() => selectTab("GUILDS")}
               data-testid="admin-tab-guilds"
               className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition font-medium ${
                 activeTab === "GUILDS"
@@ -578,7 +600,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             </button>
 
             <button
-              onClick={() => setActiveTab("INVITES")}
+              onClick={() => selectTab("INVITES")}
               data-testid="admin-tab-invites"
               className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition font-medium ${
                 activeTab === "INVITES"
@@ -591,7 +613,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
             </button>
 
             <button
-              onClick={() => setActiveTab("SYSTEM")}
+              onClick={() => selectTab("SYSTEM")}
               data-testid="admin-tab-system"
               className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition font-medium ${
                 activeTab === "SYSTEM"
@@ -617,10 +639,22 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
         </aside>
 
         {/* 右侧主内容区 */}
-        <main className="flex-1 flex flex-col min-w-0 bg-[#313338]">
+        <main
+          data-testid="admin-settings-detail"
+          className={`${mobileView === "menu" ? "hidden md:flex" : "flex"} flex-1 flex-col min-w-0 min-h-0 bg-[#313338]`}
+        >
           {/* 顶栏 */}
-          <div className="h-14 border-b border-[#232428] px-6 flex items-center justify-between">
-            <h3 className="font-bold text-lg text-white">
+          <div className="h-14 shrink-0 border-b border-[#232428] px-3 md:px-6 flex items-center justify-between pt-[env(safe-area-inset-top)]">
+            <button
+              type="button"
+              data-testid="admin-settings-back"
+              onClick={() => setMobileView("menu")}
+              className="md:hidden mr-2 p-2 rounded-lg text-white hover:bg-white/10"
+              aria-label="返回管理目录"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <h3 className="font-bold text-lg text-white flex-1 min-w-0 truncate">
               {activeTab === "OVERVIEW" && t("admin:header.tabOverviewTitle")}
               {activeTab === "USERS" && t("admin:header.tabUsersTitle")}
               {activeTab === "GUILDS" && t("admin:header.tabGuildsTitle")}
@@ -661,7 +695,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
           )}
 
           {/* 滚动容器 */}
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 md:p-6 pb-[max(1rem,env(safe-area-inset-bottom))]">
             {loading && !stats && users.length === 0 && (
               <div className="h-full flex items-center justify-center text-discord-textMuted space-x-2">
                 <Loader2 className="w-5 h-5 animate-spin" />
@@ -1393,8 +1427,8 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
       {/* 生成邀请码模态弹窗 */}
       {isCreateInviteModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-          <div className="w-full max-w-md bg-[#313338] rounded-xl border border-[#3f4147] p-6 shadow-2xl space-y-4">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/80 backdrop-blur-sm p-3 sm:p-4 animate-fade-in">
+          <div className="w-full max-w-md max-h-[calc(100dvh-1.5rem)] overflow-y-auto overscroll-contain bg-[#313338] rounded-xl border border-[#3f4147] p-4 sm:p-6 shadow-2xl space-y-4">
             <div className="flex items-center justify-between border-b border-[#3f4147] pb-3">
               <div className="flex items-center space-x-2">
                 <Ticket className="w-5 h-5 text-emerald-400" />

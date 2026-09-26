@@ -196,6 +196,10 @@ model Attachment {
   fileName  String
   fileSize  Int
   mimeType  String
+  previewUrl String?
+  previewSize Int?
+  previewWidth Int?
+  previewHeight Int?
   createdAt DateTime @default(now())
 
   @@index([messageId])

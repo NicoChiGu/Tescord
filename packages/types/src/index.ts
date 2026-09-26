@@ -617,9 +617,22 @@ export interface JoinInviteDTO {
 export interface Attachment {
   id: string;
   url: string;
+  previewUrl?: string;
+  downloadUrl?: string;
+  expiresAt?: number; // Unix milliseconds for signed URLs
   fileName: string;
   fileSize: number;
   mimeType: string;
+}
+
+export interface AttachmentAccessRequest {
+  attachmentIds: string[];
+}
+
+export interface AttachmentAccessResponse {
+  attachments: Array<
+    Pick<Attachment, "id" | "url" | "previewUrl" | "downloadUrl" | "expiresAt">
+  >;
 }
 
 export interface MessageReaction {
@@ -733,6 +746,7 @@ export interface VoiceState {
   guildId: string;
   channelId: string | null;
   sessionId?: string;
+  revision?: number;
   platform?: string;
   selfMute: boolean;
   selfDeaf: boolean;
@@ -971,7 +985,6 @@ export interface StreamDetailedStats {
 
 // 纯语音传输模式：SFU (LiveKit) 服务端转发、P2P 全网状 Mesh 直连 或 Cloudflare Realtime Serverless SFU
 export type VoiceTransmissionMode = "sfu" | "p2p_mesh" | "cloudflare_realtime";
-
 
 // 语音通道状态信息
 export interface VoiceChannelStatusInfo {

@@ -11,6 +11,7 @@ import {
   Loader2,
   UserPlus,
   Trash2,
+  Menu,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Guild } from "@tescord/types";
@@ -25,6 +26,7 @@ interface FriendsDashboardProps {
   onStartDM: (targetUserId: string) => void;
   onStartCall?: (targetUserId: string) => void;
   onOpenProfile?: (userId: string) => void;
+  onOpenServerMenu?: () => void;
 }
 
 export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
@@ -33,6 +35,7 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
   onStartDM,
   onStartCall,
   onOpenProfile,
+  onOpenServerMenu,
 }) => {
   const { t } = useTranslation(["chat", "common"]);
 
@@ -375,20 +378,33 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
   return (
     <div className="flex-1 flex flex-col min-h-0 bg-discord-chat select-none">
       {/* 顶部标签栏 */}
-      <div className="h-12 border-b border-[#1f2023] px-6 flex items-center justify-between shadow-sm bg-discord-chat">
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2 text-white font-bold text-sm">
-            <Users className="w-5 h-5 text-discord-textMuted" />
-            <span>{t("chat:friends.title", { defaultValue: "好友" })}</span>
+      <div className="min-h-12 border-b border-[#1f2023] px-3 sm:px-6 py-2 sm:py-0 flex flex-col sm:flex-row sm:items-center shadow-sm bg-discord-chat gap-2 sm:gap-0">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 min-w-0 w-full">
+          <div className="flex items-center gap-2 shrink-0">
+            {onOpenServerMenu && (
+              <button
+                type="button"
+                data-testid="friends-open-server-menu"
+                onClick={onOpenServerMenu}
+                className="md:hidden p-2 -ml-1 rounded-lg text-discord-textMuted hover:text-white hover:bg-white/10"
+                aria-label="打开服务器列表"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            )}
+            <div className="flex items-center space-x-2 text-white font-bold text-sm">
+              <Users className="w-5 h-5 text-discord-textMuted" />
+              <span>{t("chat:friends.title", { defaultValue: "好友" })}</span>
+            </div>
           </div>
 
-          <div className="h-4 w-[1px] bg-[#3f4147]" />
+          <div className="hidden sm:block h-4 w-[1px] bg-[#3f4147]" />
 
           {/* 选项卡按钮 */}
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 overflow-x-auto min-w-0 w-full no-scrollbar">
             <button
               onClick={() => setActiveTab("online")}
-              className={`px-3 py-1 text-sm font-medium rounded-md transition ${
+              className={`shrink-0 whitespace-nowrap px-3 py-1 text-sm font-medium rounded-md transition ${
                 activeTab === "online"
                   ? "bg-[#35373c] text-white"
                   : "text-discord-textMuted hover:bg-[#35373c]/50 hover:text-discord-textHeader"
@@ -398,7 +414,7 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
             </button>
             <button
               onClick={() => setActiveTab("all")}
-              className={`px-3 py-1 text-sm font-medium rounded-md transition ${
+              className={`shrink-0 whitespace-nowrap px-3 py-1 text-sm font-medium rounded-md transition ${
                 activeTab === "all"
                   ? "bg-[#35373c] text-white"
                   : "text-discord-textMuted hover:bg-[#35373c]/50 hover:text-discord-textHeader"
@@ -408,7 +424,7 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
             </button>
             <button
               onClick={() => setActiveTab("pending")}
-              className={`px-3 py-1 text-sm font-medium rounded-md transition relative flex items-center space-x-1.5 ${
+              className={`shrink-0 whitespace-nowrap px-3 py-1 text-sm font-medium rounded-md transition relative flex items-center space-x-1.5 ${
                 activeTab === "pending"
                   ? "bg-[#35373c] text-white"
                   : "text-discord-textMuted hover:bg-[#35373c]/50 hover:text-discord-textHeader"
@@ -425,7 +441,7 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
             </button>
             <button
               onClick={() => setActiveTab("add_friend")}
-              className={`px-3 py-1 text-sm font-medium rounded-md transition ${
+              className={`shrink-0 whitespace-nowrap px-3 py-1 text-sm font-medium rounded-md transition ${
                 activeTab === "add_friend"
                   ? "bg-transparent text-discord-green font-semibold"
                   : "bg-discord-green text-white hover:bg-discord-greenHover font-semibold"
@@ -438,7 +454,7 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
       </div>
 
       {/* 主视图区域 */}
-      <div className="flex-1 overflow-y-auto px-6 py-6">
+      <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-5 sm:py-6">
         {/* 1. 添加好友视图 */}
         {activeTab === "add_friend" && (
           <div className="max-w-2xl">

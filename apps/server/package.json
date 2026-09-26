@@ -14,6 +14,7 @@
     "db:migrate:deploy": "tsx scripts/prisma.ts migrate deploy",
     "db:schema:check": "tsx scripts/check-schema-parity.ts",
     "db:preflight:dm": "tsx scripts/preflight-dm-migration.ts",
+    "db:migrate:attachment-preview:sqlite": "tsx scripts/migrate-attachment-preview-sqlite.ts",
     "admin:grant": "tsx scripts/grant-admin.ts",
     "admin:create": "tsx scripts/create-admin.ts"
   },
@@ -30,6 +31,7 @@
     "ioredis": "^6.0.0",
     "livekit-server-sdk": "^2.9.8",
     "minio": "^8.0.7",
+    "sharp": "^0.35.4",
     "ws": "^8.18.1"
   },
   "devDependencies": {

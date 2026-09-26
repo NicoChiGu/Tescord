@@ -135,7 +135,19 @@ test.describe("消息视口顶部悬浮历史横幅与上下边缘渐变模糊�
     await expect(floatingBanner).not.toBeVisible();
 
     // 3. 向上滚动查看早前历史消息
+    const messageViewport = page.getByTestId("chat-scroll-container");
+    await expect
+      .poll(() =>
+        messageViewport.evaluate(
+          (element) => element.scrollHeight - element.clientHeight,
+        ),
+      )
+      .toBeGreaterThan(200);
     await firstMsg.scrollIntoViewIfNeeded();
+    await messageViewport.evaluate((element) => {
+      element.scrollTop = 0;
+      element.dispatchEvent(new Event("scroll", { bubbles: true }));
+    });
 
     // 4. 验证此时顶部吸顶悬浮横幅显现，且包含特定动画与文案
     await expect(floatingBanner).toBeVisible({ timeout: 5000 });

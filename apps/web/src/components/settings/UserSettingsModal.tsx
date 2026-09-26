@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   Download,
   Eye,
+  ChevronLeft,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { AudioSettingsTab } from "./AudioSettingsTab.js";
@@ -112,6 +113,12 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   const { user, updateProfile, logout } = useAuthStore();
   const { t } = useTranslation(["settings", "common", "auth"]);
   const [activeTab, setActiveTab] = useState<UserSettingsTabType>(initialTab);
+  const [mobileView, setMobileView] = useState<"menu" | "detail">("menu");
+
+  const selectTab = (tab: UserSettingsTabType) => {
+    setActiveTab(tab);
+    setMobileView("detail");
+  };
 
   // 资料与展示卡表单状态
   const userPrefix = user?.username.includes("#")
@@ -213,6 +220,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   useEffect(() => {
     if (isOpen && !prevIsOpenRef.current) {
       setActiveTab(initialTab);
+      setMobileView(initialTab === "profile" ? "menu" : "detail");
       handleResetChanges();
     }
     prevIsOpenRef.current = isOpen;
@@ -239,12 +247,13 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isOpen) {
-        onClose();
+        if (isMobilePreviewOpen) setIsMobilePreviewOpen(false);
+        else onClose();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, isMobilePreviewOpen, onClose]);
 
   if (!isOpen || !user) return null;
 
@@ -317,7 +326,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
       data-testid="user-settings-modal"
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-in fade-in duration-150 p-0 sm:p-4 md:p-6"
     >
-      <div className="relative w-full h-[100dvh] sm:h-[90vh] sm:max-h-[850px] sm:max-w-6xl rounded-none sm:rounded-2xl bg-[#313338] shadow-2xl overflow-hidden flex flex-col md:flex-row border border-transparent sm:border-white/5">
+      <div className="relative w-full h-[100dvh] min-h-0 sm:h-[90vh] sm:max-h-[850px] sm:max-w-6xl rounded-none sm:rounded-2xl bg-[#313338] shadow-2xl overflow-hidden flex flex-col md:flex-row border border-transparent sm:border-white/5">
         {/* 全局右上角关闭按钮 (移动端与桌面端自适应位置，保证全局唯一无歧义) */}
         <div className="absolute top-2.5 right-3 md:top-6 md:right-8 flex flex-col items-center z-50">
           <button
@@ -335,8 +344,11 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
           </span>
         </div>
 
-        {/* 导航栏：移动端顶部紧凑横向滑动胶囊栏 (高约 44px~50px)，桌面端左侧经典纵向侧边栏 */}
-        <div className="w-full md:w-60 bg-[#2b2d31] p-2 md:p-4 flex flex-col md:justify-between border-b md:border-b-0 md:border-r border-[#1f2023] shrink-0">
+        {/* 移动端先展示目录，选择后使用全宽详情。 */}
+        <div
+          data-testid="user-settings-menu"
+          className={`${mobileView === "detail" ? "hidden md:flex" : "flex"} w-full flex-1 md:flex-none min-h-0 md:w-60 bg-[#2b2d31] p-4 md:p-4 flex-col md:justify-between border-b md:border-b-0 md:border-r border-[#1f2023] overflow-y-auto overscroll-contain`}
+        >
           <div className="space-y-1.5 md:space-y-4">
             {/* 移动端顶部标题行 (展示当前模块标题，右侧留出关闭按钮安全边距) */}
             <div className="flex md:hidden items-center justify-between px-2 pt-0.5 pb-1 pr-12">
@@ -356,15 +368,15 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
             </div>
 
             {/* 选项卡容器：移动端横向滚动胶囊，桌面端垂直堆叠 */}
-            <div className="flex flex-row md:flex-col overflow-x-auto md:overflow-visible no-scrollbar gap-1.5 md:gap-1 items-center md:items-stretch py-0.5 md:py-0 pr-12 md:pr-0">
+            <div className="flex flex-col gap-1 items-stretch py-0.5 pr-0">
               {/* 个人资料与展示卡 (Profiles) */}
               <button
                 type="button"
                 data-testid="tab-profile-btn"
-                onClick={() => setActiveTab("profile")}
-                className={`shrink-0 md:shrink w-auto md:w-full flex items-center gap-2 md:gap-2.5 px-3 md:px-2.5 py-1.5 md:py-2 rounded-full md:rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                onClick={() => selectTab("profile")}
+                className={`w-full flex items-center gap-2.5 px-3 py-3 md:px-2.5 md:py-2 rounded-lg text-sm md:text-xs font-semibold transition-colors text-left ${
                   activeTab === "profile"
-                    ? "bg-[#5865f2] md:bg-white/10 text-white shadow-sm md:shadow-none"
+                    ? "bg-[#5865f2] md:bg-white/10 text-white"
                     : "text-gray-300 md:text-gray-400 bg-[#1e1f22]/80 md:bg-transparent hover:bg-white/5 hover:text-white"
                 }`}
               >
@@ -381,8 +393,8 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
               <button
                 type="button"
                 data-testid="tab-audio-btn"
-                onClick={() => setActiveTab("audio")}
-                className={`shrink-0 md:shrink w-auto md:w-full flex items-center gap-2 md:gap-2.5 px-3 md:px-2.5 py-1.5 md:py-2 rounded-full md:rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                onClick={() => selectTab("audio")}
+                className={`w-full flex items-center gap-2.5 px-3 py-3 md:px-2.5 md:py-2 rounded-lg text-sm md:text-xs font-semibold transition-colors text-left ${
                   activeTab === "audio"
                     ? "bg-[#5865f2] md:bg-white/10 text-white shadow-sm md:shadow-none"
                     : "text-gray-300 md:text-gray-400 bg-[#1e1f22]/80 md:bg-transparent hover:bg-white/5 hover:text-white"
@@ -396,8 +408,8 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
               <button
                 type="button"
                 data-testid="tab-language-btn"
-                onClick={() => setActiveTab("language")}
-                className={`shrink-0 md:shrink w-auto md:w-full flex items-center gap-2 md:gap-2.5 px-3 md:px-2.5 py-1.5 md:py-2 rounded-full md:rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                onClick={() => selectTab("language")}
+                className={`w-full flex items-center gap-2.5 px-3 py-3 md:px-2.5 md:py-2 rounded-lg text-sm md:text-xs font-semibold transition-colors text-left ${
                   activeTab === "language"
                     ? "bg-[#5865f2] md:bg-white/10 text-white shadow-sm md:shadow-none"
                     : "text-gray-300 md:text-gray-400 bg-[#1e1f22]/80 md:bg-transparent hover:bg-white/5 hover:text-white"
@@ -411,8 +423,8 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
               <button
                 type="button"
                 data-testid="tab-updates-btn"
-                onClick={() => setActiveTab("updates")}
-                className={`shrink-0 md:shrink w-auto md:w-full flex items-center gap-2 md:gap-2.5 px-3 md:px-2.5 py-1.5 md:py-2 rounded-full md:rounded-lg text-xs font-semibold transition-colors whitespace-nowrap ${
+                onClick={() => selectTab("updates")}
+                className={`w-full flex items-center gap-2.5 px-3 py-3 md:px-2.5 md:py-2 rounded-lg text-sm md:text-xs font-semibold transition-colors text-left ${
                   activeTab === "updates"
                     ? "bg-[#5865f2] md:bg-white/10 text-white shadow-sm md:shadow-none"
                     : "text-gray-300 md:text-gray-400 bg-[#1e1f22]/80 md:bg-transparent hover:bg-white/5 hover:text-white"
@@ -457,7 +469,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                 type="button"
                 data-testid="user-logout-btn-mobile"
                 onClick={handleLogout}
-                className="md:hidden shrink-0 flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 transition-colors whitespace-nowrap"
+                className="md:hidden w-full flex items-center gap-2 px-3 py-3 rounded-lg text-sm font-semibold text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 transition-colors"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 <span>{t("settings:logout")}</span>
@@ -480,9 +492,32 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
         </div>
 
         {/* 右侧：主配置画布 */}
-        <div className="flex-1 flex flex-col min-w-0 bg-[#313338] relative">
+        <div
+          data-testid="user-settings-detail"
+          className={`${mobileView === "menu" ? "hidden md:flex" : "flex"} flex-1 flex-col min-w-0 min-h-0 bg-[#313338] relative`}
+        >
+          <div className="md:hidden flex items-center gap-2 h-14 shrink-0 px-3 pr-14 border-b border-white/10 pt-[env(safe-area-inset-top)]">
+            <button
+              type="button"
+              data-testid="user-settings-back"
+              onClick={() => setMobileView("menu")}
+              className="p-2 rounded-lg hover:bg-white/10 text-white"
+              aria-label="返回设置目录"
+            >
+              <ChevronLeft className="w-5 h-5" />
+            </button>
+            <span className="text-sm font-semibold text-white truncate">
+              {activeTab === "profile"
+                ? t("settings:profileTab", "个人资料与展示卡")
+                : activeTab === "audio"
+                  ? t("settings:voiceAndVideo")
+                  : activeTab === "language"
+                    ? t("settings:language")
+                    : t("settings:updatesTab", "版本与更新")}
+            </span>
+          </div>
           {/* 内容画布容器 */}
-          <div className="flex-1 overflow-y-auto px-4 sm:px-10 py-5 sm:py-8 custom-scrollbar">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-10 py-5 sm:py-8 pb-[max(1.25rem,env(safe-area-inset-bottom))] custom-scrollbar">
             {activeTab === "profile" && (
               <div className="space-y-6 max-w-5xl">
                 <div>
@@ -867,7 +902,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                     aria-label="查看卡片预览"
                   >
                     <Eye className="w-4 h-4" />
-                    <span>{t("settings:previewProfileCard", "预览资料卡")}</span>
+                    <span>
+                      {t("settings:previewProfileCard", "预览资料卡")}
+                    </span>
                   </button>
                 </div>
 
@@ -885,7 +922,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                       <div className="w-full flex items-center justify-between pb-3 mb-3 border-b border-white/10">
                         <div className="flex items-center gap-2 text-white font-bold text-sm">
                           <Palette className="w-4 h-4 text-[#5865f2]" />
-                          <span>{t("settings:realtimePreview", "实时卡片预览")}</span>
+                          <span>
+                            {t("settings:realtimePreview", "实时卡片预览")}
+                          </span>
                         </div>
                         <button
                           type="button"
@@ -925,7 +964,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                   >
                     <div className="flex items-center gap-2 text-xs font-semibold text-white w-full sm:w-auto justify-center sm:justify-start">
                       <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
-                      <span className="truncate">注意 — 您有未保存的更改！</span>
+                      <span className="truncate">
+                        注意 — 您有未保存的更改！
+                      </span>
                     </div>
 
                     <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
@@ -960,7 +1001,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                 {saveSuccess && (
                   <div className="fixed bottom-4 left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 bg-emerald-900/95 border border-emerald-500/30 text-white rounded-2xl shadow-2xl px-4 sm:px-6 py-3 flex items-center justify-center gap-2 text-xs font-semibold animate-in fade-in">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span className="truncate">展示卡个性化设置已成功保存并全网同步！</span>
+                    <span className="truncate">
+                      展示卡个性化设置已成功保存并全网同步！
+                    </span>
                   </div>
                 )}
               </div>

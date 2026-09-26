@@ -151,6 +151,44 @@ test.describe("附件上传与发信授权验收 (Attachment Upload & Message Se
     const pendingPreview = page.locator('text="e2e_pure_attachment.png"');
     await expect(pendingPreview).toBeVisible({ timeout: 10000 });
 
+    // The first message image URL is deliberately signed incorrectly. The
+    // viewer must request a fresh access grant instead of retrying that URL.
+    let accessRequests = 0;
+    await page.route("**/api/attachments/access", async (route) => {
+      const response = await route.fetch();
+      if (!response.ok()) {
+        await route.fulfill({ response });
+        return;
+      }
+      const data = await response.json();
+      if (
+        !data.attachments.some((attachment: { url: string }) =>
+          attachment.url.includes("e2e_pure_attachment"),
+        )
+      ) {
+        await route.fulfill({ response });
+        return;
+      }
+      accessRequests++;
+      if (accessRequests !== 1) {
+        await route.fulfill({ response });
+        return;
+      }
+      for (const attachment of data.attachments) {
+        for (const field of ["url", "previewUrl"] as const) {
+          if (!attachment[field]) continue;
+          const url = new URL(attachment[field]);
+          url.searchParams.set("signature", "invalid");
+          attachment[field] = url.toString();
+        }
+      }
+      await route.fulfill({
+        response,
+        body: JSON.stringify(data),
+        contentType: "application/json",
+      });
+    });
+
     // 3. 不输入任何文字，直接在输入框按下 Enter
     const chatInput = page.locator('div[contenteditable="true"]').first();
     await expect(chatInput).toBeVisible();
@@ -165,6 +203,30 @@ test.describe("附件上传与发信授权验收 (Attachment Upload & Message Se
       .locator('img[alt="e2e_pure_attachment.png"]')
       .first();
     await expect(renderedImg).toBeVisible({ timeout: 10000 });
+    expect(accessRequests).toBeGreaterThanOrEqual(2);
+
+    await page
+      .getByRole("button", { name: "预览图片 e2e_pure_attachment.png" })
+      .click();
+    await expect(
+      page.getByRole("dialog", { name: "预览 e2e_pure_attachment.png" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "查看原图" }).click();
+    await expect(
+      page.getByText("e2e_pure_attachment.png · 原图"),
+    ).toBeVisible();
+    await expect
+      .poll(() =>
+        page
+          .getByRole("dialog", { name: "预览 e2e_pure_attachment.png" })
+          .locator("img")
+          .evaluate((image: HTMLImageElement) => image.naturalWidth),
+      )
+      .toBeGreaterThan(0);
+    await page.getByRole("button", { name: "关闭预览" }).click();
+    expect(
+      consoleErrors.filter((err) => err.includes("403 (Forbidden)")),
+    ).toHaveLength(1);
 
     // 6. 保存纯附件验收截图
     await page.screenshot({
@@ -175,8 +237,39 @@ test.describe("附件上传与发信授权验收 (Attachment Upload & Message Se
       (err) =>
         !err.includes("net::ERR_") &&
         !err.includes("WebSocket") &&
-        !err.includes("404"),
+        !err.includes("404") &&
+        !err.includes("403 (Forbidden)"),
     );
     expect(criticalErrors).toHaveLength(0);
+  });
+
+  test("不可预览的附件显示文件信息并提供可用的下载", async ({ page }) => {
+    await page.goto("/");
+    const generalChannel = page.locator('text="general"').first();
+    await expect(generalChannel).toBeVisible({ timeout: 15000 });
+    await generalChannel.click();
+
+    const name = `download-${Date.now()}.pdf`;
+    await page
+      .locator('input[type="file"]')
+      .first()
+      .setInputFiles({
+        name,
+        mimeType: "application/pdf",
+        buffer: Buffer.from(
+          "%PDF-1.4\n1 0 obj<</Type/Catalog>>endobj\n%%EOF\n",
+        ),
+      });
+    await expect(page.getByText(name)).toBeVisible();
+    const input = page.locator('div[contenteditable="true"]').first();
+    await input.click();
+    await input.press("Enter");
+
+    const button = page.getByRole("button", { name: `下载 ${name}` });
+    await expect(button).toBeVisible({ timeout: 15000 });
+    const downloadPromise = page.waitForEvent("download");
+    await button.click();
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toBe(name);
   });
 });
