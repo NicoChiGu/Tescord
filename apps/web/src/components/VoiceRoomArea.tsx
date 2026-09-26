@@ -1411,10 +1411,14 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
         p2pLocalShare
       : null;
 
-    // 协议守卫：若远端成员并未处于推流状态 (p.streaming 为 false)，绝不返回陈旧屏幕分享轨，防止黑屏残影
+    // Cloudflare 的轨道公告可能先于 Gateway 的 streaming 状态到达。
+    // 只要当前仍有该用户的屏幕轨公告，就允许呈现已订阅的活跃轨道。
+    const hasCurrentCloudflareScreen =
+      VOICE_ENGINE === "cloudflare_realtime" &&
+      Boolean(getScreenPublication(p.userId));
     const participantScreenShare = isMe
       ? myScreenShare
-      : p.streaming
+      : p.streaming || hasCurrentCloudflareScreen
         ? screenShares.get(p.userId) || p2pScreenShares.get(p.userId)
         : null;
 

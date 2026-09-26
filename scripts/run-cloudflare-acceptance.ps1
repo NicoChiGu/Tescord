@@ -18,6 +18,7 @@ for ($run = 1; $run -le $Runs; $run++) {
   $email = 'admin-' + $marker + '@example.invalid'
   $password = [Guid]::NewGuid().ToString('N') + [Guid]::NewGuid().ToString('N')
   $manifestPath = Join-Path $repoRoot 'test-results/cloudflare-target/resources.json'
+  New-Item -ItemType Directory -Force -Path (Split-Path -Parent $manifestPath) | Out-Null
   Remove-Item -LiteralPath $manifestPath -ErrorAction SilentlyContinue
   $runDir = Join-Path $resultRoot ('run-' + $run + '-' + $marker)
   New-Item -ItemType Directory -Force -Path $runDir | Out-Null

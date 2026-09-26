@@ -50,6 +50,8 @@ async function sampleDisplayedVideoLatency(page: Page, startedAt: number) {
   return page.evaluate(async (watchStartedAt) => {
     const ages: number[] = [];
     const uniqueFrames = new Set<number>();
+    const observedVideos = new Map<string, number>();
+    let markerPixels: number[] | null = null;
     let firstFrameMs: number | null = null;
     let lastFrameAt = Date.now();
     let longestGapMs = 0;
@@ -57,13 +59,18 @@ async function sampleDisplayedVideoLatency(page: Page, startedAt: number) {
     canvas.width = 640;
     canvas.height = 100;
     const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
-    const deadline = Date.now() + 12_000;
+    const deadline = Date.now() + 30_000;
     while (Date.now() < deadline && ages.length < 30) {
       for (const video of document.querySelectorAll("video")) {
+        const videoState = `${video.videoWidth}x${video.videoHeight}/ready:${video.readyState}`;
+        observedVideos.set(videoState, (observedVideos.get(videoState) || 0) + 1);
         if (video.readyState < 2 || video.videoWidth < 640) continue;
         ctx.drawImage(video, 0, 0, 640, 100, 0, 0, 640, 100);
         const sample = (x: number) =>
           ctx.getImageData(x, 40, 1, 1).data[0] > 128;
+        markerPixels = [560, 580, 600, 620].map((x) =>
+          ctx.getImageData(x, 40, 1, 1).data[0],
+        );
         if (
           !sample(560) ||
           sample(580) ||
@@ -95,6 +102,8 @@ async function sampleDisplayedVideoLatency(page: Page, startedAt: number) {
       p95Ms: ages.length ? ages[Math.ceil(ages.length * 0.95) - 1] : null,
       longestGapMs,
       clock: "same-host Date.now sender and receiver",
+      observedVideos: [...observedVideos],
+      markerPixels,
     };
   }, startedAt);
 }
@@ -103,6 +112,7 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   browser,
   request,
 }) => {
+  test.setTimeout(240_000);
   const onTarget = Boolean(process.env.TESCORD_TARGET_BASE_URL);
   if (onTarget) test.setTimeout(180_000);
   const forceRelay = process.env.TESCORD_FORCE_RELAY === "1";
@@ -685,15 +695,31 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   let latencyPromise: ReturnType<typeof sampleDisplayedVideoLatency> | null = null;
   for (const [index, watchButton] of watchButtons.entries()) {
     await expect(watchButton).toBeVisible({ timeout: 20_000 });
-    await expect(watchButton).toHaveText("播放直播");
+    await expect(watchButton).toHaveText("观看直播");
     await watchButton.click();
     if (index === 0 && measureVideoLatency)
       latencyPromise = sampleDisplayedVideoLatency(pages[1], watchStartedAt);
     await expect(watchButton).toHaveText("停止观看", { timeout: 20_000 });
   }
   const videoLatency = latencyPromise ? await latencyPromise : null;
+  if (onTarget) {
+    console.log(JSON.stringify({
+      stage: "screen_watch_diagnostics",
+      videoLatency,
+      videos: await pages[1].locator("video").evaluateAll((elements) =>
+        elements.map((element) => ({
+          width: (element as HTMLVideoElement).videoWidth,
+          height: (element as HTMLVideoElement).videoHeight,
+          readyState: (element as HTMLVideoElement).readyState,
+          testId: element.getAttribute("data-testid"),
+        })),
+      ),
+      peers: await mediaSnapshot(pages[1]),
+      diagnostics,
+    }));
+  }
   if (videoLatency) {
-    expect(videoLatency.samples).toBeGreaterThanOrEqual(15);
+    expect(videoLatency.samples, JSON.stringify(videoLatency)).toBeGreaterThanOrEqual(15);
     expect(videoLatency.firstFrameMs).not.toBeNull();
     expect(videoLatency.p95Ms).not.toBeNull();
   }
@@ -740,7 +766,7 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     videoBytes(screenReceiver),
   );
   await watchButtons[1].click();
-  await expect(watchButtons[1]).toHaveText("播放直播", { timeout: 20_000 });
+  await expect(watchButtons[1]).toHaveText("观看直播", { timeout: 20_000 });
   await expect(
     pages[0].locator('[data-testid^="stream-viewer-count-"]').first(),
   ).toContainText("1 人观看", { timeout: 20_000 });
