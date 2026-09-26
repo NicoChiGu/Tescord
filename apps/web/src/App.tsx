@@ -3301,7 +3301,11 @@ export const App: React.FC = () => {
     try {
       if (VOICE_ENGINE === "cloudflare_realtime" && cloudflareRealtimeService.status === "connected") {
         if (nextVideo) {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          const deviceId = livekitService.getCameraDeviceId();
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: deviceId && deviceId !== "default" ? { deviceId: { exact: deviceId } } : true,
+            audio: false,
+          });
           try { await cloudflareRealtimeService.publishMediaTrack(stream.getVideoTracks()[0], stream, "camera"); }
           catch (error) { stream.getTracks().forEach(track => track.stop()); throw error; }
         } else {

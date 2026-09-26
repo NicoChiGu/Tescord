@@ -8,7 +8,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 declare global {
-  interface Window { __cloudflareAcceptancePcs: RTCPeerConnection[]; }
+  interface Window { __cloudflareAcceptancePcs: RTCPeerConnection[]; __acceptanceSelectedMic?: string; }
 }
 
 async function mediaSnapshot(page: Page) {
@@ -86,6 +86,39 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     const context = await browser.newContext({ ignoreHTTPSErrors: true, locale: "zh-CN", permissions: ["microphone", "camera"] });
     await context.addInitScript(({ accessToken, forceRelay, blockP2P }) => {
       localStorage.setItem("tescord_access_token", accessToken);
+      const nativeEnumerate = navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices);
+      const nativeGetUserMedia = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+      navigator.mediaDevices.enumerateDevices = async () => [
+        ...await nativeEnumerate(),
+        { deviceId: "acceptance_mic_2", groupId: "acceptance", kind: "audioinput", label: "Acceptance microphone 2" } as MediaDeviceInfo,
+        { deviceId: "acceptance_camera_2", groupId: "acceptance", kind: "videoinput", label: "Acceptance camera 2" } as MediaDeviceInfo,
+      ];
+      navigator.mediaDevices.getUserMedia = async constraints => {
+        const videoId = typeof constraints?.video === "object" ? (constraints.video.deviceId as { exact?: string } | undefined)?.exact : undefined;
+        if (videoId === "acceptance_camera_2") {
+          const canvas = document.createElement("canvas");
+          canvas.width = 640; canvas.height = 360;
+          const context = canvas.getContext("2d")!;
+          let frame = 0;
+          const paint = () => { context.fillStyle = frame++ % 2 ? "#4eb0b8" : "#ee7448"; context.fillRect(0, 0, 640, 360); };
+          paint();
+          setInterval(paint, 100);
+          return canvas.captureStream(15);
+        }
+        const audioId = typeof constraints?.audio === "object" ? (constraints.audio.deviceId as { exact?: string } | undefined)?.exact : undefined;
+        if (audioId === "acceptance_mic_2") {
+          window.__acceptanceSelectedMic = audioId;
+          const audio = new AudioContext();
+          const oscillator = audio.createOscillator();
+          const gain = audio.createGain();
+          const destination = audio.createMediaStreamDestination();
+          gain.gain.value = 0.02;
+          oscillator.connect(gain).connect(destination);
+          oscillator.start();
+          return destination.stream;
+        }
+        return nativeGetUserMedia(constraints);
+      };
       const NativePC = window.RTCPeerConnection;
       window.__cloudflareAcceptancePcs = [];
       let blockNextOffer = blockP2P;
@@ -177,6 +210,15 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     expect(inbound(after[i])).toBeGreaterThan(inbound(before[i]));
     expect(outbound(after[i])).toBeGreaterThan(outbound(before[i]));
   }
+  await pages[0].getByTestId("voice-mic-menu-btn").click();
+  await pages[0].getByTestId("mic-option-acceptance_mic_2").click();
+  await expect.poll(async () => pages[0].evaluate(() => window.__acceptanceSelectedMic), { timeout: 10_000 }).toBe("acceptance_mic_2");
+  const micBefore = await mediaSnapshot(pages[1]);
+  await pages[0].waitForTimeout(1200);
+  const micAfter = await mediaSnapshot(pages[1]);
+  const audioReceived = (rows: Awaited<ReturnType<typeof mediaSnapshot>>) => rows.flatMap(row => row.rtp)
+    .filter(rtp => rtp.direction === "inbound-rtp" && rtp.kind === "audio").reduce((sum, rtp) => sum + rtp.bytes, 0);
+  expect(audioReceived(micAfter)).toBeGreaterThan(audioReceived(micBefore));
   await pages[0].getByTestId("voice-toggle-camera-btn").click();
   await expect.poll(async () => {
     const rows = await mediaSnapshot(pages[1]);
@@ -187,6 +229,18 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   const videoAfter = await mediaSnapshot(pages[1]);
   const videoBytes = (rows: Awaited<ReturnType<typeof mediaSnapshot>>) => rows.flatMap(row => row.rtp).filter(rtp => rtp.direction === "inbound-rtp" && rtp.kind === "video").reduce((sum, rtp) => sum + rtp.bytes, 0);
   expect(videoBytes(videoAfter)).toBeGreaterThan(videoBytes(videoBefore));
+  const cameraTrackBefore = await pages[0].evaluate(() => window.__cloudflareAcceptancePcs.flatMap(pc => pc.getSenders())
+    .find(sender => sender.track?.kind === "video")?.track?.id || "");
+  await pages[0].getByTestId("voice-camera-menu-btn").click();
+  await pages[0].getByTestId("camera-option-acceptance_camera_2").click();
+  const cameraTrackAfter = await pages[0].evaluate(() => window.__cloudflareAcceptancePcs.flatMap(pc => pc.getSenders())
+    .find(sender => sender.track?.kind === "video")?.track?.id || "");
+  expect(cameraTrackAfter).toBeTruthy();
+  expect(cameraTrackAfter).not.toBe(cameraTrackBefore);
+  const switchedVideoBefore = await mediaSnapshot(pages[1]);
+  await pages[0].waitForTimeout(1200);
+  const switchedVideoAfter = await mediaSnapshot(pages[1]);
+  expect(videoBytes(switchedVideoAfter)).toBeGreaterThan(videoBytes(switchedVideoBefore));
   await pages[0].getByTestId("voice-toggle-camera-btn").click();
   await expect.poll(async () => (await mediaSnapshot(pages[0])).some(row => row.state === "connected"), { timeout: 10_000 }).toBe(true);
   await pages[0].getByTestId("voice-toggle-screen-btn").click();

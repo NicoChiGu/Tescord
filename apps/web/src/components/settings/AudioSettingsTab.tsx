@@ -17,6 +17,8 @@ import {
   detectSupportedVideoCodecs,
   detectSupportedVideoCodecsAsync,
 } from "../../services/livekit.js";
+import { cloudflareRealtimeService } from "../../services/cloudflare_realtime/index.js";
+import { VOICE_ENGINE } from "../../config.js";
 import {
   Volume2,
   Mic,
@@ -300,6 +302,9 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
   const handleCameraChange = async (deviceId: string) => {
     setSelectedCameraId(deviceId);
     await livekitService.switchCameraDevice(deviceId);
+    if (VOICE_ENGINE === "cloudflare_realtime") {
+      await cloudflareRealtimeService.switchCameraDevice(deviceId);
+    }
     if (isTestingVideo) {
       await startVideoTest(deviceId);
     }

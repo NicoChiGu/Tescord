@@ -10,6 +10,7 @@ import {
 } from "@tescord/types";
 import { livekitService, ActiveScreenShare } from "../services/livekit.js";
 import { cloudflareRealtimeService } from "../services/cloudflare_realtime/index.js";
+import { VOICE_ENGINE } from "../config.js";
 import { audioEngine } from "../services/audioEngine.js";
 import { audioMixer } from "../services/audioMixer.js";
 import { sframeManager, SFrameStats } from "../services/sframe.js";
@@ -912,6 +913,9 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
   const handleSelectCamera = async (deviceId: string) => {
     setActiveCameraId(deviceId);
     await livekitService.switchCameraDevice(deviceId);
+    if (VOICE_ENGINE === "cloudflare_realtime") {
+      await cloudflareRealtimeService.switchCameraDevice(deviceId);
+    }
     setIsCameraMenuOpen(false);
   };
 

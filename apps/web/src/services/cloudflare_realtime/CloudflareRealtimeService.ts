@@ -387,6 +387,35 @@ export class CloudflareRealtimeService {
     });
   }
 
+  public async switchCameraDevice(deviceId: string): Promise<boolean> {
+    return this.queue(async () => {
+      const published = this.publishedTracks.get("camera");
+      if (!published || !this.pc || !this.sessionId || !this.currentChannelId) return false;
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: deviceId && deviceId !== "default" ? { deviceId: { exact: deviceId } } : true,
+        audio: false,
+      });
+      const track = stream.getVideoTracks()[0];
+      if (!track) {
+        stream.getTracks().forEach(item => item.stop());
+        throw new Error("Selected camera has no video track");
+      }
+      try {
+        await published.sender.replaceTrack(track);
+      } catch (error) {
+        stream.getTracks().forEach(item => item.stop());
+        throw error;
+      }
+      const previous = published.stream;
+      published.stream = stream;
+      previous.getVideoTracks().forEach(item => item.stop());
+      this.emitVideo({ sessionId: this.sessionId, channelId: this.currentChannelId,
+        userId: useAuthStore.getState().user?.id || "", trackName: published.trackName,
+        kind: "video", source: "camera" }, stream);
+      return true;
+    });
+  }
+
   private async announceTracks(): Promise<void> {
     if (!this.sessionId) return;
     const response = await apiFetch(`${API_BASE}/api/cloudflare-realtime/tracks/ready`, {
