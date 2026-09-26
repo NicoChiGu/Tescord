@@ -50,6 +50,7 @@ import {
 interface ScreenShareModalProps {
   isOpen: boolean;
   onClose: () => void;
+  defaultTransmissionMode?: StreamTransmissionMode;
   onStartShare: (
     sourceId: string | null,
     presetId: string,
@@ -63,6 +64,7 @@ interface ScreenShareModalProps {
 export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
   isOpen,
   onClose,
+  defaultTransmissionMode,
   onStartShare,
 }) => {
   const { t } = useTranslation(["modals", "common", "admin", "errors"]);
@@ -86,17 +88,20 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
   const [customBitrate, setCustomBitrate] = useState<number | null>(null);
   const [isAdvancedBitrateOpen, setIsAdvancedBitrateOpen] = useState(false);
   const [transmissionMode, setTransmissionMode] =
-    useState<StreamTransmissionMode>("sfu");
+    useState<StreamTransmissionMode>(defaultTransmissionMode || "sfu");
   const [natInfo, setNatInfo] = useState<NATDetectionResult | null>(null);
 
   useEffect(() => {
     if (isOpen) {
+      if (defaultTransmissionMode) {
+        setTransmissionMode(defaultTransmissionMode);
+      }
       NATDetector.detect().then((res) => setNatInfo(res));
       detectSupportedVideoCodecsAsync().then((codecs) => {
         setSupportedCodecs(codecs);
       });
     }
-  }, [isOpen]);
+  }, [isOpen, defaultTransmissionMode]);
 
   useEffect(() => {
     if (!isOpen) return;

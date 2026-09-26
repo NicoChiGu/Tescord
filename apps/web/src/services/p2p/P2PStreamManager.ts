@@ -397,6 +397,22 @@ export class P2PStreamManager {
     }
 
     try {
+      if (pc.signalingState !== "stable") {
+        await new Promise<void>((resolve) => {
+          const handler = () => {
+            if (pc.signalingState === "stable") {
+              pc.removeEventListener("signalingstatechange", handler);
+              resolve();
+            }
+          };
+          pc.addEventListener("signalingstatechange", handler);
+          setTimeout(() => {
+            pc.removeEventListener("signalingstatechange", handler);
+            resolve();
+          }, 1500);
+        });
+      }
+
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
@@ -783,20 +799,15 @@ export class P2PStreamManager {
     }
   }
 
-  private relayTrackToChildren(
-    track: MediaStreamTrack,
-    fullStream: MediaStream,
-  ): void {
+  private async relayTrackToChildren(
+    _track: MediaStreamTrack,
+    _fullStream: MediaStream,
+  ): Promise<void> {
     for (const childId of this.currentChildrenIds) {
-      const pc = this.peerConnections.get(childId);
-      if (pc) {
-        const senders = pc.getSenders();
-        const exists = senders.some((s) => s.track?.id === track.id);
-        if (!exists) {
-          const sender = pc.addTrack(track, fullStream);
-          if (sframeManager.getStats().enabled)
-            sframeManager.attachSender(sender);
-        }
+      try {
+        await this.sendOfferToChild(childId);
+      } catch (err) {
+        console.error(`[P2PStream] relayTrackToChildren to child ${childId} failed:`, err);
       }
     }
   }

@@ -4569,6 +4569,7 @@ export const App: React.FC = () => {
       <ScreenShareModal
         isOpen={isScreenShareModalOpen}
         onClose={() => setIsScreenShareModalOpen(false)}
+        defaultTransmissionMode={activeVoiceChannelObj?.streamMode || "sfu"}
         onStartShare={handleStartScreenShare}
       />
 

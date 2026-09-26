@@ -918,6 +918,8 @@ server.get("/api/guilds", async (request, reply) => {
         position: c.position,
         isE2EE: c.isE2EE,
         bitrate: c.bitrate,
+        voiceMode: ((c as any).voiceMode || "sfu") as any,
+        streamMode: ((c as any).streamMode || "sfu") as any,
         createdAt: c.createdAt.toISOString(),
       })),
       roles: g.roles.map((r) => ({
@@ -1011,6 +1013,7 @@ server.get("/api/guilds/:guildId/channels", async (request, reply) => {
     isE2EE: c.isE2EE,
     bitrate: c.bitrate,
     voiceMode: ((c as any).voiceMode || "sfu") as any,
+    streamMode: ((c as any).streamMode || "sfu") as any,
     createdAt: c.createdAt.toISOString(),
   }));
 });
@@ -1210,6 +1213,8 @@ server.post("/api/guilds/:guildId/join", async (request, reply) => {
       position: c.position,
       isE2EE: c.isE2EE,
       bitrate: c.bitrate,
+      voiceMode: ((c as any).voiceMode || "sfu") as any,
+      streamMode: ((c as any).streamMode || "sfu") as any,
       createdAt: c.createdAt.toISOString(),
     })),
     roles: guild.roles.map((r) => ({
@@ -1511,6 +1516,8 @@ server.post("/api/guilds", async (request, reply) => {
         position: textChannel.position,
         isE2EE: textChannel.isE2EE,
         bitrate: textChannel.bitrate,
+        voiceMode: ((textChannel as any).voiceMode || "sfu") as any,
+        streamMode: ((textChannel as any).streamMode || "sfu") as any,
         createdAt: textChannel.createdAt.toISOString(),
       },
       {
@@ -1523,6 +1530,8 @@ server.post("/api/guilds", async (request, reply) => {
         position: voiceChannel.position,
         isE2EE: voiceChannel.isE2EE,
         bitrate: voiceChannel.bitrate,
+        voiceMode: ((voiceChannel as any).voiceMode || "sfu") as any,
+        streamMode: ((voiceChannel as any).streamMode || "sfu") as any,
         createdAt: voiceChannel.createdAt.toISOString(),
       },
     ],
@@ -2814,7 +2823,7 @@ server.post("/api/guilds/:guildId/channels", async (request, reply) => {
       .send({ error: "缺少管理频道权限 (MANAGE_CHANNELS)" });
   }
 
-  const { name, type, topic, parentId, isE2EE, voiceMode } = (request.body ||
+  const { name, type, topic, parentId, isE2EE, voiceMode, streamMode } = (request.body ||
     {}) as CreateChannelDTO;
   if (!name || !name.trim()) {
     return reply.status(400).send({ error: "频道名称不能为空" });
@@ -2822,6 +2831,10 @@ server.post("/api/guilds/:guildId/channels", async (request, reply) => {
 
   if (voiceMode !== undefined && voiceMode !== "sfu" && voiceMode !== "p2p_mesh") {
     return reply.status(400).send({ error: "voiceMode 必须为 'sfu' 或 'p2p_mesh'" });
+  }
+
+  if (streamMode !== undefined && streamMode !== "sfu" && streamMode !== "p2p_direct" && streamMode !== "p2p_relay") {
+    return reply.status(400).send({ error: "streamMode 必须为 'sfu', 'p2p_direct' 或 'p2p_relay'" });
   }
 
   const maxPosChannel = await prisma.channel.findFirst({
@@ -2840,6 +2853,7 @@ server.post("/api/guilds/:guildId/channels", async (request, reply) => {
       position,
       isE2EE: !!isE2EE,
       voiceMode: voiceMode || "sfu",
+      streamMode: streamMode || "sfu",
     },
   });
 
@@ -2854,6 +2868,7 @@ server.post("/api/guilds/:guildId/channels", async (request, reply) => {
     isE2EE: channel.isE2EE,
     bitrate: channel.bitrate,
     voiceMode: ((channel as any).voiceMode || "sfu") as any,
+    streamMode: ((channel as any).streamMode || "sfu") as any,
     createdAt: channel.createdAt.toISOString(),
   };
 
@@ -2939,16 +2954,21 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
       .send({ error: "缺少管理频道权限 (MANAGE_CHANNELS)" });
   }
 
-  const { name, topic, parentId, position, voiceMode } = (request.body || {}) as {
+  const { name, topic, parentId, position, voiceMode, streamMode } = (request.body || {}) as {
     name?: string;
     topic?: string;
     parentId?: string | null;
     position?: number;
     voiceMode?: "sfu" | "p2p_mesh";
+    streamMode?: "sfu" | "p2p_direct" | "p2p_relay";
   };
 
   if (voiceMode !== undefined && voiceMode !== "sfu" && voiceMode !== "p2p_mesh") {
     return reply.status(400).send({ error: "voiceMode 必须为 'sfu' 或 'p2p_mesh'" });
+  }
+
+  if (streamMode !== undefined && streamMode !== "sfu" && streamMode !== "p2p_direct" && streamMode !== "p2p_relay") {
+    return reply.status(400).send({ error: "streamMode 必须为 'sfu', 'p2p_direct' 或 'p2p_relay'" });
   }
 
   const updatedChannel = await prisma.channel.update({
@@ -2959,6 +2979,7 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
       ...(parentId !== undefined ? { parentId } : {}),
       ...(position !== undefined ? { position } : {}),
       ...(voiceMode !== undefined ? { voiceMode } : {}),
+      ...(streamMode !== undefined ? { streamMode } : {}),
     },
   });
 
@@ -2973,6 +2994,7 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
     isE2EE: updatedChannel.isE2EE,
     bitrate: updatedChannel.bitrate,
     voiceMode: ((updatedChannel as any).voiceMode || "sfu") as any,
+    streamMode: ((updatedChannel as any).streamMode || "sfu") as any,
     createdAt: updatedChannel.createdAt.toISOString(),
   };
 

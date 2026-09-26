@@ -8,8 +8,11 @@ import {
   AlertTriangle,
   Radio,
   Network,
+  Server,
+  Share2,
+  Layers,
 } from "lucide-react";
-import { Channel, Guild } from "@tescord/types";
+import { Channel, Guild, StreamTransmissionMode } from "@tescord/types";
 import { useTranslation } from "react-i18next";
 import { API_BASE } from "../../config.js";
 import { getErrorMessage } from "../../i18n/index.js";
@@ -36,6 +39,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
   const [topic, setTopic] = useState("");
   const [parentId, setParentId] = useState<string | null>(null);
   const [voiceMode, setVoiceMode] = useState<"sfu" | "p2p_mesh">("sfu");
+  const [streamMode, setStreamMode] = useState<StreamTransmissionMode>("sfu");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -47,6 +51,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
       setTopic(channel.topic || "");
       setParentId(channel.parentId || null);
       setVoiceMode(channel.voiceMode || "sfu");
+      setStreamMode(channel.streamMode || "sfu");
       setError(null);
       setConfirmDelete(false);
     }
@@ -87,7 +92,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
           name: name.trim(),
           topic: topic.trim(),
           parentId: parentId || null,
-          ...(channel.type === "VOICE" ? { voiceMode } : {}),
+          ...(channel.type === "VOICE" ? { voiceMode, streamMode } : {}),
         }),
       });
 
@@ -330,6 +335,112 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
                   </div>
                   <div className="mt-2 text-[10px] text-discord-brand font-semibold">
                     {voiceMode === "p2p_mesh" && "✓ 当前已启用"}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 直播推流传输拓扑设置 */}
+          {isVoice && (
+            <div className="space-y-2">
+              <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted">
+                直播推流架构 (Video Streaming Topology)
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {/* 选项 1: SFU */}
+                <div
+                  data-testid="edit-channel-streammode-sfu"
+                  onClick={() => setStreamMode("sfu")}
+                  className={`p-3 rounded-lg border cursor-pointer transition flex flex-col justify-between ${
+                    streamMode === "sfu"
+                      ? "bg-discord-brand/10 border-discord-brand text-white"
+                      : "bg-[#2b2d31] border-[#383a40] text-gray-300 hover:border-gray-500"
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <Server
+                        className={`w-4 h-4 ${
+                          streamMode === "sfu"
+                            ? "text-discord-brand"
+                            : "text-gray-400"
+                        }`}
+                      />
+                      <span className="text-xs font-bold">
+                        边缘转发 (SFU)
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                      中央边缘分发，主播仅推一路，适合多人观看。
+                    </p>
+                  </div>
+                  <div className="mt-2 text-[10px] text-discord-brand font-semibold">
+                    {streamMode === "sfu" && "✓ 当前已启用"}
+                  </div>
+                </div>
+
+                {/* 选项 2: P2P Mesh */}
+                <div
+                  data-testid="edit-channel-streammode-direct"
+                  onClick={() => setStreamMode("p2p_direct")}
+                  className={`p-3 rounded-lg border cursor-pointer transition flex flex-col justify-between ${
+                    streamMode === "p2p_direct"
+                      ? "bg-discord-brand/10 border-discord-brand text-white"
+                      : "bg-[#2b2d31] border-[#383a40] text-gray-300 hover:border-gray-500"
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <Share2
+                        className={`w-4 h-4 ${
+                          streamMode === "p2p_direct"
+                            ? "text-discord-brand"
+                            : "text-gray-400"
+                        }`}
+                      />
+                      <span className="text-xs font-bold">
+                        P2P Mesh (直连)
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                      主播单播直连每位观众，零服务器流量消耗。
+                    </p>
+                  </div>
+                  <div className="mt-2 text-[10px] text-discord-brand font-semibold">
+                    {streamMode === "p2p_direct" && "✓ 当前已启用"}
+                  </div>
+                </div>
+
+                {/* 选项 3: Mesh Tree */}
+                <div
+                  data-testid="edit-channel-streammode-relay"
+                  onClick={() => setStreamMode("p2p_relay")}
+                  className={`p-3 rounded-lg border cursor-pointer transition flex flex-col justify-between ${
+                    streamMode === "p2p_relay"
+                      ? "bg-discord-brand/10 border-discord-brand text-white"
+                      : "bg-[#2b2d31] border-[#383a40] text-gray-300 hover:border-gray-500"
+                  }`}
+                >
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <Layers
+                        className={`w-4 h-4 ${
+                          streamMode === "p2p_relay"
+                            ? "text-discord-brand"
+                            : "text-gray-400"
+                        }`}
+                      />
+                      <span className="text-xs font-bold">
+                        Mesh Tree (Beta)
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                      观众多级树状中继分发，降低主播上行压力。
+                    </p>
+                  </div>
+                  <div className="mt-2 text-[10px] text-discord-brand font-semibold">
+                    {streamMode === "p2p_relay" && "✓ 当前已启用"}
                   </div>
                 </div>
               </div>

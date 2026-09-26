@@ -390,6 +390,7 @@ export interface Channel {
   isE2EE?: boolean;
   bitrate?: number; // 语音比特率 (默认 64000)
   voiceMode?: "sfu" | "p2p_mesh";
+  streamMode?: StreamTransmissionMode;
   recipients?: User[];
   lastMessage?: Message;
   unreadCount?: number;
@@ -549,6 +550,7 @@ export interface CreateChannelDTO {
   position?: number;
   isE2EE?: boolean;
   voiceMode?: "sfu" | "p2p_mesh";
+  streamMode?: StreamTransmissionMode;
 }
 
 export interface UpdateChannelDTO {
@@ -558,6 +560,7 @@ export interface UpdateChannelDTO {
   position?: number;
   isE2EE?: boolean;
   voiceMode?: "sfu" | "p2p_mesh";
+  streamMode?: StreamTransmissionMode;
 }
 
 export interface CreateCategoryDTO {

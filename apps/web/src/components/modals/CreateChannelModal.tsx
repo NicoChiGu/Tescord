@@ -1,6 +1,21 @@
 import React, { useState } from "react";
-import { X, Hash, Volume2, ShieldCheck, Radio, Network } from "lucide-react";
-import { Channel, ChannelCategory, ChannelType } from "@tescord/types";
+import {
+  X,
+  Hash,
+  Volume2,
+  ShieldCheck,
+  Radio,
+  Network,
+  Server,
+  Share2,
+  Layers,
+} from "lucide-react";
+import {
+  Channel,
+  ChannelCategory,
+  ChannelType,
+  StreamTransmissionMode,
+} from "@tescord/types";
 import { useTranslation } from "react-i18next";
 import { API_BASE } from "../../config.js";
 import { getErrorMessage } from "../../i18n/index.js";
@@ -28,6 +43,7 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
   const [parentId, setParentId] = useState<string | null>(initialCategoryId);
   const [topic, setTopic] = useState("");
   const [voiceMode, setVoiceMode] = useState<"sfu" | "p2p_mesh">("sfu");
+  const [streamMode, setStreamMode] = useState<StreamTransmissionMode>("sfu");
   const [isE2EE, setIsE2EE] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +54,7 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
       setName("");
       setTopic("");
       setVoiceMode("sfu");
+      setStreamMode("sfu");
       setIsE2EE(false);
       setError(null);
     }
@@ -66,7 +83,7 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
           parentId: parentId || undefined,
           topic: topic.trim() || undefined,
           isE2EE,
-          ...(type === "VOICE" ? { voiceMode } : {}),
+          ...(type === "VOICE" ? { voiceMode, streamMode } : {}),
         }),
       });
 
@@ -210,6 +227,63 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
                       <span className="text-xs font-bold">纯 Mesh</span>
                     </div>
                     <p className="text-[10px] text-gray-400">P2P + Anycast TURN</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {type === "VOICE" && (
+              <div className="mt-3 space-y-2">
+                <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted">
+                  直播推流架构 (Video Streaming Topology)
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <div
+                    data-testid="create-channel-streammode-sfu"
+                    onClick={() => setStreamMode("sfu")}
+                    className={`p-2 rounded-lg border cursor-pointer transition flex flex-col justify-between ${
+                      streamMode === "sfu"
+                        ? "bg-discord-brand/10 border-discord-brand text-white"
+                        : "bg-[#2b2d31] border-[#383a40] text-gray-300 hover:border-gray-500"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1 mb-1">
+                      <Server className="w-3.5 h-3.5 text-discord-brand" />
+                      <span className="text-[11px] font-bold">边缘 SFU</span>
+                    </div>
+                    <p className="text-[10px] text-gray-400">多人分发</p>
+                  </div>
+
+                  <div
+                    data-testid="create-channel-streammode-direct"
+                    onClick={() => setStreamMode("p2p_direct")}
+                    className={`p-2 rounded-lg border cursor-pointer transition flex flex-col justify-between ${
+                      streamMode === "p2p_direct"
+                        ? "bg-discord-brand/10 border-discord-brand text-white"
+                        : "bg-[#2b2d31] border-[#383a40] text-gray-300 hover:border-gray-500"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1 mb-1">
+                      <Share2 className="w-3.5 h-3.5 text-discord-brand" />
+                      <span className="text-[11px] font-bold">P2P Mesh</span>
+                    </div>
+                    <p className="text-[10px] text-gray-400">直连单播</p>
+                  </div>
+
+                  <div
+                    data-testid="create-channel-streammode-relay"
+                    onClick={() => setStreamMode("p2p_relay")}
+                    className={`p-2 rounded-lg border cursor-pointer transition flex flex-col justify-between ${
+                      streamMode === "p2p_relay"
+                        ? "bg-discord-brand/10 border-discord-brand text-white"
+                        : "bg-[#2b2d31] border-[#383a40] text-gray-300 hover:border-gray-500"
+                    }`}
+                  >
+                    <div className="flex items-center gap-1 mb-1">
+                      <Layers className="w-3.5 h-3.5 text-discord-brand" />
+                      <span className="text-[11px] font-bold">Mesh Tree</span>
+                    </div>
+                    <p className="text-[10px] text-gray-400">接力转发</p>
                   </div>
                 </div>
               </div>
