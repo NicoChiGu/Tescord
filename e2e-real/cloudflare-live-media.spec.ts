@@ -229,12 +229,15 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   const videoAfter = await mediaSnapshot(pages[1]);
   const videoBytes = (rows: Awaited<ReturnType<typeof mediaSnapshot>>) => rows.flatMap(row => row.rtp).filter(rtp => rtp.direction === "inbound-rtp" && rtp.kind === "video").reduce((sum, rtp) => sum + rtp.bytes, 0);
   expect(videoBytes(videoAfter)).toBeGreaterThan(videoBytes(videoBefore));
-  const cameraTrackBefore = await pages[0].evaluate(() => window.__cloudflareAcceptancePcs.flatMap(pc => pc.getSenders())
+  const cameraTrackBefore = await pages[0].evaluate(() => window.__cloudflareAcceptancePcs.filter(pc => pc.connectionState === "connected").flatMap(pc => pc.getSenders())
     .find(sender => sender.track?.kind === "video")?.track?.id || "");
   await pages[0].getByTestId("voice-camera-menu-btn").click();
   await pages[0].getByTestId("camera-option-acceptance_camera_2").click();
-  const cameraTrackAfter = await pages[0].evaluate(() => window.__cloudflareAcceptancePcs.flatMap(pc => pc.getSenders())
-    .find(sender => sender.track?.kind === "video")?.track?.id || "");
+  await expect.poll(async () => pages[0].evaluate(() => window.__cloudflareAcceptancePcs.filter(pc => pc.connectionState === "connected").flatMap(pc => pc.getSenders())
+    .find(sender => sender.track?.kind === "video" && sender.track.readyState === "live")?.track?.id || ""),
+  { timeout: 15_000 }).not.toBe(cameraTrackBefore);
+  const cameraTrackAfter = await pages[0].evaluate(() => window.__cloudflareAcceptancePcs.filter(pc => pc.connectionState === "connected").flatMap(pc => pc.getSenders())
+    .find(sender => sender.track?.kind === "video" && sender.track.readyState === "live")?.track?.id || "");
   expect(cameraTrackAfter).toBeTruthy();
   expect(cameraTrackAfter).not.toBe(cameraTrackBefore);
   const switchedVideoBefore = await mediaSnapshot(pages[1]);
@@ -298,7 +301,9 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     }
     restartReceiver = afterRestartRtp[1];
   }
-  const evidence = { result: "PASS", peers: after, cameraReceiver: videoAfter, screenReceiver, networkReceiver, restartReceiver };
+  const evidence = { result: "PASS", peers: after, microphoneSwitchReceiver: micAfter,
+    cameraReceiver: videoAfter, cameraSwitch: { trackChanged: cameraTrackAfter !== cameraTrackBefore,
+      receiver: switchedVideoAfter }, screenReceiver, networkReceiver, restartReceiver };
   if (onTarget) {
     const directory = resolve("test-results/cloudflare-target");
     await mkdir(directory, { recursive: true });
