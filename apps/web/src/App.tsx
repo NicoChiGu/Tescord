@@ -689,6 +689,8 @@ export const App: React.FC = () => {
       (window as any).voiceMeshManager = voiceMeshManager;
       (window as any).p2pStreamManager = p2pStreamManager;
       (window as any).useSettingsStore = useSettingsStore;
+      (window as any).__gatewayClient = gatewayClient;
+      (window as any).__livekitService = livekitService;
     }
 
     // 浏览器关闭前主动断开网关，加速服务端 3.5s 防抖下线
@@ -1412,6 +1414,36 @@ export const App: React.FC = () => {
         if (vs.revision !== undefined) {
           voiceRevisionRef.current.set(vs.userId, vs.revision);
         }
+        // 若变动成员是当前用户自身：校验是否有其他设备接管或被退出
+        if (currentUser && vs.userId === currentUser.id) {
+          const isOtherSession =
+            Boolean(vs.sessionId) &&
+            vs.sessionId !== gatewayClient.getSessionId();
+          if (!vs.channelId || isOtherSession) {
+            console.warn(
+              "[Voice] 收到本账号异地登录接管或离线信令，彻底清理本地 WebRTC 与音频硬件...",
+            );
+            sframeManager.disable();
+            audioEngine.stop();
+            void livekitService.leaveRoom();
+            setActiveVoiceChannelId(null);
+            setIsSpeaking(false);
+            setIsScreenSharing(false);
+            setIsVideoEnabled(false);
+            if (isOtherSession) {
+              const prevCh =
+                guildsRef.current
+                  .flatMap((g) => g.channels)
+                  .find((c) => c.id === activeVoiceChannelIdRef.current) ||
+                selectedChannelRef.current;
+              setVoiceTransferNotice({
+                targetPlatform: vs.platform || "其他设备",
+                previousChannel: prevCh || null,
+              });
+            }
+          }
+        }
+
         setVoiceStates((prev) => {
           // 若变动成员不是自身，且自身当前处于语音频道中，播放进出提示音
           const currentVoiceId = activeVoiceChannelIdRef.current;
@@ -1558,9 +1590,10 @@ export const App: React.FC = () => {
       async (data: VoiceServerDisconnectPayload) => {
         if (data.reason === "VOICE_TRANSFER") {
           const prevChannel =
-            currentChannels.find(
-              (c) => c.id === activeVoiceChannelIdRef.current,
-            ) || selectedChannelRef.current;
+            guildsRef.current
+              .flatMap((g) => g.channels)
+              .find((c) => c.id === activeVoiceChannelIdRef.current) ||
+            selectedChannelRef.current;
 
           // 1. 彻底释放麦克风硬件与媒体流
           sframeManager.disable();
@@ -2774,9 +2807,11 @@ export const App: React.FC = () => {
     // 若当前已在另一个语音频道，立即同步清理旧房间音频连接与 WebRTC 状态，杜绝 1 秒声音残留
     if (activeVoiceChannelId && activeVoiceChannelId !== channel.id) {
       await cloudflareRealtimeService.disconnect();
-      livekitService.leaveRoom();
+      await livekitService.leaveRoom(true);
       voiceMeshManager.stopAll();
       audioEngine.stop();
+      setIsVideoEnabled(false);
+      setIsScreenSharing(false);
     }
 
     setActiveVoiceChannelId(channel.id);
@@ -3519,6 +3554,7 @@ export const App: React.FC = () => {
       : false;
     const isLiveKitLocal =
       livekitService.isSharingScreen ||
+      Boolean(livekitService.localScreenShare) ||
       Boolean(livekitService.activeScreenShare?.isLocal);
     const isVoiceStateStreaming = voiceStates.some(
       (vs) =>
@@ -3530,6 +3566,7 @@ export const App: React.FC = () => {
 
     return Boolean(
       isScreenSharing ||
+      Boolean(livekitService.localScreenShare) ||
       activeScreenShare?.isLocal ||
       isLocalP2P ||
       isP2PBroadcasting ||

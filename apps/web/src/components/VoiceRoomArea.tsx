@@ -1307,6 +1307,36 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
     ? displayParticipants.find((p) => p.userId === pinnedUserId) || null
     : null;
 
+  const getScreenPublication = (userId: string) =>
+    cloudflarePublications.find(
+      (publication) =>
+        publication.userId === userId && publication.source === "screen",
+    ) || cloudflareRealtimeService.getScreenPublicationForUser(userId);
+
+  const isWatchingStream = (userId: string, mode?: string): boolean => {
+    if (mode === "p2p_direct" || mode === "p2p_relay")
+      return watchedP2PStreamerId === userId;
+    if (VOICE_ENGINE === "cloudflare_realtime") {
+      const publication = getScreenPublication(userId);
+      return publication
+        ? (
+            watchStates.get(publication.sessionId) ||
+            cloudflareRealtimeService.getWatchState(publication.sessionId)
+          )?.watching === true
+        : false;
+    }
+    return watchedLiveKitUsers.has(userId);
+  };
+
+  // 舞台多流网格：提取所有正在观看直播的成员、以及被用户置顶（Pin）的成员
+  const stageParticipants = useMemo(() => {
+    return displayParticipants.filter((p) => {
+      const isWatched = isWatchingStream(p.userId, p.streamMode);
+      const isPinned = pinnedUserId === p.userId;
+      return isWatched || isPinned;
+    });
+  }, [displayParticipants, watchedLiveKitUsers, watchedP2PStreamerId, watchStates, pinnedUserId]);
+
   // 若被聚焦的成员离开频道，自动退出聚焦
   useEffect(() => {
     if (
@@ -1368,6 +1398,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
     const myScreenShare = isCurrentlyScreenSharing
       ? screenShares.get(currentUser.id) ||
         screenShares.get("local") ||
+        livekitService.localScreenShare ||
         livekitService.activeScreenShare ||
         p2pScreenShares.get(currentUser.id) ||
         p2pLocalShare
@@ -1521,27 +1552,6 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
           ? cloudflareRealtimeService
           : livekitService
         ).getParticipantVolume(userId);
-  };
-
-  const getScreenPublication = (userId: string) =>
-    cloudflarePublications.find(
-      (publication) =>
-        publication.userId === userId && publication.source === "screen",
-    ) || cloudflareRealtimeService.getScreenPublicationForUser(userId);
-
-  const isWatchingStream = (userId: string, mode?: string): boolean => {
-    if (mode === "p2p_direct" || mode === "p2p_relay")
-      return watchedP2PStreamerId === userId;
-    if (VOICE_ENGINE === "cloudflare_realtime") {
-      const publication = getScreenPublication(userId);
-      return publication
-        ? (
-            watchStates.get(publication.sessionId) ||
-            cloudflareRealtimeService.getWatchState(publication.sessionId)
-          )?.watching === true
-        : false;
-    }
-    return watchedLiveKitUsers.has(userId);
   };
 
   const getStreamViewerCount = (userId: string): number | null => {
@@ -1815,11 +1825,22 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
             isTheaterMode ? "justify-start" : "justify-center"
           }`}
         >
-          {/* 当处于 Spotlight 聚焦模式时：在中央渲染放大的主舞台卡片 */}
-          {pinnedParticipant && (
-            <div className="w-full flex flex-col items-center mb-4 transition-all animate-fadeIn">
-              {(() => {
-                const p = pinnedParticipant;
+          {/* 当有正在观看的直播或用户聚焦时：在中央渲染自适应多流分屏网格舞台 */}
+          {stageParticipants.length > 0 && (
+            <div
+              className={`w-full grid gap-3 sm:gap-4 mb-4 transition-all animate-fadeIn ${
+                stageParticipants.length === 1
+                  ? "grid-cols-1 max-w-4xl"
+                  : stageParticipants.length === 2
+                    ? "grid-cols-1 md:grid-cols-2 max-w-6xl"
+                    : stageParticipants.length === 3
+                      ? "grid-cols-1 md:grid-cols-3 max-w-7xl"
+                      : stageParticipants.length === 4
+                        ? "grid-cols-1 sm:grid-cols-2 max-w-7xl"
+                        : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 max-w-7xl"
+              }`}
+            >
+              {stageParticipants.map((p) => {
                 const isMe = p.userId === currentUser.id;
                 const speaking = isMe
                   ? isSpeaking
@@ -1827,20 +1848,21 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                 const stats = getParticipantStats(p.userId);
                 const userVol = getVolume(p.userId);
                 const media = getParticipantMedia(p);
+                const isPinned = pinnedUserId === p.userId;
 
                 return (
                   <ParticipantCard
-                    key={`pinned-${p.userId}`}
+                    key={`stage-${p.userId}`}
                     participant={p}
                     isMe={isMe}
                     speaking={speaking}
                     stats={stats}
                     volume={userVol}
                     onVolumeChange={(vol) => handleVolumeChange(p.userId, vol)}
-                    isPinned={true}
+                    isPinned={isPinned}
                     onTogglePin={() => {
-                      setPinnedUserId(null);
-                      setStatsUserId(null);
+                      setPinnedUserId(isPinned ? null : p.userId);
+                      if (isPinned) setStatsUserId(null);
                     }}
                     cameraTrack={media.cameraTrack}
                     screenShareTrack={media.screenShareTrack}
@@ -1883,94 +1905,103 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                     onCloseStats={() => setStatsUserId(null)}
                   />
                 );
-              })()}
+              })}
             </div>
           )}
 
-          {/* 参与者网格 (普通模式为自适应 CSS Grid；在聚焦或剧场模式下下沉为横向滑动条) */}
-          <div
-            className={`w-full max-w-5xl transition-all ${
-              pinnedParticipant || isTheaterMode
-                ? "flex flex-row space-x-3 overflow-x-auto py-2 px-1 custom-scrollbar justify-start"
-                : `grid gap-3 sm:gap-4 ${
-                    displayParticipants.length === 1
-                      ? "grid-cols-1 max-w-md"
-                      : displayParticipants.length === 2
-                        ? "grid-cols-1 sm:grid-cols-2"
-                        : "grid-cols-1 xs:grid-cols-2 lg:grid-cols-3"
-                  }`
-            }`}
-          >
-            {displayParticipants
-              .filter((p) =>
-                pinnedParticipant ? p.userId !== pinnedUserId : true,
-              )
-              .map((p) => {
-                const isMe = p.userId === currentUser.id;
-                const speaking = isMe
-                  ? isSpeaking
-                  : activeSpeakers.includes(p.userId);
-                const stats = getParticipantStats(p.userId);
-                const userVol = getVolume(p.userId);
-                const isPinned = pinnedUserId === p.userId;
-                const media = getParticipantMedia(p);
+          {/* 参与者网格 (若舞台有流展示或剧场模式，其余成员下沉为横向紧凑栏；无流时为自适应 CSS Grid) */}
+          {(() => {
+            const otherParticipants =
+              stageParticipants.length > 0
+                ? displayParticipants.filter(
+                    (p) => !stageParticipants.some((sp) => sp.userId === p.userId),
+                  )
+                : displayParticipants;
 
-                return (
-                  <ParticipantCard
-                    key={p.userId}
-                    participant={p}
-                    isMe={isMe}
-                    speaking={speaking}
-                    stats={stats}
-                    volume={userVol}
-                    onVolumeChange={(vol) => handleVolumeChange(p.userId, vol)}
-                    isPinned={isPinned}
-                    onTogglePin={() =>
-                      setPinnedUserId(isPinned ? null : p.userId)
-                    }
-                    cameraTrack={media.cameraTrack}
-                    screenShareTrack={media.screenShareTrack}
-                    screenShareInfo={media.screenShareInfo}
-                    streamAvailable={
-                      p.streaming ||
-                      Boolean(media.screenShareTrack) ||
-                      (VOICE_ENGINE === "cloudflare_realtime" &&
-                        Boolean(getScreenPublication(p.userId)))
-                    }
-                    watching={isWatchingStream(p.userId, p.streamMode)}
-                    viewerCount={getStreamViewerCount(p.userId)}
-                    watchPending={watchPending.has(p.userId)}
-                    watchError={watchErrors.get(p.userId)}
-                    onToggleWatching={() => void handleToggleWatching(p)}
-                    streamVolume={
-                      streamVolumes.get(p.userId) ??
-                      cloudflareRealtimeService.getStreamVolume(p.userId)
-                    }
-                    onStreamVolumeChange={(volume) => {
-                      cloudflareRealtimeService.setStreamVolume(
-                        p.userId,
-                        volume,
-                      );
-                      setStreamVolumes((previous) =>
-                        new Map(previous).set(p.userId, volume),
-                      );
-                    }}
-                    guild={guild}
-                    currentUser={currentUser}
-                    isTheaterMode={isTheaterMode || Boolean(pinnedParticipant)}
-                    isNoiseSuppressionEnabled={isNoiseSuppressionEnabled}
-                    noiseSuppressionMode={noiseSuppressionMode}
-                    isSpotlight={false}
-                    onStopScreenShare={onStopScreenShare || onToggleScreenShare}
-                    peerLatency={peerLatencies.get(p.userId)}
-                    isP2P={isP2P}
-                    showStatsHUD={false}
-                    onToggleStats={() => handleToggleStats(p.userId)}
-                    onCloseStats={() => setStatsUserId(null)}
-                  />
-                );
-              })}
-          </div>
+            if (otherParticipants.length === 0) return null;
+
+            return (
+              <div
+                className={`w-full max-w-7xl transition-all ${
+                  stageParticipants.length > 0 || isTheaterMode
+                    ? "flex flex-row space-x-3 overflow-x-auto py-2 px-1 custom-scrollbar justify-start"
+                    : `grid gap-3 sm:gap-4 ${
+                        displayParticipants.length === 1
+                          ? "grid-cols-1 max-w-md"
+                          : displayParticipants.length === 2
+                            ? "grid-cols-1 sm:grid-cols-2"
+                            : "grid-cols-1 xs:grid-cols-2 lg:grid-cols-3"
+                      }`
+                }`}
+              >
+                {otherParticipants.map((p) => {
+                  const isMe = p.userId === currentUser.id;
+                  const speaking = isMe
+                    ? isSpeaking
+                    : activeSpeakers.includes(p.userId);
+                  const stats = getParticipantStats(p.userId);
+                  const userVol = getVolume(p.userId);
+                  const isPinned = pinnedUserId === p.userId;
+                  const media = getParticipantMedia(p);
+
+                  return (
+                    <ParticipantCard
+                      key={p.userId}
+                      participant={p}
+                      isMe={isMe}
+                      speaking={speaking}
+                      stats={stats}
+                      volume={userVol}
+                      onVolumeChange={(vol) => handleVolumeChange(p.userId, vol)}
+                      isPinned={isPinned}
+                      onTogglePin={() =>
+                        setPinnedUserId(isPinned ? null : p.userId)
+                      }
+                      cameraTrack={media.cameraTrack}
+                      screenShareTrack={media.screenShareTrack}
+                      screenShareInfo={media.screenShareInfo}
+                      streamAvailable={
+                        p.streaming ||
+                        Boolean(media.screenShareTrack) ||
+                        (VOICE_ENGINE === "cloudflare_realtime" &&
+                          Boolean(getScreenPublication(p.userId)))
+                      }
+                      watching={isWatchingStream(p.userId, p.streamMode)}
+                      viewerCount={getStreamViewerCount(p.userId)}
+                      watchPending={watchPending.has(p.userId)}
+                      watchError={watchErrors.get(p.userId)}
+                      onToggleWatching={() => void handleToggleWatching(p)}
+                      streamVolume={
+                        streamVolumes.get(p.userId) ??
+                        cloudflareRealtimeService.getStreamVolume(p.userId)
+                      }
+                      onStreamVolumeChange={(volume) => {
+                        cloudflareRealtimeService.setStreamVolume(
+                          p.userId,
+                          volume,
+                        );
+                        setStreamVolumes((previous) =>
+                          new Map(previous).set(p.userId, volume),
+                        );
+                      }}
+                      guild={guild}
+                      currentUser={currentUser}
+                      isTheaterMode={isTheaterMode || Boolean(stageParticipants.length > 0)}
+                      isNoiseSuppressionEnabled={isNoiseSuppressionEnabled}
+                      noiseSuppressionMode={noiseSuppressionMode}
+                      isSpotlight={false}
+                      onStopScreenShare={onStopScreenShare || onToggleScreenShare}
+                      peerLatency={peerLatencies.get(p.userId)}
+                      isP2P={isP2P}
+                      showStatsHUD={false}
+                      onToggleStats={() => handleToggleStats(p.userId)}
+                      onCloseStats={() => setStatsUserId(null)}
+                    />
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       )}
 

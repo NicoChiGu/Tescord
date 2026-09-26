@@ -65,6 +65,7 @@ export class GatewayManager {
     this.voiceRevisions.set(userId, revision);
     return revision;
   }
+  private transferTimestamps: Map<string, number> = new Map();
   // 离线防抖缓冲池：userId -> NodeJS.Timeout (3.5秒防抖)
   public isMaintenanceActive = false;
   public maintenancePayload: MaintenanceUpdatePayload = {
@@ -474,12 +475,14 @@ export class GatewayManager {
             existingVoice.sessionId !== conn.sessionId
           ) {
             const oldSessionId = existingVoice.sessionId;
+            const targetPlatform =
+              conn.properties?.device || conn.properties?.os || "其他设备";
+            this.transferTimestamps.set(conn.userId, Date.now());
+
+            // 向旧会话连接发送明确转移并踢出通知
             const oldConn = this.userSessions
               .get(conn.userId)
               ?.get(oldSessionId);
-            const targetPlatform =
-              conn.properties?.device || conn.properties?.os || "其他设备";
-
             if (oldConn && oldConn.ws.readyState === WebSocket.OPEN) {
               this.send(oldConn.ws, {
                 op: GatewayOpCode.DISPATCH,
@@ -492,12 +495,37 @@ export class GatewayManager {
               });
             }
 
-            // 若旧会话所在频道与新频道不同，兜底从旧 LiveKit 房间移除该参与者
-            if (
-              existingVoice.channelId &&
-              existingVoice.channelId !== data.channelId
-            ) {
+            // 无论新旧频道是否相同，均通知 LiveKit 移除旧连接
+            if (existingVoice.channelId) {
               removeParticipantFromRoom(existingVoice.channelId, conn.userId);
+            }
+          }
+
+          // 2. 无论是否来自同一设备，只要频道发生变动 (A 频道 -> B 频道)，必须向原频道全员广播离开信令
+          if (
+            existingVoice?.channelId &&
+            existingVoice.channelId !== data.channelId
+          ) {
+            await this.broadcastToChannelViewers(existingVoice.channelId, {
+              op: GatewayOpCode.DISPATCH,
+              t: "VOICE_STATE_UPDATE",
+              d: {
+                userId: conn.userId,
+                guildId: existingVoice.guildId,
+                channelId: null,
+                previousChannelId: existingVoice.channelId,
+                sessionId: conn.sessionId,
+                revision: this.nextVoiceRevision(conn.userId),
+                selfMute: false,
+                selfDeaf: false,
+                selfVideo: false,
+                streaming: false,
+              },
+            });
+
+            removeParticipantFromRoom(existingVoice.channelId, conn.userId);
+            if (existingVoice.streaming) {
+              p2pTopologyManager.unregisterStream(existingVoice.channelId);
             }
           }
 
@@ -1340,6 +1368,18 @@ export class GatewayManager {
         `[Gateway] Ignored LiveKit participant_left for ${userId} in ${roomName} (current channel: ${currentVoice.channelId})`,
       );
       return false;
+    }
+
+    // 若该用户刚刚发生过多端接管 (6秒内)，且新设备的会话连接仍保持活跃，忽略旧会话的踢出 Webhook
+    const lastTransfer = this.transferTimestamps.get(userId);
+    if (lastTransfer && Date.now() - lastTransfer < 6000 && currentVoice.sessionId) {
+      const activeConn = this.userSessions.get(userId)?.get(currentVoice.sessionId);
+      if (activeConn && activeConn.ws.readyState === WebSocket.OPEN) {
+        console.log(
+          `[Gateway] Ignored LiveKit participant_left for ${userId} in ${roomName} due to recent device transfer (active session: ${currentVoice.sessionId})`,
+        );
+        return false;
+      }
     }
 
     console.log(

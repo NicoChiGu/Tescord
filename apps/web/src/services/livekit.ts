@@ -300,6 +300,8 @@ export class LiveKitService {
   private localScreenVideoTrack: any = null;
   private localScreenAudioTrack: any = null;
   private localScreenStream: MediaStream | null = null;
+  public localScreenShare: ActiveScreenShare | null = null;
+  public isSwitchingRoom: boolean = false;
   public activeScreenShare: ActiveScreenShare | null = null;
   public screenSharesMap: Map<string, ActiveScreenShare> = new Map();
   private watchedScreenParticipants = new Set<string>();
@@ -842,9 +844,11 @@ export class LiveKitService {
             codec: pubCodec || undefined,
           };
           this.screenSharesMap.set(participant.identity, shareInfo);
-          this.activeScreenShare = shareInfo;
+          if (!this.activeScreenShare || this.activeScreenShare.isLocal) {
+            this.activeScreenShare = shareInfo;
+            this.notifyScreenShareChanged();
+          }
           this.notifyScreenSharesChanged();
-          this.notifyScreenShareChanged();
         } else if (
           track.kind === Track.Kind.Video &&
           (track.source === Track.Source.Camera ||
@@ -977,7 +981,9 @@ export class LiveKitService {
       this.currentRoomName = null;
       this.setConnectionStatus("disconnected");
       this.notifyState(false);
-      this.onDisconnectedCallbacks.forEach((cb) => cb(reason));
+      if (!this.isSwitchingRoom) {
+        this.onDisconnectedCallbacks.forEach((cb) => cb(reason));
+      }
     });
   }
 
@@ -1992,11 +1998,14 @@ export class LiveKitService {
         codec: effectiveCodec.toUpperCase(),
       };
 
+      this.localScreenShare = shareInfo;
       this.screenSharesMap.set(this.room.localParticipant.identity, shareInfo);
-      this.activeScreenShare = shareInfo;
+      if (!this.activeScreenShare) {
+        this.activeScreenShare = shareInfo;
+        this.notifyScreenShareChanged();
+      }
 
       this.notifyScreenSharesChanged();
-      this.notifyScreenShareChanged();
       return true;
     } catch (err) {
       console.warn("Failed to publish screen share stream:", err);
@@ -2059,10 +2068,11 @@ export class LiveKitService {
 
     audioMixer.cleanup();
 
+    this.localScreenShare = null;
     const localIdentity = this.room?.localParticipant?.identity || "local";
     this.screenSharesMap.delete(localIdentity);
 
-    if (this.activeScreenShare?.isLocal) {
+    if (this.activeScreenShare?.isLocal || this.activeScreenShare?.participantIdentity === localIdentity) {
       this.activeScreenShare =
         this.screenSharesMap.values().next().value || null;
       this.notifyScreenShareChanged();
@@ -2129,7 +2139,9 @@ export class LiveKitService {
 
   get isSharingScreen(): boolean {
     return Boolean(
-      this.localScreenVideoTrack || this.activeScreenShare?.isLocal,
+      this.localScreenVideoTrack ||
+        this.localScreenShare ||
+        this.activeScreenShare?.isLocal,
     );
   }
 
@@ -2316,18 +2328,30 @@ export class LiveKitService {
     this.syncCombinedActiveSpeakers();
   }
 
-  leaveRoom() {
-    this.stopScreenShare();
+  async leaveRoom(isSwitching: boolean = false) {
+    this.isSwitchingRoom = isSwitching;
+    try {
+      await this.stopScreenShare();
+    } catch {}
     this.cleanup();
     this.watchedScreenParticipants.clear();
     if (this.room) {
-      this.room.disconnect();
+      const roomToDisconnect = this.room;
       this.room = null;
+      try {
+        roomToDisconnect.removeAllListeners();
+        await roomToDisconnect.disconnect();
+      } catch (e) {
+        console.warn("[LiveKit] Error disconnecting room:", e);
+      }
     }
     this.isConnected = false;
     this.currentRoomName = null;
     this.setConnectionStatus("disconnected");
     this.notifyState(false);
+    if (isSwitching) {
+      this.isSwitchingRoom = false;
+    }
   }
 
   private cleanup() {
@@ -2338,6 +2362,7 @@ export class LiveKitService {
     this.localActiveSpeakers.clear();
     this.remoteSpeakingStates.clear();
     this.activeSpeakers.clear();
+    this.localScreenShare = null;
     if (this.activeScreenShare) {
       this.activeScreenShare = null;
       this.notifyScreenShareChanged();

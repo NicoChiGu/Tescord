@@ -240,7 +240,9 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
               onClick={() => onSelectChannel(channel)}
               onDoubleClick={() => {
                 onSelectChannel(channel);
-                if (!isConnected) onJoinVoiceChannel(channel);
+                if (activeVoiceChannelId !== channel.id) {
+                  onJoinVoiceChannel(channel);
+                }
               }}
               title={t("voice:previewAndJoin")}
               className={`w-full flex items-center pl-2 pr-16 py-1.5 rounded-md text-sm font-medium transition ${
