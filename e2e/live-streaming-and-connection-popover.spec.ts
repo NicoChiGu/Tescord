@@ -1,149 +1,74 @@
 import { test, expect } from "@playwright/test";
+import { installConnectedLiveKitStub } from "./helpers/media";
 
-test.describe("直播居中播放、停播恢复画像、属性统计与连线浮层端到端验收", () => {
-  test.beforeEach(async ({ page }) => {
-    // 注入已登录状态
-    await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "mock_e2e_token");
-      localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
-      localStorage.setItem("tescord_locale", "zh-CN");
+test("connection popover shows measured RTT and percentage loss, then clears stale samples", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const guild = page
+    .getByRole("button", { name: /Tescord 极客总部|极客|小窝/i })
+    .first();
+  await expect(guild).toBeVisible();
+  await guild.click();
+
+  const voice = page
+    .locator("button")
+    .filter({ has: page.locator("svg.lucide-volume-2") })
+    .first();
+  await expect(voice).toBeVisible();
+  const userId = await page.evaluate(() => (window as any).useAuthStore.getState().user.id as string);
+  await installConnectedLiveKitStub(page, userId);
+  await voice.dblclick();
+
+  const trigger = page.getByTestId("voice-connection-status-btn");
+  await expect(trigger).toBeVisible();
+  await expect(trigger).toContainText("语音已连接");
+  await trigger.click();
+  await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  const popover = page.getByTestId("voice-connection-popover");
+  await expect(popover).toBeVisible();
+  await expect(popover.locator("canvas")).toBeVisible();
+  await expect(popover).toContainText("本机 ↔ SFU 往返时间");
+  await expect(popover).toContainText("24 毫秒");
+  await expect(popover).toContainText("0.0%");
+  await expect(popover).toContainText("端到端加密状态未验证");
+
+  await page.evaluate(() => {
+    const service = (window as any).__livekitService;
+    const [identity, sample] = [...service.networkStatsMap.entries()][0];
+    service.networkStatsMap.set(identity, {
+      ...sample,
+      rtt: 84,
+      packetLoss: 2.5,
+      timestamp: Date.now(),
     });
-
-    // Mock 认证接口
-    await page.route("**/api/auth/me", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          id: "me_user_1",
-          username: "tester_me",
-          displayName: "我本人",
-          email: "me@example.com",
-          avatarUrl: null,
-          status: "ONLINE",
-        }),
-      });
-    });
-
-    // Mock 服务器列表
-    await page.route("**/api/guilds", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify([
-          {
-            id: "guild_1",
-            name: "极客总部",
-            ownerId: "me_user_1",
-            channels: [
-              {
-                id: "chan_voice_1",
-                guildId: "guild_1",
-                name: "开黑聊天室",
-                type: "VOICE",
-                position: 0,
-              },
-            ],
-          },
-        ]),
-      });
-    });
-
-    // Mock 频道详情
-    await page.route("**/api/channels/**", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          id: "chan_voice_1",
-          guildId: "guild_1",
-          name: "开黑聊天室",
-          type: "VOICE",
-          position: 0,
-        }),
-      });
-    });
-
-    // Mock ICE 服务器
-    await page.route("**/api/network/ice-servers", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          iceServers: [{ urls: "stun:stun.cloudflare.com:3478" }],
-          turnActive: false,
-        }),
-      });
-    });
-  });
-
-  test("1. 连线状态浮层 (Discord Popover) 显示折线图、延迟数据，并可通过'更多数据'唤起全量健康看板", async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto("/");
-
-    // 模拟进入语音频道
-    await page.evaluate(() => {
-      // 触发加入频道或模拟连接状态
-      window.dispatchEvent(
-        new CustomEvent("tescord:mock-voice-connected", {
-          detail: {
-            channelId: "chan_voice_1",
-            channelName: "开黑聊天室",
-          },
-        }),
-      );
-    });
-
-    // 点击左侧频道的语音连接区域
-    const voiceChannel = page.locator('div:has-text("开黑聊天室")').first();
-    if (await voiceChannel.isVisible()) {
-      await voiceChannel.click();
-    }
-
-    // 检查是否有语音连接状态按钮
-    const statusBtn = page.locator(
-      '[data-testid="voice-connection-status-btn"]',
+    service.onNetworkStatsChangedCallbacks.forEach(
+      (callback: (stats: Map<string, unknown>) => void) =>
+        callback(service.networkStatsMap),
     );
-    if (await statusBtn.isVisible()) {
-      // 点击打开 Discord 风格的连线状态 Popover
-      await statusBtn.click();
-
-      // 验证浮层成功弹出
-      const popover = page.locator('[data-testid="voice-connection-popover"]');
-      await expect(popover).toBeVisible();
-
-      // 验证包含折线图 Canvas
-      await expect(popover.locator("canvas")).toBeVisible();
-
-      // 验证核心指标与端到端加密条目
-      await expect(popover).toContainText("平均讯息收发来回时间");
-      await expect(popover).toContainText("输出封包遗失率");
-      await expect(popover).toContainText("端到端加密");
-
-      // 验证双按钮存在
-      const debugBtn = page.locator('[data-testid="connection-debug-btn"]');
-      const moreStatsBtn = page.locator(
-        '[data-testid="connection-more-stats-btn"]',
-      );
-      await expect(debugBtn).toBeVisible();
-      await expect(moreStatsBtn).toBeVisible();
-
-      // 点击“更多数据”，验证 Popover 关闭且唤起全量看板
-      await moreStatsBtn.click();
-      await expect(popover).not.toBeVisible();
-    }
   });
+  await expect(popover).toContainText("84 毫秒");
+  await expect(popover).toContainText("2.5%");
+  await expect(popover).not.toContainText("250.0%");
 
-  test("2. 远端开播但未拉流时，展示简洁居中大播放按钮（无冗余文字），且隐藏右上角统计入口", async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 1280, height: 800 });
-    await page.goto("/");
-
-    // 验证组件在纯音频或未观看状态下不展示 participant-stats-btn
-    const statsBtn = page.locator('[data-testid="participant-stats-btn"]');
-    await expect(statsBtn).toHaveCount(0);
+  await page.evaluate(() => {
+    const service = (window as any).__livekitService;
+    const [identity, sample] = [...service.networkStatsMap.entries()][0];
+    service.networkStatsMap.set(identity, {
+      ...sample,
+      timestamp: Date.now() - 30_000,
+    });
+    service.onNetworkStatsChangedCallbacks.forEach(
+      (callback: (stats: Map<string, unknown>) => void) =>
+        callback(service.networkStatsMap),
+    );
   });
+  await expect(popover).toContainText("暂无数据");
+  await expect(popover).not.toContainText("84 毫秒");
+
+  await page.getByTestId("connection-more-stats-btn").click();
+  await expect(popover).not.toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /WebRTC 媒体引擎与网络健康看板/ }),
+  ).toBeVisible();
 });

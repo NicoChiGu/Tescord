@@ -55,8 +55,9 @@ export class P2PTopologyManager {
   /**
    * 停止 P2P 直播并清理房间
    */
-  public unregisterStream(channelId: string): void {
-    this.rooms.delete(channelId);
+  public unregisterStream(channelId: string, streamOwnerId: string): void {
+    const room = this.rooms.get(channelId);
+    if (room?.streamOwnerId === streamOwnerId) this.rooms.delete(channelId);
   }
 
   public getRoom(channelId: string): ActiveP2PRoom | undefined {
@@ -76,6 +77,7 @@ export class P2PTopologyManager {
   } | null {
     const room = this.rooms.get(channelId);
     if (!room) return null;
+    if (room.streamOwnerId === viewerId) return null;
 
     if (initialMetrics) {
       room.metrics.set(viewerId, initialMetrics);
@@ -144,6 +146,7 @@ export class P2PTopologyManager {
   ): P2PTopologyUpdatePayload | null {
     const room = this.rooms.get(channelId);
     if (!room) return null;
+    if (room.streamOwnerId === viewerId) return null;
 
     const departingNode = room.nodes.get(viewerId);
     if (!departingNode) return null;

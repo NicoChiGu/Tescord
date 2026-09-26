@@ -17,6 +17,7 @@ import { apiFetch } from "../apiClient.js";
 import { gatewayClient } from "../gateway.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { useSettingsStore } from "../../stores/useSettingsStore.js";
+import { tGlobal } from "../../i18n/index.js";
 
 export type CfRealtimeConnectionStatus =
   "disconnected" | "connecting" | "connected" | "reconnecting" | "failed";
@@ -37,6 +38,7 @@ type RtcRecord = RTCStats & {
   packetsReceived?: number;
   packetsSent?: number;
   packetsLost?: number;
+  fractionLost?: number;
   jitter?: number;
   framesDecoded?: number;
   framesPerSecond?: number;
@@ -104,10 +106,11 @@ export class CloudflareRealtimeService {
   >();
   private networkStats = new Map<string, NetworkStats>();
   private detailedStats = new Map<string, StreamDetailedStats>();
+  private selectedPath: { candidateType: string; protocol: string } | null = null;
   private statsTimer: ReturnType<typeof setInterval> | null = null;
   private previousStats = new Map<
     string,
-    { bytes: number; timestamp: number }
+    { bytes: number; timestamp: number; packets: number; lost: number }
   >();
   private subscribedMids = new Map<string, string>();
   private watchingSessions = new Set<string>();
@@ -476,7 +479,15 @@ export class CloudflareRealtimeService {
   }
 
   public get isE2EEActive(): boolean {
-    return Boolean(this.negotiatedE2EEKey && sframeManager.getStats().enabled);
+    return Boolean(
+      this.connectionStatus === "connected" &&
+      this.negotiatedE2EEKey &&
+      sframeManager.getStats().enabled,
+    );
+  }
+
+  public get selectedCandidatePath(): { candidateType: string; protocol: string } | null {
+    return this.connectionStatus === "connected" ? this.selectedPath : null;
   }
 
   private get authHeaders(): Record<string, string> {
@@ -1523,20 +1534,20 @@ export class CloudflareRealtimeService {
     return {
       participantIdentity: identity,
       isLocal,
-      mimeType: "暂无媒体数据",
+      mimeType: tGlobal("voice:networkStats.noMedia"),
       playerCore: "WebRTC / Cloudflare Realtime",
-      audioInfo: "暂无音轨",
-      encoder: "未知",
+      audioInfo: tGlobal("voice:networkStats.noAudio"),
+      encoder: tGlobal("voice:networkStats.unknown"),
       streamHost: "Cloudflare SFU",
-      connectionMode: "等待媒体数据",
+      connectionMode: tGlobal("voice:networkStats.waitingMedia"),
       topology: "SFU_SERVER",
-      protocol: "未知",
-      bufferLength: "WebRTC 自适应",
-      downloadBitrate: "暂无数据",
-      uploadBitrate: "暂无数据",
-      rtt: "暂无数据（本机 ↔ SFU）",
-      packetLoss: "暂无数据",
-      jitter: "暂无数据",
+      protocol: tGlobal("voice:networkStats.unknown"),
+      bufferLength: tGlobal("voice:networkStats.adaptive"),
+      downloadBitrate: tGlobal("voice:connectionPopover.noData"),
+      uploadBitrate: tGlobal("voice:connectionPopover.noData"),
+      rtt: tGlobal("voice:networkStats.noSfuRtt"),
+      packetLoss: tGlobal("voice:connectionPopover.noData"),
+      jitter: tGlobal("voice:connectionPopover.noData"),
       transportVerified: false,
     };
   }
@@ -1593,14 +1604,19 @@ export class CloudflareRealtimeService {
     const protocol = (
       remoteCandidate?.protocol ||
       localCandidate?.protocol ||
-      "未知"
+      tGlobal("voice:networkStats.unknown")
     ).toUpperCase();
     const candidateType =
       localCandidate?.candidateType || remoteCandidate?.candidateType;
-    const connectionMode =
+    this.selectedPath = pair && candidateType
+      ? { candidateType, protocol }
+      : null;
+    const connectionMode = tGlobal(
       candidateType === "relay"
-        ? `SFU 经 TURN (${protocol})`
-        : `SFU ${candidateType || "ICE"} (${protocol})`;
+        ? "voice:connectionPopover.pathTurn"
+        : "voice:connectionPopover.pathSfu",
+      { protocol },
+    );
     const host = remoteCandidate?.address
       ? `${remoteCandidate.address}:${remoteCandidate.port || ""}`
       : "Cloudflare SFU";
@@ -1672,9 +1688,44 @@ export class CloudflareRealtimeService {
           if (isLocal) upBps += rate;
           else downBps += rate;
         }
-        this.previousStats.set(item.id, { bytes, timestamp: item.timestamp });
-        packets += isLocal ? item.packetsSent || 0 : item.packetsReceived || 0;
-        lost += item.packetsLost || 0;
+        const packetCount = isLocal
+          ? item.packetsSent || 0
+          : item.packetsReceived || 0;
+        const feedback = isLocal
+          ? stats.find(
+              (entry) =>
+                entry.type === "remote-inbound-rtp" &&
+                entry.localId === item.id,
+            )
+          : item;
+        const lostCount = feedback?.packetsLost || 0;
+        const priorPackets = prior?.packets;
+        const priorLost = prior?.lost;
+        if (
+          !isLocal &&
+          priorPackets !== undefined &&
+          priorLost !== undefined &&
+          packetCount >= priorPackets &&
+          lostCount >= priorLost
+        ) {
+          packets += packetCount - priorPackets;
+          lost += lostCount - priorLost;
+        }
+        if (
+          isLocal &&
+          typeof feedback?.fractionLost === "number" &&
+          Number.isFinite(feedback.fractionLost)
+        ) {
+          const fraction = Math.max(0, Math.min(1, feedback.fractionLost));
+          packets += 100 * (1 - fraction);
+          lost += 100 * fraction;
+        }
+        this.previousStats.set(item.id, {
+          bytes,
+          timestamp: item.timestamp,
+          packets: packetCount,
+          lost: lostCount,
+        });
         if (typeof item.jitter === "number") {
           jitterMs += item.jitter * 1_000;
           jitterCount++;
@@ -1719,22 +1770,22 @@ export class CloudflareRealtimeService {
         timestamp: Date.now(),
       });
       const formatRate = (bps: number, bytes: number) =>
-        `${bps > 0 ? `${Math.round(bps / 1_000)} kbps` : "暂无速率"} (${(bytes / 1_048_576).toFixed(2)} MiB)`;
+        `${bps > 0 ? `${Math.round(bps / 1_000)} kbps` : tGlobal("voice:networkStats.noRate")} (${(bytes / 1_048_576).toFixed(2)} MiB)`;
       nextDetailed.set(identity, {
         participantIdentity: identity,
         isLocal,
-        mimeType: videoCodec || audioCodec || "暂无协商编解码器",
+        mimeType: videoCodec || audioCodec || tGlobal("voice:networkStats.noCodec"),
         playerCore: "WebRTC / Cloudflare Realtime",
         videoInfo,
-        audioInfo: audioCodec || "暂无音轨",
+        audioInfo: audioCodec || tGlobal("voice:networkStats.noAudio"),
         encoder: isLocal
-          ? videoCodec || audioCodec || "未知"
-          : "远端编码器不可见",
+          ? videoCodec || audioCodec || tGlobal("voice:networkStats.unknown")
+          : tGlobal("voice:networkStats.remoteEncoderUnknown"),
         streamHost: host,
         connectionMode,
         topology: "SFU_SERVER",
         protocol,
-        bufferLength: "WebRTC 自适应",
+        bufferLength: tGlobal("voice:networkStats.adaptive"),
         decodedFrames: videoInfo ? String(decoded) : undefined,
         downloadBitrate: formatRate(downBps, received),
         uploadBitrate: formatRate(upBps, sent),
@@ -1744,10 +1795,10 @@ export class CloudflareRealtimeService {
         totalBytesSent: sent,
         rtt:
           rttMs === undefined
-            ? "暂无数据（本机 ↔ SFU）"
-            : `${rttMs} ms（本机 ↔ SFU）`,
-        packetLoss: loss === undefined ? "暂无数据" : `${loss}%`,
-        jitter: jitter === undefined ? "暂无数据" : `${jitter} ms`,
+            ? tGlobal("voice:networkStats.noSfuRtt")
+            : tGlobal("voice:networkStats.sfuRtt", { value: rttMs }),
+        packetLoss: loss === undefined ? tGlobal("voice:connectionPopover.noData") : `${loss}%`,
+        jitter: jitter === undefined ? tGlobal("voice:connectionPopover.noData") : `${jitter} ms`,
         ipVersion,
         candidateType,
         actualSendCodec: isLocal ? videoCodec || audioCodec : undefined,
@@ -1878,6 +1929,7 @@ export class CloudflareRealtimeService {
     for (const listener of this.publicationListeners) listener([]);
     this.networkStats.clear();
     this.detailedStats.clear();
+    this.selectedPath = null;
     this.previousStats.clear();
     for (const listener of this.networkListeners) listener(new Map());
     for (const published of this.publishedTracks.values()) {

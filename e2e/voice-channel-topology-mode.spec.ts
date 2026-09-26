@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { installConnectedLiveKitStub } from "./helpers/media";
 
 test.describe("语音频道传输拓扑模式 (Voice Channel Topology: SFU vs P2P Mesh)", () => {
   test("API 接口安全性校验：非法 voiceMode 拒绝 400，未授权拒绝 401", async ({
@@ -14,12 +15,13 @@ test.describe("语音频道传输拓扑模式 (Voice Channel Topology: SFU vs P2
     // 借助登录接口或测试账号
     const loginRes = await request.post("/api/auth/login", {
       data: {
-        email: "test@example.com",
-        password: "Password123!",
+        emailOrUsername: "Jackey",
+        password: "adminpassword123",
       },
     });
 
-    if (loginRes.ok()) {
+    expect(loginRes.ok()).toBeTruthy();
+    {
       const loginData = await loginRes.json();
       const token = loginData.accessToken;
       const authHeaders = { Authorization: `Bearer ${token}` };
@@ -28,10 +30,12 @@ test.describe("语音频道传输拓扑模式 (Voice Channel Topology: SFU vs P2
       const guildsRes = await request.get("/api/guilds", {
         headers: authHeaders,
       });
-      if (guildsRes.ok()) {
+      expect(guildsRes.ok()).toBeTruthy();
+      {
         const guilds = await guildsRes.json();
         const firstGuild = guilds[0];
-        if (firstGuild) {
+        expect(firstGuild).toBeTruthy();
+        {
           const channelsRes = await request.get(
             `/api/guilds/${firstGuild.id}/channels`,
             {
@@ -41,7 +45,8 @@ test.describe("语音频道传输拓扑模式 (Voice Channel Topology: SFU vs P2
           const channels = await channelsRes.json();
           const voiceChannel = channels.find((c: any) => c.type === "VOICE");
 
-          if (voiceChannel) {
+          expect(voiceChannel).toBeTruthy();
+          {
             // 发送非法 voiceMode
             const badRes = await request.patch(
               `/api/channels/${voiceChannel.id}`,
@@ -105,7 +110,8 @@ test.describe("语音频道传输拓扑模式 (Voice Channel Topology: SFU vs P2
     const serverButton = page
       .locator("button[data-testid^='guild-item-'], button[title*='极客']")
       .first();
-    if (await serverButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await expect(serverButton).toBeVisible({ timeout: 5000 });
+    {
       await serverButton.click();
     }
 
@@ -115,13 +121,13 @@ test.describe("语音频道传输拓扑模式 (Voice Channel Topology: SFU vs P2
         "button[data-channel-type='VOICE'], button:has-text('语音'), button:has-text('Voice')",
       )
       .first();
-    if (await voiceChannel.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await expect(voiceChannel).toBeVisible({ timeout: 5000 });
+    {
       // 右键触发菜单
       await voiceChannel.click({ button: "right" });
-      const editOption = page
-        .locator("text=编辑频道, text=Edit Channel")
-        .first();
-      if (await editOption.isVisible({ timeout: 2000 }).catch(() => false)) {
+      const editOption = page.getByRole("menuitem", { name: "编辑频道" });
+      await expect(editOption).toBeVisible({ timeout: 5000 });
+      {
         await editOption.click();
 
         // 验证弹窗可见
@@ -147,6 +153,14 @@ test.describe("语音频道传输拓扑模式 (Voice Channel Topology: SFU vs P2
         const saveBtn = page.locator("[data-testid='save-channel-btn']");
         await saveBtn.click();
         await expect(modal).not.toBeVisible();
+
+        // Keep the shared E2E fixture in its default SFU mode for later cases.
+        await voiceChannel.click({ button: "right" });
+        await page.getByRole("menuitem", { name: "编辑频道" }).click();
+        await expect(modal).toBeVisible();
+        await sfuCard.click();
+        await saveBtn.click();
+        await expect(modal).not.toBeVisible();
       }
     }
 
@@ -157,65 +171,19 @@ test.describe("语音频道传输拓扑模式 (Voice Channel Topology: SFU vs P2
     expect(criticalErrors.length).toBe(0);
   });
 
-  test("P2P 与 SFU 模式下 Ping 延迟与左下角文字差异性验证", async ({
+  test("SFU 连接后左下角显示实际 RTT 而非占位值", async ({
     page,
   }) => {
-    // 1. 初始化登录状态与 API Mock
-    await page.addInitScript(() => {
-      localStorage.setItem(
-        "tescord_access_token",
-        localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token",
-      );
-      localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
-    });
-
-    await page.route("**/api/auth/me", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          id: "e2e_user_latency_tester",
-          username: "latency_tester",
-          displayName: "延迟测试员",
-          email: "latency_tester@example.com",
-          avatarUrl: null,
-          status: "ONLINE",
-        }),
-      });
-    });
-
-    await page.route("**/api/livekit/token", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          token: "mock_livekit_token",
-          url: "wss://localhost:7880",
-        }),
-      });
-    });
-
-    await page.route("**/api/network/ice-servers", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          iceServers: [{ urls: "stun:stun.cloudflare.com:3478" }],
-          turnActive: true,
-          provider: "cloudflare",
-        }),
-      });
-    });
-
     await page.goto("/");
-    await page.waitForLoadState("networkidle");
-
-    // 验证在左下角连接面板存在时的渲染表现
-    const latencyEl = page.locator("[data-testid='voice-connection-latency']");
-    if (await latencyEl.isVisible({ timeout: 2000 }).catch(() => false)) {
-      const text = await latencyEl.textContent();
-      // 若处于连接状态，检查格式是否合法 (如 "--ms", "15ms", "P2P 15ms")
-      expect(text).toMatch(/(--ms|\d+ms)/);
-    }
+    const guild = page.getByRole("button", { name: /Tescord 极客总部|极客|小窝/i }).first();
+    await expect(guild).toBeVisible();
+    await guild.click();
+    const voice = page.locator("button").filter({ has: page.locator("svg.lucide-volume-2") }).first();
+    await expect(voice).toBeVisible();
+    const userId = await page.evaluate(() => (window as any).useAuthStore.getState().user.id as string);
+    await installConnectedLiveKitStub(page, userId);
+    await voice.dblclick();
+    await expect(page.getByTestId("voice-connection-status-btn")).toContainText("语音已连接");
+    await expect(page.getByTestId("voice-connection-latency")).toHaveText("24ms");
   });
 });

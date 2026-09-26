@@ -25,11 +25,11 @@ export async function installConnectedLiveKitStub(
       service.isConnected = true;
       service.currentRoomName = roomName;
       service.networkStatsMap.set(localIdentity, {
-        participantId: localIdentity,
+        identity: localIdentity,
         rtt: 24,
         jitter: 3,
         packetLoss: 0,
-        bitrate: 64000,
+        bitrate: 64,
         quality: "excellent",
         timestamp: Date.now(),
       });

@@ -244,12 +244,16 @@ test.describe("P2P 直连与智能接力直播传输模式端到端自动化验�
       await joinVoiceCallBtn.click();
     }
 
-    // 3. 点击左下角“语音已连接”区域呼出网络看板
+    // 3. 从连线浮层的“更多数据”进入网络看板
     const voiceCardTrigger = page.locator("button", {
       hasText: "语音已连接",
     });
     await expect(voiceCardTrigger).toBeVisible({ timeout: 8000 });
     await voiceCardTrigger.click();
+    const popover = page.getByTestId("voice-connection-popover");
+    await expect(popover).toBeVisible();
+    await page.getByTestId("connection-more-stats-btn").click();
+    await expect(popover).not.toBeVisible();
 
     // 4. 验证网络看板中包含 P2P NAT 诊断卡片
     const natHeader = page.getByText(/P2P 穿透与拓扑诊断/i);

@@ -56,6 +56,7 @@ export async function generateLiveKitToken(
   const metadata = JSON.stringify({
     bitrate: req.bitrate || 64000,
     codec: "opus",
+    gatewaySessionId: req.gatewaySessionId,
   });
 
   const at = new AccessToken(apiKey, apiSecret, {

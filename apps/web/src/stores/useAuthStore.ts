@@ -563,19 +563,38 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const perform = async (): Promise<boolean> => {
           const refreshToken = currentRefreshToken();
           if (!refreshToken || generation !== authGeneration) return false;
-          // Another tab may have rotated the token while this tab waited for the lock.
-          const newerAccess = localStorage.getItem(ACCESS_KEY);
-          if (
-            refreshToken !== startedRefreshToken &&
-            accessExpiresAt(newerAccess) > Date.now() + 60_000
-          ) {
+          const adoptSharedRotation = async (
+            staleToken: string | null,
+          ): Promise<boolean> => {
+            const rotatedToken = currentRefreshToken();
+            const newerAccess = localStorage.getItem(ACCESS_KEY);
+            if (
+              !rotatedToken ||
+              rotatedToken === staleToken ||
+              accessExpiresAt(newerAccess) <= Date.now() + 60_000 ||
+              generation !== authGeneration
+            )
+              return false;
+            const identity = await fetch(`${API_BASE}/api/auth/me`, {
+              headers: { Authorization: `Bearer ${newerAccess}` },
+            });
+            if (!identity.ok) return false;
+            const user = (await identity.json()) as User;
+            if (expectedUserId && user.id !== expectedUserId) return false;
             set({
+              user,
+              lastActiveUser: user,
+              isAuthenticated: true,
               accessToken: newerAccess,
               token: newerAccess,
-              refreshToken,
+              refreshToken: rotatedToken,
               refreshFailure: null,
             });
             scheduleProactiveRefresh(() => get().refreshAuth(), newerAccess);
+            return true;
+          };
+          // Another tab may have rotated the token while this tab waited for the lock.
+          if (await adoptSharedRotation(startedRefreshToken)) {
             return true;
           }
           const res = await fetch(`${API_BASE}/api/auth/refresh`, {
@@ -584,6 +603,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             body: JSON.stringify({ refreshToken }),
           });
           if (!res.ok) {
+            // A sibling tab may have committed a successful rotation while
+            // this request was in flight. Recheck before treating 401 as loss.
+            if (await adoptSharedRotation(refreshToken)) return true;
             const invalid =
               res.status === 400 || res.status === 401 || res.status === 403;
             set({ refreshFailure: invalid ? "invalid" : "transient" });

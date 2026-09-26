@@ -290,6 +290,7 @@ export const App: React.FC = () => {
         : {
             roomName: channelId,
             identity: user.id,
+            gatewaySessionId: gatewayClient.getSessionId(),
             name: user.username,
             bitrate:
               channel?.bitrate || audioEngine.config.audioBitrate || 64000,
@@ -1437,7 +1438,7 @@ export const App: React.FC = () => {
                   .find((c) => c.id === activeVoiceChannelIdRef.current) ||
                 selectedChannelRef.current;
               setVoiceTransferNotice({
-                targetPlatform: vs.platform || "其他设备",
+                targetPlatform: vs.platform || t("voice:otherDevice"),
                 previousChannel: prevCh || null,
               });
             }
@@ -1610,7 +1611,7 @@ export const App: React.FC = () => {
 
           // 4. 展示转移提示卡片
           setVoiceTransferNotice({
-            targetPlatform: data.targetPlatform || "其他设备",
+            targetPlatform: data.targetPlatform || t("voice:otherDevice"),
             previousChannel: prevChannel || null,
           });
         }
@@ -2909,6 +2910,7 @@ export const App: React.FC = () => {
           body: JSON.stringify({
             roomName: channel.id,
             identity: currentUser.id,
+            gatewaySessionId: gatewayClient.getSessionId(),
             name: currentUser.username,
             bitrate,
           }),

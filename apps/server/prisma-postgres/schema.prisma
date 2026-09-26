@@ -140,6 +140,8 @@ model Channel {
   position  Int              @default(0)
   isE2EE    Boolean          @default(false)
   bitrate   Int              @default(64000)
+  voiceMode String           @default("sfu") // sfu | p2p_mesh
+  streamMode String          @default("sfu") // sfu | p2p_direct | p2p_relay
   dmKey     String?          @unique
   nextMessageSequence Int    @default(0)
   createdAt DateTime         @default(now())

@@ -33,7 +33,7 @@ async function main(): Promise<void> {
   if (password.length < 6)
     throw new Error("Password must contain at least 6 characters");
   const passwordHash = await bcrypt.hash(password, 12);
-  await prisma.$transaction(async (tx) => {
+  const createdId = await prisma.$transaction(async (tx) => {
     const existing = await tx.user.findFirst({
       where: { OR: [{ username }, { email }] },
       select: { id: true },
@@ -64,8 +64,10 @@ async function main(): Promise<void> {
         detailsJson: JSON.stringify({ username, email }),
       },
     });
+    return user.id;
   });
   process.stdout.write(`Created SUPER_ADMIN ${username} (${email})\n`);
+  process.stdout.write(`ACCEPTANCE_ADMIN_ID=${createdId}\n`);
 }
 
 main()

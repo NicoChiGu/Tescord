@@ -98,8 +98,12 @@ test.describe("真实延迟状态与网关连接指示端到端验收", () => {
     const rttText = await latencyBadge.innerText();
     expect(rttText).toMatch(/\d+ms/);
 
-    // 4. 点击呼出 WebRTC 媒体引擎与网络健康看板
+    // 4. 连线浮层中的“更多数据”打开 WebRTC 网络健康看板
     await voiceCardTrigger.click();
+    const popover = page.getByTestId("voice-connection-popover");
+    await expect(popover).toBeVisible();
+    await page.getByTestId("connection-more-stats-btn").click();
+    await expect(popover).not.toBeVisible();
     const modalHeading = page.getByRole("heading", {
       name: /WebRTC 媒体引擎与网络健康看板/i,
     });

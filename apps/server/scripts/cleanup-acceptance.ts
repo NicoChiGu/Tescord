@@ -8,6 +8,8 @@ interface AcceptanceResources {
   bobUserId?: string;
   guildId?: string;
   registrationInviteCode?: string;
+  channelIds?: string[];
+  guildInviteCodes?: string[];
 }
 
 async function main(): Promise<void> {
@@ -105,6 +107,26 @@ async function main(): Promise<void> {
     )
       throw new Error("Registration invite identity check failed");
   }
+  if (resources.channelIds?.length) {
+    const channels = await prisma.channel.findMany({
+      where: { id: { in: resources.channelIds } },
+      select: { id: true, guildId: true },
+    });
+    if (
+      channels.length !== resources.channelIds.length ||
+      channels.some((channel) => channel.guildId !== resources.guildId)
+    ) throw new Error("Test channel ownership check failed");
+  }
+  if (resources.guildInviteCodes?.length) {
+    const invites = await prisma.invite.findMany({
+      where: { code: { in: resources.guildInviteCodes } },
+      select: { code: true, guildId: true, inviterId: true },
+    });
+    if (
+      invites.length !== resources.guildInviteCodes.length ||
+      invites.some((invite) => invite.guildId !== resources.guildId || invite.inviterId !== adminId)
+    ) throw new Error("Test guild invite ownership check failed");
+  }
 
   const [
     memberships,
@@ -160,7 +182,7 @@ async function main(): Promise<void> {
       throw new Error("Not all exact test accounts were deleted");
   });
 
-  const [remainingUsers, remainingGuild, remainingInvite] = await Promise.all([
+  const [remainingUsers, remainingGuild, remainingInvite, remainingChannels, remainingGuildInvites] = await Promise.all([
     prisma.user.count({ where: { id: { in: ids } } }),
     resources.guildId
       ? prisma.guild.count({ where: { id: resources.guildId } })
@@ -170,8 +192,14 @@ async function main(): Promise<void> {
           where: { code: resources.registrationInviteCode },
         })
       : 0,
+    resources.channelIds?.length
+      ? prisma.channel.count({ where: { id: { in: resources.channelIds } } })
+      : 0,
+    resources.guildInviteCodes?.length
+      ? prisma.invite.count({ where: { code: { in: resources.guildInviteCodes } } })
+      : 0,
   ]);
-  if (remainingUsers || remainingGuild || remainingInvite)
+  if (remainingUsers || remainingGuild || remainingInvite || remainingChannels || remainingGuildInvites)
     throw new Error("Cleanup verification found remaining test resources");
   process.stdout.write(
     JSON.stringify({
@@ -182,6 +210,8 @@ async function main(): Promise<void> {
       remainingUsers,
       remainingGuild,
       remainingInvite,
+      remainingChannels,
+      remainingGuildInvites,
     }) + "\n",
   );
 }

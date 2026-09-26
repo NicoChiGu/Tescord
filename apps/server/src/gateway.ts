@@ -66,6 +66,10 @@ export class GatewayManager {
     return revision;
   }
   private transferTimestamps: Map<string, number> = new Map();
+  public hasIdentifiedSession(userId: string, sessionId: string): boolean {
+    const conn = this.userSessions.get(userId)?.get(sessionId);
+    return conn?.userId === userId && conn.ws.readyState === WebSocket.OPEN;
+  }
   // 离线防抖缓冲池：userId -> NodeJS.Timeout (3.5秒防抖)
   public isMaintenanceActive = false;
   public maintenancePayload: MaintenanceUpdatePayload = {
@@ -525,7 +529,7 @@ export class GatewayManager {
 
             removeParticipantFromRoom(existingVoice.channelId, conn.userId);
             if (existingVoice.streaming) {
-              p2pTopologyManager.unregisterStream(existingVoice.channelId);
+              p2pTopologyManager.unregisterStream(existingVoice.channelId, conn.userId);
             }
           }
 
@@ -607,7 +611,7 @@ export class GatewayManager {
             existingVoice?.streaming &&
             existingVoice.channelId
           ) {
-            p2pTopologyManager.unregisterStream(existingVoice.channelId);
+            p2pTopologyManager.unregisterStream(existingVoice.channelId, conn.userId);
             await this.broadcastChannel(existingVoice.channelId, {
               op: GatewayOpCode.DISPATCH,
               t: GatewayEvents.P2P_TOPOLOGY_UPDATE,
@@ -648,7 +652,7 @@ export class GatewayManager {
                 conn.userId,
               );
               if (existingVoice.streaming) {
-                p2pTopologyManager.unregisterStream(existingVoice.channelId);
+                p2pTopologyManager.unregisterStream(existingVoice.channelId, conn.userId);
               }
             }
           }
@@ -1356,6 +1360,7 @@ export class GatewayManager {
   public handleLiveKitParticipantLeft(
     userId: string,
     roomName?: string,
+    gatewaySessionId?: string,
   ): boolean {
     const currentVoice = this.voiceStates.get(userId);
     if (!currentVoice) {
@@ -1370,9 +1375,18 @@ export class GatewayManager {
       return false;
     }
 
+    // LiveKit identity is the user ID, so a late webhook from a replaced
+    // participant must be matched to the Gateway session embedded in its token.
+    if (gatewaySessionId && currentVoice.sessionId !== gatewaySessionId) {
+      console.log(
+        `[Gateway] Ignored stale LiveKit participant_left for ${userId} (event session: ${gatewaySessionId}, active: ${currentVoice.sessionId})`,
+      );
+      return false;
+    }
+
     // 若该用户刚刚发生过多端接管 (6秒内)，且新设备的会话连接仍保持活跃，忽略旧会话的踢出 Webhook
     const lastTransfer = this.transferTimestamps.get(userId);
-    if (lastTransfer && Date.now() - lastTransfer < 6000 && currentVoice.sessionId) {
+    if (!gatewaySessionId && lastTransfer && Date.now() - lastTransfer < 6000 && currentVoice.sessionId) {
       const activeConn = this.userSessions.get(userId)?.get(currentVoice.sessionId);
       if (activeConn && activeConn.ws.readyState === WebSocket.OPEN) {
         console.log(
@@ -1387,6 +1401,7 @@ export class GatewayManager {
     );
 
     this.voiceStates.delete(userId);
+    this.transferTimestamps.delete(userId);
     this.broadcast({
       op: GatewayOpCode.DISPATCH,
       t: "VOICE_STATE_UPDATE",
@@ -1407,7 +1422,7 @@ export class GatewayManager {
     if (currentVoice.channelId) {
       p2pTopologyManager.removeViewer(currentVoice.channelId, userId);
       if (currentVoice.streaming) {
-        p2pTopologyManager.unregisterStream(currentVoice.channelId);
+        p2pTopologyManager.unregisterStream(currentVoice.channelId, userId);
       }
     }
 
@@ -1555,7 +1570,7 @@ export class GatewayManager {
         if (voiceState && voiceState.channelId) {
           try {
             await removeParticipantFromRoom(voiceState.channelId, userId);
-            p2pTopologyManager.unregisterStream(voiceState.channelId);
+            p2pTopologyManager.unregisterStream(voiceState.channelId, userId);
             p2pTopologyManager.removeViewer(voiceState.channelId, userId);
           } catch {}
           this.voiceStates.delete(userId);

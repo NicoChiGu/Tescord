@@ -13,12 +13,13 @@ test.describe("直播推流传输拓扑独立解耦 (Live Streaming Topology Mod
     // 2. 登录获取有效 token
     const loginRes = await request.post("/api/auth/login", {
       data: {
-        email: "test@example.com",
-        password: "Password123!",
+        emailOrUsername: "Jackey",
+        password: "adminpassword123",
       },
     });
 
-    if (loginRes.ok()) {
+    expect(loginRes.ok()).toBeTruthy();
+    {
       const loginData = await loginRes.json();
       const token = loginData.accessToken;
       const authHeaders = { Authorization: `Bearer ${token}` };
@@ -27,10 +28,12 @@ test.describe("直播推流传输拓扑独立解耦 (Live Streaming Topology Mod
       const guildsRes = await request.get("/api/guilds", {
         headers: authHeaders,
       });
-      if (guildsRes.ok()) {
+      expect(guildsRes.ok()).toBeTruthy();
+      {
         const guilds = await guildsRes.json();
         const firstGuild = guilds[0];
-        if (firstGuild) {
+        expect(firstGuild).toBeTruthy();
+        {
           const channelsRes = await request.get(
             `/api/guilds/${firstGuild.id}/channels`,
             { headers: authHeaders },
@@ -38,7 +41,8 @@ test.describe("直播推流传输拓扑独立解耦 (Live Streaming Topology Mod
           const channels = await channelsRes.json();
           const voiceChannel = channels.find((c: any) => c.type === "VOICE");
 
-          if (voiceChannel) {
+          expect(voiceChannel).toBeTruthy();
+          {
             // 负向校验：发送非法 streamMode
             const badRes = await request.patch(
               `/api/channels/${voiceChannel.id}`,
@@ -125,7 +129,8 @@ test.describe("直播推流传输拓扑独立解耦 (Live Streaming Topology Mod
     const serverButton = page
       .locator("button[data-testid^='guild-item-'], button[title*='极客']")
       .first();
-    if (await serverButton.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await expect(serverButton).toBeVisible({ timeout: 5000 });
+    {
       await serverButton.click();
     }
 
@@ -135,12 +140,12 @@ test.describe("直播推流传输拓扑独立解耦 (Live Streaming Topology Mod
         "button[data-channel-type='VOICE'], button:has-text('语音'), button:has-text('Voice')",
       )
       .first();
-    if (await voiceChannel.isVisible({ timeout: 5000 }).catch(() => false)) {
+    await expect(voiceChannel).toBeVisible({ timeout: 5000 });
+    {
       await voiceChannel.click({ button: "right" });
-      const editOption = page
-        .locator("text=编辑频道, text=Edit Channel")
-        .first();
-      if (await editOption.isVisible({ timeout: 2000 }).catch(() => false)) {
+      const editOption = page.getByRole("menuitem", { name: "编辑频道" });
+      await expect(editOption).toBeVisible({ timeout: 5000 });
+      {
         await editOption.click();
 
         // 验证弹窗可见

@@ -442,7 +442,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
                 className={`absolute bottom-2.5 right-2.5 z-20 ${controlsVisibilityClass} ${
                   isSpotlight ? "w-36 sm:w-48 md:w-56" : "w-28 sm:w-36 md:w-44"
                 } aspect-video rounded-lg overflow-hidden border-2 border-white/30 hover:border-discord-brand shadow-2xl transition-all duration-200 hover:scale-105 cursor-pointer group/pip bg-black`}
-                title="点击切换主次画面"
+                title={t("voice:mediaTooltips.swapView")}
               >
                 <VideoTrackPlayer
                   track={pipTrack}
@@ -550,7 +550,13 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
                       : "bg-discord-danger/20 text-discord-danger border-discord-danger/40"
                   : "bg-black/60 text-gray-400 border-white/10"
               }`}
-              title={`与该成员的 P2P 直连延迟: ${peerLatency && peerLatency.rtt > 0 ? `${peerLatency.rtt}ms` : "探测中..."} (${peerLatency?.connectionType || "P2P"})`}
+              title={t("voice:connectionPopover.p2pLatencyTooltip", {
+                value:
+                  peerLatency && peerLatency.rtt > 0
+                    ? `${peerLatency.rtt}ms`
+                    : t("voice:connectionPopover.noData"),
+                type: peerLatency?.connectionType || "P2P",
+              })}
             >
               <Wifi className="w-3 h-3 flex-shrink-0" />
               <span>
@@ -591,7 +597,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
               }}
               data-testid="stage-unpin-btn"
               className="bg-black/75 hover:bg-white/20 px-2.5 py-1 rounded-md text-xs text-white flex items-center space-x-1 backdrop-blur-md border border-white/10 transition shadow-lg"
-              title="退出聚焦视图"
+              title={t("voice:mediaTooltips.exitFocus")}
             >
               <PinOff className="w-3.5 h-3.5 text-discord-brand" />
               <span className="hidden sm:inline font-semibold">退出聚焦</span>
@@ -636,7 +642,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
               }
             >
               {watchPending
-                ? t("common:loading", "切换中…")
+                ? t("common:loading")
                 : watching
                   ? t("voice:stopWatchingStream")
                   : t("voice:watchStream")}
@@ -681,7 +687,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
                 onStopScreenShare?.();
               }}
               className="bg-discord-danger hover:bg-red-700 text-white px-2 py-1 rounded-md text-xs flex items-center space-x-1 shadow-lg transition cursor-pointer"
-              title="停止屏幕共享/直播"
+              title={t("voice:mediaTooltips.stopStream")}
             >
               <ScreenShareOff className="w-3.5 h-3.5" />
               <span className="font-semibold text-[11px]">停止直播</span>
@@ -691,17 +697,17 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
           {!isTheaterMode && (
             <div
               className="flex items-center space-x-1 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded-full text-[10px] text-discord-textMuted"
-              title={`RTT: ${stats?.rtt ?? "未知"}ms | 丢包: ${stats?.packetLoss ?? "未知"}% | 抖动: ${stats?.jitter ?? "未知"}ms${
-                stats?.videoCodec
-                  ? ` | 视频编码: ${stats.videoCodec} ${stats.videoResolution || ""}`
-                  : ""
-              }`}
+              title={t("voice:connectionPopover.statsTooltip", {
+                rtt: typeof stats?.rtt === "number" ? `${stats.rtt}ms` : t("voice:connectionPopover.noData"),
+                loss: typeof stats?.packetLoss === "number" ? `${stats.packetLoss}%` : t("voice:connectionPopover.noData"),
+                jitter: typeof stats?.jitter === "number" ? `${stats.jitter}ms` : t("voice:connectionPopover.noData"),
+              })}
             >
               <Wifi className="w-3 h-3 text-discord-green" />
               <span className="font-mono">
                 {typeof stats?.rtt === "number" && stats.rtt > 0
                   ? `${stats.rtt}ms`
-                  : "未知"}
+                  : t("voice:connectionPopover.noData")}
               </span>
             </div>
           )}
@@ -740,7 +746,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             <span
               data-testid={`video-codec-badge-${participant.userId}`}
               className="text-[10px] bg-discord-brand/30 text-discord-brand border border-discord-brand/40 px-1.5 py-0.2 rounded font-mono font-bold flex-shrink-0"
-              title={`当前视频轨道编码格式：${screenShareInfo?.codec || stats?.videoCodec}`}
+              title={t("voice:mediaTooltips.videoCodec", { codec: screenShareInfo?.codec || stats?.videoCodec })}
             >
               {screenShareInfo?.codec || stats?.videoCodec}
             </span>
@@ -767,7 +773,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
                     ? "bg-discord-brand/30 text-discord-brand border-discord-brand/50 font-bold"
                     : "bg-black/50 text-discord-textMuted border-transparent hover:text-white"
                 }`}
-                title="调节该用户的远端独立音量 (0% - 200%)"
+                title={t("voice:mediaTooltips.volume")}
               >
                 {volume === 0 ? (
                   <VolumeX className="w-2.5 h-2.5 text-discord-danger" />
@@ -911,6 +917,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
   onOpenVideoSettings,
 }) => {
   const { isMobile } = useViewport();
+  const { t } = useTranslation(["voice", "common"]);
   const isActuallyConnected =
     voiceConnectionStatus === "connected" ||
     (voiceConnectionStatus === undefined && isConnected);
@@ -1597,7 +1604,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
       } else if (VOICE_ENGINE === "cloudflare_realtime") {
         const publication = getScreenPublication(userId);
         if (!publication)
-          throw new Error("主播的视频轨道尚未准备好，请稍后重试");
+          throw new Error(t("voice:connectionPopover.streamTrackNotReady"));
         if (isWatchingStream(userId, participant.streamMode))
           await cloudflareRealtimeService.stopWatchingStream(
             publication.sessionId,
@@ -1620,7 +1627,9 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
       setWatchErrors((previous) =>
         new Map(previous).set(
           userId,
-          error instanceof Error ? error.message : "直播连接失败",
+          error instanceof Error
+            ? error.message
+            : t("voice:connectionPopover.streamJoinFailed"),
         ),
       );
     } finally {
@@ -1667,7 +1676,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
               data-testid="toggle-mobile-drawer-btn"
               onClick={onToggleMobileDrawer}
               className="md:hidden p-1.5 -ml-1 text-discord-textMuted hover:text-white hover:bg-[#35373c] rounded-lg transition flex-shrink-0"
-              title="打开频道与服务器抽屉"
+              title={t("voice:mediaTooltips.openDrawer")}
             >
               <Menu className="w-5 h-5" />
             </button>
@@ -1716,7 +1725,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                 ? "bg-discord-brand text-white border-discord-brand"
                 : "bg-[#1e1f22] text-discord-textMuted border-[#2b2d31] hover:text-white hover:border-[#383a40]"
             }`}
-            title="声卡伴音与麦克风混音控制面板"
+            title={t("voice:mediaTooltips.mixPanel")}
           >
             <Sliders className="w-3.5 h-3.5 text-discord-brand" />
             <span className="hidden sm:inline">伴音混音器</span>
@@ -1738,7 +1747,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
           <button
             onClick={() => setMicError(null)}
             className="p-1 hover:text-white rounded transition"
-            title="关闭提示"
+            title={t("voice:mediaTooltips.closeNotice")}
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -2125,7 +2134,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                     ? "hover:bg-black/10"
                     : "hover:bg-discord-hover hover:text-white"
                 }`}
-                title="麦克风选项"
+                title={t("voice:mediaTooltips.micOptions")}
               >
                 <ChevronUp
                   className={`w-3 h-3 transition-transform duration-150 ${
@@ -2221,7 +2230,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                     ? "hover:bg-black/10"
                     : "hover:bg-discord-hover hover:text-white"
                 }`}
-                title="摄像头选项"
+                title={t("voice:mediaTooltips.cameraOptions")}
               >
                 <ChevronUp
                   className={`w-3 h-3 transition-transform duration-150 ${
@@ -2484,7 +2493,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
             <button
               onClick={onLeave}
               className="p-2.5 sm:p-3.5 rounded-full bg-discord-danger text-white hover:bg-discord-danger/90 transition shadow-lg"
-              title="断开连接"
+              title={t("voice:mediaTooltips.disconnect")}
             >
               <PhoneOff className="w-5 h-5" />
             </button>

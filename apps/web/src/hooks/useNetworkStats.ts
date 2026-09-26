@@ -14,10 +14,7 @@ export function useNetworkStats(): NetworkStats | null {
   const [stats, setStats] = useState<NetworkStats | null>(() => {
     if (VOICE_ENGINE === "cloudflare_realtime")
       return cloudflareRealtimeService.getNetworkStats();
-    return (
-      (user?.id ? livekitService.getNetworkStats(user.id) : null) ||
-      livekitService.getNetworkStats()
-    );
+    return user?.id ? livekitService.getNetworkStats(user.id) : null;
   });
 
   useEffect(() => {
@@ -31,20 +28,10 @@ export function useNetworkStats(): NetworkStats | null {
         );
       });
     }
-    const current =
-      (user?.id ? livekitService.getNetworkStats(user.id) : null) ||
-      livekitService.getNetworkStats();
-    if (current) {
-      setStats(current);
-    }
+    setStats(user?.id ? livekitService.getNetworkStats(user.id) : null);
 
     const unbind = livekitService.onNetworkStatsUpdate((statsMap) => {
-      const local =
-        (user?.id ? statsMap.get(user.id) : null) ||
-        livekitService.getNetworkStats() ||
-        Array.from(statsMap.values())[0] ||
-        null;
-      setStats(local);
+      setStats(user?.id ? statsMap.get(user.id) || null : null);
     });
 
     return () => {

@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Bug, ExternalLink, Lock, Check, ShieldCheck } from "lucide-react";
+import { Bug, ExternalLink, Lock, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Channel } from "@tescord/types";
 import { useNetworkStats } from "../hooks/useNetworkStats.js";
 import { livekitService } from "../services/livekit.js";
 import { voiceMeshManager } from "../services/p2p/VoiceMeshManager.js";
 import { VOICE_ENGINE } from "../config.js";
+import { cloudflareRealtimeService } from "../services/cloudflare_realtime/index.js";
+import { useAuthStore } from "../stores/useAuthStore.js";
 
 interface VoiceConnectionStatusPopoverProps {
   isOpen: boolean;
@@ -27,32 +29,47 @@ export const VoiceConnectionStatusPopover: React.FC<
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const localStats = useNetworkStats();
+  const userId = useAuthStore((state) => state.user?.id);
   const [copied, setCopied] = useState(false);
-  const [pingHistory, setPingHistory] = useState<PingSample[]>(() => {
-    const now = new Date();
-    const initial: PingSample[] = [];
-    for (let i = 8; i >= 0; i--) {
-      const d = new Date(now.getTime() - i * 15000);
-      const minutes = d.getMinutes().toString().padStart(2, "0");
-      const seconds = d.getSeconds().toString().padStart(2, "0");
-      initial.push({
-        timeStr: `${minutes}:${seconds}`,
-        rtt: Math.floor(18 + Math.random() * 8),
-      });
-    }
-    return initial;
-  });
+  const [pingHistory, setPingHistory] = useState<PingSample[]>([]);
+  const [now, setNow] = useState(Date.now);
 
-  // 获取当前实际 RTT
+  useEffect(() => {
+    setPingHistory([]);
+  }, [channel?.id, userId]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const interval = setInterval(() => setNow(Date.now()), 2000);
+    return () => clearInterval(interval);
+  }, [isOpen]);
+
+  // NetworkStats timestamps are samples, not proof of a current connection.
+  const mediaConnected =
+    VOICE_ENGINE === "cloudflare_realtime"
+      ? cloudflareRealtimeService.status === "connected"
+      : livekitService.isConnected;
+  const statsAreFresh =
+    !!channel?.id &&
+    mediaConnected &&
+    !!localStats &&
+    Number.isFinite(localStats.timestamp) &&
+    now - localStats.timestamp < 10_000 &&
+    localStats.timestamp <= now + 1000;
+  const meshActive =
+    !!channel?.id && mediaConnected && voiceMeshManager.getIsMeshActive();
+  const rttSource = meshActive
+    ? t("voice:connectionPopover.rttSourceP2P")
+    : t("voice:connectionPopover.rttSourceSfu");
   const currentRtt = (() => {
-    if (voiceMeshManager.getIsMeshActive()) {
+    if (meshActive) {
       const activeLat = voiceMeshManager.getActiveSpeakerOrMedianLatency(null);
-      if (activeLat.rtt > 0) return activeLat.rtt;
+      return activeLat.rtt > 0 ? Math.round(activeLat.rtt) : null;
     }
-    if (localStats?.rtt && localStats.rtt > 0) {
+    if (statsAreFresh && localStats?.rtt && localStats.rtt > 0) {
       return Math.round(localStats.rtt);
     }
-    return 20;
+    return null;
   })();
 
   // 采样并推入历史队列
@@ -63,19 +80,22 @@ export const VoiceConnectionStatusPopover: React.FC<
       const d = new Date();
       const minutes = d.getMinutes().toString().padStart(2, "0");
       const seconds = d.getSeconds().toString().padStart(2, "0");
-      const sampleRtt = currentRtt;
+      if (currentRtt === null) {
+        setPingHistory([]);
+        return;
+      }
 
       setPingHistory((prev) => {
         const next = [
           ...prev.slice(-14),
-          { timeStr: `${minutes}:${seconds}`, rtt: sampleRtt },
+          { timeStr: `${minutes}:${seconds}`, rtt: currentRtt },
         ];
         return next;
       });
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [isOpen, currentRtt]);
+  }, [isOpen, currentRtt, channel?.id, userId]);
 
   // 点击外部和按 Esc 自动关闭
   useEffect(() => {
@@ -217,24 +237,31 @@ export const VoiceConnectionStatusPopover: React.FC<
       ? pingHistory[pingHistory.length - 1].rtt
       : currentRtt;
   const packetLossPercent =
-    localStats?.packetLoss !== undefined
-      ? (localStats.packetLoss * 100).toFixed(1)
-      : "0.0";
+    statsAreFresh && typeof localStats?.packetLoss === "number"
+      ? localStats.packetLoss.toFixed(1)
+      : null;
 
-  // 服务器节点标识
-  const serverNodeId =
-    livekitService.currentRoomName ||
-    (channel?.id ? `c-sjc10-${channel.id.slice(0, 8)}` : "c-sjc10-0807f0a4");
+  const selectedPath = VOICE_ENGINE === "cloudflare_realtime"
+    ? cloudflareRealtimeService.selectedCandidatePath
+    : null;
+  const connectionPath = VOICE_ENGINE === "cloudflare_realtime"
+    ? selectedPath
+      ? t(selectedPath.candidateType === "relay"
+        ? "voice:connectionPopover.pathTurn"
+        : "voice:connectionPopover.pathSfu", { protocol: selectedPath.protocol })
+      : t("voice:connectionPopover.noData")
+    : livekitService.currentRoomName || t("voice:connectionPopover.noData");
 
   // 复制诊断日志
   const handleCopyDebug = () => {
     const report = [
       `[Tescord WebRTC Diagnostic Report]`,
       `Timestamp: ${new Date().toISOString()}`,
-      `Server Node: ${serverNodeId}`,
-      `Average Ping: ${avgRtt}ms`,
-      `Last Ping: ${lastRtt}ms`,
-      `Packet Loss: ${packetLossPercent}%`,
+      `Selected Path: ${connectionPath}`,
+      `RTT Source: ${rttSource}`,
+      `Average RTT: ${avgRtt === null ? "N/A" : `${avgRtt}ms`}`,
+      `Last RTT: ${lastRtt === null ? "N/A" : `${lastRtt}ms`}`,
+      `Packet Loss: ${packetLossPercent === null ? "N/A" : `${packetLossPercent}%`}`,
       `Voice Engine: ${VOICE_ENGINE}`,
       `Mesh Active: ${voiceMeshManager.getIsMeshActive()}`,
       `Fallback SFU: ${voiceMeshManager.getIsFallbackToSFU()}`,
@@ -246,7 +273,11 @@ export const VoiceConnectionStatusPopover: React.FC<
     });
   };
 
-  const msUnit = t("voice:connectionPopover.msUnit") || "毫秒";
+  const msUnit = t("voice:connectionPopover.msUnit");
+  const noData = t("voice:connectionPopover.noData");
+  const e2eeActive =
+    VOICE_ENGINE === "cloudflare_realtime" &&
+    cloudflareRealtimeService.isE2EEActive;
 
   return (
     <div
@@ -271,34 +302,39 @@ export const VoiceConnectionStatusPopover: React.FC<
         {/* 服务器标识与核心指标 */}
         <div className="space-y-1.5 pt-0.5">
           <div className="text-sm font-bold text-white tracking-tight break-all">
-            {serverNodeId}
+            {connectionPath}
           </div>
 
           <div className="text-xs text-discord-textMuted space-y-0.5 leading-snug">
             <div className="flex items-center space-x-1">
               <span>{t("voice:connectionPopover.avgPing")} :</span>
               <strong className="text-white font-bold">
-                {avgRtt} {msUnit}
+                {avgRtt === null ? noData : `${avgRtt} ${msUnit}`}
               </strong>
             </div>
             <div className="flex items-center space-x-1">
               <span>{t("voice:connectionPopover.lastPing")} :</span>
               <strong className="text-white font-bold">
-                {lastRtt} {msUnit}
+                {lastRtt === null ? noData : `${lastRtt} ${msUnit}`}
               </strong>
             </div>
             <div className="flex items-center space-x-1">
-              <span>{t("voice:connectionPopover.packetLoss")} :</span>
+              <span>{t(VOICE_ENGINE === "cloudflare_realtime" ? "voice:connectionPopover.uploadPacketLoss" : "voice:connectionPopover.packetLoss")} :</span>
               <strong className="text-white font-bold">
-                {packetLossPercent}%
+                {packetLossPercent === null ? noData : `${packetLossPercent}%`}
               </strong>
             </div>
+            <div>{rttSource}</div>
           </div>
         </div>
 
         {/* 说明文案 */}
         <p className="text-[11px] text-discord-textMuted leading-relaxed">
-          {t("voice:connectionPopover.statusWarning")}
+          {currentRtt === null && packetLossPercent === null
+            ? noData
+            : (currentRtt ?? 0) >= 250 || Number(packetLossPercent ?? 0) > 10
+              ? t("voice:connectionPopover.statusWarning")
+              : t("voice:connectionPopover.statusGood")}
         </p>
 
         {/* 经典双按钮：除错 / 更多数据 */}
@@ -313,7 +349,7 @@ export const VoiceConnectionStatusPopover: React.FC<
               <>
                 <Check className="w-3.5 h-3.5 text-discord-green" />
                 <span className="text-discord-green">
-                  {t("common:copied", "已复制")}
+                  {t("common:copied")}
                 </span>
               </>
             ) : (
@@ -340,9 +376,9 @@ export const VoiceConnectionStatusPopover: React.FC<
 
         {/* 底部绿色端到端加密条目 */}
         <div className="pt-0.5">
-          <div className="flex items-center space-x-2 bg-[#23a55a]/15 text-[#23a55a] border border-[#23a55a]/30 rounded-lg px-2.5 py-1.5 text-xs font-semibold select-none">
+          <div className={`flex items-center space-x-2 rounded-lg px-2.5 py-1.5 text-xs font-semibold select-none ${e2eeActive ? "bg-[#23a55a]/15 text-[#23a55a] border border-[#23a55a]/30" : "bg-white/5 text-discord-textMuted border border-white/10"}`}>
             <Lock className="w-3.5 h-3.5 flex-shrink-0" />
-            <span>{t("voice:connectionPopover.endToEndEncrypted")}</span>
+            <span>{t(e2eeActive ? "voice:connectionPopover.endToEndEncrypted" : "voice:connectionPopover.encryptionUnverified")}</span>
           </div>
         </div>
       </div>

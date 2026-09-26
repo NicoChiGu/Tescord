@@ -169,7 +169,7 @@ test.describe("五大核心优化功能端到端综合验收测试 (Five Enhance
 
     // 若当前有任何未读 Badge，验证其必定包含白字以及 #f23f43 红底
     const badges = page.locator(
-      '[data-testid$="-badge"], [data-testid="dm-unread-badge"]',
+      '[data-testid^="guild-mention-badge-"], [data-testid="dm-unread-badge"]',
     );
     const count = await badges.count();
     for (let i = 0; i < count; i++) {

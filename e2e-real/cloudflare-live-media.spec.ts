@@ -46,6 +46,59 @@ async function mediaSnapshot(page: Page) {
   });
 }
 
+async function sampleDisplayedVideoLatency(page: Page, startedAt: number) {
+  return page.evaluate(async (watchStartedAt) => {
+    const ages: number[] = [];
+    const uniqueFrames = new Set<number>();
+    let firstFrameMs: number | null = null;
+    let lastFrameAt = Date.now();
+    let longestGapMs = 0;
+    const canvas = document.createElement("canvas");
+    canvas.width = 640;
+    canvas.height = 100;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
+    const deadline = Date.now() + 12_000;
+    while (Date.now() < deadline && ages.length < 30) {
+      for (const video of document.querySelectorAll("video")) {
+        if (video.readyState < 2 || video.videoWidth < 640) continue;
+        ctx.drawImage(video, 0, 0, 640, 100, 0, 0, 640, 100);
+        const sample = (x: number) =>
+          ctx.getImageData(x, 40, 1, 1).data[0] > 128;
+        if (
+          !sample(560) ||
+          sample(580) ||
+          !sample(600) ||
+          sample(620)
+        )
+          continue;
+        let encoded = 0;
+        for (let bit = 0; bit < 24; bit++)
+          if (sample(30 + bit * 20)) encoded |= 1 << bit;
+        if (uniqueFrames.has(encoded)) continue;
+        uniqueFrames.add(encoded);
+        const now = Date.now();
+        const age = ((now & 0xffffff) - encoded + 0x1000000) % 0x1000000;
+        if (age > 10_000) continue;
+        if (firstFrameMs === null) firstFrameMs = now - watchStartedAt;
+        else longestGapMs = Math.max(longestGapMs, now - lastFrameAt);
+        lastFrameAt = now;
+        ages.push(age);
+        break;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 75));
+    }
+    ages.sort((a, b) => a - b);
+    return {
+      firstFrameMs,
+      samples: ages.length,
+      medianMs: ages.length ? ages[Math.floor(ages.length / 2)] : null,
+      p95Ms: ages.length ? ages[Math.ceil(ages.length * 0.95) - 1] : null,
+      longestGapMs,
+      clock: "same-host Date.now sender and receiver",
+    };
+  }, startedAt);
+}
+
 test("three authorized browsers exchange Cloudflare SFU audio, camera and screen tracks", async ({
   browser,
   request,
@@ -55,6 +108,7 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   const forceRelay = process.env.TESCORD_FORCE_RELAY === "1";
   const testNetworkRecovery = process.env.TESCORD_TEST_NETWORK_RECOVERY === "1";
   const testP2PFallback = process.env.TESCORD_TEST_P2P_FALLBACK === "1";
+  const measureVideoLatency = process.env.TESCORD_MEASURE_VIDEO_LATENCY === "1";
   if (testP2PFallback) test.setTimeout(180_000);
   if (process.env.TESCORD_TEST_SERVER_RESTART === "1") test.setTimeout(240_000);
   if (testNetworkRecovery) test.setTimeout(240_000);
@@ -82,7 +136,7 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     throw new Error(
       "TESCORD_ACCEPTANCE_MARKER must be ten lowercase hex characters",
     );
-  const targetResources: Record<string, string> = onTarget
+  const targetResources: Record<string, string | string[]> = onTarget
     ? { marker, adminUserId: adminSession.user.id }
     : {};
   const saveTargetResources = async () => {
@@ -139,6 +193,12 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     guildId = (await guild.json()).id as string;
     targetResources.guildId = guildId;
     await saveTargetResources();
+    const channelsResponse = await request.get(`/api/guilds/${guildId}/channels`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    });
+    expect(channelsResponse.ok()).toBeTruthy();
+    targetResources.channelIds = ((await channelsResponse.json()) as Array<{ id: string }>).map((channel) => channel.id);
+    await saveTargetResources();
   } else {
     const aliceLogin = await request.post("/api/auth/login", {
       data: {
@@ -164,6 +224,13 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     });
     expect(invite.ok()).toBeTruthy();
     const code = (await invite.json()).code as string;
+    if (onTarget) {
+      targetResources.guildInviteCodes = [
+        ...((targetResources.guildInviteCodes as string[] | undefined) || []),
+        code,
+      ];
+      await saveTargetResources();
+    }
     const joined = await request.post(`/api/invites/${code}/join`, {
       headers: { Authorization: `Bearer ${token}` },
     });
@@ -184,7 +251,7 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
       permissions: ["microphone", "camera"],
     });
     await context.addInitScript(
-      ({ accessToken, forceRelay, blockP2P }) => {
+      ({ accessToken, forceRelay, blockP2P, measureVideoLatency }) => {
         localStorage.setItem("tescord_access_token", accessToken);
         const nativeEnumerate = navigator.mediaDevices.enumerateDevices.bind(
           navigator.mediaDevices,
@@ -250,8 +317,43 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
         let blockNextOffer = blockP2P;
         Object.defineProperty(navigator.mediaDevices, "getDisplayMedia", {
           configurable: true,
-          value: () =>
-            navigator.mediaDevices.getUserMedia({ video: true, audio: true }),
+          value: async () => {
+            if (!measureVideoLatency)
+              return navigator.mediaDevices.getUserMedia({
+                video: true,
+                audio: true,
+              });
+            const canvas = document.createElement("canvas");
+            canvas.width = 640;
+            canvas.height = 360;
+            const ctx = canvas.getContext("2d")!;
+            const paint = () => {
+              const encoded = Date.now() & 0xffffff;
+              ctx.fillStyle = "#555";
+              ctx.fillRect(0, 0, 640, 360);
+              for (let bit = 0; bit < 24; bit++) {
+                ctx.fillStyle = (encoded >>> bit) & 1 ? "#fff" : "#000";
+                ctx.fillRect(20 + bit * 20, 0, 20, 100);
+              }
+              for (let bit = 0; bit < 4; bit++) {
+                ctx.fillStyle = bit % 2 ? "#000" : "#fff";
+                ctx.fillRect(550 + bit * 20, 0, 20, 100);
+              }
+            };
+            paint();
+            const timer = setInterval(paint, 33);
+            const video = canvas.captureStream(30);
+            video.getVideoTracks()[0].addEventListener(
+              "ended",
+              () => clearInterval(timer),
+              { once: true },
+            );
+            const audio = await nativeGetUserMedia({ audio: true });
+            return new MediaStream([
+              ...video.getVideoTracks(),
+              ...audio.getAudioTracks(),
+            ]);
+          },
         });
         window.RTCPeerConnection = class extends NativePC {
           constructor(
@@ -275,6 +377,7 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
         accessToken: token,
         forceRelay,
         blockP2P: testP2PFallback && index === 1,
+        measureVideoLatency,
       },
     );
     const page = await context.newPage();
@@ -578,11 +681,21 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   const watchButtons = [pages[1], pages[2]].map((page) =>
     page.locator('[data-testid^="stream-watch-toggle-"]').first(),
   );
-  for (const watchButton of watchButtons) {
+  const watchStartedAt = Date.now();
+  let latencyPromise: ReturnType<typeof sampleDisplayedVideoLatency> | null = null;
+  for (const [index, watchButton] of watchButtons.entries()) {
     await expect(watchButton).toBeVisible({ timeout: 20_000 });
     await expect(watchButton).toHaveText("播放直播");
     await watchButton.click();
+    if (index === 0 && measureVideoLatency)
+      latencyPromise = sampleDisplayedVideoLatency(pages[1], watchStartedAt);
     await expect(watchButton).toHaveText("停止观看", { timeout: 20_000 });
+  }
+  const videoLatency = latencyPromise ? await latencyPromise : null;
+  if (videoLatency) {
+    expect(videoLatency.samples).toBeGreaterThanOrEqual(15);
+    expect(videoLatency.firstFrameMs).not.toBeNull();
+    expect(videoLatency.p95Ms).not.toBeNull();
   }
   await expect(
     pages[0].locator('[data-testid^="stream-viewer-count-"]').first(),
@@ -749,6 +862,7 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
       receiver: switchedVideoAfter,
     },
     screenReceiver,
+    videoLatency,
     networkReceiver,
     restartReceiver,
   };

@@ -809,6 +809,7 @@ export interface PresenceUpdateEvent {
 export interface LiveKitTokenRequest {
   roomName: string;
   identity: string;
+  gatewaySessionId?: string;
   name?: string;
   isPublisher?: boolean;
   bitrate?: number; // 麦克风推流比特率 (bps, e.g. 16000 - 128000)
@@ -1117,7 +1118,7 @@ export interface CameraDeviceInfo {
 export interface NetworkStats {
   identity: string; // 用户唯一标识 / userId
   rtt?: number; // 往返延迟 Round-Trip Time (ms)，未采集时省略
-  packetLoss?: number; // 丢包率百分比 (0% - 100%)，未采集时省略
+  packetLoss?: number; // 丢包率百分比 (0% - 100%)；本机为上行 RTCP 反馈，远端为下行接收统计
   jitter?: number; // 网络抖动 Jitter (ms)，未采集时省略
   bitrate?: number; // 实际吞吐码率 (kbps)，未采集时省略
   codec?: string; // 实际音频编码 (如 'Opus')，未采集时省略

@@ -30,6 +30,7 @@ import type {
   CfCallsCloseTracksRequest,
   CfCallsUnsubscribeRequest,
   CfStreamWatchRequest,
+  LiveKitTokenRequest,
 } from "@tescord/types";
 
 import {
@@ -2834,9 +2835,9 @@ server.post("/api/guilds/:guildId/channels", async (request, reply) => {
     voiceMode !== "sfu" &&
     voiceMode !== "p2p_mesh"
   ) {
-    return reply
-      .status(400)
-      .send({ error: "voiceMode 必须为 'sfu' 或 'p2p_mesh'" });
+    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "Invalid voiceMode", {
+      field: "voiceMode",
+    });
   }
 
   if (
@@ -2845,9 +2846,9 @@ server.post("/api/guilds/:guildId/channels", async (request, reply) => {
     streamMode !== "p2p_direct" &&
     streamMode !== "p2p_relay"
   ) {
-    return reply
-      .status(400)
-      .send({ error: "streamMode 必须为 'sfu', 'p2p_direct' 或 'p2p_relay'" });
+    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "Invalid streamMode", {
+      field: "streamMode",
+    });
   }
 
   const maxPosChannel = await prisma.channel.findFirst({
@@ -2982,9 +2983,9 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
     voiceMode !== "sfu" &&
     voiceMode !== "p2p_mesh"
   ) {
-    return reply
-      .status(400)
-      .send({ error: "voiceMode 必须为 'sfu' 或 'p2p_mesh'" });
+    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "Invalid voiceMode", {
+      field: "voiceMode",
+    });
   }
 
   if (
@@ -2993,9 +2994,9 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
     streamMode !== "p2p_direct" &&
     streamMode !== "p2p_relay"
   ) {
-    return reply
-      .status(400)
-      .send({ error: "streamMode 必须为 'sfu', 'p2p_direct' 或 'p2p_relay'" });
+    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "Invalid streamMode", {
+      field: "streamMode",
+    });
   }
 
   const updatedChannel = await prisma.channel.update({
@@ -5191,36 +5192,53 @@ server.get("/api/network/ice-servers", async (request, reply) => {
 // ==========================================
 
 server.post("/api/livekit/token", async (request, reply) => {
-  const body = request.body as any;
-  if (!body || !body.roomName || !body.identity) {
-    return reply
-      .status(400)
-      .send({ error: "roomName and identity are required" });
+  const body = request.body as Partial<LiveKitTokenRequest> | null;
+  if (
+    !body ||
+    typeof body.roomName !== "string" ||
+    !body.roomName ||
+    typeof body.identity !== "string" ||
+    !body.identity ||
+    (body.gatewaySessionId !== undefined &&
+      (typeof body.gatewaySessionId !== "string" || body.gatewaySessionId.length > 128)) ||
+    (body.bitrate !== undefined &&
+      (typeof body.bitrate !== "number" || !Number.isFinite(body.bitrate) || body.bitrate < 6000 || body.bitrate > 512000))
+  ) {
+    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "Invalid media token request");
   }
 
   const reqUserId = await getUserIdFromRequest(request);
-  if (!reqUserId || reqUserId !== String(body.identity)) {
-    return reply.status(403).send({ error: "无权为其他用户签发语音令牌" });
+  if (!reqUserId || reqUserId !== body.identity) {
+    return sendApiError(reply, 403, ErrorCode.FORBIDDEN, "Media token denied");
+  }
+  const gatewaySessionId =
+    body.gatewaySessionId || undefined;
+  if (
+    gatewaySessionId &&
+    !gatewayManager.hasIdentifiedSession(reqUserId, gatewaySessionId)
+  ) {
+    return sendApiError(reply, 403, ErrorCode.FORBIDDEN, "Invalid voice session");
   }
   const channel = await prisma.channel.findUnique({
-    where: { id: String(body.roomName) },
+    where: { id: body.roomName },
   });
-  if (!channel || channel.type === "DM" || channel.type === "GROUP_DM") {
-    return reply.status(403).send({ error: "无权为该房间签发媒体令牌" });
+  if (!channel || channel.type !== "VOICE") {
+    return sendApiError(reply, 403, ErrorCode.FORBIDDEN, "Media room denied");
   }
   const canConnect = await permissionService.hasChannelPermission(
     reqUserId,
     channel.id,
     PermissionFlags.CONNECT,
   );
-  if (!canConnect) return reply.status(403).send({ error: "缺少语音连接权限" });
+  if (!canConnect) return sendApiError(reply, 403, ErrorCode.FORBIDDEN, "Voice permission denied");
 
   return await generateLiveKitToken({
-    roomName: String(body.roomName),
-    identity: String(body.identity),
-    name: body.name ? String(body.name) : undefined,
+    roomName: body.roomName,
+    identity: body.identity,
+    gatewaySessionId,
+    name: typeof body.name === "string" ? body.name.slice(0, 128) : undefined,
     isPublisher: body.isPublisher !== false,
-    bitrate: body.bitrate ? Number(body.bitrate) : undefined,
+    bitrate: body.bitrate,
   });
 });
 
@@ -5242,8 +5260,16 @@ server.post("/api/livekit/webhook", async (request, reply) => {
     if (event.event === "participant_left" || event.event === "room_finished") {
       const identity = event.participant?.identity;
       const roomName = event.room?.name;
+      let gatewaySessionId: string | undefined;
+      try {
+        const metadata = JSON.parse(event.participant?.metadata || "{}");
+        if (typeof metadata?.gatewaySessionId === "string")
+          gatewaySessionId = metadata.gatewaySessionId;
+      } catch {
+        // Legacy participants without structured metadata use the time guard.
+      }
       if (identity) {
-        gatewayManager.handleLiveKitParticipantLeft(identity, roomName);
+        gatewayManager.handleLiveKitParticipantLeft(identity, roomName, gatewaySessionId);
       }
     }
 

@@ -1191,6 +1191,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
             <button
               type="button"
               data-testid="voice-connection-status-btn"
+              aria-expanded={isConnectionPopoverOpen}
               onClick={
                 voiceConnectionStatus === "connecting"
                   ? undefined
