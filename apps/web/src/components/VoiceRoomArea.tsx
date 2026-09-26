@@ -1618,7 +1618,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                     cameraTrack={media.cameraTrack}
                     screenShareTrack={media.screenShareTrack}
                     screenShareInfo={media.screenShareInfo}
-                    streamAvailable={p.streaming || Boolean(media.screenShareTrack)}
+                    streamAvailable={p.streaming || Boolean(media.screenShareTrack) || (VOICE_ENGINE === "cloudflare_realtime" && Boolean(getScreenPublication(p.userId)))}
                     watching={isWatchingStream(p.userId, p.streamMode)}
                     viewerCount={getStreamViewerCount(p.userId)}
                     watchPending={watchPending.has(p.userId)}
@@ -1690,7 +1690,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                     cameraTrack={media.cameraTrack}
                     screenShareTrack={media.screenShareTrack}
                     screenShareInfo={media.screenShareInfo}
-                    streamAvailable={p.streaming || Boolean(media.screenShareTrack)}
+                    streamAvailable={p.streaming || Boolean(media.screenShareTrack) || (VOICE_ENGINE === "cloudflare_realtime" && Boolean(getScreenPublication(p.userId)))}
                     watching={isWatchingStream(p.userId, p.streamMode)}
                     viewerCount={getStreamViewerCount(p.userId)}
                     watchPending={watchPending.has(p.userId)}

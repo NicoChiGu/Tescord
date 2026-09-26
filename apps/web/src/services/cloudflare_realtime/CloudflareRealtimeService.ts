@@ -742,8 +742,8 @@ export class CloudflareRealtimeService {
         });
         this.publishedTracks.set(source, { sender, stream, mid, trackName });
         this.emitPublications();
-        if (source === "screen") void this.refreshViewerCount(sessionId);
         if (this.connectionStatus === "connected") await this.announceTracks();
+        if (source === "screen") void this.refreshViewerCount(sessionId);
         if (track.kind === "video")
           this.emitVideo(
             {
