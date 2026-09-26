@@ -81,6 +81,8 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
 
   const pages: Page[] = [];
   const diagnostics: Array<Array<{ event: string; count?: number; status?: number }>> = [[], [], []];
+  const activeConsoleErrors: string[] = [];
+  let tearingDown = false;
   for (const token of [adminToken, aliceToken, bobToken]) {
     const index = pages.length;
     const context = await browser.newContext({ ignoreHTTPSErrors: true, locale: "zh-CN", permissions: ["microphone", "camera"] });
@@ -146,6 +148,9 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     }));
     page.on("response", async response => {
       const pathname = new URL(response.url()).pathname;
+      if (response.status() >= 400 && pathname.includes("/api/cloudflare-realtime/")) {
+        diagnostics[index].push({ event: pathname, status: response.status() });
+      }
       if (pathname.includes("/api/cloudflare-realtime/session/new")) {
         const body = await response.json().catch(() => ({}));
         diagnostics[index].push({ event: "session_new", status: response.status(), count: body.tracks?.length || 0 });
@@ -153,7 +158,10 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
         diagnostics[index].push({ event: pathname.endsWith("ready") ? "ready" : "subscribe", status: response.status() });
       }
     });
-    page.on("console", message => { if (message.type() === "error" || message.type() === "warning") console.log(`browser ${index} ${message.type()}: ${message.text()}`); });
+    page.on("console", message => {
+      if (message.type() === "error" && !tearingDown) activeConsoleErrors.push(`browser ${index}: ${message.text()}`);
+      if (message.type() === "error" || message.type() === "warning") console.log(`browser ${index} ${message.type()}: ${message.text()}`);
+    });
     page.on("pageerror", error => console.log(`browser ${index} pageerror: ${error.message}`));
     pages.push(page);
     await page.goto("/");
@@ -170,7 +178,8 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     await voice.click();
     await page.getByRole("button", { name: "加入语音通话" }).click();
     try {
-      await expect(page.getByRole("button", { name: "断开连接" }).first()).toBeVisible({ timeout: testP2PFallback ? 70_000 : 25_000 });
+      // ICE may use the client's 30-second first-attempt timeout before its single retry.
+      await expect(page.getByRole("button", { name: "断开连接" }).first()).toBeVisible({ timeout: 70_000 });
     } catch (error) {
       console.log(JSON.stringify({ stage: "join", snapshots: await Promise.all(pages.map(mediaSnapshot)), diagnostics }));
       throw error;
@@ -199,11 +208,12 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   }
   const before = await Promise.all(pages.map(mediaSnapshot));
   await pages[0].waitForTimeout(1200);
-  const after = await Promise.all(pages.map(mediaSnapshot));
+  let after = await Promise.all(pages.map(mediaSnapshot));
   if (forceRelay) await expect.poll(async () => {
     const rows = await Promise.all(pages.map(mediaSnapshot));
     return rows.every(peers => peers.some(peer => peer.state === "connected" && peer.localType === "relay"));
   }, { timeout: 10_000 }).toBe(true);
+  if (forceRelay) after = await Promise.all(pages.map(mediaSnapshot));
   for (let i = 0; i < pages.length; i++) {
     const inbound = (rows: Awaited<ReturnType<typeof mediaSnapshot>>) => rows.flatMap(row => row.rtp).filter(rtp => rtp.direction === "inbound-rtp" && rtp.kind === "audio").reduce((sum, rtp) => sum + rtp.bytes, 0);
     const outbound = (rows: Awaited<ReturnType<typeof mediaSnapshot>>) => rows.flatMap(row => row.rtp).filter(rtp => rtp.direction === "outbound-rtp" && rtp.kind === "audio").reduce((sum, rtp) => sum + rtp.bytes, 0);
@@ -310,6 +320,8 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     await writeFile(resolve(directory, "media-stats.json"), JSON.stringify(evidence, null, 2));
     await pages[1].screenshot({ path: resolve(directory, "media-receiver.png"), fullPage: true });
   }
+  expect(activeConsoleErrors, JSON.stringify(diagnostics)).toEqual([]);
+  tearingDown = true;
   for (const page of pages) {
     const shareModal = page.locator(".fixed.inset-0.z-50").filter({ has: page.getByRole("heading", { name: /屏幕与应用直播分享/ }) });
     if (await shareModal.isVisible().catch(() => false)) await shareModal.getByRole("button", { name: "关闭" }).click();
