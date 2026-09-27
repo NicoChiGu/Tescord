@@ -195,8 +195,8 @@ E2EE_Automated_Long_Test_${Date.now()}
     await expect(cropModalTitle).toBeVisible({ timeout: 5000 });
 
     // 7. 定位取景框容器并在其上模拟实体滚轮缩放
-    const cropContainer = page.locator(".cursor-grab").first();
-    await expect(cropContainer).toBeVisible();
+    const cropContainer = page.getByTestId("image-crop-container");
+    await expect(cropContainer).toBeVisible({ timeout: 5000 });
 
     await cropContainer.hover();
     await page.mouse.wheel(0, -100); // 向上滚轮放大
