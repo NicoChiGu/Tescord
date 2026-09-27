@@ -1976,33 +1976,128 @@ export class CloudflareRealtimeService {
 
   private async waitForIceGathering(
     pc: RTCPeerConnection,
-    timeoutMs = 15_000,
+    options?: {
+      timeoutMs?: number;
+      debounceMs?: number;
+      maxGatherTimeMs?: number;
+    },
   ): Promise<void> {
+    const timeoutMs = options?.timeoutMs ?? 3500;
+    const debounceMs = options?.debounceMs ?? 500;
+    const maxGatherTimeMs = options?.maxGatherTimeMs ?? 1200;
+
+    let gatheredCount = 0;
     const hasCandidate = () =>
-      pc.localDescription?.sdp?.includes("a=candidate:") === true;
+      pc.localDescription?.sdp?.includes("a=candidate:") === true ||
+      gatheredCount > 0;
+
+    // 1. 若进入前已处于 complete 状态且已包含有效候选，直接 0ms 返回
+    if (pc.iceGatheringState === "complete" && hasCandidate()) {
+      return;
+    }
+
     await new Promise<void>((resolve, reject) => {
+      let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+      let maxTimer: ReturnType<typeof setTimeout> | null = null;
+      let hardTimer: ReturnType<typeof setTimeout> | null = null;
+      let finished = false;
+
       const cleanup = () => {
-        clearTimeout(timer);
-        pc.removeEventListener("icecandidate", check);
-        pc.removeEventListener("icegatheringstatechange", check);
+        finished = true;
+        if (debounceTimer) {
+          clearTimeout(debounceTimer);
+          debounceTimer = null;
+        }
+        if (maxTimer) {
+          clearTimeout(maxTimer);
+          maxTimer = null;
+        }
+        if (hardTimer) {
+          clearTimeout(hardTimer);
+          hardTimer = null;
+        }
+        pc.removeEventListener("icecandidate", onCandidate);
+        pc.removeEventListener("icegatheringstatechange", onStateChange);
       };
-      const check = () => {
-        if (pc.iceGatheringState === "complete") {
-          cleanup();
-          if (hasCandidate()) resolve();
-          else reject(new Error("No ICE candidates gathered"));
+
+      const finish = (isSuccess: boolean, reason?: string) => {
+        if (finished) return;
+        cleanup();
+        if (isSuccess && hasCandidate()) {
+          resolve();
+        } else if (!hasCandidate()) {
+          reject(new Error(reason || "No ICE candidates gathered"));
+        } else {
+          resolve();
         }
       };
-      const timer = setTimeout(() => {
-        cleanup();
-        if (hasCandidate()) resolve();
-        else reject(new Error("ICE candidate gathering timed out"));
+
+      const onCandidate = (e: RTCPeerConnectionIceEvent) => {
+        if (!e.candidate) {
+          // 浏览器底层所有候选收集完成标志
+          finish(true);
+          return;
+        }
+
+        gatheredCount++;
+        const candidateStr = e.candidate.candidate || "";
+        // 捕获到公网反射 (srflx) 或中继 (relay) 候选时，启动短防抖打捞，不必死等慢速的 TLS/TCP TURN 协议
+        const isPublicOrRelay =
+          candidateStr.includes("typ srflx") ||
+          candidateStr.includes("typ relay");
+
+        if (isPublicOrRelay && !debounceTimer) {
+          debounceTimer = setTimeout(() => {
+            finish(true);
+          }, debounceMs);
+        }
+      };
+
+      const onStateChange = () => {
+        if (pc.iceGatheringState === "complete") {
+          finish(true);
+        }
+      };
+
+      // 达到最大打捞时间，若已有候选立即出发，杜绝在慢速协议上浪费时间
+      maxTimer = setTimeout(() => {
+        if (hasCandidate()) {
+          finish(true);
+        }
+      }, maxGatherTimeMs);
+
+      // 最终硬超时兜底保护
+      hardTimer = setTimeout(() => {
+        finish(hasCandidate(), "ICE candidate gathering timed out");
       }, timeoutMs);
-      pc.addEventListener("icecandidate", check);
-      pc.addEventListener("icegatheringstatechange", check);
-      check();
+
+      pc.addEventListener("icecandidate", onCandidate);
+      pc.addEventListener("icegatheringstatechange", onStateChange);
+
+      // 防御性立即检查一次状态
+      if (pc.iceGatheringState === "complete") {
+        finish(true);
+      }
     });
+  }
+
+  /**
+   * 诊断与测试专用：暴露 waitForIceGathering 以便执行基准时延与边界测试
+   */
+  public async testWaitForIceGathering(
+    pc: RTCPeerConnection,
+    options?: {
+      timeoutMs?: number;
+      debounceMs?: number;
+      maxGatherTimeMs?: number;
+    },
+  ): Promise<void> {
+    return this.waitForIceGathering(pc, options);
   }
 }
 
 export const cloudflareRealtimeService = new CloudflareRealtimeService();
+
+if (typeof window !== "undefined") {
+  (window as any).cloudflareRealtimeService = cloudflareRealtimeService;
+}
