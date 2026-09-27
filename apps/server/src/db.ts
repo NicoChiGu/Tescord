@@ -118,6 +118,18 @@ export async function seedInitialData(): Promise<void> {
 
       await prisma.channel.create({
         data: {
+          id: "chn_default_voice_02",
+          guildId: guild.id,
+          parentId: voiceCat.id,
+          name: "lounge",
+          type: "VOICE",
+          position: 2,
+          bitrate: 64000,
+        },
+      });
+
+      await prisma.channel.create({
+        data: {
           id: "chn_default_text_02",
           guildId: guild.id,
           parentId: textCat.id,

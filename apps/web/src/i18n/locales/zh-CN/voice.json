@@ -151,5 +151,11 @@
     "statsTooltip": "往返时间：{{rtt}} | 丢包：{{loss}} | 抖动：{{jitter}}",
     "streamTrackNotReady": "主播的视频轨道尚未准备好，请稍后重试",
     "streamJoinFailed": "直播连接失败"
+  },
+  "audioInterruption": {
+    "bannerTitle": "音频播放已被系统打断",
+    "bannerDesc": "由于系统休眠、切到后台或浏览器播放策略限制，通话声音已暂停",
+    "resumeButton": "点击恢复音频",
+    "resuming": "正在恢复音频..."
   }
 }

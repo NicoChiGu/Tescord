@@ -21,6 +21,7 @@ import {
 } from "@tescord/types";
 import { TitleBar } from "./components/TitleBar.js";
 import { GatewayConnectionBanner } from "./components/GatewayConnectionBanner.js";
+import { AudioInterruptedBanner } from "./components/AudioInterruptedBanner.js";
 import { Sidebar } from "./components/Sidebar.js";
 import {
   ChannelSidebar,
@@ -214,6 +215,8 @@ export const App: React.FC = () => {
 
   // 内部引用，保证长存事件与异步回调中始终读取最新状态
   const activeVoiceChannelIdRef = useRef<string | null>(null);
+  const voiceOperationEpochRef = useRef(0);
+  const isVoiceSwitchingRef = useRef(false);
   const accountEpochRef = useRef(0);
   const isAccountTransitionRef = useRef(false);
   const accountCleanupPromiseRef = useRef<Promise<void>>(Promise.resolve());
@@ -1470,26 +1473,52 @@ export const App: React.FC = () => {
             Boolean(vs.sessionId) &&
             vs.sessionId !== gatewayClient.getSessionId();
           if (!vs.channelId || isOtherSession) {
-            console.warn(
-              "[Voice] 收到本账号异地登录接管或离线信令，彻底清理本地 WebRTC 与音频硬件...",
-            );
-            sframeManager.disable();
-            audioEngine.stop();
-            void livekitService.leaveRoom();
-            setActiveVoiceChannelId(null);
-            setIsSpeaking(false);
-            setIsScreenSharing(false);
-            setIsVideoEnabled(false);
-            if (isOtherSession) {
-              const prevCh =
-                guildsRef.current
-                  .flatMap((g) => g.channels)
-                  .find((c) => c.id === activeVoiceChannelIdRef.current) ||
-                selectedChannelRef.current;
-              setVoiceTransferNotice({
-                targetPlatform: vs.platform || t("voice:otherDevice"),
-                previousChannel: prevCh || null,
-              });
+            // 防误杀逻辑：若不是异地接管，且处于切频过渡期或收到的离开信令是旧频道过渡信令，则安全忽略本地断开
+            const isSwitchingTransition =
+              !isOtherSession &&
+              (isVoiceSwitchingRef.current ||
+                (Boolean(vs.previousChannelId) &&
+                  Boolean(activeVoiceChannelIdRef.current) &&
+                  activeVoiceChannelIdRef.current !== vs.previousChannelId));
+
+            if (!isSwitchingTransition) {
+              console.warn(
+                "[Voice] 收到本账号异地登录接管或离线信令，彻底清理本地 WebRTC 与音频硬件...",
+              );
+              voiceOperationEpochRef.current++;
+              isVoiceSwitchingRef.current = false;
+              sframeManager.disable();
+              audioEngine.stop();
+              void livekitService.leaveRoom();
+              activeVoiceChannelIdRef.current = null;
+              setActiveVoiceChannelId(null);
+              setIsSpeaking(false);
+              setIsScreenSharing(false);
+              setIsVideoEnabled(false);
+              if (isOtherSession) {
+                const prevCh =
+                  guildsRef.current
+                    .flatMap((g) => g.channels)
+                    .find((c) => c.id === activeVoiceChannelIdRef.current) ||
+                  selectedChannelRef.current;
+                setVoiceTransferNotice({
+                  targetPlatform: vs.platform || t("voice:otherDevice"),
+                  previousChannel: prevCh || null,
+                });
+              }
+            } else {
+              console.log(
+                `[Voice] 收到频道切换过渡离开信令 (${vs.previousChannelId} -> ${activeVoiceChannelIdRef.current})，安全忽略本地清理`,
+              );
+            }
+          } else if (vs.channelId && !isOtherSession) {
+            // 本账号本设备确认进入新频道：若本地状态尚未对齐或处于切换中，进行权威对齐
+            if (activeVoiceChannelIdRef.current !== vs.channelId) {
+              console.log(
+                `[Voice] 收到网关确认自身进入新频道 ${vs.channelId}，对齐本地活跃频道状态`,
+              );
+              activeVoiceChannelIdRef.current = vs.channelId;
+              setActiveVoiceChannelId(vs.channelId);
             }
           }
         }
@@ -2877,18 +2906,40 @@ export const App: React.FC = () => {
       return;
     if (!(await gatewayClient.waitUntilReady(joiningUserId))) return;
     if (!isCurrentJoiningAccount()) return;
+
+    // 递增语音操作 Epoch 令牌，并标记切频进行中
+    const currentVoiceEpoch = ++voiceOperationEpochRef.current;
+    isVoiceSwitchingRef.current = true;
+    const isCurrentVoiceOp = () =>
+      voiceOperationEpochRef.current === currentVoiceEpoch &&
+      isCurrentJoiningAccount();
+
+    // 若当前已在该频道且处于 connected 状态，直接退出
+    if (
+      activeVoiceChannelIdRef.current === channel.id &&
+      voiceConnectionStatus === "connected"
+    ) {
+      isVoiceSwitchingRef.current = false;
+      return;
+    }
+
     setVoiceTransferNotice(null);
 
     // 若当前已在另一个语音频道，立即同步清理旧房间音频连接与 WebRTC 状态，杜绝 1 秒声音残留
-    if (activeVoiceChannelId && activeVoiceChannelId !== channel.id) {
+    if (
+      activeVoiceChannelIdRef.current &&
+      activeVoiceChannelIdRef.current !== channel.id
+    ) {
       await cloudflareRealtimeService.disconnect();
       await livekitService.leaveRoom(true);
       voiceMeshManager.stopAll();
       audioEngine.stop();
       setIsVideoEnabled(false);
       setIsScreenSharing(false);
+      if (!isCurrentVoiceOp()) return;
     }
 
+    activeVoiceChannelIdRef.current = channel.id;
     setActiveVoiceChannelId(channel.id);
     setSelectedChannel(channel);
     livekitService.setConnectionStatus("connecting");
@@ -2900,8 +2951,12 @@ export const App: React.FC = () => {
           "设备密钥尚未协商完成，已阻止未加密加入 E2EE 频道",
           "error",
         );
-        setActiveVoiceChannelId(null);
-        livekitService.setConnectionStatus("disconnected");
+        if (isCurrentVoiceOp()) {
+          activeVoiceChannelIdRef.current = null;
+          setActiveVoiceChannelId(null);
+          livekitService.setConnectionStatus("disconnected");
+          isVoiceSwitchingRef.current = false;
+        }
         return;
       }
     } else {
@@ -2909,9 +2964,8 @@ export const App: React.FC = () => {
     }
 
     await audioEngine.initMicrophone();
-    if (!isCurrentJoiningAccount()) {
+    if (!isCurrentVoiceOp()) {
       audioEngine.stop();
-      setActiveVoiceChannelId(null);
       return;
     }
     // A rebuilt capture graph must inherit the current mute before it is published.
@@ -2942,9 +2996,14 @@ export const App: React.FC = () => {
           streaming: isScreenSharing,
         },
       );
-      if (!voiceStateAccepted || !isCurrentJoiningAccount()) {
-        audioEngine.stop();
-        setActiveVoiceChannelId(null);
+      if (!voiceStateAccepted || !isCurrentVoiceOp()) {
+        if (isCurrentVoiceOp()) {
+          audioEngine.stop();
+          activeVoiceChannelIdRef.current = null;
+          setActiveVoiceChannelId(null);
+          livekitService.setConnectionStatus("disconnected");
+          isVoiceSwitchingRef.current = false;
+        }
         return;
       }
       const otherMembers = voiceStates
@@ -2962,8 +3021,10 @@ export const App: React.FC = () => {
           undefined,
           { allowFallbackToSFU: false },
         );
-        joinSuccess = true;
-        livekitService.setConnectionStatus("connected");
+        if (isCurrentVoiceOp()) {
+          joinSuccess = true;
+          livekitService.setConnectionStatus("connected");
+        }
       } catch (error) {
         console.warn("公会 Mesh P2P 启动异常:", error);
       }
@@ -2978,15 +3039,16 @@ export const App: React.FC = () => {
             audioStream: processedStream,
           },
         );
-        if (!isCurrentJoiningAccount()) {
+        if (!isCurrentVoiceOp()) {
           await cloudflareRealtimeService.disconnect();
           audioEngine.stop();
-          setActiveVoiceChannelId(null);
           return;
         }
         cloudflareRealtimeService.setMicrophoneMute(isMutedRef.current);
         joinSuccess = Boolean(cfSessionId);
-        if (joinSuccess) livekitService.setConnectionStatus("connected");
+        if (joinSuccess && isCurrentVoiceOp()) {
+          livekitService.setConnectionStatus("connected");
+        }
       } catch (cfErr) {
         console.error("Cloudflare Realtime 加入频道失败:", cfErr);
       }
@@ -3011,9 +3073,8 @@ export const App: React.FC = () => {
         });
         if (!res.ok) throw new Error("Failed to get guild media token");
         const data = await res.json();
-        if (!isCurrentJoiningAccount()) {
+        if (!isCurrentVoiceOp()) {
           audioEngine.stop();
-          setActiveVoiceChannelId(null);
           return;
         }
         joinSuccess = await livekitService.joinRoom(
@@ -3024,10 +3085,9 @@ export const App: React.FC = () => {
           bitrate,
           Boolean(channel.isE2EE),
         );
-        if (!isCurrentJoiningAccount()) {
+        if (!isCurrentVoiceOp()) {
           if (joinSuccess) await livekitService.leaveRoom();
           audioEngine.stop();
-          setActiveVoiceChannelId(null);
           return;
         }
       }
@@ -3038,8 +3098,17 @@ export const App: React.FC = () => {
 
     if (!joinSuccess) {
       console.warn("语音服务连接未成功，自动复位语音频道状态");
-      audioEngine.stop();
-      setActiveVoiceChannelId(null);
+      if (isCurrentVoiceOp()) {
+        audioEngine.stop();
+        activeVoiceChannelIdRef.current = null;
+        setActiveVoiceChannelId(null);
+        livekitService.setConnectionStatus("disconnected");
+        isVoiceSwitchingRef.current = false;
+      }
+      return;
+    }
+
+    if (!isCurrentVoiceOp()) {
       return;
     }
 
@@ -3058,19 +3127,33 @@ export const App: React.FC = () => {
         },
       );
       if (!voiceStateAccepted) {
-        await cloudflareRealtimeService.disconnect();
-        await livekitService.leaveRoom();
-        voiceMeshManager.stopAll();
-        audioEngine.stop();
-        setActiveVoiceChannelId(null);
+        if (isCurrentVoiceOp()) {
+          await cloudflareRealtimeService.disconnect();
+          await livekitService.leaveRoom();
+          voiceMeshManager.stopAll();
+          audioEngine.stop();
+          activeVoiceChannelIdRef.current = null;
+          setActiveVoiceChannelId(null);
+          isVoiceSwitchingRef.current = false;
+        }
+        return;
       }
+    }
+
+    if (isCurrentVoiceOp()) {
+      isVoiceSwitchingRef.current = false;
     }
   };
 
   // 取消正在进行的语音连接
   const handleCancelVoiceJoin = async () => {
-    const cancellingChannelId = activeVoiceChannelId;
+    voiceOperationEpochRef.current++;
+    isVoiceSwitchingRef.current = false;
+    const cancellingChannelId =
+      activeVoiceChannelIdRef.current || activeVoiceChannelId;
+    activeVoiceChannelIdRef.current = null;
     setActiveVoiceChannelId(null);
+    livekitService.setConnectionStatus("disconnected");
     audioEngine.stop();
     await cloudflareRealtimeService.disconnect();
     await livekitService.leaveRoom();
@@ -3091,9 +3174,13 @@ export const App: React.FC = () => {
 
   // 离开语音频道或结束 1v1 私信通话
   const handleLeaveVoiceChannel = async () => {
-    if (!activeVoiceChannelId) return;
+    voiceOperationEpochRef.current++;
+    isVoiceSwitchingRef.current = false;
+    if (!activeVoiceChannelId && !activeVoiceChannelIdRef.current) return;
 
-    const leavingChannelId = activeVoiceChannelId;
+    const leavingChannelId =
+      activeVoiceChannelIdRef.current || activeVoiceChannelId;
+    activeVoiceChannelIdRef.current = null;
 
     if (isVideoEnabled) {
       if (VOICE_ENGINE === "cloudflare_realtime")
@@ -4222,6 +4309,9 @@ export const App: React.FC = () => {
 
       {/* Discord 风格网关长连接状态指示条 */}
       <GatewayConnectionBanner />
+
+      {/* iOS / WebKit 音频中断恢复与生命周期唤醒横幅 */}
+      <AudioInterruptedBanner />
 
       {/* 全网系统置顶公告条 */}
       {systemBroadcast && (

@@ -39,6 +39,12 @@ import { bitrateCalculator } from "./stats/BitrateCalculator.js";
 
 export type { StreamDetailedStats };
 
+export interface AudioPlaybackStatus {
+  canPlay: boolean;
+  isInterrupted: boolean;
+  error?: string;
+}
+
 let cachedH265Supported: boolean | null = null;
 let cachedH265Reason: string | undefined = undefined;
 
@@ -260,6 +266,16 @@ export class LiveKitService {
   private masterCompressor: DynamicsCompressorNode | null = null;
   private masterGainNode: GainNode | null = null;
   private masterVolume: number = 100;
+
+  // 音频播放与系统中断状态管理 (支持 WebKit "interrupted" 状态捕获与生命周期唤醒)
+  private audioPlaybackStatus: AudioPlaybackStatus = {
+    canPlay: true,
+    isInterrupted: false,
+  };
+  private onAudioPlaybackStatusChangedCallbacks: Set<
+    (status: AudioPlaybackStatus) => void
+  > = new Set();
+  private isLifecycleListenersBound: boolean = false;
 
   // 用户音量记忆持久化缓存 (identity -> volumePercent)
   private userVolumeCache: Map<string, number> = new Map();
@@ -487,6 +503,10 @@ export class LiveKitService {
       const AudioContextClass =
         window.AudioContext || (window as any).webkitAudioContext;
       this.playbackAudioContext = new AudioContextClass({ sampleRate: 48000 });
+      this.playbackAudioContext.addEventListener(
+        "statechange",
+        this.handlePlaybackContextStateChange,
+      );
 
       // 构建广播级动态压限器 (DynamicsCompressorNode)
       // 保证当多名远端成员同时将音量调至 200% 时，混音总线平滑饱和而不发生极端数字硬削波 (Digital Hard Clipping)
@@ -604,7 +624,7 @@ export class LiveKitService {
       if (requireE2EE && !this.negotiatedE2EEKey) {
         throw new Error("E2EE key is required for this media room");
       }
-      this.leaveRoom();
+      await this.leaveRoom(true);
       this.currentAudioBitrate = bitrate;
       this.currentRoomName = roomName;
       this.setConnectionStatus("connecting");
@@ -623,6 +643,7 @@ export class LiveKitService {
         await new Promise((resolve) => setTimeout(resolve, 60));
         this.isConnected = true;
         this.setConnectionStatus("connected");
+        this.bindLifecycleListeners();
         this.startNetworkStatsPolling();
         this.notifyState(true);
         return true;
@@ -964,6 +985,7 @@ export class LiveKitService {
     this.room.on(RoomEvent.Connected, () => {
       this.isConnected = true;
       this.setConnectionStatus("connected");
+      this.bindLifecycleListeners();
       this.notifyState(true);
     });
 
@@ -974,10 +996,32 @@ export class LiveKitService {
     this.room.on(RoomEvent.Reconnected, () => {
       this.isConnected = true;
       this.setConnectionStatus("connected");
+      this.bindLifecycleListeners();
       this.notifyState(true);
+      this.attemptSilentRecovery();
     });
 
-    // 4.7 房间断开
+    // 4.7 音频播放能力 / Autoplay 与系统中断状态感知
+    this.room.on(RoomEvent.AudioPlaybackStatusChanged, (playStatus) => {
+      console.info("[LiveKit] AudioPlaybackStatusChanged event:", playStatus);
+      const canPlay = this.room?.canPlaybackAudio ?? true;
+      if (!canPlay) {
+        this.setAudioPlaybackStatus({ canPlay: false, isInterrupted: true });
+      } else {
+        const isRunning =
+          !this.playbackAudioContext ||
+          this.playbackAudioContext.state === "running";
+        if (isRunning) {
+          this.setAudioPlaybackStatus({
+            canPlay: true,
+            isInterrupted: false,
+            error: undefined,
+          });
+        }
+      }
+    });
+
+    // 4.8 房间断开
     this.room.on(RoomEvent.Disconnected, (reason?: any) => {
       this.cleanup();
       this.isConnected = false;
@@ -2414,9 +2458,11 @@ export class LiveKitService {
       }
     }
     this.isConnected = false;
-    this.currentRoomName = null;
-    this.setConnectionStatus("disconnected");
-    this.notifyState(false);
+    if (!isSwitching) {
+      this.currentRoomName = null;
+      this.setConnectionStatus("disconnected");
+      this.notifyState(false);
+    }
     if (isSwitching) {
       this.isSwitchingRoom = false;
     }
@@ -2480,17 +2526,221 @@ export class LiveKitService {
       this.masterCompressor = null;
     }
 
+    this.unbindLifecycleListeners();
+    this.setAudioPlaybackStatus({
+      canPlay: true,
+      isInterrupted: false,
+      error: undefined,
+    });
+
     if (
       this.playbackAudioContext &&
       this.playbackAudioContext.state !== "closed"
     ) {
       try {
+        this.playbackAudioContext.removeEventListener(
+          "statechange",
+          this.handlePlaybackContextStateChange,
+        );
         this.playbackAudioContext.close();
       } catch {}
       this.playbackAudioContext = null;
     }
 
     this.localAudioPublication = null;
+  }
+
+  // ----------------------------------------------------
+  // 音频播放与系统中断恢复 (iOS WebKit / 后台切换 / 休眠唤醒)
+  // ----------------------------------------------------
+  public getAudioPlaybackStatus(): AudioPlaybackStatus {
+    return { ...this.audioPlaybackStatus };
+  }
+
+  public onAudioPlaybackStatusChange(
+    callback: (status: AudioPlaybackStatus) => void,
+  ): () => void {
+    this.onAudioPlaybackStatusChangedCallbacks.add(callback);
+    callback(this.getAudioPlaybackStatus());
+    return () => {
+      this.onAudioPlaybackStatusChangedCallbacks.delete(callback);
+    };
+  }
+
+  private setAudioPlaybackStatus(status: Partial<AudioPlaybackStatus>) {
+    const prev = this.audioPlaybackStatus;
+    const next: AudioPlaybackStatus = { ...prev, ...status };
+    if (
+      prev.canPlay !== next.canPlay ||
+      prev.isInterrupted !== next.isInterrupted ||
+      prev.error !== next.error
+    ) {
+      this.audioPlaybackStatus = next;
+      this.onAudioPlaybackStatusChangedCallbacks.forEach((cb) => {
+        try {
+          cb(next);
+        } catch (e) {
+          console.error("[LiveKit] onAudioPlaybackStatusChanged error:", e);
+        }
+      });
+    }
+  }
+
+  private handlePlaybackContextStateChange = () => {
+    if (!this.playbackAudioContext) return;
+    const state = this.playbackAudioContext.state as string;
+    console.info(`[LiveKit] playbackAudioContext statechange: ${state}`);
+    if (
+      this.isConnected &&
+      (state === "suspended" || state === "interrupted")
+    ) {
+      this.setAudioPlaybackStatus({ isInterrupted: true, canPlay: false });
+    } else if (state === "running") {
+      if (this.audioPlaybackStatus.isInterrupted) {
+        this.setAudioPlaybackStatus({
+          isInterrupted: false,
+          canPlay: true,
+          error: undefined,
+        });
+      }
+    }
+  };
+
+  private onVisibilityChange = () => {
+    if (typeof document === "undefined") return;
+    if (document.visibilityState === "visible" && this.isConnected) {
+      console.info(
+        "[LiveKit] Page visible again, triggering silent audio recovery...",
+      );
+      void this.attemptSilentRecovery();
+    }
+  };
+
+  private onPageShow = () => {
+    if (this.isConnected) {
+      console.info(
+        "[LiveKit] pageshow event, triggering silent audio recovery...",
+      );
+      void this.attemptSilentRecovery();
+    }
+  };
+
+  private onWindowFocus = () => {
+    if (this.isConnected && this.audioPlaybackStatus.isInterrupted) {
+      console.info(
+        "[LiveKit] window focus, triggering silent audio recovery...",
+      );
+      void this.attemptSilentRecovery();
+    }
+  };
+
+  private bindLifecycleListeners() {
+    if (this.isLifecycleListenersBound || typeof window === "undefined") return;
+    document.addEventListener("visibilitychange", this.onVisibilityChange);
+    window.addEventListener("pageshow", this.onPageShow);
+    window.addEventListener("focus", this.onWindowFocus);
+    this.isLifecycleListenersBound = true;
+  }
+
+  private unbindLifecycleListeners() {
+    if (!this.isLifecycleListenersBound || typeof window === "undefined")
+      return;
+    document.removeEventListener("visibilitychange", this.onVisibilityChange);
+    window.removeEventListener("pageshow", this.onPageShow);
+    window.removeEventListener("focus", this.onWindowFocus);
+    this.isLifecycleListenersBound = false;
+  }
+
+  /**
+   * 尝试静默唤醒音频。
+   * 当用户从其他应用切回或屏幕点亮时触发；
+   * 若浏览器策略允许恢复则直接自愈，若被 Autoplay 拦截则标记 isInterrupted 呼出 UI 引导条。
+   */
+  public async attemptSilentRecovery(): Promise<boolean> {
+    if (!this.isConnected) return false;
+    try {
+      const ok = await this.resumeAudio();
+      return ok;
+    } catch (err) {
+      console.warn(
+        "[LiveKit] attemptSilentRecovery blocked by browser/system:",
+        err,
+      );
+      this.setAudioPlaybackStatus({ isInterrupted: true, canPlay: false });
+      return false;
+    }
+  }
+
+  /**
+   * 恢复全链路音频能力 (用户点击横幅 / 任意触屏兜底 / 前台自愈)
+   */
+  public async resumeAudio(): Promise<boolean> {
+    console.info("[LiveKit] resumeAudio invoked");
+    let allOk = true;
+
+    // 1. 恢复远端 Web Audio 软压限母带总线
+    if (
+      this.playbackAudioContext &&
+      this.playbackAudioContext.state !== "closed"
+    ) {
+      const state = this.playbackAudioContext.state as string;
+      if (state === "suspended" || state === "interrupted") {
+        try {
+          await this.playbackAudioContext.resume();
+        } catch (e) {
+          console.warn("[LiveKit] resume playbackAudioContext failed:", e);
+          allOk = false;
+        }
+      }
+    }
+
+    // 2. 恢复本地麦克风采集 AudioEngine
+    try {
+      await audioEngine.resume();
+    } catch (e) {
+      console.warn("[LiveKit] resume audioEngine failed:", e);
+    }
+
+    // 3. 恢复 LiveKit 房间音频能力与 dummy audio 播放
+    if (this.room) {
+      try {
+        if (typeof (this.room as any).startAudio === "function") {
+          await (this.room as any).startAudio();
+        }
+      } catch (e) {
+        console.warn("[LiveKit] room.startAudio() rejected:", e);
+        allOk = false;
+      }
+    }
+
+    // 4. 重试所有远端绑定的 HTMLAudioElement 播放
+    this.participantAudioMap.forEach((ctrl) => {
+      ctrl.tracks.forEach((entry) => {
+        if (entry.element && entry.element.paused) {
+          entry.element.play().catch(() => {});
+        }
+      });
+    });
+
+    const isRunning =
+      !this.playbackAudioContext ||
+      this.playbackAudioContext.state === "running";
+
+    if (allOk && isRunning) {
+      this.setAudioPlaybackStatus({
+        canPlay: true,
+        isInterrupted: false,
+        error: undefined,
+      });
+      return true;
+    } else {
+      this.setAudioPlaybackStatus({ isInterrupted: true, canPlay: false });
+      return false;
+    }
+  }
+
+  public simulateInterruption(isInterrupted: boolean = true) {
+    this.setAudioPlaybackStatus({ isInterrupted, canPlay: !isInterrupted });
   }
 
   onStateChange(callback: (connected: boolean) => void) {

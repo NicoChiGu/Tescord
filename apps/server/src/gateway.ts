@@ -522,22 +522,26 @@ export class GatewayManager {
             existingVoice?.channelId &&
             existingVoice.channelId !== data.channelId
           ) {
-            await this.broadcastToChannelViewers(existingVoice.channelId, {
-              op: GatewayOpCode.DISPATCH,
-              t: "VOICE_STATE_UPDATE",
-              d: {
-                userId: conn.userId,
-                guildId: existingVoice.guildId,
-                channelId: null,
-                previousChannelId: existingVoice.channelId,
-                sessionId: conn.sessionId,
-                revision: this.nextVoiceRevision(conn.userId),
-                selfMute: false,
-                selfDeaf: false,
-                selfVideo: false,
-                streaming: false,
+            await this.broadcastToChannelViewers(
+              existingVoice.channelId,
+              {
+                op: GatewayOpCode.DISPATCH,
+                t: "VOICE_STATE_UPDATE",
+                d: {
+                  userId: conn.userId,
+                  guildId: existingVoice.guildId,
+                  channelId: null,
+                  previousChannelId: existingVoice.channelId,
+                  sessionId: conn.sessionId,
+                  revision: this.nextVoiceRevision(conn.userId),
+                  selfMute: false,
+                  selfDeaf: false,
+                  selfVideo: false,
+                  streaming: false,
+                },
               },
-            });
+              conn.userId,
+            );
 
             removeParticipantFromRoom(existingVoice.channelId, conn.userId);
             if (existingVoice.streaming) {
@@ -1186,6 +1190,7 @@ export class GatewayManager {
   private async broadcastToChannelViewers(
     channelId: string,
     payload: GatewayPayload,
+    excludeUserId?: string,
   ): Promise<void> {
     const channel = await prisma.channel.findUnique({
       where: { id: channelId },
@@ -1197,6 +1202,7 @@ export class GatewayManager {
       select: { userId: true },
     });
     for (const member of members) {
+      if (excludeUserId && member.userId === excludeUserId) continue;
       if (
         await permissionService.hasChannelPermission(
           member.userId,

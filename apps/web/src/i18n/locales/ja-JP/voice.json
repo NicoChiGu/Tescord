@@ -151,5 +151,11 @@
     "statsTooltip": "往復時間：{{rtt}} | パケット損失：{{loss}} | ジッター：{{jitter}}",
     "streamTrackNotReady": "配信者の映像トラックはまだ準備できていません。しばらくしてから再試行してください。",
     "streamJoinFailed": "配信に接続できませんでした"
+  },
+  "audioInterruption": {
+    "bannerTitle": "音声再生がシステムにより中断されました",
+    "bannerDesc": "システムのスリープ、バックグラウンド移行、またはブラウザの再生制限により音声が一時停止しました",
+    "resumeButton": "音声を再開",
+    "resuming": "音声を再開中..."
   }
 }

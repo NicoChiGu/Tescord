@@ -739,6 +739,7 @@ export type StreamTransmissionMode = "sfu" | "p2p_direct" | "p2p_relay";
 export interface VoiceStateUpdatePayload {
   guildId: string;
   channelId: string | null; // null 代表退出语音频道
+  previousChannelId?: string | null;
   sessionId?: string;
   selfMute?: boolean;
   selfDeaf?: boolean;
@@ -751,6 +752,7 @@ export interface VoiceState {
   userId: string;
   guildId: string;
   channelId: string | null;
+  previousChannelId?: string | null;
   sessionId?: string;
   revision?: number;
   platform?: string;

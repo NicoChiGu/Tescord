@@ -151,5 +151,11 @@
     "statsTooltip": "Round trip: {{rtt}} | Packet loss: {{loss}} | Jitter: {{jitter}}",
     "streamTrackNotReady": "The streamer's video track is not ready. Please try again shortly.",
     "streamJoinFailed": "Could not connect to the stream"
+  },
+  "audioInterruption": {
+    "bannerTitle": "Audio Playback Interrupted",
+    "bannerDesc": "Audio playback was paused due to system sleep, backgrounding, or browser policy",
+    "resumeButton": "Resume Audio",
+    "resuming": "Resuming audio..."
   }
 }

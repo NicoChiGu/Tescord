@@ -1579,6 +1579,29 @@ export class AudioEngine {
       sampleRate: 48000,
     };
   }
+
+  public getAudioContext(): AudioContext | null {
+    return this.audioContext;
+  }
+
+  public async resume(): Promise<boolean> {
+    if (!this.audioContext || this.audioContext.state === "closed") {
+      return true;
+    }
+    if (
+      this.audioContext.state === "suspended" ||
+      (this.audioContext.state as string) === "interrupted"
+    ) {
+      try {
+        await this.audioContext.resume();
+        return this.audioContext.state === "running";
+      } catch (e) {
+        console.warn("[AudioEngine] resume audioContext failed:", e);
+        return false;
+      }
+    }
+    return true;
+  }
 }
 
 export const audioEngine = new AudioEngine();
