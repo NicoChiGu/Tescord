@@ -262,8 +262,16 @@ function parseInline(
   return nodes;
 }
 
-// 块级分词与解析入口
-export function parseFastMarkdown(
+// LRU 语法树与 React 节点缓存池：上限 500 条，杜绝消息列表滚动复用时重复执行正则词法分析
+const MARKDOWN_CACHE_LIMIT = 500;
+const markdownCache = new Map<string, React.ReactNode>();
+
+export function clearFastMarkdownCache(): void {
+  markdownCache.clear();
+}
+
+// 块级分词与解析实现
+function parseFastMarkdownInternal(
   content: string,
   ctx?: MarkdownContext,
 ): React.ReactNode {
@@ -366,4 +374,34 @@ export function parseFastMarkdown(
   }
 
   return elements;
+}
+
+// 块级分词与解析入口（带 LRU 缓存）
+export function parseFastMarkdown(
+  content: string,
+  ctx?: MarkdownContext,
+): React.ReactNode {
+  if (!content) return null;
+
+  // 构造稳定的缓存 Key（结合当前用户名与内容）
+  const cacheKey = `${ctx?.currentUsername || ""}:::${content}`;
+  const cached = markdownCache.get(cacheKey);
+  if (cached) {
+    // 移至末尾更新 LRU
+    markdownCache.delete(cacheKey);
+    markdownCache.set(cacheKey, cached);
+    return cached;
+  }
+
+  const result = parseFastMarkdownInternal(content, ctx);
+
+  if (markdownCache.size >= MARKDOWN_CACHE_LIMIT) {
+    const oldestKey = markdownCache.keys().next().value;
+    if (oldestKey !== undefined) {
+      markdownCache.delete(oldestKey);
+    }
+  }
+  markdownCache.set(cacheKey, result);
+
+  return result;
 }

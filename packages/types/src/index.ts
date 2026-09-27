@@ -2964,6 +2964,7 @@ export enum ErrorCode {
   // 消息与文件
   MESSAGE_NOT_FOUND = "MESSAGE_NOT_FOUND",
   MESSAGE_EMPTY = "MESSAGE_EMPTY",
+  MESSAGE_TOO_LARGE = "MESSAGE_TOO_LARGE",
   FILE_TOO_LARGE = "FILE_TOO_LARGE",
   FILE_TYPE_UNSUPPORTED = "FILE_TYPE_UNSUPPORTED",
   UPLOAD_FAILED = "UPLOAD_FAILED",
@@ -2983,6 +2984,10 @@ export interface ApiErrorResponse {
   error: string;
   details?: Record<string, any>;
 }
+
+// 消息容量限制契约
+export const MAX_MESSAGE_CONTENT_LENGTH = 4000;
+export const MAX_ENCRYPTED_ENVELOPE_LENGTH = 256 * 1024; // 256KB
 
 export interface CreateGuildRequest {
   name: string;

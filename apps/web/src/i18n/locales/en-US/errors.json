@@ -32,6 +32,7 @@
 
   "MESSAGE_NOT_FOUND": "Message not found or already deleted.",
   "MESSAGE_EMPTY": "Cannot send an empty message.",
+  "MESSAGE_TOO_LARGE": "Message content or encrypted envelope exceeds the maximum size limit.",
   "FILE_TOO_LARGE": "File size exceeds the maximum allowed upload limit.",
   "FILE_TYPE_UNSUPPORTED": "Unsupported file format.",
   "UPLOAD_FAILED": "File upload failed. Please check your network and try again.",

@@ -10,6 +10,8 @@ import {
   parseRoleIds,
   GatewayEvents,
   TypingIndicatorPayload,
+  MAX_MESSAGE_CONTENT_LENGTH,
+  MAX_ENCRYPTED_ENVELOPE_LENGTH,
 } from "@tescord/types";
 import {
   Hash,
@@ -104,10 +106,13 @@ interface ChatMessageItemProps {
   msg: Message;
   guild?: Guild | null;
   currentUser: User;
-  decryptedContents: Record<string, { text: string; fingerprint?: string }>;
+  decryptedText?: string;
   isMobile: boolean;
-  activeEmojiPickerMsgId: string | null;
-  setActiveEmojiPickerMsgId: (id: string | null) => void;
+  isTablet?: boolean;
+  isTouch?: boolean;
+  isEmojiPickerOpen: boolean;
+  onToggleEmojiPicker: (id: string) => void;
+  onCloseEmojiPicker: () => void;
   setReplyingTo: (msg: Message) => void;
   onTogglePin?: (id: string) => void;
   onDeleteMessage?: (id: string) => void;
@@ -131,10 +136,13 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
   msg,
   guild,
   currentUser,
-  decryptedContents,
+  decryptedText,
   isMobile,
-  activeEmojiPickerMsgId,
-  setActiveEmojiPickerMsgId,
+  isTablet = false,
+  isTouch = false,
+  isEmojiPickerOpen,
+  onToggleEmojiPicker,
+  onCloseEmojiPicker,
   setReplyingTo,
   onTogglePin,
   onDeleteMessage,
@@ -150,6 +158,7 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
   onJumpToMessage,
 }) => {
   const isMe = msg.authorId === currentUser.id;
+  const isTouchDevice = isMobile || isTablet || isTouch;
   const member = guild?.members?.find((m) => m.userId === msg.author.id);
   const authorName = getUserDisplayName(msg.author, member);
   const formattedTime = new Date(msg.createdAt).toLocaleTimeString([], {
@@ -158,11 +167,12 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
   });
   const isMsgEncrypted =
     msg.isEncrypted ||
-    !!decryptedContents[msg.id] ||
-    doubleRatchetManager.isEncryptedEnvelope(msg.content);
+    !!decryptedText ||
+    doubleRatchetManager.isEncryptedEnvelope(msg.content) ||
+    doubleRatchetManager.isCorruptedEnvelope(msg.content);
 
   const resolvedContent = isMsgEncrypted
-    ? decryptedContents[msg.id]?.text || ""
+    ? decryptedText || ""
     : msg.content || "";
 
   const inviteCodes = React.useMemo(() => {
@@ -197,7 +207,7 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
   }, [resolvedContent, inviteCodes]);
 
   const longPressProps = useLongPress(() => {
-    if (isMobile) {
+    if (isTouchDevice) {
       onOpenMobileActions(msg);
     }
   });
@@ -329,9 +339,7 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
               <MarkdownRenderer
                 content={displayContent}
                 currentUsername={currentUser.username}
-                onMentionClick={(username, rect) =>
-                  onOpenProfileByName?.(username, rect)
-                }
+                onMentionClick={onOpenProfileByName}
               />
             </div>
           ) : null}
@@ -402,23 +410,20 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
       </div>
 
       {/* 桌面端悬浮操作菜单条 (右上角浮出快捷工具栏) */}
+      {/* 桌面端悬浮操作菜单条 (右上角浮出快捷工具栏，鼠标悬停时展示) */}
       <div className="absolute right-4 -top-3 hidden md:group-hover:flex items-center bg-[#313338] border border-[#2b2d31] rounded-md shadow-md overflow-hidden z-10">
         {/* Emoji 表情快捷气泡 */}
         <div className="relative">
           <button
-            onClick={() =>
-              setActiveEmojiPickerMsgId(
-                activeEmojiPickerMsgId === msg.id ? null : msg.id,
-              )
-            }
+            onClick={() => onToggleEmojiPicker(msg.id)}
             className="p-1.5 hover:bg-discord-hover text-discord-textMuted hover:text-discord-textHeader transition"
             title="添加表情反应"
           >
             <Smile className="w-4 h-4" />
           </button>
           <EmojiPickerPopover
-            isOpen={activeEmojiPickerMsgId === msg.id}
-            onClose={() => setActiveEmojiPickerMsgId(null)}
+            isOpen={isEmojiPickerOpen}
+            onClose={onCloseEmojiPicker}
             onSelectEmoji={(emoji: string) => onReactionAdd?.(msg.id, emoji)}
           />
         </div>
@@ -458,22 +463,52 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
         )}
       </div>
 
-      {/* 移动端专属：轻触快捷操作按钮 */}
-      {isMobile && (
-        <button
-          type="button"
-          onClick={() => onOpenMobileActions(msg)}
-          className="md:hidden absolute right-2 top-2 p-1.5 text-discord-textMuted/50 hover:text-white rounded-lg active:bg-[#35373c] transition"
-          title="快捷操作面板"
-        >
-          <Smile className="w-4 h-4" />
-        </button>
-      )}
+      {/* 移动端与平板触控专属：轻触快捷操作按钮 (在手机与平板均可直接点按唤出) */}
+      <button
+        type="button"
+        onClick={() => onOpenMobileActions(msg)}
+        className="lg:hidden absolute right-2 top-2 p-1.5 text-discord-textMuted/50 hover:text-white rounded-lg active:bg-[#35373c] transition"
+        title="快捷操作面板"
+      >
+        <Smile className="w-4 h-4" />
+      </button>
     </div>
   );
 };
 
-const ChatMessageItem = React.memo(ChatMessageItemComponent);
+function areChatMessageItemPropsEqual(
+  prev: ChatMessageItemProps,
+  next: ChatMessageItemProps,
+): boolean {
+  if (prev.msg !== next.msg) {
+    if (
+      prev.msg.id !== next.msg.id ||
+      prev.msg.content !== next.msg.content ||
+      prev.msg.sequence !== next.msg.sequence ||
+      prev.msg.isPinned !== next.msg.isPinned ||
+      prev.msg.reactions !== next.msg.reactions ||
+      prev.msg.attachments !== next.msg.attachments ||
+      prev.msg.updatedAt !== next.msg.updatedAt
+    ) {
+      return false;
+    }
+  }
+  if (prev.decryptedText !== next.decryptedText) return false;
+  if (prev.isHighlighted !== next.isHighlighted) return false;
+  if (prev.isEmojiPickerOpen !== next.isEmojiPickerOpen) return false;
+  if (prev.isMobile !== next.isMobile) return false;
+  if (prev.isTablet !== next.isTablet) return false;
+  if (prev.isTouch !== next.isTouch) return false;
+  if (prev.currentUser.id !== next.currentUser.id) return false;
+  if (prev.currentUser.username !== next.currentUser.username) return false;
+  if (prev.guild !== next.guild) return false;
+  return true;
+}
+
+const ChatMessageItem = React.memo(
+  ChatMessageItemComponent,
+  areChatMessageItemPropsEqual,
+);
 
 // Discord 风格消息加载骨架屏组件 (波纹脉冲动画，消除切频道大片空白与突兀感)
 export const MessageSkeletonList: React.FC = () => {
@@ -537,7 +572,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onReloadLatestMessages,
 }) => {
   const { t } = useTranslation(["chat", "common"]);
-  const { isMobile, isDesktop } = useViewport();
+  const { isMobile, isTablet, isDesktop } = useViewport();
+  const isTouch =
+    isMobile ||
+    isTablet ||
+    (typeof navigator !== "undefined" && navigator.maxTouchPoints > 0);
   const isCompact = !isDesktop;
   const [mobileActionMessage, setMobileActionMessage] =
     useState<Message | null>(null);
@@ -752,6 +791,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const [activeEmojiPickerMsgId, setActiveEmojiPickerMsgId] = useState<
     string | null
   >(null);
+
+  const handleToggleEmojiPicker = useCallback((msgId: string) => {
+    setActiveEmojiPickerMsgId((prev) => (prev === msgId ? null : msgId));
+  }, []);
+
+  const handleCloseEmojiPicker = useCallback(() => {
+    setActiveEmojiPickerMsgId(null);
+  }, []);
   const [isInputEmojiOpen, setIsInputEmojiOpen] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<Attachment | null>(null);
   const [pendingImageUrls, setPendingImageUrls] = useState<
@@ -868,6 +915,15 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     return unread ? unread.id : null;
   }, [displayedMessages, initialUnreadSequence]);
 
+  // 基于设备类型的阶梯自适应 overscan 缓冲计算 (对齐 Discord 移动端轻量视口策略)
+  // 移动端严格限制缓冲 3 条（约 0.5 屏幕高度），平板缓冲 4 条，彻底移除移动/平板端全量渲染退化
+  // 桌面端具备强算力，在少量消息 (<=40) 时保持平滑全缓冲，消息多时维持 8 条缓冲
+  const dynamicOverscan = React.useMemo(() => {
+    if (isMobile) return 3;
+    if (isTablet) return 4;
+    return displayedMessages.length <= 40 ? 40 : 8;
+  }, [isMobile, isTablet, displayedMessages.length]);
+
   // 基于 @tanstack/react-virtual 的动态高度虚拟视口计算
   // 必须显式指定 getItemKey 绑定真实消息 ID，彻底杜绝数据变化时高度缓存错位导致的卡片重叠 (Overlap)
   const rowVirtualizer = useVirtualizer({
@@ -875,14 +931,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     getScrollElement: () => scrollContainerRef.current,
     getItemKey: (index) => displayedMessages[index]?.id ?? index,
     estimateSize: () => 80,
-    overscan: displayedMessages.length <= 40 ? 40 : 10,
+    overscan: dynamicOverscan,
   });
 
-  // 接管滚轮平滑阻尼动效 (Discord 风格)
+  // 接管滚轮平滑阻尼动效 (Discord 风格，在移动端与触屏平板上禁用以交还原生 GPU 硬件加速平滑滚动)
   useMomentumScroll(scrollContainerRef, {
     damping: 0.2,
     multiplier: 1.0,
-    enabled: true,
+    enabled: isDesktop && !isTouch,
   });
 
   // 轻量全局提示浮层
@@ -1507,7 +1563,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         const isMsgEncrypted =
           msg.isEncrypted ||
           (channel.isE2EE &&
-            doubleRatchetManager.isEncryptedEnvelope(msg.content));
+            (doubleRatchetManager.isEncryptedEnvelope(msg.content) ||
+              doubleRatchetManager.isCorruptedEnvelope(msg.content)));
         if (isMsgEncrypted) {
           if (!processedMessageIdsRef.current.has(msg.id)) {
             processedMessageIdsRef.current.add(msg.id);
@@ -1681,6 +1738,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     const content = text.trim();
     if (!content && pendingAttachments.length === 0) return;
 
+    if (!channel.isE2EE && content.length > MAX_MESSAGE_CONTENT_LENGTH) {
+      showToast(
+        t("chat:messageTooLarge", {
+          defaultValue: "消息内容超过最大字符限制 (4000字)",
+          max: MAX_MESSAGE_CONTENT_LENGTH,
+        }),
+      );
+      return;
+    }
+
     let contentToSend = content;
     if (channel.isE2EE && contentToSend) {
       // 阶段五：客户端本地双棘轮封装密文信封
@@ -1689,6 +1756,15 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         contentToSend,
         currentUser.id,
       );
+      if (contentToSend.length > MAX_ENCRYPTED_ENVELOPE_LENGTH) {
+        showToast(
+          t("chat:encryptedMessageTooLarge", {
+            defaultValue:
+              "加密消息信封体积超出系统限制 (256KB)，建议作为文件附件发送",
+          }),
+        );
+        return;
+      }
     }
 
     onSendMessage(
@@ -2156,6 +2232,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                       width: "100%",
                       transform: `translateY(${virtualRow.start}px)`,
                       contain: "layout style",
+                      contentVisibility: "auto",
+                      containIntrinsicSize: "80px",
                     }}
                     className="pb-2"
                   >
@@ -2177,10 +2255,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                       msg={msg}
                       guild={guild}
                       currentUser={currentUser}
-                      decryptedContents={decryptedContents}
+                      decryptedText={decryptedContents[msg.id]?.text}
                       isMobile={isMobile}
-                      activeEmojiPickerMsgId={activeEmojiPickerMsgId}
-                      setActiveEmojiPickerMsgId={setActiveEmojiPickerMsgId}
+                      isTablet={isTablet}
+                      isTouch={isTouch}
+                      isEmojiPickerOpen={activeEmojiPickerMsgId === msg.id}
+                      onToggleEmojiPicker={handleToggleEmojiPicker}
+                      onCloseEmojiPicker={handleCloseEmojiPicker}
                       setReplyingTo={handleSetReplyingTo}
                       onTogglePin={onTogglePin}
                       onDeleteMessage={onDeleteMessage}

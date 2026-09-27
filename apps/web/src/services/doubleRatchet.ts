@@ -16,6 +16,7 @@ import {
 } from "@tescord/types";
 import { API_BASE } from "../config";
 import { clientFtsStorage } from "./e2eeStorage";
+import { tGlobal } from "../i18n/index";
 
 const LOCAL_STORAGE_IDENTITY_KEY = "tescord_e2ee_identity_key";
 const LOCAL_STORAGE_SIGNED_PREKEY = "tescord_e2ee_signed_prekey";
@@ -141,8 +142,23 @@ export class DoubleRatchetManager {
     channelId: string,
     content: string,
     currentUserId: string,
-  ): Promise<{ decrypted: string; isEnvelope: boolean; fingerprint?: string }> {
+  ): Promise<{
+    decrypted: string;
+    isEnvelope: boolean;
+    fingerprint?: string;
+    isCorrupted?: boolean;
+  }> {
     if (!this.isEncryptedEnvelope(content)) {
+      // 若非合法信封，但具备明显加密密文字段特征，说明在传输或存储中遭遇损坏截断，严禁泄露密文到界面
+      if (this.isCorruptedEnvelope(content)) {
+        return {
+          decrypted: tGlobal("chat:e2eeCorrupted", {
+            defaultValue: "⚠️ [端到端加密消息已损坏或被截断，无法解密]",
+          }),
+          isEnvelope: true,
+          isCorrupted: true,
+        };
+      }
       return { decrypted: content, isEnvelope: false };
     }
 
@@ -175,7 +191,9 @@ export class DoubleRatchetManager {
       console.warn("E2EE decrypt notice:", err);
       // 若解密失败（如由于乱序、重放或篡改），展示安全保护兜底提示
       return {
-        decrypted: "🔒 [端到端加密消息：已通过双棘轮密文保护]",
+        decrypted: tGlobal("chat:e2eeProtected", {
+          defaultValue: "🔒 [端到端加密消息：已通过双棘轮密文保护]",
+        }),
         isEnvelope: true,
       };
     }
@@ -211,6 +229,19 @@ export class DoubleRatchetManager {
     } catch {
       return false;
     }
+  }
+
+  // 辅助检测文本是否为疑似损坏或被截断的加密信封
+  public isCorruptedEnvelope(text: string): boolean {
+    if (!text || typeof text !== "string") return false;
+    const trimmed = text.trim();
+    if (
+      trimmed.startsWith('{"version":1') ||
+      (trimmed.startsWith("{") && trimmed.includes('"ciphertext":'))
+    ) {
+      return !this.isEncryptedEnvelope(trimmed);
+    }
+    return false;
   }
 }
 

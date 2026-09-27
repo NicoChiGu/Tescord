@@ -32,6 +32,7 @@
 
   "MESSAGE_NOT_FOUND": "消息未找到或已被删除",
   "MESSAGE_EMPTY": "无法发送空消息",
+  "MESSAGE_TOO_LARGE": "消息内容或加密信封超出最大长度限制",
   "FILE_TOO_LARGE": "文件体积超出服务器允许的最大限制",
   "FILE_TYPE_UNSUPPORTED": "不支持该文件格式上传",
   "UPLOAD_FAILED": "文件上传失败，请检查网络后重试",

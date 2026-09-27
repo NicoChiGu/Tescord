@@ -32,6 +32,7 @@
 
   "MESSAGE_NOT_FOUND": "訊息未找到或已被刪除",
   "MESSAGE_EMPTY": "無法發送空白訊息",
+  "MESSAGE_TOO_LARGE": "訊息內容或加密封包超出最大長度限制",
   "FILE_TOO_LARGE": "檔案大小超出伺服器允許的最大限制",
   "FILE_TYPE_UNSUPPORTED": "不支援該檔案格式上傳",
   "UPLOAD_FAILED": "檔案上傳失敗，請檢查網路後重試",

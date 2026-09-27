@@ -27,6 +27,13 @@ export function useMomentumScroll(
     const el = containerRef.current;
     if (!el || !enabled) return;
 
+    // 移动端/平板触控设备优先保留系统原生 GPU 硬件加速平滑滚动，避免 JS 阻尼劫持导致卡顿
+    const isTouchOnly =
+      typeof window !== "undefined" &&
+      ("ontouchstart" in window || navigator.maxTouchPoints > 0) &&
+      window.innerWidth < 1024;
+    if (isTouchOnly) return;
+
     targetScrollTopRef.current = el.scrollTop;
     currentScrollTopRef.current = el.scrollTop;
 

@@ -74,6 +74,8 @@ import {
   ErrorCode,
   SupportedLocale,
   DiscardGuildIconUploadDTO,
+  MAX_MESSAGE_CONTENT_LENGTH,
+  MAX_ENCRYPTED_ENVELOPE_LENGTH,
 } from "@tescord/types";
 
 config();
@@ -3807,6 +3809,20 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
   const { channelId } = request.params as any;
   const { content, isEncrypted, attachments, replyToId } = request.body as any;
 
+  const maxLen = isEncrypted
+    ? MAX_ENCRYPTED_ENVELOPE_LENGTH
+    : MAX_MESSAGE_CONTENT_LENGTH;
+  if (content && typeof content === "string" && content.length > maxLen) {
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.MESSAGE_TOO_LARGE,
+      isEncrypted
+        ? `加密消息信封体积超出系统限制 (${MAX_ENCRYPTED_ENVELOPE_LENGTH / 1024}KB)`
+        : `消息内容超过最大字符限制 (${MAX_MESSAGE_CONTENT_LENGTH}字)`,
+    );
+  }
+
   const reqUserId = await getUserIdFromRequest(request);
   const author = reqUserId
     ? await prisma.user.findUnique({ where: { id: reqUserId } })
@@ -3910,7 +3926,7 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
       data: {
         channelId,
         authorId: author.id,
-        content: String(content || "").slice(0, isEncrypted ? 16000 : 4000),
+        content: String(content || ""),
         isEncrypted: !!isEncrypted,
         sequence: sequencedChannel.nextMessageSequence,
         replyToId: replyToPreview ? replyToId : null,

@@ -100,16 +100,27 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
     [],
   );
 
-  // 滚轮缩放
-  const handleWheel = (e: React.WheelEvent) => {
-    e.preventDefault();
-    const delta = e.deltaY < 0 ? 0.1 : -0.1;
-    setZoom((prev) => {
-      const next = Math.min(3, Math.max(1, +(prev + delta).toFixed(2)));
-      setPan((current) => clampPan(current, next));
-      return next;
-    });
-  };
+  // 注册非 passive 的原生 wheel 事件监听器，阻止浏览器默认滚动并执行平滑缩放
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const delta = e.deltaY < 0 ? 0.1 : -0.1;
+      setZoom((prev) => {
+        const next = Math.min(3, Math.max(1, +(prev + delta).toFixed(2)));
+        setPan((current) => clampPan(current, next));
+        return next;
+      });
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+    };
+  }, [clampPan]);
 
   // 生成裁切并压缩后的 WebP Blob (512x512)
   const handleCropAndSave = async () => {
@@ -208,11 +219,11 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
         <div className="p-6 flex flex-col items-center justify-center">
           <div
             ref={containerRef}
+            data-testid="image-crop-container"
             onPointerDown={handlePointerDown}
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
             onPointerCancel={handlePointerUp}
-            onWheel={handleWheel}
             className="relative w-64 h-64 overflow-hidden rounded-2xl bg-[#1e1f22] cursor-grab active:cursor-grabbing select-none border border-white/10 shadow-inner flex items-center justify-center"
             style={{ touchAction: "none" }}
           >

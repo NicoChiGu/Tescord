@@ -60,7 +60,10 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col justify-end md:hidden">
+    <div
+      data-testid="mobile-action-sheet"
+      className="fixed inset-0 z-50 flex flex-col justify-end lg:hidden"
+    >
       {/* 遮罩背景 */}
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity animate-fade-in"

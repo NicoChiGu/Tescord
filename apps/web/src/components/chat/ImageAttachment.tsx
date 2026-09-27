@@ -6,12 +6,14 @@ import { loadAttachmentBlob } from "../../services/attachmentAccess.js";
 export interface ImageAttachmentProps {
   attachment: Attachment;
   onPreview?: (attachment: Attachment) => void;
+  onLoadSuccess?: () => void;
   className?: string;
 }
 
 export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
   attachment,
   onPreview,
+  onLoadSuccess,
   className = "",
 }) => {
   const [status, setStatus] = useState<"loading" | "loaded" | "error">(
@@ -43,12 +45,13 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
 
   return (
     <div
+      style={{ contain: "layout style" }}
       className={`relative group/att rounded-lg overflow-hidden border border-[#3f4147] max-w-sm max-h-64 min-h-[36px] w-fit h-fit bg-[#1e1f22] flex items-center justify-center ${className}`}
     >
       {status === "loading" && (
         <div
           data-testid="image-skeleton"
-          className="w-64 h-36 bg-[#2b2d31] animate-pulse flex flex-col items-center justify-center text-discord-textMuted/60 gap-2"
+          className="w-64 h-36 aspect-video max-w-full bg-[#2b2d31] animate-pulse flex flex-col items-center justify-center text-discord-textMuted/60 gap-2"
         >
           <ImageIcon className="w-8 h-8" />
           <span className="text-xs">图片加载中...</span>
@@ -90,7 +93,10 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
             alt={attachment.fileName}
             loading="lazy"
             decoding="async"
-            onLoad={() => setStatus("loaded")}
+            onLoad={() => {
+              setStatus("loaded");
+              onLoadSuccess?.();
+            }}
             onError={() => setStatus("error")}
             className="block max-w-full max-h-64 object-contain transition duration-200 group-hover/att:scale-105"
           />
