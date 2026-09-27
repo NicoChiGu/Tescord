@@ -673,7 +673,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             >
               <ScreenShareOff className="w-3.5 h-3.5" />
               <span className="font-semibold text-[11px]">
-                {t("voice:stopScreenShare")}
+                {t("voice:stopLiveStream")}
               </span>
             </button>
           )}

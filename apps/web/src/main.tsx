@@ -7,7 +7,11 @@ import "./index.css";
 import "./i18n/index.js";
 import { voiceMeshManager } from "./services/p2p/VoiceMeshManager.js";
 
-if (typeof window !== "undefined") {
+if (
+  typeof window !== "undefined" &&
+  (import.meta.env.DEV ||
+    ["localhost", "127.0.0.1"].includes(window.location.hostname))
+) {
   (window as any).voiceMeshManager = voiceMeshManager;
 }
 

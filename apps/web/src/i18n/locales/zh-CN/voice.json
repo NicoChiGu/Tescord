@@ -11,6 +11,7 @@
   "undeafen": "开启扬声器",
   "screenShare": "屏幕共享",
   "stopScreenShare": "停止共享",
+  "stopLiveStream": "停止直播",
   "turnOnCamera": "开启摄像头",
   "turnOffCamera": "关闭摄像头",
   "noiseSuppression": "降噪已开启",

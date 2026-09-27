@@ -29,16 +29,18 @@ test.describe("移动端与平板设备文字频道动态加载与视口优化�
       createdAt: new Date(Date.now() - (50 - i) * 60000).toISOString(),
     }));
 
-    await page.route(
-      "**/api/channels/chn_default_text_01/messages*",
-      (route) => {
-        route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify(mockMessages),
-        });
-      },
-    );
+    await page.route("**/api/channels/*/messages*", (route) => {
+      const channelId = new URL(route.request().url()).pathname.match(
+        /\/api\/channels\/([^/]+)\/messages/,
+      )?.[1];
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          mockMessages.map((message) => ({ ...message, channelId })),
+        ),
+      });
+    });
 
     await page.goto("/");
 

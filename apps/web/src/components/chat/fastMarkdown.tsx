@@ -383,6 +383,12 @@ export function parseFastMarkdown(
 ): React.ReactNode {
   if (!content) return null;
 
+  // Mention nodes close over the click handler. Reusing them across message
+  // components or accounts would invoke the first renderer's stale handler.
+  if (ctx?.onMentionClick && content.includes("@")) {
+    return parseFastMarkdownInternal(content, ctx);
+  }
+
   // 构造稳定的缓存 Key（结合当前用户名与内容）
   const cacheKey = `${ctx?.currentUsername || ""}:::${content}`;
   const cached = markdownCache.get(cacheKey);

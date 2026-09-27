@@ -173,6 +173,7 @@ export class VoiceMeshManager {
     this.fallbackReason = "";
 
     await this.fetchIceServers();
+    if (!this.isMeshActive || this.activeChannelId !== channelId) return;
 
     const audioTrack = localStream.getAudioTracks()[0];
     if (audioTrack) {
@@ -186,6 +187,7 @@ export class VoiceMeshManager {
 
     // 与房间内已存在的其他成员主动建立点对点呼叫 (PeerConnection Offer)
     for (const targetId of otherUserIds) {
+      if (!this.isMeshActive || this.activeChannelId !== channelId) return;
       if (targetId && targetId !== this.currentUserId) {
         if (
           this.activeCallId &&
@@ -254,13 +256,20 @@ export class VoiceMeshManager {
   public broadcastLeaveSignal(): void {
     if (!this.isMeshActive || !this.activeChannelId) return;
     try {
-      this.sendSignal({
-        guildId: this.activeGuildId || "",
-        channelId: this.activeChannelId || "",
-        senderId: this.currentUserId || "",
-        streamOwnerId: this.currentUserId || "",
-        type: "VOICE_LEAVE",
-      });
+      const targets = this.activeCallId
+        ? Array.from(this.channelMemberIds)
+        : [undefined];
+      for (const targetId of targets) {
+        this.sendSignal({
+          guildId: this.activeGuildId || "",
+          channelId: this.activeChannelId,
+          callId: this.activeCallId || undefined,
+          targetId,
+          senderId: this.currentUserId || "",
+          streamOwnerId: this.currentUserId || "",
+          type: "VOICE_LEAVE",
+        });
+      }
       console.log(
         `[VoiceMesh] 已向频道 ${this.activeChannelId} 广播 VOICE_LEAVE 离开信令`,
       );
@@ -418,6 +427,11 @@ export class VoiceMeshManager {
    */
   public async handleVoiceSignal(signal: P2PSignalPayload): Promise<void> {
     if (!this.isMeshActive) return;
+    if (
+      signal.channelId !== this.activeChannelId ||
+      (signal.callId || null) !== this.activeCallId
+    )
+      return;
     const { senderId, type, sdp, candidate } = signal;
     if (!senderId || senderId === this.currentUserId) return;
 
@@ -1057,6 +1071,3 @@ export class VoiceMeshManager {
 }
 
 export const voiceMeshManager = new VoiceMeshManager();
-if (typeof window !== "undefined") {
-  (window as any).voiceMeshManager = voiceMeshManager;
-}

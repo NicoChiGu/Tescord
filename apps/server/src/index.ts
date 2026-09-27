@@ -3809,10 +3809,27 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
   const { channelId } = request.params as any;
   const { content, isEncrypted, attachments, replyToId } = request.body as any;
 
+  if (content !== undefined && typeof content !== "string") {
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.INVALID_PARAMS,
+      "消息内容格式无效",
+    );
+  }
+  if (isEncrypted !== undefined && typeof isEncrypted !== "boolean") {
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.INVALID_PARAMS,
+      "加密标志格式无效",
+    );
+  }
+
   const maxLen = isEncrypted
     ? MAX_ENCRYPTED_ENVELOPE_LENGTH
     : MAX_MESSAGE_CONTENT_LENGTH;
-  if (content && typeof content === "string" && content.length > maxLen) {
+  if (content && content.length > maxLen) {
     return sendApiError(
       reply,
       400,

@@ -33,7 +33,8 @@ test.describe("长 Markdown 加密消息与图片裁切交互专项验收", () =
     await cryptoChannelItem.click();
 
     // 2. 准备超长 Markdown 文本（包含各级标题、表格、高密度格式）
-    const longMarkdown = `# 🔧 Cloudflare 模式下 P2P 语音问题修复方案
+    const longMarkdown =
+      `# 🔧 Cloudflare 模式下 P2P 语音问题修复方案
 
 ## 一、问题诊断总结
 
@@ -59,7 +60,12 @@ public async fetchIceServers(): Promise<RTCIceServer[]> {
 
 > 核心致命组合：P2P 直播之所以能打洞，是因为 NATDetector 收集 STUN 映射。
 E2EE_Automated_Long_Test_${Date.now()}
-`;
+` +
+      Array.from(
+        { length: 180 },
+        (_, index) =>
+          `\n验收段落 ${index}: **加密长消息必须完整保存、解密并显示，不能截断密文。**`,
+      ).join("");
 
     // 3. 拦截消息发送请求，记录请求包与响应状态
     let interceptedRequest: any = null;
@@ -97,7 +103,7 @@ E2EE_Automated_Long_Test_${Date.now()}
     const envelope = JSON.parse(interceptedRequest.content);
     expect(envelope.version).toBe(1);
     expect(typeof envelope.ciphertext).toBe("string");
-    expect(envelope.ciphertext.length).toBeGreaterThan(1000);
+    expect(interceptedRequest.content.length).toBeGreaterThan(16000);
 
     // 6. 验证界面解密渲染：
     // - 必须成功渲染标题与表格文本
@@ -107,7 +113,7 @@ E2EE_Automated_Long_Test_${Date.now()}
       .first();
     await expect(titleLocator).toBeVisible({ timeout: 15000 });
 
-    const rawJsonLeak = page.locator('text=\'{"version":1\'');
+    const rawJsonLeak = page.locator("text='{\"version\":1'");
     await expect(rawJsonLeak).toHaveCount(0);
 
     const ciphertextLeak = page.locator('text="ephemeralPublicKey"');
@@ -122,7 +128,7 @@ E2EE_Automated_Long_Test_${Date.now()}
     await expect(
       page.getByText(/Cloudflare 模式下 P2P 语音问题修复方案/).first(),
     ).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('text=\'{"version":1\'')).toHaveCount(0);
+    await expect(page.locator("text='{\"version\":1'")).toHaveCount(0);
 
     // 8. 截图留证
     await page.screenshot({
@@ -170,7 +176,9 @@ E2EE_Automated_Long_Test_${Date.now()}
     await expect(serverModal).toBeVisible({ timeout: 5000 });
 
     // 4. 定位上传图标 input 元素
-    const fileInput = page.locator('input[type="file"][accept="image/*"]').first();
+    const fileInput = page
+      .locator('input[type="file"][accept="image/*"]')
+      .first();
     await expect(fileInput).toBeAttached({ timeout: 5000 });
 
     // 5. 准备测试图片并上传

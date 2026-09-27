@@ -476,39 +476,7 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
   );
 };
 
-function areChatMessageItemPropsEqual(
-  prev: ChatMessageItemProps,
-  next: ChatMessageItemProps,
-): boolean {
-  if (prev.msg !== next.msg) {
-    if (
-      prev.msg.id !== next.msg.id ||
-      prev.msg.content !== next.msg.content ||
-      prev.msg.sequence !== next.msg.sequence ||
-      prev.msg.isPinned !== next.msg.isPinned ||
-      prev.msg.reactions !== next.msg.reactions ||
-      prev.msg.attachments !== next.msg.attachments ||
-      prev.msg.updatedAt !== next.msg.updatedAt
-    ) {
-      return false;
-    }
-  }
-  if (prev.decryptedText !== next.decryptedText) return false;
-  if (prev.isHighlighted !== next.isHighlighted) return false;
-  if (prev.isEmojiPickerOpen !== next.isEmojiPickerOpen) return false;
-  if (prev.isMobile !== next.isMobile) return false;
-  if (prev.isTablet !== next.isTablet) return false;
-  if (prev.isTouch !== next.isTouch) return false;
-  if (prev.currentUser.id !== next.currentUser.id) return false;
-  if (prev.currentUser.username !== next.currentUser.username) return false;
-  if (prev.guild !== next.guild) return false;
-  return true;
-}
-
-const ChatMessageItem = React.memo(
-  ChatMessageItemComponent,
-  areChatMessageItemPropsEqual,
-);
+const ChatMessageItem = React.memo(ChatMessageItemComponent);
 
 // Discord 风格消息加载骨架屏组件 (波纹脉冲动画，消除切频道大片空白与突兀感)
 export const MessageSkeletonList: React.FC = () => {
@@ -1189,20 +1157,23 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       return;
     }
 
-    // 若当前有搜索词且该消息被过滤隐藏，自动清除搜索过滤
-    if (searchQuery.trim()) {
-      const inSearch = displayedMessages.some((m) => m.id === targetMessageId);
-      if (!inSearch) {
-        setSearchQuery("");
-      }
-    }
+    // 引用跳转需要完整上下文。先退出搜索，随后用完整消息索引定位。
+    const wasSearching = Boolean(searchQuery.trim());
+    if (wasSearching) setSearchQuery("");
 
     // 优先借助虚拟列表跳转至对应索引
-    const targetIdx = displayedMessages.findIndex(
+    const targetIdx = (wasSearching ? messages : displayedMessages).findIndex(
       (m) => m.id === targetMessageId,
     );
     if (targetIdx !== -1) {
-      rowVirtualizer.scrollToIndex(targetIdx, { align: "center" });
+      if (wasSearching) {
+        setTimeout(
+          () => rowVirtualizer.scrollToIndex(targetIdx, { align: "center" }),
+          0,
+        );
+      } else {
+        rowVirtualizer.scrollToIndex(targetIdx, { align: "center" });
+      }
     }
 
     setTimeout(() => {
@@ -1476,15 +1447,39 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               scrollContainerRef.current.scrollTop = meta?.scrollTop ?? 0;
               rowVirtualizer.scrollToOffset(meta?.scrollTop ?? 0);
             }
-          } else if (scrollContainerRef.current && isNearBottomRef.current) {
-            // 贴底状态下的二次对齐
-            scrollContainerRef.current.scrollTop =
-              scrollContainerRef.current.scrollHeight;
-            setIsNearBottom(true);
-            isNearBottomRef.current = true;
+          } else if (scrollContainerRef.current) {
+            // 初次测量会增加虚拟列表总高度。只有视口仍接近底部时
+            // 才跟随增长，避免把用户主动向上滚动的动作拉回底部。
+            const container = scrollContainerRef.current;
+            const gap =
+              container.scrollHeight -
+              container.scrollTop -
+              container.clientHeight;
+            if (gap <= Math.max(300, container.clientHeight)) {
+              container.scrollTop = container.scrollHeight;
+              currentScrollTopRef.current = container.scrollTop;
+              setIsNearBottom(true);
+              isNearBottomRef.current = true;
+            }
           }
           checkUnreadDividerVisibility();
         }, 50);
+        if (!restoreReadPosition) {
+          setTimeout(() => {
+            if (cancelled || !scrollContainerRef.current) return;
+            const container = scrollContainerRef.current;
+            const gap =
+              container.scrollHeight -
+              container.scrollTop -
+              container.clientHeight;
+            if (gap <= Math.max(300, container.clientHeight)) {
+              container.scrollTop = container.scrollHeight;
+              currentScrollTopRef.current = container.scrollTop;
+              setIsNearBottom(true);
+              isNearBottomRef.current = true;
+            }
+          }, 200);
+        }
       });
     });
     return () => {
@@ -2232,8 +2227,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                       width: "100%",
                       transform: `translateY(${virtualRow.start}px)`,
                       contain: "layout style",
-                      contentVisibility: "auto",
-                      containIntrinsicSize: "80px",
                     }}
                     className="pb-2"
                   >

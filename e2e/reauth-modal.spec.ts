@@ -75,6 +75,15 @@ test.describe("令牌失效重新登录 Modal 与会话无感恢复验收", () =
       });
     });
 
+    // 此用例用假令牌聚焦业务请求重认证；设备密钥注册是独立启动请求。
+    await page.route("**/api/e2ee/devices", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({}),
+      });
+    });
+
     await page.route("**/api/auth/login", (route) => {
       let requestData: any = {};
       try {

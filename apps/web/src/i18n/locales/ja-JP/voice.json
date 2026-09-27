@@ -11,6 +11,7 @@
   "undeafen": "スピーカーミュート解除",
   "screenShare": "画面共有",
   "stopScreenShare": "画面共有を停止",
+  "stopLiveStream": "配信を停止",
   "turnOnCamera": "カメラをオン",
   "turnOffCamera": "カメラをオフ",
   "noiseSuppression": "ノイズ低減 有効",

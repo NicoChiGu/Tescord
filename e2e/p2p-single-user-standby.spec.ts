@@ -245,4 +245,71 @@ test.describe("VoiceMesh 对端离开防重试与单人待命防降级验收测�
     );
     expect(hasInterceptLog).toBe(true);
   });
+
+  test("旧频道的离开信令不会关闭新频道中的同一对端", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForFunction(() => Boolean((window as any).voiceMeshManager));
+
+    const counts = await page.evaluate(async () => {
+      const mesh = (window as any).voiceMeshManager;
+      mesh.setContext("usr_mesh_tester_a");
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      await mesh.startVoiceMesh("ch_voice_mesh", "guild_p2p_test", stream, [
+        "usr_mesh_tester_b",
+      ]);
+      await mesh.handleVoiceSignal({
+        guildId: "guild_p2p_test",
+        channelId: "previous_voice_channel",
+        senderId: "usr_mesh_tester_b",
+        streamOwnerId: "usr_mesh_tester_b",
+        type: "VOICE_LEAVE",
+      });
+      const afterStaleSignal = mesh.getOtherMemberCount();
+      await mesh.handleVoiceSignal({
+        guildId: "guild_p2p_test",
+        channelId: "ch_voice_mesh",
+        senderId: "usr_mesh_tester_b",
+        streamOwnerId: "usr_mesh_tester_b",
+        type: "VOICE_LEAVE",
+      });
+      return {
+        afterStaleSignal,
+        afterCurrentSignal: mesh.getOtherMemberCount(),
+      };
+    });
+
+    expect(counts).toEqual({ afterStaleSignal: 1, afterCurrentSignal: 0 });
+  });
+
+  test("私信通话离开信令定向发送给对端并携带 callId", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForFunction(() => Boolean((window as any).voiceMeshManager));
+
+    const leaveSignals = await page.evaluate(async () => {
+      const mesh = (window as any).voiceMeshManager;
+      mesh.setContext("usr_mesh_tester_a");
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      await mesh.startVoiceMesh(
+        "dm_voice",
+        "",
+        stream,
+        ["usr_mesh_tester_b"],
+        "call_1",
+      );
+      const sent: Array<{ callId?: string; targetId?: string; type: string }> =
+        [];
+      mesh.sendSignal = (signal: (typeof sent)[number]) => sent.push(signal);
+      mesh.broadcastLeaveSignal();
+      mesh.stopAll();
+      return sent;
+    });
+
+    expect(leaveSignals).toEqual([
+      expect.objectContaining({
+        callId: "call_1",
+        targetId: "usr_mesh_tester_b",
+        type: "VOICE_LEAVE",
+      }),
+    ]);
+  });
 });

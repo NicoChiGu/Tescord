@@ -28,6 +28,7 @@ import {
   VoiceTransferNotice,
 } from "./components/ChannelSidebar.js";
 import { ChatArea } from "./components/ChatArea.js";
+import { clearFastMarkdownCache } from "./components/chat/fastMarkdown.js";
 import { VoiceRoomArea } from "./components/VoiceRoomArea.js";
 import { MemberList } from "./components/MemberList.js";
 import { UserProfilePopout } from "./components/profile/UserProfilePopout.js";
@@ -250,11 +251,7 @@ export const App: React.FC = () => {
       return false;
 
     // 守卫：若当前频道除自己外已无其他成员，严禁降级回退至 SFU，保持 P2P 就绪待命
-    const currentUserId = useAuthStore.getState().user?.id;
-    const otherInChannel = voiceStates.filter(
-      (vs) => vs.channelId === channelId && vs.userId !== currentUserId,
-    );
-    if (!callId && otherInChannel.length === 0) {
+    if (!callId && voiceMeshManager.getOtherMemberCount() === 0) {
       console.log(
         `[Voice] 频道 ${channelId} 仅剩当前用户，拦截 SFU 回退，保持 P2P 就绪待命`,
       );
@@ -566,6 +563,7 @@ export const App: React.FC = () => {
         isAccountTransitionRef.current = true;
         gatewayClient.disconnect();
         preheatManager.reset();
+        clearFastMarkdownCache();
         voiceMeshManager.setContext(null);
         p2pStreamManager.setContext(null);
         audioEngine.stop();
@@ -3255,6 +3253,7 @@ export const App: React.FC = () => {
     // 清理 SFrame 语音加密管线状态与纯语音 Mesh P2P
     sframeManager.disable();
     livekitService.setNegotiatedE2EEKey(null);
+    cloudflareRealtimeService.setNegotiatedE2EEKey(null);
     // 向频道内对端广播 VOICE_LEAVE 离开信令，使其毫秒级释放连接并取消重试
     voiceMeshManager.broadcastLeaveSignal();
     voiceMeshManager.stopAll();
