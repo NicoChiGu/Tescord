@@ -29,7 +29,7 @@ test.describe("Discord 级体验增强核心交互验证 (问题2/3/4/5/6)", () 
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "user_test_me",
+          id: "usr_default_admin",
           username: "jackey_tester",
           displayName: "测试大师",
           email: "tester@tescord.local",

@@ -16,7 +16,7 @@ test.describe("语音多端互斥接管、频道顺滑切换与多路直播自�
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "e2e_user_voice_test",
+          id: "usr_default_admin",
           username: "voice_tester",
           displayName: "语音测试员",
           email: "tester@example.com",
@@ -53,17 +53,23 @@ test.describe("语音多端互斥接管、频道顺滑切换与多路直播自�
     await expect(page).toHaveTitle(/Tescord/i);
 
     // 进入公会
-    const serverBtn = page.getByRole("button", { name: /Tescord 极客总部|极客/i }).first();
+    const serverBtn = page
+      .getByRole("button", { name: /Tescord 极客总部|极客/i })
+      .first();
     await expect(serverBtn).toBeVisible({ timeout: 10000 });
     await serverBtn.click();
 
     // 双击加入语音频道
-    const voiceChannelBtn = page.locator('button[title="单击预览房间，双击加入语音通话"]').first();
+    const voiceChannelBtn = page
+      .locator('button[title="单击预览房间，双击加入语音通话"]')
+      .first();
     await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
     await voiceChannelBtn.dblclick();
 
     // 确认已连入语音频道
-    const leaveVoiceBtn = page.getByRole("button", { name: "断开连接" }).first();
+    const leaveVoiceBtn = page
+      .getByRole("button", { name: "断开连接" })
+      .first();
     await expect(leaveVoiceBtn).toBeVisible({ timeout: 8000 });
 
     // 模拟服务端发来异地设备接管信令 (VOICE_SERVER_DISCONNECT)
@@ -79,7 +85,9 @@ test.describe("语音多端互斥接管、频道顺滑切换与多路直播自�
 
     // 验证通话被踢出，展示转移横幅
     await expect(leaveVoiceBtn).not.toBeVisible({ timeout: 5000 });
-    const transferNotice = page.locator('[data-testid="voice-transfer-notice"]');
+    const transferNotice = page.locator(
+      '[data-testid="voice-transfer-notice"]',
+    );
     await expect(transferNotice).toBeVisible({ timeout: 5000 });
     await expect(transferNotice).toContainText("语音已转移至 移动客户端 (iOS)");
   });
@@ -88,19 +96,25 @@ test.describe("语音多端互斥接管、频道顺滑切换与多路直播自�
     page,
   }) => {
     await page.goto("/");
-    const serverBtn = page.getByRole("button", { name: /Tescord 极客总部|极客/i }).first();
+    const serverBtn = page
+      .getByRole("button", { name: /Tescord 极客总部|极客/i })
+      .first();
     await expect(serverBtn).toBeVisible({ timeout: 10000 });
     await serverBtn.click();
 
     // 查找公会内的语音频道列表
-    const voiceChannels = page.locator('button[title="单击预览房间，双击加入语音通话"]');
+    const voiceChannels = page.locator(
+      'button[title="单击预览房间，双击加入语音通话"]',
+    );
     await expect(voiceChannels.first()).toBeVisible({ timeout: 5000 });
     const count = await voiceChannels.count();
 
     // 加入第一个语音频道
     await voiceChannels.first().dblclick();
 
-    const leaveVoiceBtn = page.getByRole("button", { name: "断开连接" }).first();
+    const leaveVoiceBtn = page
+      .getByRole("button", { name: "断开连接" })
+      .first();
     await expect(leaveVoiceBtn).toBeVisible({ timeout: 8000 });
 
     // 若存在第二个语音频道，直接双击第二个语音频道进行端到端原子切换
@@ -115,7 +129,9 @@ test.describe("语音多端互斥接管、频道顺滑切换与多路直播自�
           client.emit("VOICE_STATE_UPDATE", {
             userId: "e2e_user_voice_test",
             channelId: "chn_default_voice_02",
-            sessionId: client.getSessionId ? client.getSessionId() : "session_current",
+            sessionId: client.getSessionId
+              ? client.getSessionId()
+              : "session_current",
           });
         }
       });
@@ -129,16 +145,24 @@ test.describe("语音多端互斥接管、频道顺滑切换与多路直播自�
     page,
   }) => {
     await page.goto("/");
-    const serverBtn = page.getByRole("button", { name: /Tescord 极客总部|极客/i }).first();
+    const serverBtn = page
+      .getByRole("button", { name: /Tescord 极客总部|极客/i })
+      .first();
     await expect(serverBtn).toBeVisible({ timeout: 10000 });
     await serverBtn.click();
 
-    const voiceChannelBtn = page.locator('button[title="单击预览房间，双击加入语音通话"]').first();
+    const voiceChannelBtn = page
+      .locator('button[title="单击预览房间，双击加入语音通话"]')
+      .first();
     await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
-    const channelId = (await voiceChannelBtn.getAttribute("data-channel-id")) || "chn_default_voice_01";
+    const channelId =
+      (await voiceChannelBtn.getAttribute("data-channel-id")) ||
+      "chn_default_voice_01";
     await voiceChannelBtn.dblclick();
 
-    const leaveVoiceBtn = page.getByRole("button", { name: "断开连接" }).first();
+    const leaveVoiceBtn = page
+      .getByRole("button", { name: "断开连接" })
+      .first();
     await expect(leaveVoiceBtn).toBeVisible({ timeout: 8000 });
 
     // 模拟当前语音频道内存在两位正在直播的用户 (Alice & Bob)
@@ -163,8 +187,12 @@ test.describe("语音多端互斥接管、频道顺滑切换与多路直播自�
     }, channelId);
 
     // 验证两位主播均呈现在频道成员中
-    await expect(page.getByText("Alice_Live").first()).toBeVisible({ timeout: 6000 });
-    await expect(page.getByText("Bob_Live").first()).toBeVisible({ timeout: 6000 });
+    await expect(page.getByText("Alice_Live").first()).toBeVisible({
+      timeout: 6000,
+    });
+    await expect(page.getByText("Bob_Live").first()).toBeVisible({
+      timeout: 6000,
+    });
 
     // 模拟同时观看 Alice 和 Bob 的直播
     await page.evaluate(() => {

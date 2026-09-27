@@ -25,7 +25,7 @@ test.describe("频音频道静音与时长选项自动化验收 (Channel Mute & 
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "e2e_user_mute_test",
+          id: "usr_default_admin",
           username: "mute_tester",
           displayName: "静音测试员",
           email: "mute_tester@example.com",

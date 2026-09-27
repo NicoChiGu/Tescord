@@ -98,7 +98,7 @@ test.describe("消息引用跳转原文与高亮交互端到端验收 (Discord-P
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "e2e_tester_user",
+          id: "usr_default_admin",
           username: "tester_pro",
           displayName: "专业测试员",
           email: "tester@tescord.local",

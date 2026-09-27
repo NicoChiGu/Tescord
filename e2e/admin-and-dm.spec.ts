@@ -52,7 +52,7 @@ test.describe("超级管理员控制台与私信列表全链路端到端验收",
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "admin_user_id",
+          id: "usr_default_admin",
           username: "Jackey",
           displayName: "Jackey 超级管理员",
           email: "admin@tescord.local",

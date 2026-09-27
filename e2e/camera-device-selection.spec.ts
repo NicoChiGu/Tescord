@@ -82,7 +82,7 @@ test.describe("Discord 风格摄像头设备选择与视频预览全链路验收
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "e2e_camera_selector_user",
+          id: "usr_default_admin",
           username: "streamer_jack",
           displayName: "摄像头主理人",
           email: "camera@tescord.local",
@@ -247,7 +247,7 @@ test.describe("Discord 风格摄像头设备选择与视频预览全链路验收
 
     // 验证自身视频画面挂载
     const localVideoTile = page.getByTestId(
-      "participant-video-tile-e2e_camera_selector_user",
+      "participant-video-tile-usr_default_admin",
     );
     await expect(localVideoTile).toBeVisible();
 

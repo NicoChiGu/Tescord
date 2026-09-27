@@ -214,6 +214,9 @@ export const App: React.FC = () => {
 
   // 内部引用，保证长存事件与异步回调中始终读取最新状态
   const activeVoiceChannelIdRef = useRef<string | null>(null);
+  const accountEpochRef = useRef(0);
+  const isAccountTransitionRef = useRef(false);
+  const accountCleanupPromiseRef = useRef<Promise<void>>(Promise.resolve());
   activeVoiceChannelIdRef.current = activeVoiceChannelId;
   if (typeof window !== "undefined") {
     (window as any).__activeVoiceChannelId = activeVoiceChannelId;
@@ -532,8 +535,22 @@ export const App: React.FC = () => {
     const currentId = currentUser?.id || null;
     useChannelNavStore.getState().setUserId(currentId);
     if (lastActiveUserIdRef.current !== currentId) {
+      accountEpochRef.current += 1;
       if (lastActiveUserIdRef.current !== null) {
         // 用户身份发生变动（从 User A 变为 User B，或者从 User A 变为登出）
+        isAccountTransitionRef.current = true;
+        gatewayClient.disconnect();
+        preheatManager.reset();
+        voiceMeshManager.setContext(null);
+        p2pStreamManager.setContext(null);
+        audioEngine.stop();
+        sframeManager.disable();
+        livekitService.setNegotiatedE2EEKey(null);
+        cloudflareRealtimeService.setNegotiatedE2EEKey(null);
+        accountCleanupPromiseRef.current = Promise.allSettled([
+          cloudflareRealtimeService.disconnect(),
+          livekitService.leaveRoom(),
+        ]).then(() => undefined);
         setGuilds([]);
         setSelectedGuildId(null);
         setSelectedChannel(null);
@@ -543,9 +560,18 @@ export const App: React.FC = () => {
         setActiveVoiceChannelId(null);
         setActiveDMCall(null);
         setIncomingCall(null);
-        preheatManager.reset();
-        gatewayClient.disconnect();
-        livekitService.leaveRoom();
+        setIsScreenSharing(false);
+        setIsVideoEnabled(false);
+        setActiveScreenShare(null);
+        setVoiceTransferNotice(null);
+        voiceRevisionRef.current.clear();
+        usePresenceStore.getState().clearPresences();
+        useFriendStore.setState({
+          relationships: [],
+          isLoading: false,
+          error: null,
+          searchQuery: "",
+        });
       }
       lastActiveUserIdRef.current = currentId;
       messageDb.switchUser(currentId);
@@ -554,12 +580,23 @@ export const App: React.FC = () => {
 
   // 拉取公会列表
   const refreshGuilds = () => {
-    const token = useAuthStore.getState().token;
+    const auth = useAuthStore.getState();
+    const token = auth.token;
+    const requestedUserId = auth.user?.id;
+    const requestedEpoch = accountEpochRef.current;
+    if (!token || !requestedUserId) return;
     fetch(`${API_BASE}/api/guilds`, {
       headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     })
       .then((res) => res.json())
       .then((data: Guild[]) => {
+        const latestAuth = useAuthStore.getState();
+        if (
+          requestedEpoch !== accountEpochRef.current ||
+          latestAuth.user?.id !== requestedUserId ||
+          latestAuth.token !== token
+        )
+          return;
         setGuilds(data);
         // 验证当前选中的公会是否属于当前用户真实加入的公会，防止残留旧账号公会 ID
         const currentSelectedGuild = data.find(
@@ -635,13 +672,23 @@ export const App: React.FC = () => {
   // 拉取私信列表
   const refreshDMChannels = useCallback(async () => {
     try {
-      const token = localStorage.getItem("tescord_access_token");
-      if (!token) return;
+      const auth = useAuthStore.getState();
+      const token = auth.token;
+      const requestedUserId = auth.user?.id;
+      const requestedEpoch = accountEpochRef.current;
+      if (!token || !requestedUserId) return;
       const res = await fetch(`${API_BASE}/api/users/@me/channels`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
         const data: Channel[] | { items: Channel[] } = await res.json();
+        const latestAuth = useAuthStore.getState();
+        if (
+          requestedEpoch !== accountEpochRef.current ||
+          latestAuth.user?.id !== requestedUserId ||
+          latestAuth.token !== token
+        )
+          return;
         const dms = Array.isArray(data) ? data : data.items;
         setDmChannels(dms);
 
@@ -672,6 +719,8 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (!isAuthenticated || !currentUser) return;
 
+    isAccountTransitionRef.current = false;
+
     refreshGuilds();
     refreshDMChannels();
     window.electronAPI?.syncUserStatus(currentUser.status);
@@ -683,7 +732,7 @@ export const App: React.FC = () => {
 
     // 连接 WebSocket 网关
     const gatewayToken = useAuthStore.getState().accessToken;
-    if (gatewayToken) gatewayClient.connect(gatewayToken);
+    if (gatewayToken) gatewayClient.connect(gatewayToken, currentUser.id);
     voiceMeshManager.setContext(currentUser.id);
     useSettingsStore.getState().fetchCloudSettings();
     if (typeof window !== "undefined") {
@@ -2059,6 +2108,7 @@ export const App: React.FC = () => {
     const unbind = gatewayClient.onConnectionStateChange((state) => {
       if (
         state === "disconnected" &&
+        !isAccountTransitionRef.current &&
         activeVoiceChannelIdRef.current &&
         cloudflareRealtimeService.currentSessionId
       ) {
@@ -2074,6 +2124,16 @@ export const App: React.FC = () => {
           }
         }, 30_000);
       } else if (state === "connected" && pendingChannelId) {
+        const activeUserId = useAuthStore.getState().user?.id;
+        if (
+          isAccountTransitionRef.current ||
+          !activeUserId ||
+          !gatewayClient.isReadyForUser(activeUserId)
+        ) {
+          pendingChannelId = null;
+          clearTimer();
+          return;
+        }
         const channelId = pendingChannelId;
         pendingChannelId = null;
         clearTimer();
@@ -2803,6 +2863,20 @@ export const App: React.FC = () => {
   // 加入语音频道
   const handleJoinVoiceChannel = async (channel: Channel) => {
     if (!currentUser) return;
+    const joiningUserId = currentUser.id;
+    const joiningEpoch = accountEpochRef.current;
+    const isCurrentJoiningAccount = () =>
+      accountEpochRef.current === joiningEpoch &&
+      useAuthStore.getState().user?.id === joiningUserId &&
+      gatewayClient.isReadyForUser(joiningUserId);
+    await accountCleanupPromiseRef.current;
+    if (
+      accountEpochRef.current !== joiningEpoch ||
+      useAuthStore.getState().user?.id !== joiningUserId
+    )
+      return;
+    if (!(await gatewayClient.waitUntilReady(joiningUserId))) return;
+    if (!isCurrentJoiningAccount()) return;
     setVoiceTransferNotice(null);
 
     // 若当前已在另一个语音频道，立即同步清理旧房间音频连接与 WebRTC 状态，杜绝 1 秒声音残留
@@ -2835,6 +2909,11 @@ export const App: React.FC = () => {
     }
 
     await audioEngine.initMicrophone();
+    if (!isCurrentJoiningAccount()) {
+      audioEngine.stop();
+      setActiveVoiceChannelId(null);
+      return;
+    }
     // A rebuilt capture graph must inherit the current mute before it is published.
     audioEngine.setMute(isMutedRef.current);
 
@@ -2853,12 +2932,21 @@ export const App: React.FC = () => {
         VOICE_ENGINE === "cloudflare_realtime");
 
     if (isP2PMesh && processedStream && channel.guildId) {
-      gatewayClient.updateVoiceState(channel.guildId, channel.id, {
-        selfMute: isMuted,
-        selfDeaf: isDeafened,
-        selfVideo: isVideoEnabled,
-        streaming: isScreenSharing,
-      });
+      const voiceStateAccepted = gatewayClient.updateVoiceState(
+        channel.guildId,
+        channel.id,
+        {
+          selfMute: isMuted,
+          selfDeaf: isDeafened,
+          selfVideo: isVideoEnabled,
+          streaming: isScreenSharing,
+        },
+      );
+      if (!voiceStateAccepted || !isCurrentJoiningAccount()) {
+        audioEngine.stop();
+        setActiveVoiceChannelId(null);
+        return;
+      }
       const otherMembers = voiceStates
         .filter(
           (state) =>
@@ -2890,6 +2978,12 @@ export const App: React.FC = () => {
             audioStream: processedStream,
           },
         );
+        if (!isCurrentJoiningAccount()) {
+          await cloudflareRealtimeService.disconnect();
+          audioEngine.stop();
+          setActiveVoiceChannelId(null);
+          return;
+        }
         cloudflareRealtimeService.setMicrophoneMute(isMutedRef.current);
         joinSuccess = Boolean(cfSessionId);
         if (joinSuccess) livekitService.setConnectionStatus("connected");
@@ -2917,6 +3011,11 @@ export const App: React.FC = () => {
         });
         if (!res.ok) throw new Error("Failed to get guild media token");
         const data = await res.json();
+        if (!isCurrentJoiningAccount()) {
+          audioEngine.stop();
+          setActiveVoiceChannelId(null);
+          return;
+        }
         joinSuccess = await livekitService.joinRoom(
           data.url,
           data.token,
@@ -2925,6 +3024,12 @@ export const App: React.FC = () => {
           bitrate,
           Boolean(channel.isE2EE),
         );
+        if (!isCurrentJoiningAccount()) {
+          if (joinSuccess) await livekitService.leaveRoom();
+          audioEngine.stop();
+          setActiveVoiceChannelId(null);
+          return;
+        }
       }
     } catch (e) {
       console.error("Failed to join livekit room:", e);
@@ -2942,12 +3047,23 @@ export const App: React.FC = () => {
     soundManager.play("VOICE_JOIN");
 
     if (channel.guildId) {
-      gatewayClient.updateVoiceState(channel.guildId, channel.id, {
-        selfMute: isMuted,
-        selfDeaf: isDeafened,
-        selfVideo: isVideoEnabled,
-        streaming: isScreenSharing,
-      });
+      const voiceStateAccepted = gatewayClient.updateVoiceState(
+        channel.guildId,
+        channel.id,
+        {
+          selfMute: isMuted,
+          selfDeaf: isDeafened,
+          selfVideo: isVideoEnabled,
+          streaming: isScreenSharing,
+        },
+      );
+      if (!voiceStateAccepted) {
+        await cloudflareRealtimeService.disconnect();
+        await livekitService.leaveRoom();
+        voiceMeshManager.stopAll();
+        audioEngine.stop();
+        setActiveVoiceChannelId(null);
+      }
     }
   };
 

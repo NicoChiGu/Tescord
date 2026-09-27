@@ -85,7 +85,7 @@ test.describe("屏幕分享伴音异常与自动优雅降级 (NotReadableError A
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "e2e_screenshare_user",
+          id: "usr_default_admin",
           username: "audio_fallback_tester",
           displayName: "伴音降级测试员",
           email: "fallback@example.com",

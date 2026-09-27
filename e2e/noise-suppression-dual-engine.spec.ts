@@ -23,7 +23,7 @@ test.describe("三引擎降噪与四轨 A/B 录音试听全链路验收", () => 
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "e2e_noise_user",
+          id: "usr_default_admin",
           username: "acoustic_tester",
           displayName: "声学验收员",
           email: "acoustic@example.com",

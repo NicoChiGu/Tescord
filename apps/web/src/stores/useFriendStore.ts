@@ -49,19 +49,33 @@ export const useFriendStore = create<FriendState>((set, get) => ({
 
   fetchRelationships: async () => {
     set({ isLoading: true, error: null });
+    const authAtStart = useAuthStore.getState();
+    const requestedUserId = authAtStart.user?.id;
+    const requestedToken = authAtStart.token;
+    if (!requestedUserId || !requestedToken) {
+      set({ isLoading: false });
+      return;
+    }
     try {
-      const headers = useAuthStore.getState().getAuthHeaders();
       const res = await apiFetch(`${API_BASE}/api/users/@me/relationships`, {
-        headers,
+        headers: { Authorization: `Bearer ${requestedToken}` },
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "获取好友列表失败");
       }
       const relationships = (await res.json()) as Relationship[];
+      const currentAuth = useAuthStore.getState();
+      if (
+        currentAuth.user?.id !== requestedUserId ||
+        currentAuth.token !== requestedToken
+      )
+        return;
       set({ relationships, isLoading: false });
     } catch (err: any) {
-      set({ error: err.message, isLoading: false });
+      if (useAuthStore.getState().user?.id === requestedUserId) {
+        set({ error: err.message, isLoading: false });
+      }
     }
   },
 

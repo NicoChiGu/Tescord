@@ -25,7 +25,7 @@ test.describe("语音频道进入交互自动化验收 (Voice Channel Click & Do
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "e2e_user_voice_test",
+          id: "usr_default_admin",
           username: "voice_tester",
           displayName: "语音交互测试员",
           email: "voice_tester@example.com",

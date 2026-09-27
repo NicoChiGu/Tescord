@@ -83,7 +83,7 @@ test.describe("语音输入配置热切换与无缝推流验收 (Audio Input Hot
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "e2e_audio_hot_swap_user",
+          id: "usr_default_admin",
           username: "audio_tester",
           displayName: "音频测试员",
           email: "audio@tescord.local",

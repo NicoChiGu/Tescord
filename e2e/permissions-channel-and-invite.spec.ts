@@ -14,7 +14,45 @@ test.describe("频道与分类拖拽及创建/邀请入口权限控制专项端�
 
   test("1. 普通成员（无 MANAGE_CHANNELS 与 CREATE_INVITE 权限）：彻底禁用拖拽、隐藏新建分类/新建频道及邀请入口", async ({
     page,
+    request,
   }) => {
+    const adminLogin = await request.post("/api/auth/login", {
+      data: {
+        emailOrUsername: "admin@tescord.local",
+        password: "adminpassword123",
+      },
+    });
+    const aliceLogin = await request.post("/api/auth/login", {
+      data: {
+        emailOrUsername: "alice@tescord.local",
+        password: "alicepassword123",
+      },
+    });
+    const admin = await adminLogin.json();
+    const alice = await aliceLogin.json();
+    const inviteResponse = await request.post(
+      "/api/guilds/gld_default_01/invites",
+      {
+        headers: { Authorization: `Bearer ${admin.accessToken}` },
+        data: { maxUses: 1, maxAge: 600 },
+      },
+    );
+    const invite = await inviteResponse.json();
+    const joinResponse = await request.post(
+      `/api/invites/${invite.code}/join`,
+      { headers: { Authorization: `Bearer ${alice.accessToken}` } },
+    );
+    expect(joinResponse.ok()).toBeTruthy();
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        "tescord_access_token",
+        localStorage.getItem("tescord_e2e_normal_access_token") || "",
+      );
+      localStorage.setItem(
+        "tescord_refresh_token",
+        localStorage.getItem("tescord_e2e_normal_refresh_token") || "",
+      );
+    });
     const consoleErrors: string[] = [];
     page.on("console", (msg) => {
       if (msg.type() === "error") {
@@ -28,7 +66,7 @@ test.describe("频道与分类拖拽及创建/邀请入口权限控制专项端�
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "usr_alice_normal",
+          id: "usr_test_alice",
           username: "alice",
           displayName: "Alice (普通成员)",
           email: "alice@tescord.local",
@@ -128,6 +166,10 @@ test.describe("频道与分类拖拽及创建/邀请入口权限控制专项端�
     await page.keyboard.press("Escape");
 
     expect(consoleErrors).toEqual([]);
+    await request.delete(
+      `/api/guilds/gld_default_01/members/${alice.user.id}`,
+      { headers: { Authorization: `Bearer ${admin.accessToken}` } },
+    );
   });
 
   test("2. 特权/管理员用户：完整展示侧边栏按钮、分类新建按钮、频道右键邀请与右键管理功能", async ({

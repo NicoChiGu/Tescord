@@ -18,7 +18,7 @@ test.describe("真实延迟状态与网关连接指示端到端验收", () => {
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "e2e_user_latency",
+          id: "usr_default_admin",
           username: "tester_pro",
           displayName: "延迟测试员",
           email: "tester@example.com",
@@ -83,7 +83,7 @@ test.describe("真实延迟状态与网关连接指示端到端验收", () => {
       .filter({ has: page.locator("svg.lucide-volume-2") })
       .first();
     await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
-    await installConnectedLiveKitStub(page, "e2e_user_latency");
+    await installConnectedLiveKitStub(page, "usr_default_admin");
     await voiceChannelBtn.dblclick();
 
     // 3. 验证左下角语音连接状态与实时 WebRTC RTT 呈现

@@ -18,7 +18,7 @@ test.describe("媒体属性面板、传输速率与网络连接架构端到端�
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "e2e_user_1",
+          id: "usr_default_admin",
           username: "e2e_tester",
           displayName: "E2E测试员",
           email: "e2e@example.com",

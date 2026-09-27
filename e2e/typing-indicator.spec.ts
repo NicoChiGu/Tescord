@@ -17,7 +17,7 @@ test.describe("打字指示器 (Typing Indicator) 端到端交互与动效验收
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "e2e_user_1",
+          id: "usr_default_admin",
           username: "e2e_tester",
           displayName: "E2E验收员",
           email: "e2e@example.com",

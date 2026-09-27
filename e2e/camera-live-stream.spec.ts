@@ -41,7 +41,7 @@ test.describe("语音频道摄像头直播（Webcam Live Streaming）与舞台�
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "e2e_camera_user",
+          id: "usr_default_admin",
           username: "webcam_tester",
           displayName: "摄像头验收员",
           email: "camera@example.com",
@@ -96,7 +96,7 @@ test.describe("语音频道摄像头直播（Webcam Live Streaming）与舞台�
 
     // 初始状态下：成员卡片展示圆形头像，未挂载 video 标签
     const videoTileInitial = page.getByTestId(
-      "participant-video-tile-e2e_camera_user",
+      "participant-video-tile-usr_default_admin",
     );
     await expect(videoTileInitial).not.toBeVisible();
 
@@ -113,7 +113,7 @@ test.describe("语音频道摄像头直播（Webcam Live Streaming）与舞台�
 
     // 6. 验证成员卡片平滑切换为视频视口 (包含 <video> 与镜像样式)
     const videoTile = page.getByTestId(
-      "participant-video-tile-e2e_camera_user",
+      "participant-video-tile-usr_default_admin",
     );
     await expect(videoTile).toBeVisible({ timeout: 10000 });
 

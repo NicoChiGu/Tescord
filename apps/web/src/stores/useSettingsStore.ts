@@ -245,19 +245,28 @@ export const useSettingsStore = create<SettingsState>()(
       },
 
       fetchCloudSettings: async () => {
-        const { getAuthHeaders, isAuthenticated } = useAuthStore.getState();
-        if (!isAuthenticated) return;
+        const authAtStart = useAuthStore.getState();
+        const requestedUserId = authAtStart.user?.id;
+        const requestedToken = authAtStart.token;
+        if (!authAtStart.isAuthenticated || !requestedUserId || !requestedToken)
+          return;
 
         try {
           set({ isCloudSyncing: true });
           const res = await fetch(`${API_BASE}/api/users/@me/settings`, {
             headers: {
-              ...getAuthHeaders(),
+              Authorization: `Bearer ${requestedToken}`,
             },
           });
           if (!res.ok) return;
 
           const cloudSettings: Partial<UserSettingsDTO> = await res.json();
+          const currentAuth = useAuthStore.getState();
+          if (
+            currentAuth.user?.id !== requestedUserId ||
+            currentAuth.token !== requestedToken
+          )
+            return;
           if (cloudSettings && typeof cloudSettings === "object") {
             set((state) => {
               const currentInput = state.audio.inputDeviceId;
@@ -326,7 +335,9 @@ export const useSettingsStore = create<SettingsState>()(
         } catch (e) {
           console.warn("[SettingsStore] 拉取云端设置失败:", e);
         } finally {
-          set({ isCloudSyncing: false });
+          if (useAuthStore.getState().user?.id === requestedUserId) {
+            set({ isCloudSyncing: false });
+          }
         }
       },
 

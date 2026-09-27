@@ -93,7 +93,7 @@ test.describe("P2P 直连与智能接力直播传输模式端到端自动化验�
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "e2e_p2p_streamer",
+          id: "usr_default_admin",
           username: "p2p_tester",
           displayName: "P2P架构体验官",
           email: "p2p@tescord.local",
@@ -125,7 +125,7 @@ test.describe("P2P 直连与智能接力直播传输模式端到端自动化验�
             id: "guild_p2p_test",
             name: "P2P 极客实验室",
             iconUrl: null,
-            ownerId: "e2e_p2p_streamer",
+            ownerId: "usr_default_admin",
             channels: [
               {
                 id: "chan_voice_p2p",
@@ -322,7 +322,7 @@ test.describe("P2P 直连与智能接力直播传输模式端到端自动化验�
 
     // 5. 核心验证：主播卡片内成功挂载并渲染出屏幕推流 <video> 画面（解决原先主播端黑屏丢失画面的根因）
     const videoElement = page.locator(
-      '[data-testid="participant-main-video-e2e_p2p_streamer"]',
+      '[data-testid="participant-main-video-usr_default_admin"]',
     );
     await expect(videoElement).toBeVisible({ timeout: 8000 });
   });

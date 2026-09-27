@@ -104,7 +104,7 @@ test.describe("屏幕分享 16:9 自适应分辨率与屏幕尺寸硬性禁用 E
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "e2e_res_user",
+          id: "usr_default_admin",
           username: "resolution_guru",
           displayName: "超清画质师",
           email: "res@tescord.local",

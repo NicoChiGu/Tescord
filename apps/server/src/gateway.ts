@@ -268,7 +268,19 @@ export class GatewayManager {
         if (!this.userSessions.has(user.id)) {
           this.userSessions.set(user.id, new Map());
         }
-        this.userSessions.get(user.id)!.set(sessionId, conn);
+        const sessions = this.userSessions.get(user.id)!;
+        const replacedConnection = sessions.get(sessionId);
+        sessions.set(sessionId, conn);
+        if (
+          replacedConnection &&
+          replacedConnection !== conn &&
+          replacedConnection.ws.readyState === WebSocket.OPEN
+        ) {
+          replacedConnection.ws.close(
+            GatewayCloseCode.NORMAL,
+            "Session connection replaced",
+          );
+        }
 
         // 确定用户有效在线状态（若偏好是 OFFLINE 则默认唤醒为 ONLINE，若为 INVISIBLE/DND/IDLE 则保留偏好）
         const userStatusPref = (user.status as UserStatus) || "ONLINE";
@@ -529,7 +541,10 @@ export class GatewayManager {
 
             removeParticipantFromRoom(existingVoice.channelId, conn.userId);
             if (existingVoice.streaming) {
-              p2pTopologyManager.unregisterStream(existingVoice.channelId, conn.userId);
+              p2pTopologyManager.unregisterStream(
+                existingVoice.channelId,
+                conn.userId,
+              );
             }
           }
 
@@ -611,7 +626,10 @@ export class GatewayManager {
             existingVoice?.streaming &&
             existingVoice.channelId
           ) {
-            p2pTopologyManager.unregisterStream(existingVoice.channelId, conn.userId);
+            p2pTopologyManager.unregisterStream(
+              existingVoice.channelId,
+              conn.userId,
+            );
             await this.broadcastChannel(existingVoice.channelId, {
               op: GatewayOpCode.DISPATCH,
               t: GatewayEvents.P2P_TOPOLOGY_UPDATE,
@@ -652,7 +670,10 @@ export class GatewayManager {
                 conn.userId,
               );
               if (existingVoice.streaming) {
-                p2pTopologyManager.unregisterStream(existingVoice.channelId, conn.userId);
+                p2pTopologyManager.unregisterStream(
+                  existingVoice.channelId,
+                  conn.userId,
+                );
               }
             }
           }
@@ -1191,7 +1212,8 @@ export class GatewayManager {
   private cleanup(conn: ClientConnection) {
     if (conn.userId && conn.sessionId) {
       const sessions = this.userSessions.get(conn.userId);
-      if (sessions) {
+      const isCurrentSessionConnection = sessions?.get(conn.sessionId) === conn;
+      if (sessions && isCurrentSessionConnection) {
         sessions.delete(conn.sessionId);
         if (sessions.size === 0) {
           this.userSessions.delete(conn.userId);
@@ -1212,7 +1234,9 @@ export class GatewayManager {
         }
       }
 
-      const endedCall = dmCallService.onDisconnect(conn.userId, conn.sessionId);
+      const endedCall = isCurrentSessionConnection
+        ? dmCallService.onDisconnect(conn.userId, conn.sessionId)
+        : null;
       if (endedCall) {
         const event = {
           callId: endedCall.callId,
@@ -1234,7 +1258,11 @@ export class GatewayManager {
 
       // 仅当断开的连接其 sessionId 恰好是当前活跃语音的持有者时，才清理语音状态并全网广播
       const currentVoice = this.voiceStates.get(conn.userId);
-      if (currentVoice && currentVoice.sessionId === conn.sessionId) {
+      if (
+        isCurrentSessionConnection &&
+        currentVoice &&
+        currentVoice.sessionId === conn.sessionId
+      ) {
         this.voiceStates.delete(conn.userId);
         this.broadcast({
           op: GatewayOpCode.DISPATCH,
@@ -1386,8 +1414,15 @@ export class GatewayManager {
 
     // 若该用户刚刚发生过多端接管 (6秒内)，且新设备的会话连接仍保持活跃，忽略旧会话的踢出 Webhook
     const lastTransfer = this.transferTimestamps.get(userId);
-    if (!gatewaySessionId && lastTransfer && Date.now() - lastTransfer < 6000 && currentVoice.sessionId) {
-      const activeConn = this.userSessions.get(userId)?.get(currentVoice.sessionId);
+    if (
+      !gatewaySessionId &&
+      lastTransfer &&
+      Date.now() - lastTransfer < 6000 &&
+      currentVoice.sessionId
+    ) {
+      const activeConn = this.userSessions
+        .get(userId)
+        ?.get(currentVoice.sessionId);
       if (activeConn && activeConn.ws.readyState === WebSocket.OPEN) {
         console.log(
           `[Gateway] Ignored LiveKit participant_left for ${userId} in ${roomName} due to recent device transfer (active session: ${currentVoice.sessionId})`,

@@ -7,6 +7,7 @@ import {
   HeartbeatData,
   GatewayConnectionState,
   GatewayPingStats,
+  ReadyPayload,
   User,
   UserStatus,
   MaintenanceUpdatePayload,
@@ -20,9 +21,15 @@ type EventHandler = (data: any) => void;
 export class GatewayClient {
   private ws: WebSocket | null = null;
   private heartbeatTimer: any = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private handlers: Map<string, Set<EventHandler>> = new Map();
   private token: string = "";
   private isConnecting: boolean = false;
+  private reconnectAllowed = false;
+  private connectionGeneration = 0;
+  private expectedUserId: string | null = null;
+  private authenticatedUserId: string | null = null;
+  private ready = false;
   private connectionState: GatewayConnectionState = "disconnected";
   private pingStats: GatewayPingStats | null = null;
   private lastHeartbeatSentAt: number = 0;
@@ -60,14 +67,42 @@ export class GatewayClient {
     }
   }
 
-  connect(token: string) {
-    this.token = token;
+  connect(token: string, expectedUserId?: string) {
+    const authUserId = useAuthStore.getState().user?.id || null;
+    const nextExpectedUserId = expectedUserId || authUserId;
+    const identityChanged =
+      this.expectedUserId !== null &&
+      nextExpectedUserId !== null &&
+      this.expectedUserId !== nextExpectedUserId;
+    const credentialsChanged = this.token !== "" && this.token !== token;
+
     if (
       this.ws &&
       (this.ws.readyState === WebSocket.OPEN ||
-        this.ws.readyState === WebSocket.CONNECTING)
+        this.ws.readyState === WebSocket.CONNECTING) &&
+      !identityChanged &&
+      !credentialsChanged
     ) {
       return;
+    }
+
+    const oldSocket = this.ws;
+    const generation = ++this.connectionGeneration;
+    this.clearReconnectTimer();
+    this.cleanup();
+    this.ws = null;
+    this.ready = false;
+    this.authenticatedUserId = null;
+    this.reconnectAllowed = true;
+    this.token = token;
+    this.expectedUserId = nextExpectedUserId;
+    if (identityChanged) this.sessionId = this.createSessionId();
+    if (oldSocket) {
+      oldSocket.onopen = null;
+      oldSocket.onmessage = null;
+      oldSocket.onerror = null;
+      oldSocket.onclose = null;
+      oldSocket.close();
     }
 
     this.isConnecting = true;
@@ -75,34 +110,41 @@ export class GatewayClient {
       this.setConnectionState("connecting");
     }
     try {
-      this.ws = new WebSocket(this.gatewayUrl);
-      this.setupSocket();
+      const socket = new WebSocket(this.gatewayUrl);
+      this.ws = socket;
+      this.setupSocket(socket, generation);
     } catch (err) {
       console.error("Failed to create WebSocket:", err);
-      this.scheduleReconnect();
+      this.scheduleReconnect(generation);
     }
   }
 
-  private setupSocket() {
-    if (!this.ws) return;
-
-    this.ws.onopen = () => {
+  private setupSocket(socket: WebSocket, generation: number) {
+    socket.onopen = () => {
+      if (!this.isCurrentConnection(socket, generation)) return;
       this.isConnecting = false;
-      this.setConnectionState("connected");
     };
 
-    this.ws.onmessage = (event) => {
+    socket.onmessage = (event) => {
+      if (!this.isCurrentConnection(socket, generation)) return;
       try {
         const payload: GatewayPayload = JSON.parse(event.data);
-        this.handlePayload(payload);
+        this.handlePayload(payload, generation);
       } catch (e) {
         console.error("Error parsing gateway message:", e);
       }
     };
 
-    this.ws.onclose = (event: CloseEvent) => {
+    socket.onclose = (event: CloseEvent) => {
+      if (!this.isCurrentConnection(socket, generation)) return;
+      this.ws = null;
+      this.ready = false;
+      this.authenticatedUserId = null;
+      this.isConnecting = false;
       this.cleanup();
       this.setConnectionState("disconnected");
+
+      if (!this.reconnectAllowed) return;
 
       // 1. 若为 TOKEN_EXPIRED (4001)，执行自愈流程：尝试用 Refresh Token 静默续期换票
       if (
@@ -117,18 +159,19 @@ export class GatewayClient {
           .getState()
           .refreshAuth()
           .then((success) => {
+            if (!this.isCurrentGeneration(generation)) return;
             if (success) {
               const newToken = useAuthStore.getState().accessToken;
               if (newToken) {
                 console.log(
                   "[GatewayClient] Silent refresh succeeded, reconnecting with new token",
                 );
-                this.connect(newToken);
+                this.connect(newToken, this.expectedUserId || undefined);
                 return;
               }
             }
             if (useAuthStore.getState().refreshFailure === "transient") {
-              setTimeout(() => this.scheduleReconnect(), 30_000);
+              this.scheduleReconnect(generation, 30_000);
               return;
             }
             // 刷新失败，说明 Refresh Token 也过期或被吊销，阻断并提示重新登录
@@ -143,7 +186,9 @@ export class GatewayClient {
               );
           })
           .catch(() => {
-            setTimeout(() => this.scheduleReconnect(), 30_000);
+            if (this.isCurrentGeneration(generation)) {
+              this.scheduleReconnect(generation, 30_000);
+            }
           });
         return;
       }
@@ -187,21 +232,21 @@ export class GatewayClient {
           announcement: event.reason || "系统正在维护中",
         });
         // 维护模式下慢速重连探测（8秒）
-        setTimeout(() => {
-          this.scheduleReconnect();
-        }, 8000);
+        this.scheduleReconnect(generation, 8000);
         return;
       }
 
-      this.scheduleReconnect();
+      this.scheduleReconnect(generation);
     };
 
-    this.ws.onerror = (err) => {
+    socket.onerror = (err) => {
+      if (!this.isCurrentConnection(socket, generation)) return;
       console.error("WebSocket error:", err);
     };
   }
 
-  private handlePayload(payload: GatewayPayload) {
+  private handlePayload(payload: GatewayPayload, generation: number) {
+    if (!this.isCurrentGeneration(generation)) return;
     switch (payload.op) {
       case GatewayOpCode.HELLO: {
         const data = payload.d as HelloPayload;
@@ -263,8 +308,23 @@ export class GatewayClient {
       }
 
       case GatewayOpCode.DISPATCH: {
-        if (payload.t === "READY" && payload.d?.sessionId) {
-          this.sessionId = payload.d.sessionId;
+        if (payload.t === "READY") {
+          const ready = payload.d as ReadyPayload;
+          const readyUserId = ready.user?.id || null;
+          if (
+            !readyUserId ||
+            (this.expectedUserId && readyUserId !== this.expectedUserId)
+          ) {
+            console.warn(
+              "[GatewayClient] READY identity does not match active account",
+            );
+            this.disconnect();
+            return;
+          }
+          if (ready.sessionId) this.sessionId = ready.sessionId;
+          this.authenticatedUserId = readyUserId;
+          this.ready = true;
+          this.setConnectionState("connected");
         }
         if (payload.t === GatewayEvents.AUTH_SESSION_EXPIRED) {
           useAuthStore
@@ -313,14 +373,77 @@ export class GatewayClient {
     }
   }
 
-  private scheduleReconnect() {
+  private clearReconnectTimer() {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
+  private scheduleReconnect(
+    generation: number = this.connectionGeneration,
+    delayMs = 3000,
+  ) {
+    if (!this.reconnectAllowed || !this.isCurrentGeneration(generation)) return;
+    this.clearReconnectTimer();
     this.setConnectionState("reconnecting");
-    setTimeout(() => {
-      const latestToken = useAuthStore.getState().accessToken || this.token;
-      if (latestToken) {
-        this.connect(latestToken);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (!this.reconnectAllowed || !this.isCurrentGeneration(generation))
+        return;
+      const auth = useAuthStore.getState();
+      if (
+        !auth.isAuthenticated ||
+        !auth.accessToken ||
+        !auth.user?.id ||
+        (this.expectedUserId && auth.user.id !== this.expectedUserId)
+      ) {
+        return;
       }
-    }, 3000);
+      this.connect(auth.accessToken, auth.user.id);
+    }, delayMs);
+  }
+
+  private createSessionId(): string {
+    return typeof crypto !== "undefined" && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).substring(2);
+  }
+
+  private isCurrentGeneration(generation: number): boolean {
+    return generation === this.connectionGeneration && this.reconnectAllowed;
+  }
+
+  private isCurrentConnection(socket: WebSocket, generation: number): boolean {
+    return this.ws === socket && this.isCurrentGeneration(generation);
+  }
+
+  isReadyForUser(userId: string): boolean {
+    return (
+      this.ready &&
+      this.connectionState === "connected" &&
+      this.expectedUserId === userId &&
+      this.authenticatedUserId === userId
+    );
+  }
+
+  async waitUntilReady(userId: string, timeoutMs = 8000): Promise<boolean> {
+    if (this.isReadyForUser(userId)) return true;
+    return await new Promise<boolean>((resolve) => {
+      let settled = false;
+      const finish = (value: boolean) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        unsubscribe();
+        resolve(value);
+      };
+      const unsubscribe = this.on("READY", (data: ReadyPayload) => {
+        if (data.user?.id === userId && this.isReadyForUser(userId))
+          finish(true);
+      });
+      const timer = setTimeout(() => finish(false), timeoutMs);
+    });
   }
 
   send(payload: GatewayPayload) {
@@ -360,7 +483,9 @@ export class GatewayClient {
       streaming?: boolean;
       streamMode?: import("@tescord/types").StreamTransmissionMode;
     },
-  ) {
+  ): boolean {
+    const activeUserId = useAuthStore.getState().user?.id;
+    if (!activeUserId || !this.isReadyForUser(activeUserId)) return false;
     this.send({
       op: GatewayOpCode.VOICE_STATE_UPDATE,
       d: {
@@ -370,6 +495,7 @@ export class GatewayClient {
         ...extra,
       },
     });
+    return true;
   }
 
   sendTyping(channelId: string) {
@@ -396,11 +522,26 @@ export class GatewayClient {
   }
 
   disconnect() {
+    const socket = this.ws;
+    ++this.connectionGeneration;
+    this.reconnectAllowed = false;
+    this.clearReconnectTimer();
     this.cleanup();
-    if (this.ws) {
-      this.ws.close();
-      this.ws = null;
+    this.ws = null;
+    this.token = "";
+    this.expectedUserId = null;
+    this.authenticatedUserId = null;
+    this.ready = false;
+    this.isConnecting = false;
+    this.sessionId = this.createSessionId();
+    if (socket) {
+      socket.onopen = null;
+      socket.onmessage = null;
+      socket.onerror = null;
+      socket.onclose = null;
+      socket.close();
     }
+    this.setConnectionState("disconnected");
   }
 }
 

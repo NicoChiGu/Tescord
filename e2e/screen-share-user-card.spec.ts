@@ -70,7 +70,7 @@ test.describe("直播屏幕分享与摄像头画面融合（画中画自由切�
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "e2e_screenshare_user",
+          id: "usr_default_admin",
           username: "screenshare_pro",
           displayName: "直播验收专家",
           email: "live@example.com",
@@ -121,7 +121,7 @@ test.describe("直播屏幕分享与摄像头画面融合（画中画自由切�
 
     // 3. 初始状态：成员卡片展示圆形头像，未挂载 video 标签
     const videoTileInitial = page.getByTestId(
-      "participant-video-tile-e2e_screenshare_user",
+      "participant-video-tile-usr_default_admin",
     );
     await expect(videoTileInitial).not.toBeVisible();
 
@@ -141,13 +141,13 @@ test.describe("直播屏幕分享与摄像头画面融合（画中画自由切�
 
     // 验证用户卡片原地切换为视频卡片，且主视频呈现为屏幕分享
     const videoTile = page.getByTestId(
-      "participant-video-tile-e2e_screenshare_user",
+      "participant-video-tile-usr_default_admin",
     );
     await expect(videoTile).toBeVisible({ timeout: 5000 });
 
     // 验证主视口视频
     const mainVideo = page.getByTestId(
-      "participant-main-video-e2e_screenshare_user",
+      "participant-main-video-usr_default_admin",
     );
     await expect(mainVideo).toBeVisible({ timeout: 5000 });
     // 屏幕分享为主画面时，不应有镜像类 -scale-x-100
@@ -155,7 +155,7 @@ test.describe("直播屏幕分享与摄像头画面融合（画中画自由切�
 
     // 验证此时仅单轨直播，右下角画中画小窗尚未出现
     const pipVideo = page.getByTestId(
-      "participant-pip-video-e2e_screenshare_user",
+      "participant-pip-video-usr_default_admin",
     );
     await expect(pipVideo).not.toBeVisible();
 
@@ -169,16 +169,14 @@ test.describe("直播屏幕分享与摄像头画面融合（画中画自由切�
     await voiceMuteBtn.click();
     await expect(voiceMuteBtn).toHaveAttribute("title", "开麦");
     await expect(
-      page.getByTestId("voice-participant-muted-e2e_screenshare_user"),
+      page.getByTestId("voice-participant-muted-usr_default_admin"),
     ).toBeVisible();
     await expect(
       page.locator('[data-testid^="voice-sidebar-muted-"]').first(),
     ).toBeVisible();
 
     // 4.1 验证直播全屏播放功能：全屏按钮呈现、点击切换、双击全屏与快捷键全屏
-    const fullscreenBtn = page.getByTestId(
-      "fullscreen-btn-e2e_screenshare_user",
-    );
+    const fullscreenBtn = page.getByTestId("fullscreen-btn-usr_default_admin");
     await expect(fullscreenBtn).toBeVisible({ timeout: 5000 });
     await expect(fullscreenBtn).toHaveAttribute("title", "全屏播放 (F)");
 
@@ -220,7 +218,7 @@ test.describe("直播屏幕分享与摄像头画面融合（画中画自由切�
     await expect(pipVideo).toBeVisible({ timeout: 5000 });
     await expect(voiceMuteBtn).toHaveAttribute("title", "开麦");
     await expect(
-      page.getByTestId("voice-participant-muted-e2e_screenshare_user"),
+      page.getByTestId("voice-participant-muted-usr_default_admin"),
     ).toBeVisible();
 
     // 验证主画面依然为屏幕分享（非镜像），右下角小窗为摄像头（带本人镜像 -scale-x-100）
@@ -260,7 +258,7 @@ test.describe("直播屏幕分享与摄像头画面融合（画中画自由切�
     await voiceMuteBtn.click();
     await expect(voiceMuteBtn).toHaveAttribute("title", "静音");
     await expect(
-      page.getByTestId("voice-participant-muted-e2e_screenshare_user"),
+      page.getByTestId("voice-participant-muted-usr_default_admin"),
     ).not.toBeVisible();
 
     // 9. 离开语音频道

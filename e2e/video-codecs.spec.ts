@@ -69,7 +69,7 @@ test.describe("视频编码格式（H.264 / AV1 / VP9 / VP8 / HEVC）与硬件�
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "e2e_codec_user",
+          id: "usr_default_admin",
           username: "codec_master",
           displayName: "编解码特工",
           email: "codec@tescord.local",
@@ -228,7 +228,7 @@ test.describe("视频编码格式（H.264 / AV1 / VP9 / VP8 / HEVC）与硬件�
     await startConfirmBtn.click();
 
     // 9. 验证直播流启动成功，用户视频卡片上呈现 [H264] 编码格式角标
-    const codecBadge = page.getByTestId("video-codec-badge-e2e_codec_user");
+    const codecBadge = page.getByTestId("video-codec-badge-usr_default_admin");
     await expect(codecBadge).toBeVisible({ timeout: 8000 });
     await expect(codecBadge).toContainText("H264");
 

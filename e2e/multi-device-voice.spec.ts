@@ -20,21 +20,6 @@ test.describe("多设备语音互斥接管与会话状态自动化验收 (Multi-
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
     });
 
-    await page.route("**/api/auth/me", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          id: "e2e_user_device_test",
-          username: "device_tester",
-          displayName: "多设备测试员",
-          email: "tester@example.com",
-          avatarUrl: null,
-          status: "ONLINE",
-        }),
-      });
-    });
-
     await page.route("**/api/livekit/token", (route) => {
       route.fulfill({
         status: 200,

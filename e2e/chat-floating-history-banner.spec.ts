@@ -36,7 +36,7 @@ test.describe("消息视口顶部悬浮历史横幅与上下边缘渐变模糊�
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "e2e_tester_user",
+          id: "usr_default_admin",
           username: "tester_pro",
           displayName: "专业测试员",
           email: "tester@tescord.local",

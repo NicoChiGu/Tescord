@@ -111,7 +111,8 @@ export class VoiceMeshManager {
     });
   }
 
-  public setContext(userId: string) {
+  public setContext(userId: string | null) {
+    if (this.currentUserId && this.currentUserId !== userId) this.stopAll();
     this.currentUserId = userId;
   }
 
