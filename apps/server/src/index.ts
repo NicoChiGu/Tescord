@@ -73,6 +73,7 @@ import {
   RegisterDeviceKeyDTO,
   ErrorCode,
   SupportedLocale,
+  DiscardGuildIconUploadDTO,
 } from "@tescord/types";
 
 config();
@@ -1611,26 +1612,54 @@ server.patch("/api/guilds/:guildId", async (request, reply) => {
   if (!guild) return reply.status(404).send({ error: "服务器不存在" });
 
   const body = (request.body || {}) as UpdateGuildDTO;
+  let claimedNewIcon = false;
   if (
     body.iconUrl?.includes("/public-assets/") &&
     body.iconUrl !== guild.iconUrl &&
-    !storageService.claimPublicAsset(user.id, guildId, body.iconUrl)
+    !(claimedNewIcon = storageService.claimPublicAsset(
+      user.id,
+      guildId,
+      body.iconUrl,
+    ))
   ) {
     return reply.status(403).send({ error: "服务器图标上传授权无效" });
   }
-  const updated = await prisma.guild.update({
-    where: { id: guildId },
-    data: {
-      name: body.name !== undefined ? body.name.trim() : undefined,
-      iconUrl: body.iconUrl !== undefined ? body.iconUrl : undefined,
-      description:
-        body.description !== undefined ? body.description : undefined,
-      isPublic:
-        typeof (body as any).isPublic === "boolean"
-          ? (body as any).isPublic
-          : undefined,
-    },
-  });
+  let updated;
+  try {
+    updated = await prisma.guild.update({
+      where: { id: guildId },
+      data: {
+        name: body.name !== undefined ? body.name.trim() : undefined,
+        iconUrl: body.iconUrl !== undefined ? body.iconUrl : undefined,
+        description:
+          body.description !== undefined ? body.description : undefined,
+        isPublic:
+          typeof (body as any).isPublic === "boolean"
+            ? (body as any).isPublic
+            : undefined,
+      },
+    });
+  } catch (error) {
+    if (claimedNewIcon && body.iconUrl) {
+      storageService.releasePublicAssetClaim(user.id, guildId, body.iconUrl);
+    }
+    throw error;
+  }
+  if (
+    body.iconUrl !== undefined &&
+    guild.iconUrl &&
+    guild.iconUrl !== updated.iconUrl &&
+    guild.iconUrl.includes("/public-assets/")
+  ) {
+    void storageService
+      .removePublicAsset(guild.iconUrl)
+      .catch((error) =>
+        server.log.warn(
+          { error, guildId, iconUrl: guild.iconUrl },
+          "Failed to remove replaced guild icon",
+        ),
+      );
+  }
 
   await auditLogService.logAction({
     guildId,
@@ -1812,22 +1841,57 @@ server.post("/api/guilds/:guildId/roles", async (request, reply) => {
   }
 
   const body = (request.body || {}) as CreateRoleDTO;
+  const requestedPermissions = body.permissions ?? 0;
+  if (
+    !Number.isSafeInteger(requestedPermissions) ||
+    requestedPermissions < 0 ||
+    (requestedPermissions & ~permissionService.allPermissionBits) !== 0
+  ) {
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.INVALID_PARAMS,
+      "角色权限参数无效",
+    );
+  }
+  const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+  if (!guild) {
+    return sendApiError(reply, 404, ErrorCode.GUILD_NOT_FOUND, "服务器不存在");
+  }
+  const isPrivilegedActor =
+    guild.ownerId === user.id || user.role === "SUPER_ADMIN";
+  if (!isPrivilegedActor) {
+    const actorPermissions =
+      (await permissionService.getGuildPermissionBits(user.id, guildId)) ?? 0;
+    if (
+      (requestedPermissions & PermissionFlags.ADMINISTRATOR) !== 0 ||
+      (requestedPermissions & ~actorPermissions) !== 0
+    ) {
+      return sendApiError(
+        reply,
+        403,
+        ErrorCode.GUILD_PERMISSION_DENIED,
+        "不能创建包含自身未持有权限或管理员权限的角色",
+      );
+    }
+  }
   // 新建角色 position 分配：置于 position 1（@everyone 0 之上），现有 >= 1 的角色顺延，确保创建者最高角色永远大于新角色
-  await prisma.role.updateMany({
-    where: { guildId, position: { gte: 1 }, isDefault: false },
-    data: { position: { increment: 1 } },
-  });
-
-  const role = await prisma.role.create({
-    data: {
-      guildId,
-      name: body.name ? body.name.trim() : "新身份组",
-      color: body.color || null,
-      hoist: body.hoist || false,
-      position: 1,
-      permissions: body.permissions !== undefined ? body.permissions : 0,
-      isDefault: false,
-    },
+  const role = await prisma.$transaction(async (transaction) => {
+    await transaction.role.updateMany({
+      where: { guildId, position: { gte: 1 }, isDefault: false },
+      data: { position: { increment: 1 } },
+    });
+    return transaction.role.create({
+      data: {
+        guildId,
+        name: body.name ? body.name.trim() : "新身份组",
+        color: body.color || null,
+        hoist: body.hoist || false,
+        position: 1,
+        permissions: requestedPermissions,
+        isDefault: false,
+      },
+    });
   });
 
   await auditLogService.logAction({
@@ -1884,7 +1948,7 @@ server.patch("/api/guilds/:guildId/roles/:roleId", async (request, reply) => {
     guildId,
     role,
   );
-  if (!canManage && !role.isDefault) {
+  if (!canManage) {
     return reply
       .status(403)
       .send({ error: "无权修改该角色（权限不足或角色层级高于/等同于自身）" });
@@ -1892,6 +1956,51 @@ server.patch("/api/guilds/:guildId/roles/:roleId", async (request, reply) => {
 
   const body = (request.body || {}) as UpdateRoleDTO;
   const isEveryone = role.isDefault || role.name === "@everyone";
+  const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+  const isPrivilegedActor =
+    guild?.ownerId === user.id || user.role === "SUPER_ADMIN";
+  if (body.permissions !== undefined) {
+    if (
+      !Number.isSafeInteger(body.permissions) ||
+      body.permissions < 0 ||
+      (body.permissions & ~permissionService.allPermissionBits) !== 0
+    ) {
+      return sendApiError(
+        reply,
+        400,
+        ErrorCode.INVALID_PARAMS,
+        "角色权限参数无效",
+      );
+    }
+    if (!isPrivilegedActor) {
+      const actorPermissions =
+        (await permissionService.getGuildPermissionBits(user.id, guildId)) ?? 0;
+      if (
+        (body.permissions & PermissionFlags.ADMINISTRATOR) !== 0 ||
+        (body.permissions & ~actorPermissions) !== 0
+      ) {
+        return sendApiError(
+          reply,
+          403,
+          ErrorCode.GUILD_PERMISSION_DENIED,
+          "不能授予自身未持有的权限或管理员权限",
+        );
+      }
+    }
+  }
+  if (
+    !isPrivilegedActor &&
+    body.position !== undefined &&
+    body.position >=
+      (await permissionService.getMemberHighestRolePosition(user.id, guildId))
+  ) {
+    return sendApiError(
+      reply,
+      403,
+      ErrorCode.GUILD_ROLE_HIERARCHY_TOO_LOW,
+      "不能将角色提升到等于或高于自身的层级",
+    );
+  }
 
   const updatedRole = await prisma.role.update({
     where: { id: roleId },
@@ -2106,11 +2215,21 @@ server.patch(
       const guild = await prisma.guild.findUnique({ where: { id: guildId } });
       const isOwner = guild?.ownerId === user.id;
       if (!isOwner) {
+        const actorPermissions =
+          (await permissionService.getGuildPermissionBits(user.id, guildId)) ??
+          0;
         for (const r of assignedRoles) {
-          if (r.position >= actorHighestPos) {
-            return reply.status(403).send({
-              error: `无法赋予等于或高于自身权重的角色: ${r.name}`,
-            });
+          if (
+            r.position >= actorHighestPos ||
+            (r.permissions & PermissionFlags.ADMINISTRATOR) !== 0 ||
+            (r.permissions & ~actorPermissions) !== 0
+          ) {
+            return sendApiError(
+              reply,
+              403,
+              ErrorCode.GUILD_ROLE_HIERARCHY_TOO_LOW,
+              `无法赋予层级过高或包含自身未持有权限的角色: ${r.name}`,
+            );
           }
         }
       }
@@ -2554,7 +2673,7 @@ server.get("/api/guilds/:guildId/invites/active", async (request, reply) => {
     ? await prisma.user.findUnique({ where: { id: userId } })
     : null;
   if (!user) {
-    return reply.status(401).send({ error: "需要登录后操作" });
+    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录后操作");
   }
 
   const canInvite = await permissionService.hasGuildPermission(
@@ -2563,9 +2682,12 @@ server.get("/api/guilds/:guildId/invites/active", async (request, reply) => {
     PermissionFlags.CREATE_INVITE,
   );
   if (!canInvite) {
-    return reply
-      .status(403)
-      .send({ error: "您没有在该服务器创建邀请码的权限" });
+    return sendApiError(
+      reply,
+      403,
+      ErrorCode.GUILD_PERMISSION_DENIED,
+      "您没有在该服务器创建邀请码的权限",
+    );
   }
 
   const now = new Date();
@@ -4435,6 +4557,52 @@ server.post("/api/attachments/presigned-url", async (request, reply) => {
   }
 });
 
+server.delete("/api/guilds/:guildId/pending-icon", async (request, reply) => {
+  const { guildId } = request.params as { guildId: string };
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) {
+    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
+  }
+  if (
+    !(await permissionService.hasGuildPermission(
+      userId,
+      guildId,
+      PermissionFlags.MANAGE_GUILD,
+    ))
+  ) {
+    return sendApiError(
+      reply,
+      403,
+      ErrorCode.GUILD_PERMISSION_DENIED,
+      "缺少管理服务器权限",
+    );
+  }
+  const body = (request.body || {}) as DiscardGuildIconUploadDTO;
+  if (!body.fileUrl) {
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.INVALID_PARAMS,
+      "缺少待清理图标地址",
+    );
+  }
+  const discarded = await storageService.discardPendingPublicAsset(
+    userId,
+    guildId,
+    body.fileUrl,
+  );
+  if (!discarded) {
+    return sendApiError(
+      reply,
+      404,
+      ErrorCode.NOT_FOUND,
+      "待清理图标不存在或已绑定",
+    );
+  }
+  reply.header("Cache-Control", "no-store");
+  return { success: true };
+});
+
 server.put("/api/attachments/upload/:fileName", async (request, reply) => {
   const { fileName } = request.params as any;
   const decodedFileName = decodeURIComponent(fileName);
@@ -4732,7 +4900,8 @@ server.get("/public-assets/:fileName", async (request, reply) => {
 
   const fileUrl = `${process.env.SERVER_BASE_URL || "http://localhost:3001"}/public-assets/${encodeURIComponent(decoded)}`;
 
-  // 校验该公共资源是否已被公会绑定，或处于合法的上传宽限期内
+  // 公共路由只服务已绑定到公会的资源。上传中的图标由浏览器 Blob
+  // 本地预览，绝不能在绑定前进入 Cloudflare 的长期公共缓存。
   const guild = await prisma.guild.findFirst({
     where: {
       OR: [
@@ -4748,8 +4917,7 @@ server.get("/public-assets/:fileName", async (request, reply) => {
     select: { id: true },
   });
 
-  const isPending = storageService.isPendingPublicAsset(decoded);
-  if (!guild && !isPending) {
+  if (!guild) {
     return sendPublicAssetError(404, "资源不存在");
   }
 

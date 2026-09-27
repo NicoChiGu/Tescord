@@ -115,6 +115,24 @@ test.describe("P2P 直连与智能接力直播传输模式端到端自动化验�
       });
     });
 
+    await page.route("**/api/network/ice-servers", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          iceServers: [
+            { urls: "stun:stun.cloudflare.com:3478" },
+            {
+              urls: "turn:turn.cloudflare.com:3478?transport=udp",
+              username: "e2e-short-lived-user",
+              credential: "e2e-short-lived-credential",
+            },
+          ],
+          ttl: 300,
+        }),
+      });
+    });
+
     // Mock 频道与服务器数据
     await page.route("**/api/guilds", (route) => {
       route.fulfill({
@@ -133,6 +151,8 @@ test.describe("P2P 直连与智能接力直播传输模式端到端自动化验�
                 name: "开黑开播 1",
                 type: "VOICE",
                 bitrate: 64000,
+                voiceMode: "p2p_mesh",
+                streamMode: "sfu",
                 position: 0,
                 createdAt: new Date().toISOString(),
               },
@@ -325,5 +345,104 @@ test.describe("P2P 直连与智能接力直播传输模式端到端自动化验�
       '[data-testid="participant-main-video-usr_default_admin"]',
     );
     await expect(videoElement).toBeVisible({ timeout: 8000 });
+  });
+
+  test("P2P 成员徽标呈现连接中、TURN 延迟和失败重试状态", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto("/");
+    await page
+      .getByRole("button", { name: /P2P 极客实验室|极客/i })
+      .first()
+      .click();
+    await page
+      .getByRole("button", { name: /开黑开播 1|voice/i })
+      .first()
+      .dblclick();
+    await expect(
+      page.getByRole("button", { name: "断开连接" }).first(),
+    ).toBeVisible({ timeout: 8000 });
+
+    await page.evaluate(() => {
+      const manager = (window as any).voiceMeshManager;
+      const channelId =
+        manager.activeChannelId ||
+        (window as any).__livekitService.currentRoomName;
+      const guildId = manager.activeGuildId;
+      (window as any).__livekitService.setConnectionStatus("p2p_active");
+      (window as any).__gatewayClient?.emit("VOICE_STATE_UPDATE", {
+        channelId,
+        guildId,
+        userId: "usr_p2p_peer",
+        selfMute: false,
+        selfDeaf: false,
+        selfVideo: false,
+        streaming: false,
+        revision: 1,
+        user: {
+          id: "usr_p2p_peer",
+          username: "remote_peer",
+          displayName: "远端成员",
+          avatarUrl: null,
+          status: "ONLINE",
+        },
+      });
+      manager.setPeerReport("usr_p2p_peer", {
+        rtt: 0,
+        connectionType: "P2P",
+        status: "connecting",
+      });
+    });
+
+    const badge = page.getByTestId("participant-p2p-ping-usr_p2p_peer");
+    await expect(badge).toBeVisible({ timeout: 5000 });
+    await expect(badge).toHaveAttribute("data-connection-status", "connecting");
+    await expect(badge).toContainText("连接中");
+
+    await page.evaluate(() => {
+      (window as any).voiceMeshManager.setPeerReport("usr_p2p_peer", {
+        rtt: 85,
+        connectionType: "RELAY",
+        status: "connected",
+      });
+    });
+    await expect(badge).toHaveAttribute("data-connection-type", "RELAY");
+    await expect(badge).toContainText("TURN 85ms");
+
+    const retryCalls = await page.evaluate(() => {
+      const manager = (window as any).voiceMeshManager;
+      (window as any).__p2pRetryCalls = [];
+      manager.retryPeer = async (peerId: string) => {
+        (window as any).__p2pRetryCalls.push(peerId);
+      };
+      manager.setPeerReport("usr_p2p_peer", { status: "failed" });
+      return (window as any).__p2pRetryCalls.length;
+    });
+    expect(retryCalls).toBe(0);
+    await expect(badge).toHaveAttribute("data-connection-status", "failed");
+    await expect(badge).toContainText("失败");
+    await badge.click();
+    await expect
+      .poll(() => page.evaluate(() => (window as any).__p2pRetryCalls.slice()))
+      .toEqual(["usr_p2p_peer"]);
+  });
+
+  test("P2P 语音与直播共享服务端下发的 STUN/TURN 配置", async ({ page }) => {
+    await page.goto("/");
+    await expect
+      .poll(() =>
+        page.evaluate(() => Boolean((window as any).voiceMeshManager)),
+      )
+      .toBe(true);
+    const iceServers = await page.evaluate(async () => {
+      return (window as any).voiceMeshManager.fetchIceServers(true);
+    });
+    expect(iceServers).toEqual([
+      { urls: "stun:stun.cloudflare.com:3478" },
+      {
+        urls: "turn:turn.cloudflare.com:3478?transport=udp",
+        username: "e2e-short-lived-user",
+        credential: "e2e-short-lived-credential",
+      },
+    ]);
   });
 });

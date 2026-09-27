@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
-import { server } from "../apps/server/dist/index.js";
+// Import the TypeScript source through the package's tsx runner so this test
+// never validates a stale or pre-existing dist build.
+import { server } from "../apps/server/src/index.ts";
 
 async function main() {
   console.log("=== 开始验证静态资源与附件错误响应防 CDN 缓存标头 ===");
@@ -85,10 +87,11 @@ async function main() {
   console.log("✓ 用例 4 通过：彻底确认 404 绝不附带正向强缓存！");
 
   console.log("\n🎉 所有缓存防负向污染测试用例 100% 通过！");
+  await server.close();
   process.exit(0);
 }
 
 main().catch((err) => {
   console.error("❌ 验证测试失败:", err);
-  process.exit(1);
+  server.close().finally(() => process.exit(1));
 });

@@ -232,6 +232,7 @@
   "cropModal": {
     "title": "编辑图标尺寸",
     "description": "拖拽以平移取景位置，使用滑块调整缩放尺寸。",
-    "confirmBtn": "确认并上传"
+    "confirmBtn": "确认并上传",
+    "previewAlt": "图标裁剪预览"
   }
 }

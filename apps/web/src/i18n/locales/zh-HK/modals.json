@@ -232,6 +232,7 @@
   "cropModal": {
     "title": "編輯圖示尺寸",
     "description": "拖曳以平移取景位置，使用滑桿調整縮放大小。",
-    "confirmBtn": "確認並上傳"
+    "confirmBtn": "確認並上傳",
+    "previewAlt": "圖示裁剪預覽"
   }
 }

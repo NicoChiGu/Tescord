@@ -184,7 +184,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
   onToggleStats,
   onCloseStats,
 }) => {
-  const { t } = useTranslation(["voice", "common"]);
+  const { t } = useTranslation(["voice", "common", "auth"]);
   // 当同时存在屏幕分享与摄像头时，是否对调主次画面 (默认: 屏幕分享为主，摄像头小窗在右下角)
   const [isSwapped, setIsSwapped] = useState(false);
   const [isVolumeOpen, setIsVolumeOpen] = useState(false);
@@ -374,9 +374,9 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
     return getUserDisplayName(
       rawUser,
       targetMember,
-      isMe ? currentUser.username : "用户",
+      isMe ? currentUser.username : t("auth:defaultUserName"),
     );
-  }, [participant.user, isMe, currentUser, targetMember]);
+  }, [participant.user, isMe, currentUser, targetMember, t]);
 
   const targetUser = participant.user || {
     id: participant.userId,
@@ -507,9 +507,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             </div>
 
             <div className="font-bold text-discord-textHeader text-xs flex items-center space-x-1 truncate max-w-full">
-              <span className="truncate">
-                {targetDisplayName}
-              </span>
+              <span className="truncate">{targetDisplayName}</span>
               {isMe && (
                 <span className="text-[10px] text-discord-textMuted">(你)</span>
               )}
@@ -553,32 +551,67 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
         >
           {/* 语音 P2P 模式下右上角成员独立 Ping 延迟展示 (SFU 模式下不展示) */}
           {isP2P && !isMe && (
-            <div
+            <button
+              type="button"
               data-testid={`participant-p2p-ping-${participant.userId}`}
+              data-connection-status={peerLatency?.status || "connecting"}
+              data-connection-type={peerLatency?.connectionType || "P2P"}
+              disabled={peerLatency?.status !== "failed"}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (peerLatency?.status === "failed") {
+                  void voiceMeshManager.retryPeer(participant.userId);
+                }
+              }}
               className={`flex items-center space-x-1 px-1.5 py-0.5 rounded-md text-[10px] font-mono border backdrop-blur-md transition shadow-sm select-none ${
-                peerLatency && peerLatency.rtt > 0
-                  ? peerLatency.rtt < 50
-                    ? "bg-discord-green/20 text-discord-green border-discord-green/40"
-                    : peerLatency.rtt < 120
-                      ? "bg-[#faa61a]/20 text-[#faa61a] border-[#faa61a]/40"
-                      : "bg-discord-danger/20 text-discord-danger border-discord-danger/40"
-                  : "bg-black/60 text-gray-400 border-white/10"
+                peerLatency?.status === "failed"
+                  ? "bg-discord-danger/20 text-discord-danger border-discord-danger/50 cursor-pointer hover:bg-discord-danger/30"
+                  : peerLatency?.status === "connected" && peerLatency.rtt > 0
+                    ? peerLatency.rtt < 50
+                      ? "bg-discord-green/20 text-discord-green border-discord-green/40"
+                      : peerLatency.rtt < 120
+                        ? "bg-[#faa61a]/20 text-[#faa61a] border-[#faa61a]/40"
+                        : "bg-discord-danger/20 text-discord-danger border-discord-danger/40"
+                    : "bg-black/60 text-gray-400 border-white/10 animate-pulse"
               }`}
-              title={t("voice:connectionPopover.p2pLatencyTooltip", {
-                value:
-                  peerLatency && peerLatency.rtt > 0
-                    ? `${peerLatency.rtt}ms`
-                    : t("voice:connectionPopover.noData"),
-                type: peerLatency?.connectionType || "P2P",
-              })}
+              title={
+                peerLatency?.status === "failed"
+                  ? t("voice:connectionBadge.retryTooltip")
+                  : t("voice:connectionPopover.p2pLatencyTooltip", {
+                      value:
+                        peerLatency?.status === "connected" &&
+                        peerLatency.rtt > 0
+                          ? `${peerLatency.rtt}ms`
+                          : t("voice:connectionPopover.noData"),
+                      type: peerLatency?.connectionType || "P2P",
+                    })
+              }
             >
-              <Wifi className="w-3 h-3 flex-shrink-0" />
+              {peerLatency?.status === "failed" ? (
+                <X className="w-3 h-3 flex-shrink-0" />
+              ) : peerLatency?.status === "connected" ? (
+                peerLatency.connectionType === "RELAY" ? (
+                  <Radio className="w-3 h-3 flex-shrink-0" />
+                ) : (
+                  <Zap className="w-3 h-3 flex-shrink-0" />
+                )
+              ) : (
+                <Loader2 className="w-3 h-3 flex-shrink-0 animate-spin" />
+              )}
               <span>
-                {peerLatency && peerLatency.rtt > 0
-                  ? `${peerLatency.rtt}ms`
-                  : "--ms"}
+                {peerLatency?.status === "failed"
+                  ? t("voice:connectionBadge.failed")
+                  : peerLatency?.status === "connected"
+                    ? `${t(
+                        peerLatency.connectionType === "RELAY"
+                          ? "voice:connectionBadge.turn"
+                          : peerLatency.connectionType === "LAN"
+                            ? "voice:connectionBadge.lan"
+                            : "voice:connectionBadge.p2p",
+                      )}${peerLatency.rtt > 0 ? ` ${peerLatency.rtt}ms` : ""}`
+                    : t("voice:connectionBadge.connecting")}
               </span>
-            </div>
+            </button>
           )}
 
           {/* 全屏播放切换按钮 (双击亦可切换，快捷键 F) */}
@@ -945,10 +978,12 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
   const { t } = useTranslation(["voice", "common"]);
   const isActuallyConnected =
     voiceConnectionStatus === "connected" ||
+    voiceConnectionStatus === "p2p_active" ||
     (voiceConnectionStatus === undefined && isConnected);
   const isConnecting = voiceConnectionStatus === "connecting";
   const isP2P =
-    channel.voiceMode === "p2p_mesh" || voiceMeshManager.getIsMeshActive();
+    voiceConnectionStatus === "p2p_active" ||
+    voiceMeshManager.getIsMeshActive();
 
   const [cameraTracks, setCameraTracks] = useState<Map<string, any>>(
     new Map(livekitService.cameraTracksMap),
@@ -1274,6 +1309,8 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
   const currentParticipants = voiceStates.filter(
     (v) => v.channelId === channel.id,
   );
+  const voiceStatesRef = useRef(voiceStates);
+  voiceStatesRef.current = voiceStates;
 
   // 稳定提取当前频道内正在进行 P2P 直播的远端主播信息（避免由于其他成员麦克风状态波动导致重复触发）
   const activeP2PStreamer = useMemo(() => {
@@ -1620,9 +1657,41 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
       return next;
     });
     try {
+      let effectiveStreamMode =
+        voiceStatesRef.current.find(
+          (state) => state.userId === userId && state.channelId === channel.id,
+        )?.streamMode || participant.streamMode;
+
+      // A Cloudflare publication and the Gateway voice-state update can reach
+      // the viewer in either order. If neither route is authoritative yet,
+      // wait briefly instead of defaulting to the SFU branch and producing a
+      // black/no-track watch session for a P2P broadcast.
       if (
-        participant.streamMode === "p2p_direct" ||
-        participant.streamMode === "p2p_relay"
+        participant.streaming &&
+        effectiveStreamMode !== "p2p_direct" &&
+        effectiveStreamMode !== "p2p_relay" &&
+        VOICE_ENGINE === "cloudflare_realtime" &&
+        !getScreenPublication(userId)
+      ) {
+        for (let attempt = 0; attempt < 10; attempt++) {
+          await new Promise((resolve) => setTimeout(resolve, 100));
+          const latest = voiceStatesRef.current.find(
+            (state) =>
+              state.userId === userId && state.channelId === channel.id,
+          );
+          effectiveStreamMode = latest?.streamMode || effectiveStreamMode;
+          if (
+            effectiveStreamMode === "p2p_direct" ||
+            effectiveStreamMode === "p2p_relay" ||
+            getScreenPublication(userId)
+          )
+            break;
+        }
+      }
+
+      if (
+        effectiveStreamMode === "p2p_direct" ||
+        effectiveStreamMode === "p2p_relay"
       ) {
         if (watchedP2PStreamerId === userId) {
           p2pStreamManager.stopAll();
@@ -1632,7 +1701,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
             channel.id,
             channel.guildId || "",
             userId,
-            participant.streamMode,
+            effectiveStreamMode,
           );
           setWatchedP2PStreamerId(userId);
         }
@@ -1640,7 +1709,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
         const publication = getScreenPublication(userId);
         if (!publication)
           throw new Error(t("voice:connectionPopover.streamTrackNotReady"));
-        if (isWatchingStream(userId, participant.streamMode))
+        if (isWatchingStream(userId, effectiveStreamMode))
           await cloudflareRealtimeService.stopWatchingStream(
             publication.sessionId,
           );

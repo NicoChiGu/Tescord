@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Guild } from "@tescord/types";
 import { Camera, Copy, Check, UploadCloud } from "lucide-react";
@@ -35,6 +35,31 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+  const pendingUploadRef = useRef<string | null>(null);
+
+  const discardPendingUpload = (fileUrl: string): void => {
+    void fetch(`${API_BASE}/api/guilds/${guild.id}/pending-icon`, {
+      method: "DELETE",
+      headers: {
+        "Content-Type": "application/json",
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({ fileUrl }),
+      keepalive: true,
+    }).catch(() => {
+      // The grant expires server-side; a failed best-effort cleanup must not
+      // block navigation or overwrite the user's next selection.
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      if (pendingUploadRef.current) {
+        discardPendingUpload(pendingUploadRef.current);
+        pendingUploadRef.current = null;
+      }
+    };
+  }, [guild.id]);
 
   useEffect(() => {
     return () => {
@@ -59,6 +84,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     if (previewBlobUrl) {
       URL.revokeObjectURL(previewBlobUrl);
       setPreviewBlobUrl(null);
+    }
+    if (pendingUploadRef.current) {
+      discardPendingUpload(pendingUploadRef.current);
+      pendingUploadRef.current = null;
     }
     setPendingUploadUrl(null);
     setName(guild.name || "");
@@ -135,7 +164,12 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             defaultValue: "上传文件到存储服务失败",
           }),
         );
+      const previousPending = pendingUploadRef.current;
+      pendingUploadRef.current = fileUrl;
       setPendingUploadUrl(fileUrl);
+      if (previousPending && previousPending !== fileUrl) {
+        discardPendingUpload(previousPending);
+      }
       toast.success(
         t("server:overview.iconUploadSuccess", {
           defaultValue: "图标已裁剪压缩并上传",
@@ -167,6 +201,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         description: description.trim() || null,
         isPublic,
       });
+      pendingUploadRef.current = null;
       setIconUrl(targetIconUrl);
       setPendingUploadUrl(null);
       if (previewBlobUrl) {

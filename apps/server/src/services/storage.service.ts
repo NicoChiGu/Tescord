@@ -313,6 +313,25 @@ export class StorageService {
     return true;
   }
 
+  public releasePublicAssetClaim(
+    userId: string,
+    guildId: string,
+    fileUrl: string,
+  ): void {
+    const key = this.getPublicAssetKey(fileUrl);
+    if (!key) return;
+    const grant = this.uploadGrants.get(key);
+    if (
+      grant?.claimed &&
+      grant.userId === userId &&
+      grant.guildId === guildId &&
+      grant.fileUrl === fileUrl &&
+      grant.purpose === "guild-icon"
+    ) {
+      grant.claimed = false;
+    }
+  }
+
   public isPendingPublicAsset(fileKey: string): boolean {
     const grant = this.uploadGrants.get(fileKey);
     return Boolean(
@@ -321,6 +340,64 @@ export class StorageService {
       grant.purpose === "guild-icon" &&
       grant.expiresAt >= Date.now(),
     );
+  }
+
+  public async discardPendingPublicAsset(
+    userId: string,
+    guildId: string,
+    fileUrl: string,
+  ): Promise<boolean> {
+    const key = this.getPublicAssetKey(fileUrl);
+    if (!key) return false;
+    const grant = this.uploadGrants.get(key);
+    if (
+      !grant ||
+      !grant.uploaded ||
+      grant.claimed ||
+      grant.userId !== userId ||
+      grant.guildId !== guildId ||
+      grant.purpose !== "guild-icon" ||
+      grant.fileUrl !== fileUrl
+    )
+      return false;
+
+    await this.removeStoredObject(key);
+    this.uploadGrants.delete(key);
+    return true;
+  }
+
+  public async removePublicAsset(fileUrl: string): Promise<void> {
+    const key = this.getPublicAssetKey(fileUrl);
+    if (!key) return;
+    await this.removeStoredObject(key);
+    this.uploadGrants.delete(key);
+  }
+
+  private getPublicAssetKey(fileUrl: string): string | null {
+    try {
+      const url = new URL(fileUrl, this.baseUrl);
+      if (
+        url.origin !== new URL(this.baseUrl).origin ||
+        !url.pathname.startsWith("/public-assets/")
+      )
+        return null;
+      const key = decodeURIComponent(
+        url.pathname.slice("/public-assets/".length),
+      );
+      return this.resolveLocalUploadPath(key) ? key : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private async removeStoredObject(fileKey: string): Promise<void> {
+    if (this.isMinioAvailable && this.minioClient) {
+      await this.minioClient.removeObject(this.bucketName, fileKey);
+      return;
+    }
+    const filePath = this.resolveLocalUploadPath(fileKey);
+    if (!filePath) throw new Error("Invalid public asset path");
+    await fs.promises.rm(filePath, { force: true });
   }
 
   public verifyLocalUpload(

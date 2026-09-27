@@ -6,19 +6,13 @@ import {
   clampVolume,
   StreamDetailedStats,
   ConnectionTopology,
-  ICEServerConfigResponse,
 } from "@tescord/types";
 import { gatewayClient } from "../gateway.js";
 import { audioEngine } from "../audioEngine.js";
 import { livekitService } from "../livekit.js";
-import { API_BASE } from "../../config.js";
-import { apiFetch } from "../apiClient.js";
-import { useAuthStore } from "../../stores/useAuthStore.js";
 import { bitrateCalculator } from "../stats/BitrateCalculator.js";
 import { sframeManager } from "../sframe.js";
-
-// 高可用 IPv4 / IPv6 双栈 STUN 池
-const DEFAULT_ICE_SERVERS: RTCIceServer[] = [];
+import { getP2PIceServers } from "./iceServers.js";
 
 export type LatencyUpdateCallback = (
   reports: Map<string, PeerLatencyReport>,
@@ -43,9 +37,7 @@ export class VoiceMeshManager {
   private fallbackCallbacks = new Set<VoiceFallbackCallback>();
 
   // 动态 ICE 服务器 (双栈 STUN + Coturn TURN)
-  private currentIceServers: RTCIceServer[] = [...DEFAULT_ICE_SERVERS];
-  private isIceServersLoaded: boolean = false;
-  private iceServersLoadedAt = 0;
+  private currentIceServers: RTCIceServer[] = [];
 
   // targetUserId -> RTCPeerConnection
   private peerConnections: Map<string, RTCPeerConnection> = new Map();
@@ -68,36 +60,9 @@ export class VoiceMeshManager {
   /**
    * 动态拉取服务端 Coturn TURN 与双栈 STUN 列表
    */
-  public async fetchIceServers(): Promise<RTCIceServer[]> {
-    if (
-      this.isIceServersLoaded &&
-      Date.now() - this.iceServersLoadedAt < 60 * 60 * 1000
-    )
-      return this.currentIceServers;
-    try {
-      const token =
-        useAuthStore.getState().token ||
-        sessionStorage.getItem("tescord_access_token") ||
-        localStorage.getItem("tescord_access_token");
-      const res = await apiFetch(`${API_BASE}/api/network/ice-servers`, {
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      });
-      if (res.ok) {
-        const data = (await res.json()) as ICEServerConfigResponse;
-        if (data.iceServers && Array.isArray(data.iceServers)) {
-          this.currentIceServers = data.iceServers as RTCIceServer[];
-          this.isIceServersLoaded = true;
-          this.iceServersLoadedAt = Date.now();
-          return this.currentIceServers;
-        }
-      }
-    } catch (e) {
-      console.warn(
-        "[VoiceMesh] Failed to fetch dynamic ICE servers, using defaults:",
-        e,
-      );
-    }
-    return this.currentIceServers;
+  public async fetchIceServers(forceRefresh = false): Promise<RTCIceServer[]> {
+    this.currentIceServers = await getP2PIceServers(forceRefresh);
+    return [...this.currentIceServers];
   }
 
   constructor() {
@@ -282,6 +247,33 @@ export class VoiceMeshManager {
     return new Map(this.latencyReports);
   }
 
+  /**
+   * 用户主动重试一个已经失败的节点。终态失败的 PeerConnection 已关闭，
+   * 因此必须重新创建连接并发送全新的 Offer，而不是对不存在的连接做 ICE Restart。
+   */
+  public async retryPeer(peerId: string): Promise<void> {
+    if (
+      !this.isMeshActive ||
+      !this.activeChannelId ||
+      !peerId ||
+      peerId === this.currentUserId
+    )
+      return;
+
+    this.isFallbackToSFU = false;
+    this.fallbackReason = "";
+    this.closePeer(peerId, { preserveReport: true });
+    this.setPeerReport(peerId, {
+      rtt: 0,
+      jitter: undefined,
+      packetLoss: undefined,
+      connectionType: "P2P",
+      status: "connecting",
+    });
+    await this.fetchIceServers(true);
+    await this.initiateCallToPeer(peerId);
+  }
+
   public async waitForConnectedPeer(timeoutMs = 8_000): Promise<boolean> {
     const deadline = Date.now() + timeoutMs;
     while (this.isMeshActive && Date.now() < deadline) {
@@ -453,6 +445,11 @@ export class VoiceMeshManager {
         ? { encodedInsertableStreams: true }
         : {}),
     } as RTCConfiguration);
+    this.setPeerReport(peerId, {
+      rtt: 0,
+      connectionType: "P2P",
+      status: "connecting",
+    });
 
     // 绑定本地音频轨道
     if (this.localAudioTrack) {
@@ -490,6 +487,7 @@ export class VoiceMeshManager {
         const retryInfo = this.peerRetries.get(peerId);
         if (retryInfo?.timer) clearTimeout(retryInfo.timer);
         this.peerRetries.delete(peerId);
+        this.setPeerReport(peerId, { status: "connected" });
       } else if (state === "disconnected" || state === "failed") {
         this.scheduleHolePunchRetry(peerId);
       } else if (state === "closed") {
@@ -529,21 +527,17 @@ export class VoiceMeshManager {
       console.warn(
         `[VoiceMesh] 节点 ${peerId} 经历 ${MAX_RETRIES} 次打洞重试后仍未连通，判定穿透受阻`,
       );
-      this.closePeer(peerId);
-      if (
-        this.hasConnectedPeer &&
-        this.getConnectedPeersCount() === 0 &&
-        this.peerConnections.size === 0
-      ) {
-        this.triggerFallbackToSFU(
-          "P2P 网状打洞经 3 次重试失败（双方可能存在双对称 NAT 或防火墙阻止），已平滑降级至 SFU 服务端中继",
-        );
-      }
+      this.closePeer(peerId, { preserveReport: true });
+      this.setPeerReport(peerId, { status: "failed" });
+      // Mesh 中任何一个终态失败都会形成失语分区。无论此前是否曾连接
+      // 成功，都应触发整个本地 Mesh 的 SFU 降级评估。
+      this.triggerFallbackToSFU("P2P 网状打洞经 3 次重试失败，正在切换至 SFU");
       return;
     }
 
     retryInfo.attempts++;
     retryInfo.inProgress = true;
+    this.setPeerReport(peerId, { status: "connecting" });
     const backoffDelays = [1200, 2500, 4000];
     const delay = backoffDelays[retryInfo.attempts - 1] || 3000;
 
@@ -635,17 +629,20 @@ export class VoiceMeshManager {
     }
   }
 
-  private closePeer(peerId: string) {
+  private closePeer(
+    peerId: string,
+    options: { preserveReport?: boolean } = {},
+  ) {
     const retryInfo = this.peerRetries.get(peerId);
     if (retryInfo?.timer) clearTimeout(retryInfo.timer);
     this.peerRetries.delete(peerId);
 
     const pc = this.peerConnections.get(peerId);
     if (pc) {
+      this.peerConnections.delete(peerId);
       try {
         pc.close();
       } catch {}
-      this.peerConnections.delete(peerId);
     }
     this.pendingCandidatesMap.delete(peerId);
 
@@ -659,16 +656,25 @@ export class VoiceMeshManager {
       this.remoteAudioElements.delete(peerId);
     }
 
-    this.latencyReports.delete(peerId);
-    if (
-      this.isMeshActive &&
-      this.hasConnectedPeer &&
-      this.peerConnections.size === 0
-    ) {
-      this.triggerFallbackToSFU(
-        "P2P 直连断开或穿透协商受阻，正在连接 LiveKit SFU",
-      );
-    }
+    if (!options.preserveReport) this.latencyReports.delete(peerId);
+    this.notifyLatencyUpdate();
+  }
+
+  private setPeerReport(
+    peerId: string,
+    patch: Partial<Omit<PeerLatencyReport, "targetUserId" | "updatedAt">>,
+  ): void {
+    const previous = this.latencyReports.get(peerId);
+    this.latencyReports.set(peerId, {
+      targetUserId: peerId,
+      rtt: previous?.rtt ?? 0,
+      jitter: previous?.jitter,
+      packetLoss: previous?.packetLoss,
+      connectionType: previous?.connectionType ?? "P2P",
+      status: previous?.status ?? "connecting",
+      ...patch,
+      updatedAt: Date.now(),
+    });
     this.notifyLatencyUpdate();
   }
 
@@ -853,6 +859,7 @@ export class VoiceMeshManager {
             }
           });
 
+          let selectedPair: RTCStats | null = null;
           stats.forEach((report) => {
             if (
               report.type === "candidate-pair" &&
@@ -860,6 +867,7 @@ export class VoiceMeshManager {
                 ? report.id === selectedPairId
                 : report.nominated && report.state === "succeeded")
             ) {
+              selectedPair = report;
               if (typeof report.currentRoundTripTime === "number") {
                 rttMs = Math.round(report.currentRoundTripTime * 1000);
               }
@@ -876,12 +884,33 @@ export class VoiceMeshManager {
             }
           });
 
+          if (selectedPair) {
+            const pair = selectedPair as RTCStats & {
+              localCandidateId?: string;
+              remoteCandidateId?: string;
+            };
+            const localCandidate = pair.localCandidateId
+              ? stats.get(pair.localCandidateId)
+              : undefined;
+            const remoteCandidate = pair.remoteCandidateId
+              ? stats.get(pair.remoteCandidateId)
+              : undefined;
+            const localType = localCandidate?.candidateType;
+            const remoteType = remoteCandidate?.candidateType;
+            if (localType === "relay" || remoteType === "relay") {
+              connectionType = "RELAY";
+            } else if (localType === "host" && remoteType === "host") {
+              connectionType = "LAN";
+            }
+          }
+
           this.latencyReports.set(peerId, {
             targetUserId: peerId,
             rtt: rttMs,
             jitter: jitterMs,
             packetLoss,
             connectionType,
+            status: "connected",
             updatedAt: Date.now(),
           });
         } catch (e) {

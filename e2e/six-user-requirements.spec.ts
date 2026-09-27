@@ -3,7 +3,12 @@ import { test, expect } from "@playwright/test";
 test.describe("六项用户体验改进与身份组管理增强综合验收", () => {
   const exp = Math.floor(Date.now() / 1000) + 86400;
   const tokenPayload = Buffer.from(
-    JSON.stringify({ exp, id: "owner_user_1", username: "OwnerUser", role: "SUPER_ADMIN" }),
+    JSON.stringify({
+      exp,
+      id: "owner_user_1",
+      username: "OwnerUser",
+      role: "SUPER_ADMIN",
+    }),
   ).toString("base64");
   const validJwt = `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.${tokenPayload}.mock_sig`;
 
@@ -75,12 +80,36 @@ test.describe("六项用户体验改进与身份组管理增强综合验收", ()
             ownerId: "owner_user_1",
             iconUrl: null,
             channels: [
-              { id: "c_text_1", name: "一般闲聊", type: "TEXT", guildId: "guild_test_1" },
-              { id: "c_voice_1", name: "开黑语音", type: "VOICE", guildId: "guild_test_1" },
+              {
+                id: "c_text_1",
+                name: "一般闲聊",
+                type: "TEXT",
+                guildId: "guild_test_1",
+              },
+              {
+                id: "c_voice_1",
+                name: "开黑语音",
+                type: "VOICE",
+                guildId: "guild_test_1",
+              },
             ],
             roles: [
-              { id: "role_admin", name: "Admin", position: 1, permissions: 8, isDefault: false, color: "#5865f2" },
-              { id: "role_everyone", name: "@everyone", position: 0, permissions: 104324161, isDefault: true, color: null },
+              {
+                id: "role_admin",
+                name: "Admin",
+                position: 1,
+                permissions: 8,
+                isDefault: false,
+                color: "#5865f2",
+              },
+              {
+                id: "role_everyone",
+                name: "@everyone",
+                position: 0,
+                permissions: 104324161,
+                isDefault: true,
+                color: null,
+              },
             ],
             members: [
               {
@@ -139,8 +168,22 @@ test.describe("六项用户体验改进与身份组管理增强综合验收", ()
         status: 200,
         contentType: "application/json",
         body: JSON.stringify([
-          { id: "role_admin", name: "Admin", position: 1, permissions: 8, isDefault: false, color: "#5865f2" },
-          { id: "role_everyone", name: "@everyone", position: 0, permissions: 104324161, isDefault: true, color: null },
+          {
+            id: "role_admin",
+            name: "Admin",
+            position: 1,
+            permissions: 8,
+            isDefault: false,
+            color: "#5865f2",
+          },
+          {
+            id: "role_everyone",
+            name: "@everyone",
+            position: 0,
+            permissions: 104324161,
+            isDefault: true,
+            color: null,
+          },
         ]),
       });
     });
@@ -163,7 +206,9 @@ test.describe("六项用户体验改进与身份组管理增强综合验收", ()
 
     // 验证右侧成员列表中：优先展示 nickname "服主昵称" 以及普通成员的 displayName "普通成员展示名"
     await expect(page.getByText("服主昵称")).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText("普通成员展示名")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("普通成员展示名")).toBeVisible({
+      timeout: 5000,
+    });
   });
 
   test("2. 验证服务器邀请功能：按需建立邀请，避免每次打开Modal频繁刷码，有活动链接时可复用", async ({
@@ -177,7 +222,7 @@ test.describe("六项用户体验改进与身份组管理增强综合验收", ()
       route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(null),
+        body: JSON.stringify({ invite: null }),
       });
     });
 
@@ -195,7 +240,11 @@ test.describe("六项用户体验改进与身份组管理增强综合验收", ()
           }),
         });
       } else {
-        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([]) });
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([]),
+        });
       }
     });
 
@@ -223,8 +272,12 @@ test.describe("六项用户体验改进与身份组管理增强综合验收", ()
 
     // 验证按需生成了邀请链接并展示
     expect(inviteCreatedCount).toBe(1);
-    await expect(page.locator("input[value*='ON_DEMAND_INVITE_123']")).toBeVisible();
-    await expect(page.getByRole("button", { name: /生成新链接/i })).toBeVisible();
+    await expect(
+      page.locator("input[value*='ON_DEMAND_INVITE_123']"),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: /生成新链接/i }),
+    ).toBeVisible();
   });
 
   test("3. 验证服务器图标编辑：取消网络直链输入，支持裁剪/压缩，且模态框滚动条位于 ESC 右侧", async ({
@@ -243,7 +296,9 @@ test.describe("六项用户体验改进与身份组管理增强综合验收", ()
     await expect(settingsMenuItem).toBeVisible({ timeout: 5000 });
     await settingsMenuItem.click();
 
-    const serverSettingsModal = page.locator('[data-testid="server-settings-modal"]');
+    const serverSettingsModal = page.locator(
+      '[data-testid="server-settings-modal"]',
+    );
     await expect(serverSettingsModal).toBeVisible();
 
     // 3.1 验证概况页中：无直接输入网络图片直链的输入框
@@ -252,7 +307,9 @@ test.describe("六项用户体验改进与身份组管理增强综合验收", ()
     await expect(page.getByText(/推荐尺寸至少为 512x512/i)).toBeVisible();
 
     // 3.2 验证设置模态框的 ESC 按钮与滚动条布局：ESC 按钮悬浮且在其右侧拥有滚动条空间 (pr-16 / absolute right-6)
-    const escBtn = page.locator('[data-testid="close-server-settings-btn"]:visible');
+    const escBtn = page.locator(
+      '[data-testid="close-server-settings-btn"]:visible',
+    );
     await expect(escBtn).toBeVisible();
     const escBox = await escBtn.boundingBox();
     const modalBox = await serverSettingsModal.boundingBox();
@@ -273,8 +330,22 @@ test.describe("六项用户体验改进与身份组管理增强综合验收", ()
         status: 200,
         contentType: "application/json",
         body: JSON.stringify([
-          { id: "role_admin", name: "Admin", position: 1, permissions: 8, isDefault: false, color: "#5865f2" },
-          { id: "role_everyone", name: "@everyone", position: 0, permissions: 104324161, isDefault: true, color: null },
+          {
+            id: "role_admin",
+            name: "Admin",
+            position: 1,
+            permissions: 8,
+            isDefault: false,
+            color: "#5865f2",
+          },
+          {
+            id: "role_everyone",
+            name: "@everyone",
+            position: 0,
+            permissions: 104324161,
+            isDefault: true,
+            color: null,
+          },
         ]),
       });
     });
@@ -302,7 +373,9 @@ test.describe("六项用户体验改进与身份组管理增强综合验收", ()
     await page.getByTestId("server-settings-roles-tab").click();
 
     // 验证不会出现“该身份组的层级权重高于或等同于您拥有的最高身份组”的误判警告（因为当前用户是 Owner / SUPER_ADMIN）
-    await expect(page.getByText(/该身份组的层级权重高于或等同于您拥有的最高身份组/i)).not.toBeVisible();
+    await expect(
+      page.getByText(/该身份组的层级权重高于或等同于您拥有的最高身份组/i),
+    ).not.toBeVisible();
 
     // 验证权限分类标签完整且独立自适应（全部、常规管理、成员与邀请、文字互动、语音频道、高级特权）
     await expect(page.getByRole("button", { name: "全部" })).toBeVisible();
@@ -310,7 +383,9 @@ test.describe("六项用户体验改进与身份组管理增强综合验收", ()
     await expect(page.getByRole("button", { name: "高级特权" })).toBeVisible();
 
     // 验证存在危险操作区中的“删除身份组”按钮
-    const deleteRoleBtn = page.getByRole("button", { name: /删除身份组/i }).first();
+    const deleteRoleBtn = page
+      .getByRole("button", { name: /删除身份组/i })
+      .first();
     await expect(deleteRoleBtn).toBeVisible();
   });
 });

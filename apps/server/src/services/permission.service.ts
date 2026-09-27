@@ -1,7 +1,17 @@
 import { prisma } from "../db.js";
-import { PermissionFlags, hasPermission, Role } from "@tescord/types";
+import {
+  ALL_PERMISSIONS,
+  PermissionFlags,
+  hasPermission,
+  Role,
+} from "@tescord/types";
 
 export class PermissionService {
+  public readonly allPermissionBits = ALL_PERMISSIONS.reduce(
+    (bits, permission) => bits | permission.flag,
+    0,
+  );
+
   /**
    * 确保指定公会存在基础 @everyone 角色，若无则自动创建
    */
@@ -54,24 +64,33 @@ export class PermissionService {
     guildId: string,
     flag: PermissionFlags,
   ): Promise<boolean> {
-    const guild = await prisma.guild.findUnique({ where: { id: guildId } });
-    if (!guild) return false;
+    const totalPermissions = await this.getGuildPermissionBits(userId, guildId);
+    return totalPermissions !== null && hasPermission(totalPermissions, flag);
+  }
 
-    // 服务器 Owner 自动豁免，拥有最高特权
-    if (guild.ownerId === userId) return true;
+  /** Returns the actor's effective guild permission mask, or null if they are not a member. */
+  public async getGuildPermissionBits(
+    userId: string,
+    guildId: string,
+  ): Promise<number | null> {
+    const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+    if (!guild) return null;
+
+    const actor = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (guild.ownerId === userId || actor?.role === "SUPER_ADMIN") {
+      return this.allPermissionBits;
+    }
 
     const member = await prisma.guildMember.findUnique({
-      where: {
-        guildId_userId: { guildId, userId },
-      },
+      where: { guildId_userId: { guildId, userId } },
     });
-    if (!member) return false;
+    if (!member) return null;
 
-    // 1. 获取公会 @everyone 基础角色权限
     const everyoneRole = await this.ensureEveryoneRole(guildId);
     let totalPermissions = everyoneRole.permissions;
-
-    // 2. 解析用户被赋予的附加角色
     let roleIds: string[] = [];
     try {
       roleIds = JSON.parse(member.roleIds || "[]");
@@ -81,19 +100,14 @@ export class PermissionService {
 
     if (roleIds.length > 0) {
       const roles = await prisma.role.findMany({
-        where: {
-          id: { in: roleIds },
-          guildId,
-        },
+        where: { id: { in: roleIds }, guildId },
       });
-
       totalPermissions = roles.reduce(
-        (acc, r) => acc | r.permissions,
+        (permissions, role) => permissions | role.permissions,
         totalPermissions,
       );
     }
-
-    return hasPermission(totalPermissions, flag);
+    return totalPermissions;
   }
 
   /**

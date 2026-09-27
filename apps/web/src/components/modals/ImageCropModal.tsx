@@ -25,6 +25,7 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isProcessing, setIsProcessing] = useState(false);
+  const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const imgRef = useRef<HTMLImageElement | null>(null);
@@ -38,33 +39,76 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
     }
   }, [isOpen, imageSrc]);
 
-  // 鼠标拖拽平移
-  const handleMouseDown = (e: React.MouseEvent) => {
+  const viewportSize = 256;
+  const baseScale =
+    imageSize.width > 0 && imageSize.height > 0
+      ? Math.max(
+          viewportSize / imageSize.width,
+          viewportSize / imageSize.height,
+        )
+      : 1;
+  const baseRenderWidth = imageSize.width * baseScale;
+  const baseRenderHeight = imageSize.height * baseScale;
+
+  const clampPan = useCallback(
+    (next: { x: number; y: number }, nextZoom = zoom) => {
+      const maxX = Math.max(0, (baseRenderWidth * nextZoom - viewportSize) / 2);
+      const maxY = Math.max(
+        0,
+        (baseRenderHeight * nextZoom - viewportSize) / 2,
+      );
+      return {
+        x: Math.max(-maxX, Math.min(maxX, next.x)),
+        y: Math.max(-maxY, Math.min(maxY, next.y)),
+      };
+    },
+    [baseRenderHeight, baseRenderWidth, zoom],
+  );
+
+  useEffect(() => {
+    setPan((previous) => clampPan(previous));
+  }, [clampPan]);
+
+  // Pointer Events 同时覆盖鼠标、触控笔与手机触摸拖拽。
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
     setIsDragging(true);
     setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
   };
 
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
       if (!isDragging) return;
-      setPan({
-        x: e.clientX - dragStart.x,
-        y: e.clientY - dragStart.y,
-      });
+      setPan(
+        clampPan({
+          x: e.clientX - dragStart.x,
+          y: e.clientY - dragStart.y,
+        }),
+      );
     },
-    [isDragging, dragStart],
+    [clampPan, isDragging, dragStart],
   );
 
-  const handleMouseUp = useCallback(() => {
-    setIsDragging(false);
-  }, []);
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent<HTMLDivElement>) => {
+      if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      }
+      setIsDragging(false);
+    },
+    [],
+  );
 
   // 滚轮缩放
   const handleWheel = (e: React.WheelEvent) => {
     e.preventDefault();
     const delta = e.deltaY < 0 ? 0.1 : -0.1;
-    setZoom((prev) => Math.min(3, Math.max(1, +(prev + delta).toFixed(2))));
+    setZoom((prev) => {
+      const next = Math.min(3, Math.max(1, +(prev + delta).toFixed(2)));
+      setPan((current) => clampPan(current, next));
+      return next;
+    });
   };
 
   // 生成裁切并压缩后的 WebP Blob (512x512)
@@ -81,12 +125,10 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
 
       if (!ctx) throw new Error("无法创建画布上下文");
 
-      // 视口取景框尺寸 (固定 256x256)
-      const viewportSize = 256;
       // 计算缩放比例与居中基准
       const naturalWidth = img.naturalWidth || 512;
       const naturalHeight = img.naturalHeight || 512;
-      
+
       // 取景框内的渲染尺寸
       const renderBaseScale = Math.max(
         viewportSize / naturalWidth,
@@ -99,7 +141,7 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
       const outputScale = targetSize / viewportSize;
       const drawWidth = currentRenderWidth * outputScale;
       const drawHeight = currentRenderHeight * outputScale;
-      
+
       // 居中基准 + 偏移量放缩
       const centerOffsetX = (targetSize - drawWidth) / 2;
       const centerOffsetY = (targetSize - drawHeight) / 2;
@@ -136,11 +178,7 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
   if (!isOpen || !imageSrc) return null;
 
   return (
-    <div
-      className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-    >
+    <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
       <div
         className="bg-[#313338] w-full max-w-md rounded-2xl overflow-hidden shadow-2xl border border-white/10 flex flex-col animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
@@ -170,21 +208,32 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
         <div className="p-6 flex flex-col items-center justify-center">
           <div
             ref={containerRef}
-            onMouseDown={handleMouseDown}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={handlePointerUp}
             onWheel={handleWheel}
             className="relative w-64 h-64 overflow-hidden rounded-2xl bg-[#1e1f22] cursor-grab active:cursor-grabbing select-none border border-white/10 shadow-inner flex items-center justify-center"
+            style={{ touchAction: "none" }}
           >
             {/* 待裁剪图片 */}
             <img
               ref={imgRef}
               src={imageSrc}
-              alt="crop preview"
+              alt={t("modals:cropModal.previewAlt")}
               draggable={false}
+              onLoad={(event) => {
+                setImageSize({
+                  width: event.currentTarget.naturalWidth,
+                  height: event.currentTarget.naturalHeight,
+                });
+              }}
               style={{
                 transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-                maxWidth: "100%",
-                maxHeight: "100%",
-                objectFit: "contain",
+                width: `${baseRenderWidth}px`,
+                height: `${baseRenderHeight}px`,
+                maxWidth: "none",
+                maxHeight: "none",
                 pointerEvents: "none",
                 transition: isDragging ? "none" : "transform 0.05s ease-out",
               }}

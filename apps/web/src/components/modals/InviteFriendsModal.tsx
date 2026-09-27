@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { X, Search, Check, Copy, Settings, Loader2, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Guild, User, Relationship } from "@tescord/types";
+import { ActiveGuildInviteResponse, Guild, User } from "@tescord/types";
 import { API_BASE } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { useFriendStore } from "../../stores/useFriendStore.js";
@@ -46,15 +46,31 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
   const fetchActiveInvite = async () => {
     try {
       setLoadingCode(true);
-      const res = await fetch(`${API_BASE}/api/guilds/${guild.id}/invites/active`, {
-        headers: {
-          ...getAuthHeaders(),
+      const res = await fetch(
+        `${API_BASE}/api/guilds/${guild.id}/invites/active`,
+        {
+          headers: {
+            ...getAuthHeaders(),
+          },
         },
-      });
+      );
       if (res.ok) {
-        const data = await res.json();
+        const data = (await res.json()) as ActiveGuildInviteResponse;
         if (data.invite) {
           setInviteCode(data.invite.code);
+          setInviteOptions({
+            maxAge: data.invite.expiresAt
+              ? Math.max(
+                  1,
+                  Math.round(
+                    (new Date(data.invite.expiresAt).getTime() - Date.now()) /
+                      1000,
+                  ),
+                )
+              : 0,
+            maxUses: data.invite.maxUses ?? 0,
+            isTemporary: false,
+          });
         } else {
           setInviteCode("");
         }
@@ -454,7 +470,8 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
                   {loadingCode
                     ? t("common:loading", { defaultValue: "查询中..." })
                     : t("modals:inviteFriends.noActiveInvitePrompt", {
-                        defaultValue: "当前尚未建立邀请链接，点击右侧按钮建立。",
+                        defaultValue:
+                          "当前尚未建立邀请链接，点击右侧按钮建立。",
                       })}
                 </span>
                 <button

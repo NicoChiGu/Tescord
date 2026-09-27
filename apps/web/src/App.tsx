@@ -261,12 +261,6 @@ export const App: React.FC = () => {
       const channel = guildsRef.current
         .flatMap((guild) => guild.channels)
         .find((candidate) => candidate.id === channelId);
-      if (channel?.voiceMode === "p2p_mesh") {
-        console.log(
-          `[VoiceFallback] 频道 ${channelId} 设定为强制 P2P Mesh，拦截降级 SFU 行为`,
-        );
-        return false;
-      }
       const requireE2EE = Boolean(callId || channel?.isE2EE);
       if (
         !user ||
@@ -423,6 +417,9 @@ export const App: React.FC = () => {
     useState<ChannelCategory | null>(null);
   const [editingChannel, setEditingChannel] = useState<Channel | null>(null);
   const [isScreenShareModalOpen, setIsScreenShareModalOpen] = useState(false);
+  const [screenShareModeByChannel, setScreenShareModeByChannel] = useState<
+    Record<string, StreamTransmissionMode>
+  >({});
   const [isNetworkQualityModalOpen, setIsNetworkQualityModalOpen] =
     useState(false);
   const [isP2PFallbackModalOpen, setIsP2PFallbackModalOpen] = useState(false);
@@ -2929,7 +2926,8 @@ export const App: React.FC = () => {
     // 若当前已在该频道且处于 connected 状态，直接退出
     if (
       activeVoiceChannelIdRef.current === channel.id &&
-      voiceConnectionStatus === "connected"
+      (voiceConnectionStatus === "connected" ||
+        voiceConnectionStatus === "p2p_active")
     ) {
       isVoiceSwitchingRef.current = false;
       return;
@@ -3031,11 +3029,14 @@ export const App: React.FC = () => {
           processedStream,
           otherMembers,
           undefined,
-          { allowFallbackToSFU: false },
+          { allowFallbackToSFU: true },
         );
         if (isCurrentVoiceOp()) {
           joinSuccess = true;
-          livekitService.setConnectionStatus("connected");
+          // P2P is an active voice session, but it is not a LiveKit/SFU
+          // connection. Keeping a distinct status prevents the fallback guard
+          // from mistaking Mesh readiness for an already connected SFU.
+          livekitService.setConnectionStatus("p2p_active");
         }
       } catch (error) {
         console.warn("公会 Mesh P2P 启动异常:", error);
@@ -3084,7 +3085,9 @@ export const App: React.FC = () => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}),
+            ...(currentToken
+              ? { Authorization: `Bearer ${currentToken}` }
+              : {}),
           },
           body: JSON.stringify({
             roomName: channel.id,
@@ -3462,7 +3465,7 @@ export const App: React.FC = () => {
           callId,
         );
         joinSuccess = await voiceMeshManager.waitForConnectedPeer(8_000);
-        if (joinSuccess) livekitService.setConnectionStatus("connected");
+        if (joinSuccess) livekitService.setConnectionStatus("p2p_active");
       } catch (error) {
         console.warn("DM P2P/TURN 协商失败，准备回退 SFU:", error);
       }
@@ -4039,6 +4042,10 @@ export const App: React.FC = () => {
       }
 
       setIsScreenSharing(true);
+      setScreenShareModeByChannel((previous) => ({
+        ...previous,
+        [activeVoiceChannelId]: transmissionMode,
+      }));
       gatewayClient.updateVoiceState(voiceGuildId, activeVoiceChannelId, {
         streaming: true,
         streamMode: transmissionMode,
@@ -4391,7 +4398,8 @@ export const App: React.FC = () => {
             voiceStates={voiceStates}
             isConnected={
               activeVoiceChannelId === selectedChannel.id &&
-              voiceConnectionStatus === "connected"
+              (voiceConnectionStatus === "connected" ||
+                voiceConnectionStatus === "p2p_active")
             }
             voiceConnectionStatus={
               activeVoiceChannelId === selectedChannel.id
@@ -4840,7 +4848,13 @@ export const App: React.FC = () => {
       <ScreenShareModal
         isOpen={isScreenShareModalOpen}
         onClose={() => setIsScreenShareModalOpen(false)}
-        defaultTransmissionMode={activeVoiceChannelObj?.streamMode || "sfu"}
+        defaultTransmissionMode={
+          (activeVoiceChannelId
+            ? screenShareModeByChannel[activeVoiceChannelId]
+            : undefined) ||
+          activeVoiceChannelObj?.streamMode ||
+          "sfu"
+        }
         onStartShare={handleStartScreenShare}
       />
 

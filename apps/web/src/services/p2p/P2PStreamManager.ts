@@ -10,24 +10,18 @@ import {
   NATType,
   StreamDetailedStats,
   ConnectionTopology,
-  ICEServerConfigResponse,
 } from "@tescord/types";
 import { NATDetector, NATDetectionResult } from "./NATDetector.js";
 import { gatewayClient } from "../gateway.js";
-import { API_BASE } from "../../config.js";
-import { apiFetch } from "../apiClient.js";
-import { useAuthStore } from "../../stores/useAuthStore.js";
 import { bitrateCalculator } from "../stats/BitrateCalculator.js";
 import { sframeManager } from "../sframe.js";
+import { getP2PIceServers } from "./iceServers.js";
 
 export type StreamChangeCallback = (
   stream: MediaStream | null,
   ownerId: string,
 ) => void;
 export type FallbackCallback = (reason: string) => void;
-
-// 高可用全球 IPv4 / IPv6 双栈 STUN 池
-const DEFAULT_ICE_SERVERS: RTCIceServer[] = [];
 
 export class P2PStreamManager {
   private localStream: MediaStream | null = null;
@@ -45,9 +39,7 @@ export class P2PStreamManager {
   private currentChildrenIds: string[] = [];
 
   // 动态 ICE 服务器 (双栈 STUN + Coturn TURN)
-  private currentIceServers: RTCIceServer[] = [...DEFAULT_ICE_SERVERS];
-  private isIceServersLoaded: boolean = false;
-  private iceServersLoadedAt = 0;
+  private currentIceServers: RTCIceServer[] = [];
 
   // targetUserId -> 打洞重试状态追踪
   private peerRetries: Map<
@@ -77,36 +69,9 @@ export class P2PStreamManager {
   /**
    * 动态拉取服务端 Coturn TURN 与双栈 STUN 列表
    */
-  public async fetchIceServers(): Promise<RTCIceServer[]> {
-    if (
-      this.isIceServersLoaded &&
-      Date.now() - this.iceServersLoadedAt < 60 * 60 * 1000
-    )
-      return this.currentIceServers;
-    try {
-      const token =
-        useAuthStore.getState().token ||
-        sessionStorage.getItem("tescord_access_token") ||
-        localStorage.getItem("tescord_access_token");
-      const res = await apiFetch(`${API_BASE}/api/network/ice-servers`, {
-        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-      });
-      if (res.ok) {
-        const data = (await res.json()) as ICEServerConfigResponse;
-        if (data.iceServers && Array.isArray(data.iceServers)) {
-          this.currentIceServers = data.iceServers as RTCIceServer[];
-          this.isIceServersLoaded = true;
-          this.iceServersLoadedAt = Date.now();
-          return this.currentIceServers;
-        }
-      }
-    } catch (e) {
-      console.warn(
-        "[P2PStream] Failed to fetch dynamic ICE servers, using defaults:",
-        e,
-      );
-    }
-    return this.currentIceServers;
+  public async fetchIceServers(forceRefresh = false): Promise<RTCIceServer[]> {
+    this.currentIceServers = await getP2PIceServers(forceRefresh);
+    return [...this.currentIceServers];
   }
 
   public setContext(userId: string | null) {
@@ -169,6 +134,12 @@ export class P2PStreamManager {
     customBitrate?: number,
   ): Promise<void> {
     this.stopAll();
+
+    // The broadcaster creates the real PeerConnections after viewers request
+    // the stream, so it must load ICE before advertising availability. NAT
+    // probing uses a separate temporary connection and cannot configure these
+    // media PeerConnections for us.
+    await this.fetchIceServers();
 
     this.activeChannelId = channelId;
     this.activeGuildId = guildId;

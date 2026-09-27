@@ -232,6 +232,7 @@
   "cropModal": {
     "title": "アイコンサイズの編集",
     "description": "ドラッグして位置を調整し、スライダーで拡大縮小できます。",
-    "confirmBtn": "確定してアップロード"
+    "confirmBtn": "確定してアップロード",
+    "previewAlt": "アイコンの切り抜きプレビュー"
   }
 }

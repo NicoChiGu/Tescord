@@ -1,6 +1,14 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
+// Some isolated module tests import db.ts without the server entrypoint. Keep
+// those tests on the development SQLite database while production continues
+// to require env.ts validation before this module is loaded.
+if (process.env.NODE_ENV !== "production") {
+  process.env.DATABASE_URL ??= "file:./dev.db";
+  process.env.DATABASE_PROVIDER ??= "sqlite";
+}
+
 export const prisma = new PrismaClient({
   log: process.env.NODE_ENV === "development" ? ["warn", "error"] : ["error"],
 });

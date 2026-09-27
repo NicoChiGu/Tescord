@@ -459,6 +459,10 @@ export interface Invite {
   createdAt: string;
 }
 
+export interface ActiveGuildInviteResponse {
+  invite: Invite | null;
+}
+
 export interface GuildBan {
   id: string;
   guildId: string;
@@ -718,7 +722,7 @@ export type GatewayConnectionState =
   "disconnected" | "connecting" | "connected" | "reconnecting";
 
 export type VoiceConnectionStatus =
-  "disconnected" | "connecting" | "connected" | "reconnecting";
+  "disconnected" | "connecting" | "connected" | "reconnecting" | "p2p_active";
 
 export interface AudioPlaybackStatus {
   canPlay: boolean;
@@ -1035,6 +1039,7 @@ export interface PeerLatencyReport {
   jitter?: number; // 抖动毫秒
   packetLoss?: number; // 丢包率 (0.0 - 1.0)
   connectionType: "LAN" | "P2P" | "RELAY" | "SFU";
+  status: "connecting" | "connected" | "failed";
   updatedAt: number;
 }
 
@@ -1240,6 +1245,10 @@ export interface PresignedUploadResponse {
   fileUrl: string;
   fileKey: string;
   requiresAuth?: boolean;
+}
+
+export interface DiscardGuildIconUploadDTO {
+  fileUrl: string;
 }
 
 export interface AddReactionDTO {

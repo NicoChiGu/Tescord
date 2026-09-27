@@ -152,6 +152,14 @@
     "streamTrackNotReady": "The streamer's video track is not ready. Please try again shortly.",
     "streamJoinFailed": "Could not connect to the stream"
   },
+  "connectionBadge": {
+    "connecting": "Connecting...",
+    "p2p": "P2P",
+    "turn": "TURN",
+    "lan": "LAN",
+    "failed": "Failed",
+    "retryTooltip": "Click to retry"
+  },
   "audioInterruption": {
     "bannerTitle": "Audio Playback Interrupted",
     "bannerDesc": "Audio playback was paused due to system sleep, backgrounding, or browser policy",

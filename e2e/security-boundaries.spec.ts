@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { createHmac } from "node:crypto";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
+import { PermissionFlags } from "@tescord/types";
 
 const serverRequire = createRequire(
   resolve(process.cwd(), "apps/server/package.json"),
@@ -438,4 +439,212 @@ test("image preview is smaller while the original bytes remain available", async
     height: 1280,
     format: "webp",
   });
+});
+
+test("role managers cannot create, grant, or promote privileges they do not hold", async ({
+  request,
+}) => {
+  const login = async (name: string, password: string) => {
+    const response = await request.post("/api/auth/login", {
+      data: { emailOrUsername: name, password },
+    });
+    expect(response.ok(), await response.text()).toBeTruthy();
+    return ((await response.json()) as { accessToken: string }).accessToken;
+  };
+  const ownerToken = await login("Jackey", "adminpassword123");
+  const ownerHeaders = { Authorization: `Bearer ${ownerToken}` };
+  const guildId = "gld_default_01";
+  const suffix = Date.now().toString(36);
+  const managerRegistration = await request.post("/api/auth/register", {
+    data: {
+      username: `role_manager_${suffix}`,
+      email: `role_manager_${suffix}@example.invalid`,
+      password: "RoleManagerTestPassword123",
+    },
+  });
+  expect(
+    managerRegistration.ok(),
+    await managerRegistration.text(),
+  ).toBeTruthy();
+  const managerRegistrationBody = (await managerRegistration.json()) as {
+    accessToken: string;
+    user: { id: string };
+  };
+  const managerHeaders = {
+    Authorization: `Bearer ${managerRegistrationBody.accessToken}`,
+  };
+  const managerUserId = managerRegistrationBody.user.id;
+  const inviteResponse = await request.post(`/api/guilds/${guildId}/invites`, {
+    headers: ownerHeaders,
+    data: { maxUses: 1, maxAge: 3600, forceNew: true },
+  });
+  expect(inviteResponse.ok(), await inviteResponse.text()).toBeTruthy();
+  const inviteCode = ((await inviteResponse.json()) as { code: string }).code;
+  const joinResponse = await request.post(`/api/invites/${inviteCode}/join`, {
+    headers: managerHeaders,
+  });
+  expect(joinResponse.ok(), await joinResponse.text()).toBeTruthy();
+
+  const managerRoleResponse = await request.post(
+    `/api/guilds/${guildId}/roles`,
+    {
+      headers: ownerHeaders,
+      data: {
+        name: `e2e_role_manager_${Date.now()}`,
+        permissions: PermissionFlags.MANAGE_ROLES,
+      },
+    },
+  );
+  expect(
+    managerRoleResponse.ok(),
+    await managerRoleResponse.text(),
+  ).toBeTruthy();
+  const managerRole = (await managerRoleResponse.json()) as {
+    id: string;
+    position: number;
+  };
+
+  try {
+    const assignManager = await request.patch(
+      `/api/guilds/${guildId}/members/${managerUserId}`,
+      {
+        headers: ownerHeaders,
+        data: { roleIds: [managerRole.id] },
+      },
+    );
+    expect(assignManager.ok(), await assignManager.text()).toBeTruthy();
+
+    const createAdmin = await request.post(`/api/guilds/${guildId}/roles`, {
+      headers: managerHeaders,
+      data: {
+        name: "forbidden-admin-role",
+        permissions:
+          PermissionFlags.MANAGE_ROLES | PermissionFlags.ADMINISTRATOR,
+      },
+    });
+    expect(createAdmin.status()).toBe(403);
+    expect((await createAdmin.json()).code).toBe("GUILD_PERMISSION_DENIED");
+
+    const createUnheldPermission = await request.post(
+      `/api/guilds/${guildId}/roles`,
+      {
+        headers: managerHeaders,
+        data: {
+          name: "forbidden-manage-guild-role",
+          permissions:
+            PermissionFlags.MANAGE_ROLES | PermissionFlags.MANAGE_GUILD,
+        },
+      },
+    );
+    expect(createUnheldPermission.status()).toBe(403);
+
+    const createAllowed = await request.post(`/api/guilds/${guildId}/roles`, {
+      headers: managerHeaders,
+      data: {
+        name: `e2e_delegated_${Date.now()}`,
+        permissions: PermissionFlags.MANAGE_ROLES,
+      },
+    });
+    expect(createAllowed.ok(), await createAllowed.text()).toBeTruthy();
+    const delegatedRole = (await createAllowed.json()) as {
+      id: string;
+      position: number;
+    };
+    try {
+      const promoteAboveSelf = await request.patch(
+        `/api/guilds/${guildId}/roles/${delegatedRole.id}`,
+        {
+          headers: managerHeaders,
+          data: { position: managerRole.position + 1 },
+        },
+      );
+      expect(promoteAboveSelf.status()).toBe(403);
+
+      const grantAdmin = await request.patch(
+        `/api/guilds/${guildId}/roles/${delegatedRole.id}`,
+        {
+          headers: managerHeaders,
+          data: { permissions: PermissionFlags.ADMINISTRATOR },
+        },
+      );
+      expect(grantAdmin.status()).toBe(403);
+    } finally {
+      await request.delete(`/api/guilds/${guildId}/roles/${delegatedRole.id}`, {
+        headers: ownerHeaders,
+      });
+    }
+  } finally {
+    await request.patch(`/api/guilds/${guildId}/members/${managerUserId}`, {
+      headers: ownerHeaders,
+      data: { roleIds: [] },
+    });
+    await request.delete(`/api/guilds/${guildId}/roles/${managerRole.id}`, {
+      headers: ownerHeaders,
+    });
+    await request.delete(`/api/guilds/${guildId}/members/${managerUserId}`, {
+      headers: ownerHeaders,
+    });
+    await request.delete(`/api/invites/${inviteCode}`, {
+      headers: ownerHeaders,
+    });
+  }
+});
+
+test("pending guild icons remain private and can be discarded only by their authorized owner", async ({
+  request,
+}) => {
+  const login = await request.post("/api/auth/login", {
+    data: { emailOrUsername: "Jackey", password: "adminpassword123" },
+  });
+  expect(login.ok(), await login.text()).toBeTruthy();
+  const token = ((await login.json()) as { accessToken: string }).accessToken;
+  const headers = { Authorization: `Bearer ${token}` };
+  const guildId = "gld_default_01";
+  const image = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    "base64",
+  );
+  const grantResponse = await request.post("/api/attachments/presigned-url", {
+    headers,
+    data: {
+      fileName: `e2e-pending-icon-${Date.now()}.png`,
+      fileSize: image.length,
+      mimeType: "image/png",
+      purpose: "guild-icon",
+      guildId,
+    },
+  });
+  expect(grantResponse.ok(), await grantResponse.text()).toBeTruthy();
+  const grant = (await grantResponse.json()) as {
+    uploadUrl: string;
+    fileUrl: string;
+  };
+  const upload = await request.put(grant.uploadUrl, {
+    headers: { ...headers, "Content-Type": "image/png" },
+    data: image,
+  });
+  expect(upload.ok(), await upload.text()).toBeTruthy();
+
+  const directPendingRead = await request.get(grant.fileUrl);
+  expect(directPendingRead.status()).toBe(404);
+  expect(directPendingRead.headers()["cache-control"]).toContain("no-store");
+
+  const anonymousDiscard = await request.delete(
+    `/api/guilds/${guildId}/pending-icon`,
+    { data: { fileUrl: grant.fileUrl } },
+  );
+  expect(anonymousDiscard.status()).toBe(401);
+
+  const discard = await request.delete(`/api/guilds/${guildId}/pending-icon`, {
+    headers,
+    data: { fileUrl: grant.fileUrl },
+  });
+  expect(discard.status(), await discard.text()).toBe(200);
+  expect(discard.headers()["cache-control"]).toBe("no-store");
+
+  const repeatedDiscard = await request.delete(
+    `/api/guilds/${guildId}/pending-icon`,
+    { headers, data: { fileUrl: grant.fileUrl } },
+  );
+  expect(repeatedDiscard.status()).toBe(404);
 });

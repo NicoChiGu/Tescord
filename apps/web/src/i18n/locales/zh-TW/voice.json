@@ -152,6 +152,14 @@
     "streamTrackNotReady": "主播的影片軌道尚未就緒，請稍後再試",
     "streamJoinFailed": "直播連線失敗"
   },
+  "connectionBadge": {
+    "connecting": "連線中...",
+    "p2p": "P2P",
+    "turn": "TURN",
+    "lan": "區域網路",
+    "failed": "失敗",
+    "retryTooltip": "點擊重新打洞"
+  },
   "audioInterruption": {
     "bannerTitle": "音訊播放已被系統中斷",
     "bannerDesc": "由於系統睡眠、切至後台或瀏覽器播放策略限制，通話聲音已暫停",
