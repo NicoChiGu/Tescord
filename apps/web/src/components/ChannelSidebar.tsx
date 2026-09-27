@@ -33,7 +33,7 @@ import {
   BellOff,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { VOICE_ENGINE } from "../config.js";
+import { VOICE_ENGINE, resolveServerUrl } from "../config.js";
 import { VoiceConnectionStatusPopover } from "./VoiceConnectionStatusPopover.js";
 import {
   DndContext,
@@ -366,18 +366,21 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
                   <div className="relative">
                     <img
                       src={
-                        targetUserObj.avatarUrl ||
-                        "https://api.dicebear.com/7.x/bottts/svg?seed=user"
+                        (targetUserObj.avatarUrl &&
+                          resolveServerUrl(targetUserObj.avatarUrl)) ||
+                        `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(targetUserObj.username || "user")}`
                       }
                       alt="avatar"
-                      className={`w-5 h-5 rounded-full border-2 border-transparent ${
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src =
+                          `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(targetUserObj.username || "user")}`;
+                      }}
+                      className={`w-5 h-5 rounded-full object-cover border-2 border-transparent ${
                         isSpeakingUser ? "speaking-ring" : ""
                       }`}
                     />
                   </div>
-                  <span className="truncate flex-1">
-                    {displayName}
-                  </span>
+                  <span className="truncate flex-1">{displayName}</span>
                   {(() => {
                     const peerReport = peerLatencies.get(p.userId);
                     if (!peerReport || peerReport.rtt <= 0) return null;
@@ -1475,11 +1478,16 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
             <div className="relative flex-shrink-0">
               <img
                 src={
-                  currentUser.avatarUrl ||
-                  "https://api.dicebear.com/7.x/bottts/svg?seed=avatar"
+                  (currentUser.avatarUrl &&
+                    resolveServerUrl(currentUser.avatarUrl)) ||
+                  `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(currentUser.username || "avatar")}`
                 }
                 alt={currentUser.username}
-                className={`w-8 h-8 rounded-full border-2 border-transparent ${
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src =
+                    `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(currentUser.username || "avatar")}`;
+                }}
+                className={`w-8 h-8 rounded-full object-cover border-2 border-transparent ${
                   isSpeaking ? "speaking-ring" : ""
                 }`}
               />

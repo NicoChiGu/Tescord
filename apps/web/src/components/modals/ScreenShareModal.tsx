@@ -78,14 +78,47 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
   const isElectron = !!window.electronAPI?.getDesktopSources;
   const [isLoadingSources, setIsLoadingSources] = useState(isElectron);
 
-  // 视频编码器与自定义码率状态
+  // 视频编码器与自定义码率状态（本地持久化记住上次直播偏好）
   const [supportedCodecs, setSupportedCodecs] = useState<CodecCapabilityInfo[]>(
     () => detectSupportedVideoCodecs(),
   );
   const [selectedCodec, setSelectedCodec] = useState<VideoCodecType | "auto">(
-    "auto",
+    () => {
+      try {
+        const saved = localStorage.getItem("tescord_preferred_stream_codec");
+        return (saved as any) || "auto";
+      } catch {
+        return "auto";
+      }
+    },
   );
-  const [customBitrate, setCustomBitrate] = useState<number | null>(null);
+  const [customBitrate, setCustomBitrate] = useState<number | null>(() => {
+    try {
+      const saved = localStorage.getItem("tescord_preferred_stream_bitrate");
+      return saved ? Number(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const handleCodecSelect = (codec: VideoCodecType | "auto") => {
+    setSelectedCodec(codec);
+    try {
+      localStorage.setItem("tescord_preferred_stream_codec", codec);
+    } catch {}
+  };
+
+  const handleCustomBitrateChange = (val: number | null) => {
+    setCustomBitrate(val);
+    try {
+      if (val !== null) {
+        localStorage.setItem("tescord_preferred_stream_bitrate", String(val));
+      } else {
+        localStorage.removeItem("tescord_preferred_stream_bitrate");
+      }
+    } catch {}
+  };
+
   const [isAdvancedBitrateOpen, setIsAdvancedBitrateOpen] = useState(false);
   const [transmissionMode, setTransmissionMode] =
     useState<StreamTransmissionMode>(defaultTransmissionMode || "sfu");
@@ -458,7 +491,7 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
               <button
                 type="button"
                 data-testid="modal-codec-auto"
-                onClick={() => setSelectedCodec("auto")}
+                onClick={() => handleCodecSelect("auto")}
                 className={`px-2 py-2 rounded-lg border text-center transition flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
                   selectedCodec === "auto"
                     ? "bg-discord-brand text-white border-discord-brand shadow-sm font-semibold"
@@ -482,7 +515,7 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
                     type="button"
                     data-testid={`modal-codec-${item.codec}`}
                     disabled={!isAvailable}
-                    onClick={() => setSelectedCodec(item.codec)}
+                    onClick={() => handleCodecSelect(item.codec)}
                     className={`px-2 py-2 rounded-lg border text-center transition flex flex-col items-center justify-center gap-0.5 relative ${
                       isSelected
                         ? "bg-discord-brand text-white border-discord-brand shadow-sm font-semibold cursor-pointer"
@@ -526,7 +559,7 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
                     {customBitrate && (
                       <button
                         type="button"
-                        onClick={() => setCustomBitrate(null)}
+                        onClick={() => handleCustomBitrateChange(null)}
                         className="text-[11px] text-gray-400 hover:text-white flex items-center gap-0.5 cursor-pointer"
                       >
                         <RotateCcw className="w-3 h-3" />
@@ -546,7 +579,9 @@ export const ScreenShareModal: React.FC<ScreenShareModalProps> = ({
                     max={MAX_CUSTOM_BITRATE}
                     step={250_000}
                     value={customBitrate || recommendedBitrate}
-                    onChange={(e) => setCustomBitrate(Number(e.target.value))}
+                    onChange={(e) =>
+                      handleCustomBitrateChange(Number(e.target.value))
+                    }
                     className="w-full h-1.5 bg-[#1e1f22] rounded-lg appearance-none cursor-pointer accent-discord-brand"
                   />
                   <span className="text-[10px] text-gray-500 font-mono">

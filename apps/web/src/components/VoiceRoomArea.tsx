@@ -12,7 +12,7 @@ import {
 } from "@tescord/types";
 import { livekitService, ActiveScreenShare } from "../services/livekit.js";
 import { cloudflareRealtimeService } from "../services/cloudflare_realtime/index.js";
-import { VOICE_ENGINE } from "../config.js";
+import { VOICE_ENGINE, resolveServerUrl } from "../config.js";
 import { audioEngine } from "../services/audioEngine.js";
 import { audioMixer } from "../services/audioMixer.js";
 import { sframeManager, SFrameStats } from "../services/sframe.js";
@@ -484,10 +484,15 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             <div className={`relative ${isTheaterMode ? "mb-1.5" : "mb-3"}`}>
               <img
                 src={
-                  participant.user?.avatarUrl ||
-                  "https://api.dicebear.com/7.x/bottts/svg?seed=avatar"
+                  (participant.user?.avatarUrl &&
+                    resolveServerUrl(participant.user.avatarUrl)) ||
+                  `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(participant.user?.username || "avatar")}`
                 }
                 alt={targetDisplayName}
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src =
+                    `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(participant.user?.username || "avatar")}`;
+                }}
                 className={`rounded-full border-4 border-[#1e1f22] object-cover ${
                   isSpotlight
                     ? "w-28 h-28"

@@ -42,6 +42,8 @@
     "topicPlaceholder": "簡單介紹這個頻道的討論內容...",
     "e2ee": "端對端加密 (E2EE)",
     "e2eeDesc": "用戶端本地密文封裝，伺服器不儲存明文",
+    "bitrateTitle": "音訊推流位元率",
+    "bitrateDesc": "設定語音頻道的 Opus 音質位元率，位元率越高音質越通透飽滿，但會佔用更多網路頻寬。",
     "submit": "建立頻道",
     "submitting": "建立中...",
     "failed": "建立頻道失敗"
@@ -57,6 +59,8 @@
     "attributes": "頻道屬性",
     "voiceTypeDesc": "語音與即時媒體頻道",
     "textTypeDesc": "純文字與富媒體頻道",
+    "bitrateTitle": "音訊推流位元率",
+    "bitrateDesc": "設定語音頻道的 Opus 音質位元率，位元率越高音質越通透飽滿，但會佔用更多網路頻寬。",
     "e2eeActive": "已啟用",
     "e2eeInactive": "未開啟",
     "save": "儲存修改",

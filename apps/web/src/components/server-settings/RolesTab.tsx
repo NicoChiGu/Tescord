@@ -392,7 +392,8 @@ export const RolesTab: React.FC<RolesTabProps> = ({
                   </h3>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {t("server:roles.permissionsDesc", {
-                      defaultValue: "为拥有此身份组的成员开启或关闭相应的服务器能力。",
+                      defaultValue:
+                        "为拥有此身份组的成员开启或关闭相应的服务器能力。",
                     })}
                   </p>
                 </div>
@@ -401,12 +402,42 @@ export const RolesTab: React.FC<RolesTabProps> = ({
                 <div className="flex flex-wrap items-center gap-1.5 bg-[#1e1f22] p-1.5 rounded-lg border border-white/5 text-[11px]">
                   {(
                     [
-                      ["ALL", t("server:roles.categories.all", { defaultValue: "全部" })],
-                      ["GENERAL", t("server:roles.categories.general", { defaultValue: "常规管理" })],
-                      ["MEMBERSHIP", t("server:roles.categories.membership", { defaultValue: "成员与邀请" })],
-                      ["TEXT", t("server:roles.categories.text", { defaultValue: "文字互动" })],
-                      ["VOICE", t("server:roles.categories.voice", { defaultValue: "语音频道" })],
-                      ["ADVANCED", t("server:roles.categories.advanced", { defaultValue: "高级特权" })],
+                      [
+                        "ALL",
+                        t("server:roles.categories.all", {
+                          defaultValue: "全部",
+                        }),
+                      ],
+                      [
+                        "GENERAL",
+                        t("server:roles.categories.general", {
+                          defaultValue: "常规管理",
+                        }),
+                      ],
+                      [
+                        "MEMBERSHIP",
+                        t("server:roles.categories.membership", {
+                          defaultValue: "成员与邀请",
+                        }),
+                      ],
+                      [
+                        "TEXT",
+                        t("server:roles.categories.text", {
+                          defaultValue: "文字互动",
+                        }),
+                      ],
+                      [
+                        "VOICE",
+                        t("server:roles.categories.voice", {
+                          defaultValue: "语音频道",
+                        }),
+                      ],
+                      [
+                        "ADVANCED",
+                        t("server:roles.categories.advanced", {
+                          defaultValue: "高级特权",
+                        }),
+                      ],
                     ] as const
                   ).map(([catKey, catLabel]) => (
                     <button

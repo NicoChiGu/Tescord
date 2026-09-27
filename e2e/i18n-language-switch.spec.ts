@@ -230,7 +230,9 @@ test.describe("Tescord 多国语言 (i18n: zh-CN / zh-TW / zh-HK / en-US / ja-JP
     await page.goto("/");
 
     // 3.1 默认简体中文环境验证
-    const defaultLang = await page.evaluate(() => document.documentElement.lang);
+    const defaultLang = await page.evaluate(
+      () => document.documentElement.lang,
+    );
     expect(defaultLang).toMatch(/^zh/i);
 
     const bodyTypography = await page.evaluate(() => {

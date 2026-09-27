@@ -40,6 +40,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
   const [parentId, setParentId] = useState<string | null>(null);
   const [voiceMode, setVoiceMode] = useState<"sfu" | "p2p_mesh">("sfu");
   const [streamMode, setStreamMode] = useState<StreamTransmissionMode>("sfu");
+  const [bitrate, setBitrate] = useState<number>(64000);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -52,6 +53,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
       setParentId(channel.parentId || null);
       setVoiceMode(channel.voiceMode || "sfu");
       setStreamMode(channel.streamMode || "sfu");
+      setBitrate(channel.bitrate || 64000);
       setError(null);
       setConfirmDelete(false);
     }
@@ -92,7 +94,9 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
           name: name.trim(),
           topic: topic.trim(),
           parentId: parentId || null,
-          ...(channel.type === "VOICE" ? { voiceMode, streamMode } : {}),
+          ...(channel.type === "VOICE"
+            ? { voiceMode, streamMode, bitrate }
+            : {}),
         }),
       });
 
@@ -438,6 +442,48 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
                   <div className="mt-2 text-[10px] text-discord-brand font-semibold">
                     {streamMode === "p2p_relay" && "✓ 当前已启用"}
                   </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 语音频道音频推流比特率设置 (Opus Bitrate) */}
+          {isVoice && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold uppercase tracking-wider text-discord-textMuted flex items-center gap-1.5">
+                  <Volume2 className="w-3.5 h-3.5 text-discord-brand" />
+                  <span>
+                    {t("modals:editChannel.bitrateTitle", {
+                      defaultValue: "音频推流码率 (Opus Bitrate)",
+                    })}
+                  </span>
+                </label>
+                <span className="font-mono text-xs font-bold text-discord-brand bg-discord-brand/10 px-2 py-0.5 rounded border border-discord-brand/20">
+                  {Math.round(bitrate / 1000)} kbps
+                </span>
+              </div>
+              <p className="text-[11px] text-gray-400">
+                {t("modals:editChannel.bitrateDesc", {
+                  defaultValue:
+                    "控制当前语音频道中所有成员的最高推流码率。默认推荐 64 kbps，兼顾音质与带宽。",
+                })}
+              </p>
+              <div className="space-y-1.5 pt-1">
+                <input
+                  type="range"
+                  min="8000"
+                  max="128000"
+                  step="8000"
+                  value={bitrate}
+                  onChange={(e) => setBitrate(Number(e.target.value))}
+                  className="w-full h-1.5 bg-[#1e1f22] rounded-lg appearance-none cursor-pointer accent-discord-brand"
+                />
+                <div className="flex justify-between text-[10px] text-gray-500 font-mono">
+                  <span>8 kbps (省流)</span>
+                  <span>64 kbps (标准)</span>
+                  <span>96 kbps (高清)</span>
+                  <span>128 kbps (Hi-Fi)</span>
                 </div>
               </div>
             </div>

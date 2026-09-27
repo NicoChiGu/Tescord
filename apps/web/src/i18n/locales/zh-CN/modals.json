@@ -42,6 +42,8 @@
     "topicPlaceholder": "简单介绍这个频道的讨论内容...",
     "e2ee": "端到端加密 (E2EE)",
     "e2eeDesc": "客户端本地密文封装，服务端不保存明文",
+    "bitrateTitle": "音频推流码率",
+    "bitrateDesc": "设置语音频道的 Opus 音质码率，码率越高音质越通透饱满，但会占用更多网络带宽。",
     "submit": "创建频道",
     "submitting": "创建中...",
     "failed": "创建频道失败"
@@ -57,6 +59,8 @@
     "attributes": "频道属性",
     "voiceTypeDesc": "语音与实时媒体频道",
     "textTypeDesc": "纯文本与富媒体频道",
+    "bitrateTitle": "音频推流码率",
+    "bitrateDesc": "设置语音频道的 Opus 音质码率，码率越高音质越通透饱满，但会占用更多网络带宽。",
     "e2eeActive": "已激活",
     "e2eeInactive": "未开启",
     "save": "保存修改",

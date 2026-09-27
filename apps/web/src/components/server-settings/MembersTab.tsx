@@ -112,7 +112,9 @@ export const MembersTab: React.FC<MembersTabProps> = ({
     } catch (err: any) {
       toast.error(
         err?.message ||
-          t("server:members.roleUpdateFailed", { defaultValue: "分配角色失败" }),
+          t("server:members.roleUpdateFailed", {
+            defaultValue: "分配角色失败",
+          }),
       );
     }
   };
@@ -497,7 +499,9 @@ export const MembersTab: React.FC<MembersTabProps> = ({
 
         {filteredMembers.length === 0 && (
           <div className="p-8 text-center text-xs text-gray-500">
-            {t("server:members.noMembersFound", { defaultValue: "未找到匹配的成员" })}
+            {t("server:members.noMembersFound", {
+              defaultValue: "未找到匹配的成员",
+            })}
           </div>
         )}
       </div>

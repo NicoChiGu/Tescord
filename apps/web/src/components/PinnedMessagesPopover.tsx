@@ -10,6 +10,7 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import { getUserDisplayName } from "../utils/userDisplay.js";
+import { resolveServerUrl } from "../config.js";
 
 interface PinnedMessagesPopoverProps {
   channelName: string;
@@ -123,15 +124,20 @@ export const PinnedMessagesPopover: React.FC<PinnedMessagesPopoverProps> = ({
                   <div className="flex items-center space-x-2 min-w-0">
                     <img
                       src={
-                        msg.author?.avatarUrl ||
-                        "https://api.dicebear.com/7.x/bottts/svg?seed=user"
+                        (msg.author?.avatarUrl &&
+                          resolveServerUrl(msg.author.avatarUrl)) ||
+                        `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(msg.author?.username || "user")}`
                       }
                       alt={getUserDisplayName(
                         msg.author,
                         null,
                         t("common:memberList.defaultUser", "用户"),
                       )}
-                      className="w-6 h-6 rounded-full flex-shrink-0"
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src =
+                          `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(msg.author?.username || "user")}`;
+                      }}
+                      className="w-6 h-6 rounded-full object-cover flex-shrink-0"
                     />
                     <span className="font-semibold text-xs text-discord-textHeader truncate">
                       {getUserDisplayName(

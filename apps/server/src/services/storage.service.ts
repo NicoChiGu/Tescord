@@ -24,7 +24,7 @@ export class StorageService {
       expiresAt: number;
       claimed: boolean;
       uploaded: boolean;
-      purpose: "attachment" | "guild-icon";
+      purpose: "attachment" | "guild-icon" | "user-avatar";
       channelId?: string;
       guildId?: string;
       preview?: { url: string; size: number; width: number; height: number };
@@ -125,7 +125,11 @@ export class StorageService {
     }
     if (req.purpose === "guild-icon" && !req.guildId)
       throw new Error("guildId is required");
-    if (req.purpose !== "guild-icon" && !req.channelId)
+    if (
+      req.purpose !== "guild-icon" &&
+      req.purpose !== "user-avatar" &&
+      !req.channelId
+    )
       throw new Error("channelId is required");
     const maxUploadBytes = Number(
       process.env.MAX_UPLOAD_BYTES || 50 * 1024 * 1024,
@@ -185,7 +189,7 @@ export class StorageService {
     const signature = this.signLocalUpload(fileKey, userId, expiresAt);
     const uploadUrl = `${this.baseUrl}/api/attachments/upload/${encodeURIComponent(fileKey)}?expires=${expiresAt}&signature=${encodeURIComponent(signature)}`;
     const fileUrl =
-      req.purpose === "guild-icon"
+      req.purpose === "guild-icon" || req.purpose === "user-avatar"
         ? `${this.baseUrl}/public-assets/${encodeURIComponent(fileKey)}`
         : `${this.baseUrl}/uploads/${encodeURIComponent(fileKey)}`;
 
@@ -305,6 +309,35 @@ export class StorageService {
       grant.userId !== userId ||
       grant.guildId !== guildId ||
       grant.purpose !== "guild-icon" ||
+      grant.fileUrl !== fileUrl ||
+      !grant.mimeType.startsWith("image/")
+    )
+      return false;
+    grant.claimed = true;
+    return true;
+  }
+
+  public claimUserAvatar(userId: string, fileUrl: string): boolean {
+    let key: string;
+    try {
+      const url = new URL(fileUrl, this.baseUrl);
+      if (
+        url.origin !== new URL(this.baseUrl).origin ||
+        !url.pathname.startsWith("/public-assets/")
+      )
+        return false;
+      key = decodeURIComponent(url.pathname.slice("/public-assets/".length));
+    } catch {
+      return false;
+    }
+    const grant = this.uploadGrants.get(key);
+    if (
+      !grant ||
+      !grant.uploaded ||
+      grant.claimed ||
+      grant.expiresAt < Date.now() ||
+      grant.userId !== userId ||
+      grant.purpose !== "user-avatar" ||
       grant.fileUrl !== fileUrl ||
       !grant.mimeType.startsWith("image/")
     )
@@ -479,7 +512,7 @@ export class StorageService {
     fileKey: string,
     userId: string,
   ): {
-    purpose: "attachment" | "guild-icon";
+    purpose: "attachment" | "guild-icon" | "user-avatar";
     channelId?: string;
     guildId?: string;
   } | null {

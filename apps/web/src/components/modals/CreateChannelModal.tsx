@@ -44,6 +44,7 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
   const [topic, setTopic] = useState("");
   const [voiceMode, setVoiceMode] = useState<"sfu" | "p2p_mesh">("sfu");
   const [streamMode, setStreamMode] = useState<StreamTransmissionMode>("sfu");
+  const [bitrate, setBitrate] = useState<number>(64000);
   const [isE2EE, setIsE2EE] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +56,7 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
       setTopic("");
       setVoiceMode("sfu");
       setStreamMode("sfu");
+      setBitrate(64000);
       setIsE2EE(false);
       setError(null);
     }
@@ -83,7 +85,7 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
           parentId: parentId || undefined,
           topic: topic.trim() || undefined,
           isE2EE,
-          ...(type === "VOICE" ? { voiceMode, streamMode } : {}),
+          ...(type === "VOICE" ? { voiceMode, streamMode, bitrate } : {}),
         }),
       });
 
@@ -286,6 +288,38 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
                       <span className="text-[11px] font-bold">Mesh Tree</span>
                     </div>
                     <p className="text-[10px] text-gray-400">接力转发</p>
+                  </div>
+                </div>
+
+                {/* 语音推流码率滑块 */}
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-discord-textMuted flex items-center gap-1.5">
+                      <Volume2 className="w-3.5 h-3.5 text-discord-brand" />
+                      <span>
+                        {t("modals:editChannel.bitrateTitle", {
+                          defaultValue: "音频推流码率 (Opus Bitrate)",
+                        })}
+                      </span>
+                    </label>
+                    <span className="font-mono text-xs font-bold text-discord-brand bg-discord-brand/10 px-2 py-0.5 rounded border border-discord-brand/20">
+                      {Math.round(bitrate / 1000)} kbps
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="8000"
+                    max="128000"
+                    step="8000"
+                    value={bitrate}
+                    onChange={(e) => setBitrate(Number(e.target.value))}
+                    className="w-full h-1.5 bg-[#1e1f22] rounded-lg appearance-none cursor-pointer accent-discord-brand"
+                  />
+                  <div className="flex justify-between text-[10px] text-gray-500 font-mono">
+                    <span>8 kbps (省流)</span>
+                    <span>64 kbps (标准)</span>
+                    <span>96 kbps (高清)</span>
+                    <span>128 kbps (Hi-Fi)</span>
                   </div>
                 </div>
               </div>

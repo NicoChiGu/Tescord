@@ -5,19 +5,10 @@ import {
   TripleABTestResult,
   QuadABTestResult,
 } from "../../services/audioEngine.js";
-import {
-  NoiseSuppressionMode,
-  VideoCodecType,
-  CodecCapabilityInfo,
-  MIN_CUSTOM_BITRATE,
-  MAX_CUSTOM_BITRATE,
-} from "@tescord/types";
-import {
-  livekitService,
-  detectSupportedVideoCodecs,
-  detectSupportedVideoCodecsAsync,
-} from "../../services/livekit.js";
+import { NoiseSuppressionMode } from "@tescord/types";
+import { livekitService } from "../../services/livekit.js";
 import { cloudflareRealtimeService } from "../../services/cloudflare_realtime/index.js";
+import { useSettingsStore } from "../../stores/useSettingsStore.js";
 import { VOICE_ENGINE } from "../../config.js";
 import {
   Volume2,
@@ -30,7 +21,6 @@ import {
   Keyboard,
   Clock,
   Radio,
-  Music,
   Sliders,
   ChevronDown,
   ChevronUp,
@@ -46,12 +36,242 @@ import {
   VideoOff,
   Camera,
   RefreshCw,
-  Film,
-  Layers,
-  Gauge,
-  Info,
-  ShieldCheck,
+  Activity,
+  Pause,
 } from "lucide-react";
+
+interface ComparisonTrackPlayerProps {
+  title: string;
+  badge: string;
+  badgeBg: string;
+  badgeText: string;
+  borderColor: string;
+  activeBorderColor: string;
+  accentColor: string;
+  description: string;
+  url?: string | null;
+  error?: string | null;
+  isActive: boolean;
+  onPlay: () => void;
+  onStop: () => void;
+}
+
+const ComparisonTrackPlayer: React.FC<ComparisonTrackPlayerProps> = ({
+  title,
+  badge,
+  badgeBg,
+  badgeText,
+  borderColor,
+  activeBorderColor,
+  accentColor,
+  description,
+  url,
+  error,
+  isActive,
+  onPlay,
+  onStop,
+}) => {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [level, setLevel] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const animFrameRef = useRef<number | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    if (isActive) {
+      if (!audioCtxRef.current) {
+        try {
+          const AudioContextClass =
+            window.AudioContext || (window as any).webkitAudioContext;
+          const ctx = new AudioContextClass();
+          const analyser = ctx.createAnalyser();
+          analyser.fftSize = 128;
+          analyser.smoothingTimeConstant = 0.3;
+          const source = ctx.createMediaElementSource(audio);
+          source.connect(analyser);
+          analyser.connect(ctx.destination);
+          audioCtxRef.current = ctx;
+          analyserRef.current = analyser;
+          sourceRef.current = source;
+        } catch {
+          // fallback
+        }
+      }
+
+      if (audioCtxRef.current?.state === "suspended") {
+        audioCtxRef.current.resume().catch(() => {});
+      }
+
+      audio.currentTime = 0;
+      audio.play().catch(() => onStop());
+
+      const dataArray = new Uint8Array(64);
+      const updateLevel = () => {
+        if (!analyserRef.current) {
+          setLevel(Math.floor(Math.random() * 30 + 35));
+        } else {
+          analyserRef.current.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i];
+          }
+          const avg = sum / dataArray.length;
+          const norm = Math.min(100, Math.round((avg / 255) * 160));
+          setLevel(norm);
+        }
+        animFrameRef.current = requestAnimationFrame(updateLevel);
+      };
+      animFrameRef.current = requestAnimationFrame(updateLevel);
+    } else {
+      audio.pause();
+      audio.currentTime = 0;
+      setLevel(0);
+      setProgress(0);
+      setCurrentTime(0);
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
+    }
+
+    return () => {
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
+    };
+  }, [isActive, onStop]);
+
+  const handleTimeUpdate = () => {
+    if (!audioRef.current) return;
+    const cur = audioRef.current.currentTime;
+    const dur = audioRef.current.duration || 5;
+    setCurrentTime(cur);
+    setDuration(dur);
+    setProgress(Math.min(100, (cur / dur) * 100));
+  };
+
+  const handleEnded = () => {
+    onStop();
+  };
+
+  const formatTime = (secs: number) => {
+    const s = Math.floor(secs % 60);
+    const ms = Math.floor((secs % 1) * 10);
+    return `0:0${s}.${ms}`;
+  };
+
+  const isAvailable = Boolean(url);
+
+  return (
+    <div
+      className={`p-3.5 rounded-xl border transition-all flex flex-col justify-between ${
+        isActive
+          ? `${activeBorderColor} bg-[#1e1f22] ring-1 ring-white/10 shadow-lg`
+          : `bg-[#2b2d31] ${borderColor} hover:border-[#4e5058]`
+      }`}
+    >
+      {url && (
+        <audio
+          ref={audioRef}
+          src={url}
+          onTimeUpdate={handleTimeUpdate}
+          onEnded={handleEnded}
+          preload="auto"
+          className="hidden"
+        />
+      )}
+
+      {/* 头部：标题与特性徽章 */}
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+            {title}
+          </span>
+          <span
+            className={`text-[9px] px-1.5 py-0.5 rounded font-bold ${badgeBg} ${badgeText}`}
+          >
+            {isAvailable ? badge : "不可用"}
+          </span>
+        </div>
+        <p className="text-[11px] text-discord-textMuted leading-relaxed mb-3">
+          {description}
+        </p>
+      </div>
+
+      {error ? (
+        <div className="text-[10px] text-red-300 p-2 rounded bg-red-950/30 border border-red-800/30">
+          {error}
+        </div>
+      ) : (
+        <div className="space-y-2 mt-auto">
+          {/* 电平指示器 (类似 Discord 麦克风测试) */}
+          <div className="space-y-1">
+            <div className="flex justify-between items-center text-[10px] text-gray-400 font-mono">
+              <span className="flex items-center gap-1">
+                <Activity className="w-3 h-3 text-emerald-400" />
+                <span>动态响应电平</span>
+              </span>
+              <span>{isActive ? `${level}%` : "--"}</span>
+            </div>
+            <div className="h-2 w-full bg-[#18191c] rounded-full overflow-hidden relative shadow-inner p-0.5">
+              <div
+                className={`h-full rounded-full transition-all duration-75 ${
+                  isActive
+                    ? "bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 shadow-[0_0_8px_rgba(34,197,94,0.4)]"
+                    : "bg-gray-600/30"
+                }`}
+                style={{ width: `${isActive ? level : 0}%` }}
+              />
+            </div>
+          </div>
+
+          {/* 控制按钮与播放进度条 */}
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              disabled={!isAvailable}
+              onClick={() => (isActive ? onStop() : onPlay())}
+              className={`p-2 rounded-lg flex items-center justify-center transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+                isActive
+                  ? "bg-rose-500 hover:bg-rose-600 text-white shadow"
+                  : `${accentColor} text-white shadow hover:opacity-90`
+              }`}
+              title={isActive ? "停止播放" : "开始试听"}
+            >
+              {isActive ? (
+                <Square className="w-3.5 h-3.5 fill-current" />
+              ) : (
+                <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+              )}
+            </button>
+
+            {/* 播放进度指示 */}
+            <div className="flex-1 space-y-0.5">
+              <div className="h-1.5 w-full bg-[#18191c] rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-discord-brand transition-all duration-100 rounded-full"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-[9px] text-gray-400 font-mono">
+                <span>{isActive ? formatTime(currentTime) : "0:00.0"}</span>
+                <span>{duration > 0 ? formatTime(duration) : "0:05.0"}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
 
 interface AudioSettingsTabProps {
   isInCall?: boolean;
@@ -139,52 +359,10 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
     return () => clearInterval(timer);
   }, []);
 
-  // 视频编解码器与硬件加速配置状态
-  const [supportedCodecs, setSupportedCodecs] = useState<CodecCapabilityInfo[]>(
-    () => detectSupportedVideoCodecs(),
-  );
-  const [preferredCodec, setPreferredCodec] = useState<VideoCodecType>(
-    livekitService.preferredVideoCodec,
-  );
-  const [enableBackupCodec, setEnableBackupCodec] = useState<boolean>(
-    livekitService.enableBackupCodec,
-  );
-  const [customBitrate, setCustomBitrate] = useState<number | null>(
-    livekitService.customBitrate,
-  );
-
-  useEffect(() => {
-    const unsub = livekitService.onVideoSettingsChange(() => {
-      setPreferredCodec(livekitService.preferredVideoCodec);
-      setEnableBackupCodec(livekitService.enableBackupCodec);
-      setCustomBitrate(livekitService.customBitrate);
-    });
-    setSupportedCodecs(detectSupportedVideoCodecs());
-    detectSupportedVideoCodecsAsync().then((codecs) => {
-      setSupportedCodecs(codecs);
-    });
-    return () => unsub();
-  }, []);
-
-  const handleCodecSelect = (codec: VideoCodecType) => {
-    setPreferredCodec(codec);
-    livekitService.setPreferredVideoCodec(codec);
-  };
-
-  const handleBackupCodecToggle = (checked: boolean) => {
-    setEnableBackupCodec(checked);
-    livekitService.setEnableBackupCodec(checked);
-  };
-
-  const handleVideoBitrateChange = (val: number) => {
-    setCustomBitrate(val);
-    livekitService.setCustomBitrate(val);
-  };
-
-  const handleResetVideoBitrate = () => {
-    setCustomBitrate(null);
-    livekitService.setCustomBitrate(null);
-  };
+  // 活跃播放的 A/B 降噪对比音轨 (互斥试听)
+  const [activeComparisonTrack, setActiveComparisonTrack] = useState<
+    "raw" | "rnnoise" | "dtln" | "dfn3" | null
+  >(null);
 
   // 1. 枚举系统音频与视频硬件设备
   const refreshDevices = async () => {
@@ -331,11 +509,10 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
   useEffect(() => {
     setConfig(audioEngine.config);
 
-    const cleanupSpeaking = audioEngine.onSpeakingChange(
-      (_isSpeaking, volume) => {
-        setCurrentVolume(volume);
-      },
-    );
+    // 监听前级输入真实物理电平（即使处于闭麦静音状态也能驱动电平测试条，不受静音影响）
+    const cleanupSpeaking = audioEngine.onInputLevel((volume) => {
+      setCurrentVolume(volume);
+    });
 
     // 若麦克风当前未被激活 (用户尚未加入语音频道)，临时激活麦克风测试管线以驱动电平显示
     const wasAlreadyRunning = audioEngine.isMicrophoneActive();
@@ -439,7 +616,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
         audioCtx.currentTime + 0.3,
       ); // 滑音至 A5
 
-      const calculatedGain = (outputVolume / 100) * 0.2;
+      const calculatedGain = Math.min(0.9, (outputVolume / 100) * 0.35);
       gain.gain.setValueAtTime(calculatedGain, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
 
@@ -489,13 +666,6 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
     audioEngine.updateConfig({ pushToTalkReleaseDelay: delay });
   };
 
-  const handleBitrateChange = (bitrate: number) => {
-    const newCfg = { ...config, audioBitrate: bitrate };
-    setConfig(newCfg);
-    audioEngine.updateConfig({ audioBitrate: bitrate });
-    livekitService.setAudioBitrate(bitrate);
-  };
-
   const handleToggle = (key: keyof typeof config) => {
     const nextVal = !config[key];
     const newCfg = { ...config, [key]: nextVal };
@@ -518,6 +688,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
   const runABComparisonTest = async () => {
     const controller = new AbortController();
     abAbortRef.current = controller;
+    setActiveComparisonTrack(null);
     try {
       setIsABTesting(true);
       setABCountdown(5);
@@ -684,6 +855,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                   setOutputVolume(val);
                   livekitService.setMasterVolume(val);
                   cloudflareRealtimeService.setMasterVolume(val);
+                  useSettingsStore.getState().setOutputVolume(val);
                 }}
                 className="w-full h-1.5 bg-[#1e1f22] rounded-lg appearance-none cursor-pointer accent-discord-brand"
               />
@@ -1123,173 +1295,13 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             </div>
           </div>
         </div>
-
-        {/* 模块 3.2: 视频编码器与硬件加速配置 */}
-        <div className="bg-[#2b2d31] p-5 rounded-2xl border border-white/5 shadow-sm space-y-5">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <label className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
-                <Film className="w-4 h-4 text-discord-brand" />
-                <span>{t("settings:audioVideo.videoCodecsTitle")}</span>
-              </label>
-              <p className="text-[11px] text-discord-textMuted">
-                {t("settings:audioVideo.videoCodecsDesc")}
-              </p>
-            </div>
-            <span className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
-              Auto-Adaptive
-            </span>
-          </div>
-
-          {/* 编码器选项网格 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-            {supportedCodecs.map((item) => {
-              const isSelected = preferredCodec === item.codec;
-              const isAvailable = item.supported;
-              const codecDesc = t(
-                `settings:audioVideo.codec_${item.codec}_desc` as any,
-                { defaultValue: item.description },
-              );
-              const codecReason = item.reason
-                ? t(`settings:audioVideo.codec_${item.codec}_reason` as any, {
-                    defaultValue: item.reason,
-                  })
-                : undefined;
-
-              return (
-                <button
-                  key={item.codec}
-                  type="button"
-                  data-testid={`codec-option-${item.codec}`}
-                  disabled={!isAvailable}
-                  onClick={() => handleCodecSelect(item.codec)}
-                  className={`p-3 rounded-xl border text-left transition relative flex flex-col justify-between ${
-                    isSelected
-                      ? "bg-discord-brand/10 border-discord-brand text-white shadow-sm"
-                      : isAvailable
-                        ? "bg-[#1e1f22] border-[#3f4147] text-gray-300 hover:border-gray-500 hover:bg-[#232428] cursor-pointer"
-                        : "bg-[#1e1f22]/50 border-white/5 text-gray-500 cursor-not-allowed opacity-60"
-                  }`}
-                >
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold flex items-center gap-1.5">
-                        {item.label}
-                        {isSelected && (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-discord-brand" />
-                        )}
-                      </span>
-                      <div className="flex items-center gap-1">
-                        {item.isHardwareAccelerated && isAvailable && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-medium flex items-center gap-0.5">
-                            <Zap className="w-2.5 h-2.5" />
-                            {t("settings:audioVideo.badgeHwAccelerated")}
-                          </span>
-                        )}
-                        {!isAvailable && (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/20 text-rose-300 font-medium">
-                            {t("settings:audioVideo.badgeUnsupported")}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <p className="text-[11px] leading-relaxed text-discord-textMuted">
-                      {codecDesc}
-                    </p>
-                  </div>
-                  {codecReason && !isAvailable && (
-                    <div className="mt-2 text-[10px] text-amber-400/90 flex items-center gap-1 bg-amber-400/10 px-2 py-1 rounded">
-                      <Info className="w-3 h-3 flex-shrink-0" />
-                      <span>{codecReason}</span>
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-
-          {/* 双编码兜底策略 (Backup Codec) 开关 */}
-          <div className="pt-2 border-t border-white/5 flex items-center justify-between">
-            <div className="space-y-0.5 max-w-lg">
-              <label className="text-xs font-semibold text-gray-200 flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span>{t("settings:audioVideo.dualCodecTitle")}</span>
-              </label>
-              <p className="text-[11px] text-discord-textMuted">
-                {t("settings:audioVideo.dualCodecDesc")}
-              </p>
-            </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                data-testid="enable-backup-codec-checkbox"
-                checked={enableBackupCodec}
-                onChange={(e) => handleBackupCodecToggle(e.target.checked)}
-                className="sr-only peer"
-              />
-              <div className="w-9 h-5 bg-[#3f4147] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-discord-brand"></div>
-            </label>
-          </div>
-
-          {/* 专业自定义推流码率控制 (Target Bitrate) */}
-          <div className="pt-2 border-t border-white/5 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
-                <label className="text-xs font-semibold text-gray-200 flex items-center gap-1.5">
-                  <Gauge className="w-4 h-4 text-discord-brand" />
-                  <span>{t("settings:audioVideo.customBitrateTitle")}</span>
-                </label>
-                <p className="text-[11px] text-discord-textMuted">
-                  {t("settings:audioVideo.customBitrateDesc")}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span
-                  data-testid="current-custom-bitrate-label"
-                  className="text-xs font-mono font-bold text-discord-brand bg-discord-brand/10 px-2 py-0.5 rounded border border-discord-brand/20"
-                >
-                  {customBitrate
-                    ? `${Math.round(customBitrate / 1000)} kbps`
-                    : t("settings:audioVideo.bitrateAdaptive")}
-                </span>
-                {customBitrate && (
-                  <button
-                    type="button"
-                    data-testid="reset-custom-bitrate-btn"
-                    onClick={handleResetVideoBitrate}
-                    className="text-[11px] text-gray-400 hover:text-white flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded hover:bg-white/10 transition"
-                  >
-                    <RotateCcw className="w-3 h-3" />
-                    <span>{t("settings:audioVideo.reset")}</span>
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <span className="text-[10px] text-gray-400 font-mono">500k</span>
-              <input
-                type="range"
-                data-testid="custom-bitrate-slider"
-                min={MIN_CUSTOM_BITRATE}
-                max={MAX_CUSTOM_BITRATE}
-                step={250_000}
-                value={customBitrate || 3_000_000}
-                onChange={(e) =>
-                  handleVideoBitrateChange(Number(e.target.value))
-                }
-                className="w-full h-1.5 bg-[#1e1f22] rounded-lg appearance-none cursor-pointer accent-discord-brand"
-              />
-              <span className="text-[10px] text-gray-400 font-mono">8000k</span>
-            </div>
-          </div>
-        </div>
       </section>
 
       {/* 模块 4：高级音频与声学实验室 (折叠收纳，专业用户展开) */}
       <section className="border border-white/5 rounded-2xl bg-[#2b2d31] overflow-hidden transition-all shadow-sm">
         <button
           type="button"
+          data-testid="advanced-audio-toggle-btn"
           onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
           className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-white/5 transition"
         >
@@ -1320,76 +1332,8 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
 
         {isAdvancedOpen && (
           <div className="p-5 pt-2 border-t border-white/5 space-y-6 animate-fadeIn">
-            {/* 4.1 传输码率 */}
-            <div className="space-y-2.5">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
-                  <Radio className="w-3.5 h-3.5 text-discord-brand" />
-                  <span>{t("settings:audioVideo.opusBitrateTitle")}</span>
-                </span>
-                <span className="text-xs font-mono text-discord-brand font-bold">
-                  {config.audioBitrate / 1000} kbps
-                </span>
-              </div>
-              <div className="grid grid-cols-5 gap-2">
-                {[
-                  { label: "16k", value: 16000, descKey: "bitrateLow" },
-                  { label: "32k", value: 32000, descKey: "bitrateSmooth" },
-                  { label: "64k", value: 64000, descKey: "bitrateRecommended" },
-                  { label: "96k", value: 96000, descKey: "bitrateHd" },
-                  { label: "128k", value: 128000, descKey: "bitrateLossless" },
-                ].map((item) => (
-                  <button
-                    key={item.value}
-                    type="button"
-                    onClick={() => handleBitrateChange(item.value)}
-                    className={`py-2 px-1 rounded-lg border text-center transition ${
-                      config.audioBitrate === item.value
-                        ? "border-discord-brand bg-discord-brand/20 text-white font-bold"
-                        : "border-[#383a40] bg-[#1e1f22] text-gray-400 hover:bg-[#35373c] hover:text-white"
-                    }`}
-                  >
-                    <div className="text-xs font-semibold">{item.label}</div>
-                    <div className="text-[10px] text-gray-400 scale-90">
-                      {t(`settings:audioVideo.${item.descKey}` as any)}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* 4.2 基础声学算法开关 */}
-            <div className="space-y-3 pt-2 border-t border-white/5">
-              {/* 48kHz 立体声模式 */}
-              <div className="flex items-center justify-between py-1">
-                <div>
-                  <div className="text-xs font-semibold text-white flex items-center gap-1.5">
-                    <Music className="w-3.5 h-3.5 text-discord-brand" />
-                    <span>{t("settings:audioVideo.hiFiMusicTitle")}</span>
-                  </div>
-                  <div className="text-[11px] text-discord-textMuted">
-                    {t("settings:audioVideo.hiFiMusicDesc")}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => handleToggle("highFidelityMusic")}
-                  className={`w-10 h-5 flex items-center rounded-full p-0.5 transition duration-200 shrink-0 ${
-                    config.highFidelityMusic
-                      ? "bg-discord-brand"
-                      : "bg-[#1e1f22]"
-                  }`}
-                >
-                  <div
-                    className={`bg-white w-4 h-4 rounded-full shadow transform transition duration-200 ${
-                      config.highFidelityMusic
-                        ? "translate-x-5"
-                        : "translate-x-0"
-                    }`}
-                  />
-                </button>
-              </div>
-
+            {/* 基础声学算法开关 */}
+            <div className="space-y-3">
               {/* 回声消除 AEC */}
               <div className="flex items-center justify-between py-1">
                 <div>
@@ -1530,6 +1474,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               {!isABTesting && !abResult && (
                 <button
                   type="button"
+                  data-testid="start-ab-test-btn"
                   onClick={runABComparisonTest}
                   className="w-full py-2.5 rounded-lg bg-discord-brand hover:bg-[#4752c4] text-white text-xs font-semibold transition flex items-center justify-center gap-2 shadow"
                 >
@@ -1563,81 +1508,83 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
 
               {abResult && (
                 <div className="space-y-3 animate-fadeIn">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
-                    {/* 原始音轨 */}
-                    <div className="bg-[#2b2d31] p-2.5 rounded-lg border border-white/5">
-                      <div className="text-[11px] font-bold text-gray-400 mb-1 flex items-center justify-between">
-                        <span>{t("settings:audioVideo.abRawTrack")}</span>
-                        <span className="text-[10px] text-rose-400">
-                          {t("settings:audioVideo.abContainsNoise")}
-                        </span>
-                      </div>
-                      <audio
-                        src={abResult.rawUrl}
-                        controls
-                        className="w-full h-7 outline-none"
-                      />
-                    </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {/* 原始音轨 (Raw) */}
+                    <ComparisonTrackPlayer
+                      title={t("settings:audioVideo.abRawTrack", {
+                        defaultValue: "原始输入 (Raw)",
+                      })}
+                      badge={t("settings:audioVideo.abContainsNoise", {
+                        defaultValue: "保留底噪",
+                      })}
+                      badgeBg="bg-rose-500/20"
+                      badgeText="text-rose-300"
+                      borderColor="border-rose-500/20"
+                      activeBorderColor="border-rose-500"
+                      accentColor="bg-rose-600 hover:bg-rose-700"
+                      description="未经过任何降噪处理的物理麦克风原始录音。"
+                      url={abResult.rawUrl}
+                      isActive={activeComparisonTrack === "raw"}
+                      onPlay={() => setActiveComparisonTrack("raw")}
+                      onStop={() => setActiveComparisonTrack(null)}
+                    />
 
-                    {/* RNNoise */}
-                    <div className="bg-[#2b2d31] p-2.5 rounded-lg border border-discord-brand/40">
-                      <div className="text-[11px] font-bold text-discord-brand mb-1 flex items-center justify-between">
-                        <span>{t("settings:audioVideo.abRnnoiseTrack")}</span>
-                        <span className="text-[10px] bg-discord-brand/20 px-1 rounded">
-                          {abResult.rnnoiseUrl ? "可试听" : "不可用"}
-                        </span>
-                      </div>
-                      <audio
-                        src={abResult.rnnoiseUrl ?? undefined}
-                        controls
-                        className="w-full h-7 outline-none"
-                      />
-                      {abResult.rnnoiseError && (
-                        <p className="text-[10px] text-red-300 break-words">
-                          {abResult.rnnoiseError}
-                        </p>
-                      )}
-                    </div>
+                    {/* RNNoise 经典神经网络 */}
+                    <ComparisonTrackPlayer
+                      title={t("settings:audioVideo.abRnnoiseTrack", {
+                        defaultValue: "RNNoise 神经网络",
+                      })}
+                      badge={abResult.rnnoiseUrl ? "推荐日常" : "不可用"}
+                      badgeBg="bg-discord-brand/20"
+                      badgeText="text-discord-brand"
+                      borderColor="border-discord-brand/20"
+                      activeBorderColor="border-discord-brand"
+                      accentColor="bg-discord-brand hover:bg-discord-brand-hover"
+                      description="轻量级循环神经网络降噪，高效消除稳态风扇与空调底噪。"
+                      url={abResult.rnnoiseUrl}
+                      error={abResult.rnnoiseError}
+                      isActive={activeComparisonTrack === "rnnoise"}
+                      onPlay={() => setActiveComparisonTrack("rnnoise")}
+                      onStop={() => setActiveComparisonTrack(null)}
+                    />
 
-                    {/* DTLN */}
-                    <div className="bg-[#2b2d31] p-2.5 rounded-lg border border-discord-green/40">
-                      <div className="text-[11px] font-bold text-discord-green mb-1 flex items-center justify-between">
-                        <span>{t("settings:audioVideo.abDtlnTrack")}</span>
-                        <span className="text-[10px] bg-discord-green/20 px-1 rounded">
-                          {abResult.dtlnUrl ? "可试听" : "不可用"}
-                        </span>
-                      </div>
-                      <audio
-                        src={abResult.dtlnUrl ?? undefined}
-                        controls
-                        className="w-full h-7 outline-none"
-                      />
-                      {abResult.dtlnError && (
-                        <p className="text-[10px] text-red-300 break-words">
-                          {abResult.dtlnError}
-                        </p>
-                      )}
-                    </div>
+                    {/* DTLN 深度净化 */}
+                    <ComparisonTrackPlayer
+                      title={t("settings:audioVideo.abDtlnTrack", {
+                        defaultValue: "DTLN 深度学习",
+                      })}
+                      badge={abResult.dtlnUrl ? "键盘消音" : "不可用"}
+                      badgeBg="bg-discord-green/20"
+                      badgeText="text-discord-green"
+                      borderColor="border-discord-green/20"
+                      activeBorderColor="border-discord-green"
+                      accentColor="bg-emerald-600 hover:bg-emerald-700"
+                      description="双信号转换通道卷积神经网络，专克青轴敲击声与剧烈敲击噪音。"
+                      url={abResult.dtlnUrl}
+                      error={abResult.dtlnError}
+                      isActive={activeComparisonTrack === "dtln"}
+                      onPlay={() => setActiveComparisonTrack("dtln")}
+                      onStop={() => setActiveComparisonTrack(null)}
+                    />
 
-                    {/* DFNv3 */}
-                    <div className="bg-[#2b2d31] p-2.5 rounded-lg border border-purple-500/40">
-                      <div className="text-[11px] font-bold text-purple-400 mb-1 flex items-center justify-between">
-                        <span>{t("settings:audioVideo.abDfn3Track")}</span>
-                        <span className="text-[10px] bg-purple-500/20 text-purple-300 px-1 rounded">
-                          {abResult.dfn3Url ? "可试听" : "不可用"}
-                        </span>
-                      </div>
-                      <audio
-                        src={abResult.dfn3Url ?? undefined}
-                        controls
-                        className="w-full h-7 outline-none"
-                      />
-                      {abResult.dfn3Error && (
-                        <p className="text-[10px] text-red-300 break-words">
-                          {abResult.dfn3Error}
-                        </p>
-                      )}
-                    </div>
+                    {/* DFNv3 旗舰声学 */}
+                    <ComparisonTrackPlayer
+                      title={t("settings:audioVideo.abDfn3Track", {
+                        defaultValue: "DFNv3 旗舰声学",
+                      })}
+                      badge={abResult.dfn3Url ? "全频高保真" : "不可用"}
+                      badgeBg="bg-purple-500/20"
+                      badgeText="text-purple-300"
+                      borderColor="border-purple-500/20"
+                      activeBorderColor="border-purple-500"
+                      accentColor="bg-purple-600 hover:bg-purple-700"
+                      description="DeepFilterNet 3 代旗舰声学，保留饱满人声泛音并深度净化复杂环境音。"
+                      url={abResult.dfn3Url}
+                      error={abResult.dfn3Error}
+                      isActive={activeComparisonTrack === "dfn3"}
+                      onPlay={() => setActiveComparisonTrack("dfn3")}
+                      onStop={() => setActiveComparisonTrack(null)}
+                    />
                   </div>
 
                   <div className="flex justify-end pt-1">

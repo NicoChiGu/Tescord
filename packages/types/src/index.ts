@@ -553,6 +553,7 @@ export interface CreateChannelDTO {
   parentId?: string | null;
   position?: number;
   isE2EE?: boolean;
+  bitrate?: number;
   voiceMode?: "sfu" | "p2p_mesh";
   streamMode?: StreamTransmissionMode;
 }
@@ -563,6 +564,7 @@ export interface UpdateChannelDTO {
   parentId?: string | null;
   position?: number;
   isE2EE?: boolean;
+  bitrate?: number;
   voiceMode?: "sfu" | "p2p_mesh";
   streamMode?: StreamTransmissionMode;
 }
@@ -1235,7 +1237,7 @@ export interface PresignedUploadRequest {
   fileName: string;
   fileSize: number;
   mimeType: string;
-  purpose?: "attachment" | "guild-icon";
+  purpose?: "attachment" | "guild-icon" | "user-avatar";
   channelId?: string;
   guildId?: string;
 }

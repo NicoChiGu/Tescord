@@ -42,6 +42,8 @@
     "topicPlaceholder": "Let everyone know what this channel is about...",
     "e2ee": "End-to-End Encryption (E2EE)",
     "e2eeDesc": "Client-side encrypted, plaintext is not stored on the server",
+    "bitrateTitle": "Audio Streaming Bitrate",
+    "bitrateDesc": "Configure Opus audio streaming bitrate for this voice channel. Higher bitrates provide richer, clearer audio but consume more network bandwidth.",
     "submit": "Create Channel",
     "submitting": "Creating...",
     "failed": "Failed to create channel"
@@ -57,6 +59,8 @@
     "attributes": "Channel Attributes",
     "voiceTypeDesc": "Voice & Real-time Media Channel",
     "textTypeDesc": "Text & Rich Media Channel",
+    "bitrateTitle": "Audio Streaming Bitrate",
+    "bitrateDesc": "Configure Opus audio streaming bitrate for this voice channel. Higher bitrates provide richer, clearer audio but consume more network bandwidth.",
     "e2eeActive": "Enabled",
     "e2eeInactive": "Disabled",
     "save": "Save Changes",

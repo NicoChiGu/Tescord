@@ -131,6 +131,7 @@ export class AudioEngine {
   private onSpeakingChangeCallbacks: Set<
     (isSpeaking: boolean, volume: number) => void
   > = new Set();
+  private onInputLevelCallbacks: Set<(volume: number) => void> = new Set();
   private onPTTChangeCallbacks: Set<(isPTTActive: boolean) => void> = new Set();
   private onErrorCallbacks: Set<(errorMessage: string) => void> = new Set();
   private onStreamChangeCallbacks: Set<(stream: MediaStream) => void> =
@@ -180,21 +181,18 @@ export class AudioEngine {
     const contextSampleRate = this.audioContext?.sampleRate ?? 48000;
     this.noiseStatus.sampleRate = contextSampleRate;
     const warnings: string[] = [];
-    if (!this.config.highFidelityMusic) {
-      if (settings.echoCancellation === undefined)
-        warnings.push("无法确认浏览器 AEC 状态");
-      else if (settings.echoCancellation !== this.config.echoCancellation)
-        warnings.push("浏览器 AEC 与请求值不一致");
-      if (settings.noiseSuppression === undefined)
-        warnings.push("无法确认浏览器 NS 状态");
-      else if (settings.noiseSuppression) warnings.push("浏览器 NS 未关闭");
-      if (settings.autoGainControl === undefined)
-        warnings.push("无法确认浏览器 AGC 状态");
-      else if (settings.autoGainControl) warnings.push("浏览器 AGC 未关闭");
-    }
+    if (settings.echoCancellation === undefined)
+      warnings.push("无法确认浏览器 AEC 状态");
+    else if (settings.echoCancellation !== this.config.echoCancellation)
+      warnings.push("浏览器 AEC 与请求值不一致");
+    if (settings.noiseSuppression === undefined)
+      warnings.push("无法确认浏览器 NS 状态");
+    else if (settings.noiseSuppression) warnings.push("浏览器 NS 未关闭");
+    if (settings.autoGainControl === undefined)
+      warnings.push("无法确认浏览器 AGC 状态");
+    else if (settings.autoGainControl) warnings.push("浏览器 AGC 未关闭");
     this.noiseStatus.capture = {
-      requestedEchoCancellation:
-        !this.config.highFidelityMusic && this.config.echoCancellation,
+      requestedEchoCancellation: this.config.echoCancellation,
       actualEchoCancellation: settings.echoCancellation,
       actualNoiseSuppression: settings.noiseSuppression,
       actualAutoGainControl: settings.autoGainControl,
@@ -228,29 +226,17 @@ export class AudioEngine {
         await this.audioContext.resume().catch(() => {});
       }
 
-      // 根据高保真模式或常规语音模式设置音频输入约束
       const constraints: MediaStreamConstraints = {
-        audio: this.config.highFidelityMusic
-          ? {
-              sampleRate: 48000,
-              channelCount: 2,
-              echoCancellation: false,
-              noiseSuppression: false,
-              autoGainControl: false,
-              ...(this.config.inputDeviceId
-                ? { deviceId: { exact: this.config.inputDeviceId } }
-                : {}),
-            }
-          : {
-              sampleRate: 48000,
-              channelCount: 1,
-              echoCancellation: this.config.echoCancellation,
-              noiseSuppression: false, // 禁用系统低质降噪，转由 RNNoise 神经网络处理
-              autoGainControl: false,
-              ...(this.config.inputDeviceId
-                ? { deviceId: { exact: this.config.inputDeviceId } }
-                : {}),
-            },
+        audio: {
+          sampleRate: 48000,
+          channelCount: 1,
+          echoCancellation: this.config.echoCancellation,
+          noiseSuppression: false, // 禁用系统低质降噪，全权由 RNNoise/DTLN/DFNv3 神经网络处理
+          autoGainControl: false,
+          ...(this.config.inputDeviceId
+            ? { deviceId: { exact: this.config.inputDeviceId } }
+            : {}),
+        },
         video: false,
       };
 
@@ -406,56 +392,37 @@ export class AudioEngine {
     this.outputAnalyser.fftSize = 512;
     this.outputAnalyser.smoothingTimeConstant = 0.3;
     this.outputAnalyser.connect(this.destinationNode);
-    if (!this.config.highFidelityMusic) {
-      const base = new URL(
-        import.meta.env.BASE_URL || "./",
-        window.location.href,
-      );
-      await this.audioContext.audioWorklet.addModule(
-        new URL("models/voicePostProcessor.js", base),
-      );
-      this.voicePostNode = new AudioWorkletNode(
-        this.audioContext,
-        "tescord-voice-post",
-        {
-          numberOfInputs: 1,
-          numberOfOutputs: 1,
-          outputChannelCount: [1],
-        },
-      );
-      this.vadGainNode.connect(this.voicePostNode);
-      this.voicePostNode.connect(this.outputAnalyser);
-    } else {
-      this.inputGainNode.connect(this.postGainNode);
-      this.postGainNode.connect(this.outputAnalyser);
-    }
+    const base = new URL(
+      import.meta.env.BASE_URL || "./",
+      window.location.href,
+    );
+    await this.audioContext.audioWorklet.addModule(
+      new URL("models/voicePostProcessor.js", base),
+    );
+    this.voicePostNode = new AudioWorkletNode(
+      this.audioContext,
+      "tescord-voice-post",
+      {
+        numberOfInputs: 1,
+        numberOfOutputs: 1,
+        outputChannelCount: [1],
+      },
+    );
+    this.vadGainNode.connect(this.voicePostNode);
+    this.voicePostNode.connect(this.outputAnalyser);
     this.processedStream = this.destinationNode.stream;
 
     // 同步应用增益与 AGC 动态范围压限
     this.updateGainAndAGC();
 
     // 2.6 初始化加载神经网络降噪节点并应用路由
-    if (!this.config.highFidelityMusic) {
-      await this.initNoiseEngines();
-      await this.applyNoiseSuppressionRouting();
-    } else {
-      // Preserve stereo and bypass voice processing in music mode.
-      this.inputGainNode.connect(this.analyser);
-      this.isRnnoiseActive = false;
-      this.isDtlnActive = false;
-      this.noiseStatus = {
-        ...this.noiseStatus,
-        effectiveMode: "off",
-        backend: "bypass",
-        phase: "ready",
-      };
-    }
+    await this.initNoiseEngines();
+    await this.applyNoiseSuppressionRouting();
 
     this.updateGating();
   }
 
   public getEffectiveNoiseMode(): NoiseSuppressionMode {
-    if (this.config.highFidelityMusic) return "off";
     if (this.config.noiseSuppressionMode) {
       if (
         !this.config.noiseSuppression &&
@@ -950,6 +917,8 @@ export class AudioEngine {
       this.onSpeakingChangeCallbacks.forEach((cb) =>
         cb(this.isTalking, outputLevel),
       );
+      // 触发真实前级物理输入音量回调（不受闭麦影响，设置面板电平检测专用）
+      this.onInputLevelCallbacks.forEach((cb) => cb(volumeLevel));
     };
 
     // 采用 25ms 定时器 (40Hz)，避免浏览器在后台 Tab 或全屏游戏中休眠 requestAnimationFrame 导致语音断断续续
@@ -1310,6 +1279,13 @@ export class AudioEngine {
     };
   }
 
+  onInputLevel(callback: (volume: number) => void) {
+    this.onInputLevelCallbacks.add(callback);
+    return () => {
+      this.onInputLevelCallbacks.delete(callback);
+    };
+  }
+
   onPTTChange(callback: (isPTTActive: boolean) => void) {
     this.onPTTChangeCallbacks.add(callback);
     return () => {
@@ -1578,6 +1554,7 @@ export class AudioEngine {
       phase: "idle",
       sampleRate: 48000,
     };
+    this.onInputLevelCallbacks.forEach((cb) => cb(0));
   }
 
   public getAudioContext(): AudioContext | null {

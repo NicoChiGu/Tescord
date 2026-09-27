@@ -283,8 +283,8 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
       <div className="flex space-x-3 items-start">
         <img
           src={
-            msg.author.avatarUrl ||
-            "https://api.dicebear.com/7.x/bottts/svg?seed=user"
+            (msg.author.avatarUrl && resolveServerUrl(msg.author.avatarUrl)) ||
+            `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(msg.author.username || "user")}`
           }
           alt={authorName}
           width={40}
@@ -292,11 +292,15 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
           loading="lazy"
           decoding="async"
           data-profile-trigger={`chat-${msg.author.id}`}
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).src =
+              `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(msg.author.username || "user")}`;
+          }}
           onContextMenu={handleAuthorContextMenu}
           onClick={(e) =>
             onOpenProfile?.(msg.author, e.currentTarget.getBoundingClientRect())
           }
-          className="w-10 h-10 rounded-full flex-shrink-0 cursor-pointer hover:opacity-80 transition mt-0.5"
+          className="w-10 h-10 rounded-full object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition mt-0.5"
         />
         <div className="flex-1 overflow-hidden">
           {/* 用户信息与时间栏 */}
@@ -2145,8 +2149,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               <div className="relative mb-3">
                 {otherRecipient?.avatarUrl ? (
                   <img
-                    src={otherRecipient.avatarUrl}
+                    src={resolveServerUrl(otherRecipient.avatarUrl)}
                     alt={displayChannelName}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src =
+                        `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(otherRecipient.username || "user")}`;
+                    }}
                     className="w-20 h-20 rounded-full object-cover shadow-md"
                   />
                 ) : (

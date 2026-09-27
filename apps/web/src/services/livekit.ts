@@ -503,22 +503,22 @@ export class LiveKitService {
         this.handlePlaybackContextStateChange,
       );
 
-      // 构建广播级动态压限器 (DynamicsCompressorNode)
-      // 保证当多名远端成员同时将音量调至 200% 时，混音总线平滑饱和而不发生极端数字硬削波 (Digital Hard Clipping)
+      // 构建广播级宽动态压限器 (DynamicsCompressorNode)
+      // 具备 12dB 宽软拐点与 3.5:1 柔和斜率，提供充沛的 200% (+6dB) 动态提升空间，同时防止数字削波破音
       this.masterCompressor =
         this.playbackAudioContext.createDynamicsCompressor();
       this.masterCompressor.threshold.setValueAtTime(
-        -1.0,
+        -2.0,
         this.playbackAudioContext.currentTime,
-      ); // -1 dBFS
+      ); // -2.0 dBFS
       this.masterCompressor.knee.setValueAtTime(
-        4.0,
+        12.0,
         this.playbackAudioContext.currentTime,
-      );
+      ); // 12dB 宽软拐点 (Soft Knee)
       this.masterCompressor.ratio.setValueAtTime(
-        20.0,
+        3.5,
         this.playbackAudioContext.currentTime,
-      );
+      ); // 3.5:1 柔和压限，避免 200% 大音量时被砖墙削平
       this.masterCompressor.attack.setValueAtTime(
         0.003,
         this.playbackAudioContext.currentTime,

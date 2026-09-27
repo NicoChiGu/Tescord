@@ -3031,8 +3031,16 @@ server.post("/api/guilds/:guildId/channels", async (request, reply) => {
       .send({ error: "缺少管理频道权限 (MANAGE_CHANNELS)" });
   }
 
-  const { name, type, topic, parentId, isE2EE, voiceMode, streamMode } =
-    (request.body || {}) as CreateChannelDTO;
+  const {
+    name,
+    type,
+    topic,
+    parentId,
+    isE2EE,
+    bitrate,
+    voiceMode,
+    streamMode,
+  } = (request.body || {}) as CreateChannelDTO;
   if (!name || !name.trim()) {
     return reply.status(400).send({ error: "频道名称不能为空" });
   }
@@ -3076,6 +3084,11 @@ server.post("/api/guilds/:guildId/channels", async (request, reply) => {
   });
   const position = maxPosChannel ? maxPosChannel.position + 1 : 0;
 
+  const validBitrate =
+    typeof bitrate === "number" && bitrate >= 8000 && bitrate <= 384000
+      ? Math.round(bitrate)
+      : 64000;
+
   const channel = await prisma.channel.create({
     data: {
       guildId,
@@ -3085,6 +3098,7 @@ server.post("/api/guilds/:guildId/channels", async (request, reply) => {
       parentId: parentId || null,
       position,
       isE2EE: !!isE2EE,
+      bitrate: validBitrate,
       voiceMode: voiceMode || "sfu",
       streamMode: streamMode || "sfu",
     },
@@ -3187,12 +3201,13 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
       .send({ error: "缺少管理频道权限 (MANAGE_CHANNELS)" });
   }
 
-  const { name, topic, parentId, position, voiceMode, streamMode } =
+  const { name, topic, parentId, position, bitrate, voiceMode, streamMode } =
     (request.body || {}) as {
       name?: string;
       topic?: string;
       parentId?: string | null;
       position?: number;
+      bitrate?: number;
       voiceMode?: "sfu" | "p2p_mesh";
       streamMode?: "sfu" | "p2p_direct" | "p2p_relay";
     };
@@ -3237,6 +3252,9 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
       ...(topic !== undefined ? { topic } : {}),
       ...(parentId !== undefined ? { parentId } : {}),
       ...(position !== undefined ? { position } : {}),
+      ...(typeof bitrate === "number" && bitrate >= 8000 && bitrate <= 384000
+        ? { bitrate: Math.round(bitrate) }
+        : {}),
       ...(voiceMode !== undefined ? { voiceMode } : {}),
       ...(streamMode !== undefined ? { streamMode } : {}),
     },
@@ -4555,6 +4573,15 @@ server.post("/api/attachments/presigned-url", async (request, reply) => {
         !/\.(png|jpe?g|webp|gif)$/i.test(body.fileName)
       ) {
         return reply.status(400).send({ error: "不支持的服务器图标格式" });
+      }
+    } else if (body.purpose === "user-avatar") {
+      if (
+        !/^(image\/png|image\/jpeg|image\/webp|image\/gif)$/.test(
+          body.mimeType,
+        ) ||
+        !/\.(png|jpe?g|webp|gif)$/i.test(body.fileName)
+      ) {
+        return reply.status(400).send({ error: "不支持的用户头像格式" });
       }
     } else {
       if (body.purpose && body.purpose !== "attachment") {

@@ -23,12 +23,18 @@ import {
   Download,
   Eye,
   ChevronLeft,
+  Upload,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { AudioSettingsTab } from "./AudioSettingsTab.js";
 import { LanguageSettingsTab } from "./LanguageSettingsTab.js";
 import { AboutUpdatesTab } from "./AboutUpdatesTab.js";
 import { ProfileCardPreview } from "../profile/ProfileCardPreview.js";
+import { ImageCropModal } from "../modals/ImageCropModal.js";
+import { Avatar } from "../ui/Avatar.js";
+import { API_BASE, resolveServerUrl } from "../../config.js";
 
 export type UserSettingsTabType = "profile" | "audio" | "language" | "updates";
 
@@ -110,7 +116,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   onClose,
   isInCall = false,
 }) => {
-  const { user, updateProfile, logout } = useAuthStore();
+  const { user, updateProfile, logout, getAuthHeaders } = useAuthStore();
   const { t } = useTranslation(["settings", "common", "auth"]);
   const [activeTab, setActiveTab] = useState<UserSettingsTabType>(initialTab);
   const [mobileView, setMobileView] = useState<"menu" | "detail">("menu");
@@ -147,6 +153,112 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // 自定义头像上传与裁切状态
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+
+  useEffect(() => {
+    return () => {
+      if (cropSrc) {
+        URL.revokeObjectURL(cropSrc);
+      }
+    };
+  }, [cropSrc]);
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (cropSrc) URL.revokeObjectURL(cropSrc);
+    const objectUrl = URL.createObjectURL(file);
+    setCropSrc(objectUrl);
+    setIsCropModalOpen(true);
+    e.target.value = "";
+  };
+
+  const handleUploadCropped = async (croppedBlob: Blob) => {
+    const mimeType = "image/webp";
+    const fileName = `user_avatar_${Date.now()}.webp`;
+    setIsUploadingAvatar(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/attachments/presigned-url`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({
+          fileName,
+          fileSize: croppedBlob.size,
+          mimeType,
+          purpose: "user-avatar",
+        }),
+      });
+
+      if (!res.ok) {
+        throw new Error(
+          t("settings:avatarUploadFailed", {
+            defaultValue: "获取头像上传凭证失败",
+          }),
+        );
+      }
+      const { uploadUrl, fileUrl, requiresAuth } = await res.json();
+
+      const targetUploadUrl = resolveServerUrl(uploadUrl);
+      const uploadRes = await fetch(targetUploadUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": mimeType,
+          ...(requiresAuth ? getAuthHeaders() : {}),
+        },
+        body: croppedBlob,
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error(
+          t("settings:avatarUploadFailed", {
+            defaultValue: "上传头像文件失败",
+          }),
+        );
+      }
+
+      setAvatarUrl(fileUrl);
+      setIsCropModalOpen(false);
+      toast.success(
+        t("settings:avatarUploadSuccess", {
+          defaultValue: "头像已裁剪压缩并上传",
+        }),
+      );
+    } catch (err: any) {
+      toast.error(
+        err.message ||
+          t("settings:avatarUploadFailed", { defaultValue: "头像上传失败" }),
+      );
+    } finally {
+      setIsUploadingAvatar(false);
+    }
+  };
+
+  // 当设置模态弹窗打开或用户资料加载时，同步表单初始值
+  useEffect(() => {
+    if (isOpen && user) {
+      const currentPrefix = user.username.includes("#")
+        ? user.username.split("#")[0]
+        : user.username;
+      setDisplayName(user.displayName || "");
+      setUsernamePrefix(currentPrefix);
+      setStatus(user.status || "ONLINE");
+      setCustomStatus(user.customStatus || "");
+      setBio(user.bio || "");
+      setAvatarUrl(user.avatarUrl || "");
+      setBannerColor(user.bannerColor || "");
+      setBannerUrl(user.bannerUrl || "");
+      setThemeColor(user.themeColor || "");
+      setShowActivity(user.showActivity !== false);
+    }
+  }, [isOpen, user]);
 
   // 桌面端状态
   const [isAutoLaunch, setIsAutoLaunch] = useState(false);
@@ -552,22 +664,40 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                     {/* 左侧：个性化属性配置 */}
                     <div className="flex-1 space-y-6 w-full min-w-0">
                       {/* 1. 头像与基本信息 */}
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileSelect}
+                        accept="image/png,image/jpeg,image/webp,image/gif"
+                        className="hidden"
+                      />
                       <div className="rounded-2xl bg-[#2b2d31] p-5 border border-white/5 flex flex-col sm:flex-row items-center gap-5 shadow-sm">
-                        <div className="relative group">
-                          <img
-                            src={
-                              avatarUrl ||
-                              user.avatarUrl ||
-                              "https://api.dicebear.com/7.x/bottts/svg?seed=fallback"
-                            }
-                            alt={user.username}
-                            className="w-18 h-18 rounded-full bg-[#1e1f22] object-cover ring-4 ring-[#313338] shadow-inner"
+                        <div
+                          className="relative group cursor-pointer"
+                          onClick={() => fileInputRef.current?.click()}
+                          title="点击上传自定义头像"
+                        >
+                          <Avatar
+                            size="2xl"
+                            src={avatarUrl || user.avatarUrl}
+                            fallbackSeed={user.username}
+                            className="ring-4 ring-[#313338] shadow-inner transition-opacity group-hover:opacity-85"
                           />
+                          <div className="absolute inset-0 rounded-full bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                            {isUploadingAvatar ? (
+                              <Loader2 className="w-6 h-6 text-white animate-spin" />
+                            ) : (
+                              <Upload className="w-5 h-5 text-white drop-shadow" />
+                            )}
+                          </div>
                           <button
                             type="button"
-                            onClick={handleRandomAvatar}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRandomAvatar();
+                            }}
                             title="随机换一个头像"
-                            className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-[#5865f2] hover:bg-[#4752c4] text-white shadow-md transition-transform hover:scale-110"
+                            className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-[#5865f2] hover:bg-[#4752c4] text-white shadow-md transition-transform hover:scale-110 z-10"
                           >
                             <Dices className="w-4 h-4" />
                           </button>
@@ -586,6 +716,49 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                           <p className="text-xs text-gray-400 mt-0.5 font-mono">
                             @{usernamePrefix}#{userTag}
                           </p>
+                          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2 mt-2.5">
+                            <button
+                              type="button"
+                              data-testid="change-avatar-btn"
+                              onClick={() => fileInputRef.current?.click()}
+                              disabled={isUploadingAvatar}
+                              className="px-2.5 py-1 rounded-lg bg-[#383a40] hover:bg-[#474a52] text-xs font-medium text-white flex items-center gap-1.5 transition disabled:opacity-50"
+                            >
+                              {isUploadingAvatar ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <Upload className="w-3.5 h-3.5 text-blue-400" />
+                              )}
+                              <span>
+                                {t("settings:changeAvatar", "更换头像")}
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              data-testid="random-avatar-btn"
+                              onClick={handleRandomAvatar}
+                              className="px-2.5 py-1 rounded-lg bg-[#383a40] hover:bg-[#474a52] text-xs font-medium text-white flex items-center gap-1.5 transition"
+                            >
+                              <Dices className="w-3.5 h-3.5 text-amber-400" />
+                              <span>
+                                {t("settings:randomAvatar", "随机生成")}
+                              </span>
+                            </button>
+                            {Boolean(avatarUrl || user.avatarUrl) && (
+                              <button
+                                type="button"
+                                data-testid="remove-avatar-btn"
+                                onClick={() => setAvatarUrl("")}
+                                className="px-2.5 py-1 rounded-lg bg-[#383a40] hover:bg-[#da373c]/80 text-xs font-medium text-gray-300 hover:text-white flex items-center gap-1.5 transition"
+                                title="重置为默认头像"
+                              >
+                                <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                                <span>
+                                  {t("settings:removeAvatar", "移除头像")}
+                                </span>
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -1039,6 +1212,14 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
           </div>
         </div>
       </div>
+
+      <ImageCropModal
+        isOpen={isCropModalOpen}
+        imageSrc={cropSrc}
+        onClose={() => setIsCropModalOpen(false)}
+        onConfirm={handleUploadCropped}
+        isCircular={true}
+      />
     </div>
   );
 };
