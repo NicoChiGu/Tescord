@@ -33,7 +33,7 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { API_BASE } from "../../config.js";
+import { API_BASE, resolveServerUrl } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { useMaintenanceStore } from "../../stores/useMaintenanceStore.js";
 import { dialog } from "../../stores/useDialogStore.js";
@@ -835,7 +835,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       <div className="flex items-center space-x-3 min-w-[240px]">
                         {u.avatarUrl ? (
                           <img
-                            src={u.avatarUrl}
+                            src={resolveServerUrl(u.avatarUrl)}
                             alt={u.username}
                             className="w-10 h-10 rounded-full object-cover"
                           />
@@ -1010,7 +1010,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                       <div className="flex items-center space-x-3">
                         {g.iconUrl ? (
                           <img
-                            src={g.iconUrl}
+                            src={resolveServerUrl(g.iconUrl)}
                             alt={g.name}
                             className="w-10 h-10 rounded-xl object-cover"
                           />

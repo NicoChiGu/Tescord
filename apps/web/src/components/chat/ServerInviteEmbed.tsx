@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { InvitePreviewDTO } from "@tescord/types";
-import { API_BASE } from "../../config.js";
+import { API_BASE, resolveServerUrl } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { toast } from "../../stores/useToastStore.js";
 import { Loader2, Users, AlertCircle, Check } from "lucide-react";
@@ -163,7 +163,7 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
         <div className="flex items-center space-x-3 min-w-0 flex-1">
           {invite.guild.iconUrl ? (
             <img
-              src={invite.guild.iconUrl}
+              src={resolveServerUrl(invite.guild.iconUrl)}
               alt={invite.guild.name}
               className="w-12 h-12 rounded-2xl object-cover shrink-0 bg-[#1e1f22]"
             />

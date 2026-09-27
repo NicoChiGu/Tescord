@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Guild } from "@tescord/types";
 import { Camera, Copy, Check, UploadCloud } from "lucide-react";
@@ -25,6 +25,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const { getAuthHeaders } = useAuthStore();
   const [name, setName] = useState(guild.name || "");
   const [iconUrl, setIconUrl] = useState(guild.iconUrl || "");
+  const [previewBlobUrl, setPreviewBlobUrl] = useState<string | null>(null);
+  const [pendingUploadUrl, setPendingUploadUrl] = useState<string | null>(null);
   const [description, setDescription] = useState(guild.description || "");
   const [isPublic, setIsPublic] = useState(Boolean(guild.isPublic));
   const [isSaving, setIsSaving] = useState(false);
@@ -34,13 +36,31 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [isCropModalOpen, setIsCropModalOpen] = useState(false);
 
+  useEffect(() => {
+    return () => {
+      if (previewBlobUrl) {
+        URL.revokeObjectURL(previewBlobUrl);
+      }
+      if (cropSrc) {
+        URL.revokeObjectURL(cropSrc);
+      }
+    };
+  }, [previewBlobUrl, cropSrc]);
+
   const hasChanges =
     name.trim() !== (guild.name || "").trim() ||
-    iconUrl.trim() !== (guild.iconUrl || "").trim() ||
+    (pendingUploadUrl !== null && pendingUploadUrl !== (guild.iconUrl || "")) ||
+    (pendingUploadUrl === null &&
+      iconUrl.trim() !== (guild.iconUrl || "").trim()) ||
     description.trim() !== (guild.description || "").trim() ||
     isPublic !== Boolean(guild.isPublic);
 
   const handleReset = () => {
+    if (previewBlobUrl) {
+      URL.revokeObjectURL(previewBlobUrl);
+      setPreviewBlobUrl(null);
+    }
+    setPendingUploadUrl(null);
     setName(guild.name || "");
     setIconUrl(guild.iconUrl || "");
     setDescription(guild.description || "");
@@ -56,6 +76,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (cropSrc) URL.revokeObjectURL(cropSrc);
     const objectUrl = URL.createObjectURL(file);
     setCropSrc(objectUrl);
     setIsCropModalOpen(true);
@@ -65,6 +86,13 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const handleUploadCropped = async (croppedBlob: Blob) => {
     const mimeType = "image/webp";
     const fileName = `guild_icon_${Date.now()}.webp`;
+
+    // 本地即时生成 Blob 预览，避免在点击保存前向 CDN/服务端发起 GET 请求产生 404
+    const localBlob = URL.createObjectURL(croppedBlob);
+    setPreviewBlobUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return localBlob;
+    });
 
     setIsUploading(true);
     try {
@@ -84,7 +112,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         }),
       });
 
-      if (!res.ok) throw new Error(t("errors:UPLOAD_FAILED", { defaultValue: "获取上传凭证失败" }));
+      if (!res.ok)
+        throw new Error(
+          t("errors:UPLOAD_FAILED", { defaultValue: "获取上传凭证失败" }),
+        );
       const { uploadUrl, fileUrl, requiresAuth } = await res.json();
 
       // 2. 直传文件 (经 resolveServerUrl 自愈相对路径走 Vite 代理)
@@ -98,11 +129,23 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         body: croppedBlob,
       });
 
-      if (!uploadRes.ok) throw new Error(t("errors:UPLOAD_FAILED", { defaultValue: "上传文件到存储服务失败" }));
-      setIconUrl(fileUrl);
-      toast.success(t("server:overview.iconUploadSuccess", { defaultValue: "图标已裁剪压缩并上传" }));
+      if (!uploadRes.ok)
+        throw new Error(
+          t("errors:UPLOAD_FAILED", {
+            defaultValue: "上传文件到存储服务失败",
+          }),
+        );
+      setPendingUploadUrl(fileUrl);
+      toast.success(
+        t("server:overview.iconUploadSuccess", {
+          defaultValue: "图标已裁剪压缩并上传",
+        }),
+      );
     } catch (err: any) {
-      toast.error(err.message || t("errors:UPLOAD_FAILED", { defaultValue: "上传图标失败" }));
+      toast.error(
+        err.message ||
+          t("errors:UPLOAD_FAILED", { defaultValue: "上传图标失败" }),
+      );
     } finally {
       setIsUploading(false);
     }
@@ -116,12 +159,20 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     setIsSaving(true);
     setSaveSuccess(false);
     try {
+      const targetIconUrl =
+        pendingUploadUrl !== null ? pendingUploadUrl : iconUrl;
       await onUpdateGuild({
         name: name.trim(),
-        iconUrl: iconUrl.trim() || null,
+        iconUrl: targetIconUrl.trim() || null,
         description: description.trim() || null,
         isPublic,
       });
+      setIconUrl(targetIconUrl);
+      setPendingUploadUrl(null);
+      if (previewBlobUrl) {
+        URL.revokeObjectURL(previewBlobUrl);
+        setPreviewBlobUrl(null);
+      }
       setSaveSuccess(true);
       toast.success(t("server:overview.saveSuccess"));
       setTimeout(() => setSaveSuccess(false), 2500);
@@ -150,9 +201,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             {t("server:overview.iconLabel")}
           </label>
           <div className="relative group cursor-pointer w-28 h-28 rounded-full bg-[#1e1f22] border-2 border-dashed border-white/20 hover:border-[#5865f2] flex items-center justify-center overflow-hidden transition-all shadow-lg">
-            {iconUrl ? (
+            {previewBlobUrl || iconUrl ? (
               <img
-                src={resolveServerUrl(iconUrl)}
+                src={previewBlobUrl || resolveServerUrl(iconUrl)}
                 alt={name}
                 className="w-full h-full object-cover"
               />
@@ -177,7 +228,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           </div>
           <div className="text-[11px] text-gray-400 text-center md:text-left">
             {t("server:overview.iconRecommendation", {
-              defaultValue: "推荐尺寸至少为 512x512，上传时支持拖拽缩放裁剪与自动压缩。",
+              defaultValue:
+                "推荐尺寸至少为 512x512，上传时支持拖拽缩放裁剪与自动压缩。",
             })}
             {isUploading && (
               <span className="text-[#5865f2] block font-semibold animate-pulse">

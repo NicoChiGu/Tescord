@@ -313,6 +313,16 @@ export class StorageService {
     return true;
   }
 
+  public isPendingPublicAsset(fileKey: string): boolean {
+    const grant = this.uploadGrants.get(fileKey);
+    return Boolean(
+      grant &&
+      grant.uploaded &&
+      grant.purpose === "guild-icon" &&
+      grant.expiresAt >= Date.now(),
+    );
+  }
+
   public verifyLocalUpload(
     fileKey: string,
     userId: string,

@@ -2593,7 +2593,9 @@ server.get("/api/guilds/:guildId/invites/active", async (request, reply) => {
       inviterId: validInvite.inviterId,
       maxUses: validInvite.maxUses,
       uses: validInvite.uses,
-      expiresAt: validInvite.expiresAt ? validInvite.expiresAt.toISOString() : null,
+      expiresAt: validInvite.expiresAt
+        ? validInvite.expiresAt.toISOString()
+        : null,
       createdAt: validInvite.createdAt.toISOString(),
     },
   };
@@ -4542,11 +4544,23 @@ async function servePrivateAttachment(
     sessionId: query.sessionId || "",
     sessionVersion: Number(query.sessionVersion),
   };
+  const sendAttachmentError = (status: number, message: string) => {
+    reply.header(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, max-age=0",
+    );
+    reply.header("Pragma", "no-cache");
+    reply.header("Expires", "0");
+    reply.header("Cloudflare-CDN-Cache-Control", "no-store");
+    reply.header("CDN-Cache-Control", "no-store");
+    return reply.status(status).send({ error: message });
+  };
+
   if (
     (query.variant && query.variant !== variant) ||
     (query.download && !["0", "1"].includes(query.download))
   ) {
-    return reply.status(403).send({ error: "附件访问授权无效" });
+    return sendAttachmentError(403, "附件访问授权无效");
   }
   if (
     !query.channelId ||
@@ -4561,7 +4575,7 @@ async function servePrivateAttachment(
       download,
     )
   ) {
-    return reply.status(403).send({ error: "附件访问授权无效或已过期" });
+    return sendAttachmentError(403, "附件访问授权无效或已过期");
   }
   const [user, session, attachment] = await Promise.all([
     prisma.user.findUnique({
@@ -4590,11 +4604,11 @@ async function servePrivateAttachment(
     session.userId !== scope.userId ||
     session.expiresAt <= new Date()
   ) {
-    return reply.status(403).send({ error: "附件访问会话已失效" });
+    return sendAttachmentError(403, "附件访问会话已失效");
   }
-  if (!attachment) return reply.status(404).send({ error: "附件不存在" });
+  if (!attachment) return sendAttachmentError(404, "附件不存在");
   const channel = attachment.message?.channel;
-  if (!channel) return reply.status(404).send({ error: "附件不存在" });
+  if (!channel) return sendAttachmentError(404, "附件不存在");
   const canRead = channel.guildId
     ? (await permissionService.hasChannelPermission(
         scope.userId,
@@ -4613,10 +4627,9 @@ async function servePrivateAttachment(
       }))
     : (channel.type === "DM" || channel.type === "GROUP_DM") &&
       channel.recipients.some((r) => r.userId === scope.userId);
-  if (!canRead)
-    return reply.status(403).send({ error: "附件访问权限已被撤销" });
+  if (!canRead) return sendAttachmentError(403, "附件访问权限已被撤销");
   if (variant === "preview" && !attachment.previewUrl)
-    return reply.status(404).send({ error: "预览图不存在" });
+    return sendAttachmentError(404, "预览图不存在");
   const objectUrl =
     variant === "preview" ? attachment.previewUrl! : attachment.url;
   reply.header(
@@ -4646,6 +4659,10 @@ async function servePrivateAttachment(
     if (rangeHeader) {
       const match = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader);
       if (!match || (!match[1] && !match[2])) {
+        reply.header(
+          "Cache-Control",
+          "no-store, no-cache, must-revalidate, max-age=0",
+        );
         reply.header("Content-Range", `bytes */${stat.size}`);
         return reply.status(416).send();
       }
@@ -4662,6 +4679,10 @@ async function servePrivateAttachment(
         start >= stat.size ||
         stat.size <= 0
       ) {
+        reply.header(
+          "Cache-Control",
+          "no-store, no-cache, must-revalidate, max-age=0",
+        );
         reply.header("Content-Range", `bytes */${stat.size}`);
         return reply.status(416).send();
       }
@@ -4681,7 +4702,7 @@ async function servePrivateAttachment(
         : await storageService.openObject(objectUrl),
     );
   } catch {
-    return reply.status(503).send({ error: "附件存储暂不可用" });
+    return sendAttachmentError(503, "附件存储暂不可用");
   }
 }
 server.get("/attachments/:fileName", servePrivateAttachment);
@@ -4689,21 +4710,59 @@ server.get("/attachments/:fileName", servePrivateAttachment);
 server.get("/public-assets/:fileName", async (request, reply) => {
   const { fileName } = request.params as { fileName: string };
   const decoded = decodeURIComponent(fileName);
+
+  const sendPublicAssetError = (status: number, message: string) => {
+    reply.header(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, max-age=0",
+    );
+    reply.header("Pragma", "no-cache");
+    reply.header("Expires", "0");
+    reply.header("Cloudflare-CDN-Cache-Control", "no-store");
+    reply.header("CDN-Cache-Control", "no-store");
+    return reply.status(status).send({ error: message });
+  };
+
   if (
     !storageService.resolveLocalUploadPath(decoded) ||
     !/\.(png|jpe?g|webp|gif)$/i.test(decoded)
   ) {
-    return reply.status(404).send({ error: "资源不存在" });
+    return sendPublicAssetError(404, "资源不存在");
   }
+
   const fileUrl = `${process.env.SERVER_BASE_URL || "http://localhost:3001"}/public-assets/${encodeURIComponent(decoded)}`;
+
+  // 校验该公共资源是否已被公会绑定，或处于合法的上传宽限期内
+  const guild = await prisma.guild.findFirst({
+    where: {
+      OR: [
+        { iconUrl: fileUrl },
+        {
+          iconUrl: {
+            endsWith: `/public-assets/${encodeURIComponent(decoded)}`,
+          },
+        },
+        { iconUrl: { endsWith: `/public-assets/${decoded}` } },
+      ],
+    },
+    select: { id: true },
+  });
+
+  const isPending = storageService.isPendingPublicAsset(decoded);
+  if (!guild && !isPending) {
+    return sendPublicAssetError(404, "资源不存在");
+  }
+
   const ext = decoded.split(".").pop()?.toLowerCase();
   reply.header("Content-Type", ext === "jpg" ? "image/jpeg" : `image/${ext}`);
   reply.header("X-Content-Type-Options", "nosniff");
-  reply.header("Cache-Control", "public, max-age=86400");
   try {
-    return reply.send(await storageService.openObject(fileUrl));
+    const stream = await storageService.openObject(fileUrl);
+    reply.header("Cache-Control", "public, max-age=31536000, immutable");
+    reply.header("ETag", `"${decoded}"`);
+    return reply.send(stream);
   } catch {
-    return reply.status(404).send({ error: "资源不存在" });
+    return sendPublicAssetError(404, "资源不存在");
   }
 });
 
