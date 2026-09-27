@@ -698,9 +698,18 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             <div
               className="flex items-center space-x-1 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded-full text-[10px] text-discord-textMuted"
               title={t("voice:connectionPopover.statsTooltip", {
-                rtt: typeof stats?.rtt === "number" ? `${stats.rtt}ms` : t("voice:connectionPopover.noData"),
-                loss: typeof stats?.packetLoss === "number" ? `${stats.packetLoss}%` : t("voice:connectionPopover.noData"),
-                jitter: typeof stats?.jitter === "number" ? `${stats.jitter}ms` : t("voice:connectionPopover.noData"),
+                rtt:
+                  typeof stats?.rtt === "number"
+                    ? `${stats.rtt}ms`
+                    : t("voice:connectionPopover.noData"),
+                loss:
+                  typeof stats?.packetLoss === "number"
+                    ? `${stats.packetLoss}%`
+                    : t("voice:connectionPopover.noData"),
+                jitter:
+                  typeof stats?.jitter === "number"
+                    ? `${stats.jitter}ms`
+                    : t("voice:connectionPopover.noData"),
               })}
             >
               <Wifi className="w-3 h-3 text-discord-green" />
@@ -746,7 +755,9 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             <span
               data-testid={`video-codec-badge-${participant.userId}`}
               className="text-[10px] bg-discord-brand/30 text-discord-brand border border-discord-brand/40 px-1.5 py-0.2 rounded font-mono font-bold flex-shrink-0"
-              title={t("voice:mediaTooltips.videoCodec", { codec: screenShareInfo?.codec || stats?.videoCodec })}
+              title={t("voice:mediaTooltips.videoCodec", {
+                codec: screenShareInfo?.codec || stats?.videoCodec,
+              })}
             >
               {screenShareInfo?.codec || stats?.videoCodec}
             </span>
@@ -1342,7 +1353,13 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
       const isPinned = pinnedUserId === p.userId;
       return isWatched || isPinned;
     });
-  }, [displayParticipants, watchedLiveKitUsers, watchedP2PStreamerId, watchStates, pinnedUserId]);
+  }, [
+    displayParticipants,
+    watchedLiveKitUsers,
+    watchedP2PStreamerId,
+    watchStates,
+    pinnedUserId,
+  ]);
 
   // 若被聚焦的成员离开频道，自动退出聚焦
   useEffect(() => {
@@ -1927,7 +1944,8 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
             const otherParticipants =
               stageParticipants.length > 0
                 ? displayParticipants.filter(
-                    (p) => !stageParticipants.some((sp) => sp.userId === p.userId),
+                    (p) =>
+                      !stageParticipants.some((sp) => sp.userId === p.userId),
                   )
                 : displayParticipants;
 
@@ -1965,7 +1983,9 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                       speaking={speaking}
                       stats={stats}
                       volume={userVol}
-                      onVolumeChange={(vol) => handleVolumeChange(p.userId, vol)}
+                      onVolumeChange={(vol) =>
+                        handleVolumeChange(p.userId, vol)
+                      }
                       isPinned={isPinned}
                       onTogglePin={() =>
                         setPinnedUserId(isPinned ? null : p.userId)
@@ -1999,11 +2019,15 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                       }}
                       guild={guild}
                       currentUser={currentUser}
-                      isTheaterMode={isTheaterMode || Boolean(stageParticipants.length > 0)}
+                      isTheaterMode={
+                        isTheaterMode || Boolean(stageParticipants.length > 0)
+                      }
                       isNoiseSuppressionEnabled={isNoiseSuppressionEnabled}
                       noiseSuppressionMode={noiseSuppressionMode}
                       isSpotlight={false}
-                      onStopScreenShare={onStopScreenShare || onToggleScreenShare}
+                      onStopScreenShare={
+                        onStopScreenShare || onToggleScreenShare
+                      }
                       peerLatency={peerLatencies.get(p.userId)}
                       isP2P={isP2P}
                       showStatsHUD={false}

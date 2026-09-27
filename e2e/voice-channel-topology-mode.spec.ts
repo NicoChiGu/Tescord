@@ -171,19 +171,28 @@ test.describe("语音频道传输拓扑模式 (Voice Channel Topology: SFU vs P2
     expect(criticalErrors.length).toBe(0);
   });
 
-  test("SFU 连接后左下角显示实际 RTT 而非占位值", async ({
-    page,
-  }) => {
+  test("SFU 连接后左下角显示实际 RTT 而非占位值", async ({ page }) => {
     await page.goto("/");
-    const guild = page.getByRole("button", { name: /Tescord 极客总部|极客|小窝/i }).first();
+    const guild = page
+      .getByRole("button", { name: /Tescord 极客总部|极客|小窝/i })
+      .first();
     await expect(guild).toBeVisible();
     await guild.click();
-    const voice = page.locator("button").filter({ has: page.locator("svg.lucide-volume-2") }).first();
+    const voice = page
+      .locator("button")
+      .filter({ has: page.locator("svg.lucide-volume-2") })
+      .first();
     await expect(voice).toBeVisible();
-    const userId = await page.evaluate(() => (window as any).useAuthStore.getState().user.id as string);
+    const userId = await page.evaluate(
+      () => (window as any).useAuthStore.getState().user.id as string,
+    );
     await installConnectedLiveKitStub(page, userId);
     await voice.dblclick();
-    await expect(page.getByTestId("voice-connection-status-btn")).toContainText("语音已连接");
-    await expect(page.getByTestId("voice-connection-latency")).toHaveText("24ms");
+    await expect(page.getByTestId("voice-connection-status-btn")).toContainText(
+      "语音已连接",
+    );
+    await expect(page.getByTestId("voice-connection-latency")).toHaveText(
+      "24ms",
+    );
   });
 });

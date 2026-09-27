@@ -280,6 +280,9 @@ export class LiveKitService {
   // 网络状态监控: identity -> NetworkStats
   private networkStatsMap: Map<string, NetworkStats> = new Map();
   private statsTimer: any = null;
+  private lastValidLocalRtt: { rtt: number; timestamp: number } | null = null;
+  private lastValidLocalLoss: { loss: number; timestamp: number } | null = null;
+  private localRttHistory: { timestamp: number; rtt: number }[] = [];
 
   private onTrackSubscribedCallbacks: Set<
     (track: any, publication: any, participant: any) => void
@@ -1388,7 +1391,27 @@ export class LiveKitService {
 
             // 2. 解析 Subscriber (下行拉流) 统计报告
             if (subReport) {
+              let subSelectedPairId = "";
               subReport.forEach((stat: any) => {
+                if (stat.type === "transport" && stat.selectedCandidatePairId) {
+                  subSelectedPairId = stat.selectedCandidatePairId;
+                }
+              });
+
+              subReport.forEach((stat: any) => {
+                // 若推流侧未生成有效 candidate-pair (例如麦克风静音)，从拉流侧提取物理 ICE RTT
+                if (
+                  localRtt === undefined &&
+                  stat.type === "candidate-pair" &&
+                  (subSelectedPairId
+                    ? stat.id === subSelectedPairId
+                    : stat.nominated && stat.state === "succeeded")
+                ) {
+                  if (typeof stat.currentRoundTripTime === "number") {
+                    localRtt = Math.round(stat.currentRoundTripTime * 1000);
+                  }
+                }
+
                 if (stat.type === "inbound-rtp" && stat.trackIdentifier) {
                   remoteTrackStats.set(stat.trackIdentifier, {
                     packetsLost: stat.packetsLost || 0,
@@ -1415,8 +1438,46 @@ export class LiveKitService {
         }
       }
 
+      // 保持与平滑 RTT / PacketLoss 样本，避免因单次 RTCP 空窗造成数值在毫秒与暂无数据之间跳变
+      if (localRtt !== undefined) {
+        if (
+          this.lastValidLocalRtt &&
+          now - this.lastValidLocalRtt.timestamp < 10_000
+        ) {
+          localRtt = Math.round(
+            this.lastValidLocalRtt.rtt * 0.3 + localRtt * 0.7,
+          );
+        }
+        this.lastValidLocalRtt = { rtt: localRtt, timestamp: now };
+      } else if (
+        this.isConnected &&
+        this.lastValidLocalRtt &&
+        now - this.lastValidLocalRtt.timestamp < 10_000
+      ) {
+        localRtt = this.lastValidLocalRtt.rtt;
+      }
+
+      if (localLoss !== undefined) {
+        this.lastValidLocalLoss = { loss: localLoss, timestamp: now };
+      } else if (
+        this.isConnected &&
+        this.lastValidLocalLoss &&
+        now - this.lastValidLocalLoss.timestamp < 10_000
+      ) {
+        localLoss = this.lastValidLocalLoss.loss;
+      }
+
       const finalLocalRtt =
         localRtt !== undefined ? Math.max(1, localRtt) : undefined;
+
+      // 持续更新本地最近 30 个 RTT 历史记录
+      if (finalLocalRtt !== undefined) {
+        this.localRttHistory = [
+          ...this.localRttHistory.slice(-29),
+          { timestamp: now, rtt: finalLocalRtt },
+        ];
+      }
+
       const quality =
         finalLocalRtt !== undefined && localLoss !== undefined
           ? evaluateNetworkQuality(finalLocalRtt, localLoss)
@@ -1517,6 +1578,10 @@ export class LiveKitService {
 
   getAllNetworkStats(): NetworkStats[] {
     return Array.from(this.networkStatsMap.values());
+  }
+
+  getLocalRttHistory(): { timestamp: number; rtt: number }[] {
+    return [...this.localRttHistory];
   }
 
   getActiveSpeakers(): string[] {
@@ -2072,7 +2137,10 @@ export class LiveKitService {
     const localIdentity = this.room?.localParticipant?.identity || "local";
     this.screenSharesMap.delete(localIdentity);
 
-    if (this.activeScreenShare?.isLocal || this.activeScreenShare?.participantIdentity === localIdentity) {
+    if (
+      this.activeScreenShare?.isLocal ||
+      this.activeScreenShare?.participantIdentity === localIdentity
+    ) {
       this.activeScreenShare =
         this.screenSharesMap.values().next().value || null;
       this.notifyScreenShareChanged();
@@ -2140,8 +2208,8 @@ export class LiveKitService {
   get isSharingScreen(): boolean {
     return Boolean(
       this.localScreenVideoTrack ||
-        this.localScreenShare ||
-        this.activeScreenShare?.isLocal,
+      this.localScreenShare ||
+      this.activeScreenShare?.isLocal,
     );
   }
 
@@ -2358,6 +2426,9 @@ export class LiveKitService {
     this.stopRemoteAudioEnergyMonitoring();
     this.stopNetworkStatsPolling();
     this.networkStatsMap.clear();
+    this.lastValidLocalRtt = null;
+    this.lastValidLocalLoss = null;
+    this.localRttHistory = [];
     this.sfuActiveSpeakers.clear();
     this.localActiveSpeakers.clear();
     this.remoteSpeakingStates.clear();

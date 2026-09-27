@@ -2835,9 +2835,15 @@ server.post("/api/guilds/:guildId/channels", async (request, reply) => {
     voiceMode !== "sfu" &&
     voiceMode !== "p2p_mesh"
   ) {
-    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "Invalid voiceMode", {
-      field: "voiceMode",
-    });
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.INVALID_PARAMS,
+      "Invalid voiceMode",
+      {
+        field: "voiceMode",
+      },
+    );
   }
 
   if (
@@ -2846,9 +2852,15 @@ server.post("/api/guilds/:guildId/channels", async (request, reply) => {
     streamMode !== "p2p_direct" &&
     streamMode !== "p2p_relay"
   ) {
-    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "Invalid streamMode", {
-      field: "streamMode",
-    });
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.INVALID_PARAMS,
+      "Invalid streamMode",
+      {
+        field: "streamMode",
+      },
+    );
   }
 
   const maxPosChannel = await prisma.channel.findFirst({
@@ -2983,9 +2995,15 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
     voiceMode !== "sfu" &&
     voiceMode !== "p2p_mesh"
   ) {
-    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "Invalid voiceMode", {
-      field: "voiceMode",
-    });
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.INVALID_PARAMS,
+      "Invalid voiceMode",
+      {
+        field: "voiceMode",
+      },
+    );
   }
 
   if (
@@ -2994,9 +3012,15 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
     streamMode !== "p2p_direct" &&
     streamMode !== "p2p_relay"
   ) {
-    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "Invalid streamMode", {
-      field: "streamMode",
-    });
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.INVALID_PARAMS,
+      "Invalid streamMode",
+      {
+        field: "streamMode",
+      },
+    );
   }
 
   const updatedChannel = await prisma.channel.update({
@@ -5200,24 +5224,37 @@ server.post("/api/livekit/token", async (request, reply) => {
     typeof body.identity !== "string" ||
     !body.identity ||
     (body.gatewaySessionId !== undefined &&
-      (typeof body.gatewaySessionId !== "string" || body.gatewaySessionId.length > 128)) ||
+      (typeof body.gatewaySessionId !== "string" ||
+        body.gatewaySessionId.length > 128)) ||
     (body.bitrate !== undefined &&
-      (typeof body.bitrate !== "number" || !Number.isFinite(body.bitrate) || body.bitrate < 6000 || body.bitrate > 512000))
+      (typeof body.bitrate !== "number" ||
+        !Number.isFinite(body.bitrate) ||
+        body.bitrate < 6000 ||
+        body.bitrate > 512000))
   ) {
-    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "Invalid media token request");
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.INVALID_PARAMS,
+      "Invalid media token request",
+    );
   }
 
   const reqUserId = await getUserIdFromRequest(request);
   if (!reqUserId || reqUserId !== body.identity) {
     return sendApiError(reply, 403, ErrorCode.FORBIDDEN, "Media token denied");
   }
-  const gatewaySessionId =
-    body.gatewaySessionId || undefined;
+  const gatewaySessionId = body.gatewaySessionId || undefined;
   if (
     gatewaySessionId &&
     !gatewayManager.hasIdentifiedSession(reqUserId, gatewaySessionId)
   ) {
-    return sendApiError(reply, 403, ErrorCode.FORBIDDEN, "Invalid voice session");
+    return sendApiError(
+      reply,
+      403,
+      ErrorCode.FORBIDDEN,
+      "Invalid voice session",
+    );
   }
   const channel = await prisma.channel.findUnique({
     where: { id: body.roomName },
@@ -5230,7 +5267,13 @@ server.post("/api/livekit/token", async (request, reply) => {
     channel.id,
     PermissionFlags.CONNECT,
   );
-  if (!canConnect) return sendApiError(reply, 403, ErrorCode.FORBIDDEN, "Voice permission denied");
+  if (!canConnect)
+    return sendApiError(
+      reply,
+      403,
+      ErrorCode.FORBIDDEN,
+      "Voice permission denied",
+    );
 
   return await generateLiveKitToken({
     roomName: body.roomName,
@@ -5269,7 +5312,11 @@ server.post("/api/livekit/webhook", async (request, reply) => {
         // Legacy participants without structured metadata use the time guard.
       }
       if (identity) {
-        gatewayManager.handleLiveKitParticipantLeft(identity, roomName, gatewaySessionId);
+        gatewayManager.handleLiveKitParticipantLeft(
+          identity,
+          roomName,
+          gatewaySessionId,
+        );
       }
     }
 

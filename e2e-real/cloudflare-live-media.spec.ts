@@ -63,20 +63,18 @@ async function sampleDisplayedVideoLatency(page: Page, startedAt: number) {
     while (Date.now() < deadline && ages.length < 30) {
       for (const video of document.querySelectorAll("video")) {
         const videoState = `${video.videoWidth}x${video.videoHeight}/ready:${video.readyState}`;
-        observedVideos.set(videoState, (observedVideos.get(videoState) || 0) + 1);
+        observedVideos.set(
+          videoState,
+          (observedVideos.get(videoState) || 0) + 1,
+        );
         if (video.readyState < 2 || video.videoWidth < 640) continue;
         ctx.drawImage(video, 0, 0, 640, 100, 0, 0, 640, 100);
         const sample = (x: number) =>
           ctx.getImageData(x, 40, 1, 1).data[0] > 128;
-        markerPixels = [560, 580, 600, 620].map((x) =>
-          ctx.getImageData(x, 40, 1, 1).data[0],
+        markerPixels = [560, 580, 600, 620].map(
+          (x) => ctx.getImageData(x, 40, 1, 1).data[0],
         );
-        if (
-          !sample(560) ||
-          sample(580) ||
-          !sample(600) ||
-          sample(620)
-        )
+        if (!sample(560) || sample(580) || !sample(600) || sample(620))
           continue;
         let encoded = 0;
         for (let bit = 0; bit < 24; bit++)
@@ -203,11 +201,16 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     guildId = (await guild.json()).id as string;
     targetResources.guildId = guildId;
     await saveTargetResources();
-    const channelsResponse = await request.get(`/api/guilds/${guildId}/channels`, {
-      headers: { Authorization: `Bearer ${adminToken}` },
-    });
+    const channelsResponse = await request.get(
+      `/api/guilds/${guildId}/channels`,
+      {
+        headers: { Authorization: `Bearer ${adminToken}` },
+      },
+    );
     expect(channelsResponse.ok()).toBeTruthy();
-    targetResources.channelIds = ((await channelsResponse.json()) as Array<{ id: string }>).map((channel) => channel.id);
+    targetResources.channelIds = (
+      (await channelsResponse.json()) as Array<{ id: string }>
+    ).map((channel) => channel.id);
     await saveTargetResources();
   } else {
     const aliceLogin = await request.post("/api/auth/login", {
@@ -353,11 +356,11 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
             paint();
             const timer = setInterval(paint, 33);
             const video = canvas.captureStream(30);
-            video.getVideoTracks()[0].addEventListener(
-              "ended",
-              () => clearInterval(timer),
-              { once: true },
-            );
+            video
+              .getVideoTracks()[0]
+              .addEventListener("ended", () => clearInterval(timer), {
+                once: true,
+              });
             const audio = await nativeGetUserMedia({ audio: true });
             return new MediaStream([
               ...video.getVideoTracks(),
@@ -692,7 +695,8 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     page.locator('[data-testid^="stream-watch-toggle-"]').first(),
   );
   const watchStartedAt = Date.now();
-  let latencyPromise: ReturnType<typeof sampleDisplayedVideoLatency> | null = null;
+  let latencyPromise: ReturnType<typeof sampleDisplayedVideoLatency> | null =
+    null;
   for (const [index, watchButton] of watchButtons.entries()) {
     await expect(watchButton).toBeVisible({ timeout: 20_000 });
     await expect(watchButton).toHaveText("观看直播");
@@ -703,23 +707,28 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   }
   const videoLatency = latencyPromise ? await latencyPromise : null;
   if (onTarget) {
-    console.log(JSON.stringify({
-      stage: "screen_watch_diagnostics",
-      videoLatency,
-      videos: await pages[1].locator("video").evaluateAll((elements) =>
-        elements.map((element) => ({
-          width: (element as HTMLVideoElement).videoWidth,
-          height: (element as HTMLVideoElement).videoHeight,
-          readyState: (element as HTMLVideoElement).readyState,
-          testId: element.getAttribute("data-testid"),
-        })),
-      ),
-      peers: await mediaSnapshot(pages[1]),
-      diagnostics,
-    }));
+    console.log(
+      JSON.stringify({
+        stage: "screen_watch_diagnostics",
+        videoLatency,
+        videos: await pages[1].locator("video").evaluateAll((elements) =>
+          elements.map((element) => ({
+            width: (element as HTMLVideoElement).videoWidth,
+            height: (element as HTMLVideoElement).videoHeight,
+            readyState: (element as HTMLVideoElement).readyState,
+            testId: element.getAttribute("data-testid"),
+          })),
+        ),
+        peers: await mediaSnapshot(pages[1]),
+        diagnostics,
+      }),
+    );
   }
   if (videoLatency) {
-    expect(videoLatency.samples, JSON.stringify(videoLatency)).toBeGreaterThanOrEqual(15);
+    expect(
+      videoLatency.samples,
+      JSON.stringify(videoLatency),
+    ).toBeGreaterThanOrEqual(15);
     expect(videoLatency.firstFrameMs).not.toBeNull();
     expect(videoLatency.p95Ms).not.toBeNull();
   }

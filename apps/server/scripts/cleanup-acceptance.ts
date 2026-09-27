@@ -115,7 +115,8 @@ async function main(): Promise<void> {
     if (
       channels.length !== resources.channelIds.length ||
       channels.some((channel) => channel.guildId !== resources.guildId)
-    ) throw new Error("Test channel ownership check failed");
+    )
+      throw new Error("Test channel ownership check failed");
   }
   if (resources.guildInviteCodes?.length) {
     const invites = await prisma.invite.findMany({
@@ -124,8 +125,12 @@ async function main(): Promise<void> {
     });
     if (
       invites.length !== resources.guildInviteCodes.length ||
-      invites.some((invite) => invite.guildId !== resources.guildId || invite.inviterId !== adminId)
-    ) throw new Error("Test guild invite ownership check failed");
+      invites.some(
+        (invite) =>
+          invite.guildId !== resources.guildId || invite.inviterId !== adminId,
+      )
+    )
+      throw new Error("Test guild invite ownership check failed");
   }
 
   const [
@@ -182,7 +187,13 @@ async function main(): Promise<void> {
       throw new Error("Not all exact test accounts were deleted");
   });
 
-  const [remainingUsers, remainingGuild, remainingInvite, remainingChannels, remainingGuildInvites] = await Promise.all([
+  const [
+    remainingUsers,
+    remainingGuild,
+    remainingInvite,
+    remainingChannels,
+    remainingGuildInvites,
+  ] = await Promise.all([
     prisma.user.count({ where: { id: { in: ids } } }),
     resources.guildId
       ? prisma.guild.count({ where: { id: resources.guildId } })
@@ -196,10 +207,18 @@ async function main(): Promise<void> {
       ? prisma.channel.count({ where: { id: { in: resources.channelIds } } })
       : 0,
     resources.guildInviteCodes?.length
-      ? prisma.invite.count({ where: { code: { in: resources.guildInviteCodes } } })
+      ? prisma.invite.count({
+          where: { code: { in: resources.guildInviteCodes } },
+        })
       : 0,
   ]);
-  if (remainingUsers || remainingGuild || remainingInvite || remainingChannels || remainingGuildInvites)
+  if (
+    remainingUsers ||
+    remainingGuild ||
+    remainingInvite ||
+    remainingChannels ||
+    remainingGuildInvites
+  )
     throw new Error("Cleanup verification found remaining test resources");
   process.stdout.write(
     JSON.stringify({

@@ -106,7 +106,8 @@ export class CloudflareRealtimeService {
   >();
   private networkStats = new Map<string, NetworkStats>();
   private detailedStats = new Map<string, StreamDetailedStats>();
-  private selectedPath: { candidateType: string; protocol: string } | null = null;
+  private selectedPath: { candidateType: string; protocol: string } | null =
+    null;
   private statsTimer: ReturnType<typeof setInterval> | null = null;
   private previousStats = new Map<
     string,
@@ -486,7 +487,10 @@ export class CloudflareRealtimeService {
     );
   }
 
-  public get selectedCandidatePath(): { candidateType: string; protocol: string } | null {
+  public get selectedCandidatePath(): {
+    candidateType: string;
+    protocol: string;
+  } | null {
     return this.connectionStatus === "connected" ? this.selectedPath : null;
   }
 
@@ -1608,9 +1612,8 @@ export class CloudflareRealtimeService {
     ).toUpperCase();
     const candidateType =
       localCandidate?.candidateType || remoteCandidate?.candidateType;
-    this.selectedPath = pair && candidateType
-      ? { candidateType, protocol }
-      : null;
+    this.selectedPath =
+      pair && candidateType ? { candidateType, protocol } : null;
     const connectionMode = tGlobal(
       candidateType === "relay"
         ? "voice:connectionPopover.pathTurn"
@@ -1774,7 +1777,8 @@ export class CloudflareRealtimeService {
       nextDetailed.set(identity, {
         participantIdentity: identity,
         isLocal,
-        mimeType: videoCodec || audioCodec || tGlobal("voice:networkStats.noCodec"),
+        mimeType:
+          videoCodec || audioCodec || tGlobal("voice:networkStats.noCodec"),
         playerCore: "WebRTC / Cloudflare Realtime",
         videoInfo,
         audioInfo: audioCodec || tGlobal("voice:networkStats.noAudio"),
@@ -1797,8 +1801,14 @@ export class CloudflareRealtimeService {
           rttMs === undefined
             ? tGlobal("voice:networkStats.noSfuRtt")
             : tGlobal("voice:networkStats.sfuRtt", { value: rttMs }),
-        packetLoss: loss === undefined ? tGlobal("voice:connectionPopover.noData") : `${loss}%`,
-        jitter: jitter === undefined ? tGlobal("voice:connectionPopover.noData") : `${jitter} ms`,
+        packetLoss:
+          loss === undefined
+            ? tGlobal("voice:connectionPopover.noData")
+            : `${loss}%`,
+        jitter:
+          jitter === undefined
+            ? tGlobal("voice:connectionPopover.noData")
+            : `${jitter} ms`,
         ipVersion,
         candidateType,
         actualSendCodec: isLocal ? videoCodec || audioCodec : undefined,
