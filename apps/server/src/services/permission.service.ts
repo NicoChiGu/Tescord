@@ -152,7 +152,12 @@ export class PermissionService {
   ): Promise<boolean> {
     const guild = await prisma.guild.findUnique({ where: { id: guildId } });
     if (!guild) return false;
-    if (guild.ownerId === actorUserId) return true;
+    const actorUser = await prisma.user.findUnique({
+      where: { id: actorUserId },
+      select: { role: true },
+    });
+    if (guild.ownerId === actorUserId || actorUser?.role === "SUPER_ADMIN")
+      return true;
 
     const hasManageRoles = await this.hasGuildPermission(
       actorUserId,

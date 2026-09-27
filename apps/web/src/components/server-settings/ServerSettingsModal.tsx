@@ -22,6 +22,7 @@ import { DeleteGuildModal } from "./DeleteGuildModal.js";
 import { API_BASE } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { toast } from "../../stores/useToastStore.js";
+import { usePermissions } from "../../hooks/usePermissions.js";
 
 interface ServerSettingsModalProps {
   isOpen: boolean;
@@ -48,7 +49,12 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [roles, setRoles] = useState<Role[]>(guild?.roles || []);
 
-  const isOwner = guild?.ownerId === currentUser?.id;
+  const permissions = usePermissions(guild);
+  const isOwner =
+    permissions.isOwner ||
+    guild?.ownerId === currentUser?.id ||
+    currentUser?.role === "SUPER_ADMIN" ||
+    (currentUser as any)?.role === "ADMIN";
 
   useEffect(() => {
     if (isOpen) setMobileView("menu");
@@ -120,7 +126,12 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "更新服务器信息失败");
+      throw new Error(
+        err.error ||
+          t("server:overview.updateFailed", {
+            defaultValue: "更新服务器信息失败",
+          }),
+      );
     }
     const updated = await res.json();
     if (onGuildUpdated) {
@@ -140,7 +151,12 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "解散服务器失败");
+      throw new Error(
+        err.error ||
+          t("server:deleteModal.deleteFailed", {
+            defaultValue: "解散服务器失败",
+          }),
+      );
     }
     if (onGuildDeleted) {
       onGuildDeleted(guild.id);
@@ -163,13 +179,22 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     );
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "转让所有权失败");
+      throw new Error(
+        err.error ||
+          t("server:members.transferFailed", {
+            defaultValue: "转让所有权失败",
+          }),
+      );
     }
     const updated = await res.json();
     if (onGuildUpdated) {
       onGuildUpdated({ ...guild, ...updated });
     }
-    toast.success("服务器所有权已成功转让！");
+    toast.success(
+      t("server:members.transferSuccessNotice", {
+        defaultValue: "服务器所有权已成功转让！",
+      }),
+    );
   };
 
   // 4. 创建角色
@@ -184,10 +209,13 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "创建身份组失败");
+      throw new Error(
+        err.error ||
+          t("server:roles.createFailed", { defaultValue: "创建身份组失败" }),
+      );
     }
     const newRole = await res.json();
-    setRoles((prev) => [...prev, newRole]);
+    await refreshRoles();
     return newRole;
   };
 
@@ -214,7 +242,10 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     );
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "更新身份组失败");
+      throw new Error(
+        err.error ||
+          t("server:roles.updateFailed", { defaultValue: "更新身份组失败" }),
+      );
     }
     const updated = await res.json();
     setRoles((prev) => prev.map((r) => (r.id === roleId ? updated : r)));
@@ -233,7 +264,10 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     );
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "删除身份组失败");
+      throw new Error(
+        err.error ||
+          t("server:roles.deleteFailed", { defaultValue: "删除身份组失败" }),
+      );
     }
     setRoles((prev) => prev.filter((r) => r.id !== roleId));
   };
@@ -256,7 +290,12 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     );
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "更新成员信息失败");
+      throw new Error(
+        err.error ||
+          t("server:members.updateFailed", {
+            defaultValue: "更新成员信息失败",
+          }),
+      );
     }
     const updatedMember = await res.json();
     if (onGuildUpdated) {
@@ -282,7 +321,10 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     );
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "踢出成员失败");
+      throw new Error(
+        err.error ||
+          t("server:members.kickFailed", { defaultValue: "踢出成员失败" }),
+      );
     }
     if (onGuildUpdated) {
       const nextMembers = (guild.members || []).filter(
@@ -307,7 +349,10 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     );
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "封禁成员失败");
+      throw new Error(
+        err.error ||
+          t("server:members.banFailed", { defaultValue: "封禁成员失败" }),
+      );
     }
     if (onGuildUpdated) {
       const nextMembers = (guild.members || []).filter(
@@ -330,7 +375,10 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
     );
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      throw new Error(err.error || "解除封禁失败");
+      throw new Error(
+        err.error ||
+          t("server:bans.unbanFailed", { defaultValue: "解除封禁失败" }),
+      );
     }
   };
 
@@ -355,7 +403,9 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
             type="button"
             onClick={onClose}
             className="md:hidden absolute right-3 top-3 p-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/10"
-            aria-label="关闭服务器设置"
+            aria-label={t("server:serverSettingsClose", {
+              defaultValue: "关闭服务器设置",
+            })}
           >
             <X className="w-5 h-5" />
           </button>
@@ -485,7 +535,9 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
               data-testid="server-settings-back"
               onClick={() => setMobileView("menu")}
               className="p-2 rounded-lg hover:bg-white/10 text-white"
-              aria-label="返回服务器设置目录"
+              aria-label={t("server:serverSettingsBack", {
+                defaultValue: "返回服务器设置目录",
+              })}
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
@@ -508,49 +560,13 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
           </div>
 
           {/* 桌面端内容与独立工具列的水平容器 */}
-          <div className="flex-1 min-h-0 flex flex-row">
-            {/* 内容画布容器 */}
-            <div className="flex-1 min-w-0 min-h-0 overflow-y-auto overscroll-contain px-4 md:px-10 py-5 md:py-10 pb-[max(1.25rem,env(safe-area-inset-bottom))] custom-scrollbar">
-              {activeTab === "overview" && (
-                <OverviewTab guild={guild} onUpdateGuild={handleUpdateGuild} />
-              )}
-
-              {activeTab === "roles" && (
-                <RolesTab
-                  guild={guild}
-                  roles={roles}
-                  onCreateRole={handleCreateRole}
-                  onUpdateRole={handleUpdateRole}
-                  onDeleteRole={handleDeleteRole}
-                />
-              )}
-
-              {activeTab === "members" && (
-                <MembersTab
-                  guild={guild}
-                  roles={roles}
-                  onUpdateMember={handleUpdateMember}
-                  onKickMember={handleKickMember}
-                  onBanMember={handleBanMember}
-                  onTransferOwnership={handleTransferOwnership}
-                />
-              )}
-
-              {activeTab === "invites" && <InvitesTab guild={guild} />}
-
-              {activeTab === "bans" && (
-                <BansTab guild={guild} onUnbanMember={handleUnbanMember} />
-              )}
-
-              {activeTab === "audit-log" && <AuditLogTab guild={guild} />}
-            </div>
-
-            {/* 桌面端 Discord 经典右侧独立工具列 (Tools Column) */}
-            <div className="hidden md:flex flex-col items-center w-16 pt-8 pr-3 flex-shrink-0 select-none">
+          <div className="flex-1 min-h-0 relative flex flex-col overflow-hidden">
+            {/* 桌面端 Discord 经典右侧独立工具列 (悬浮在右上侧，内容右侧，位于滚动条左侧) */}
+            <div className="hidden md:flex flex-col items-center absolute top-8 right-6 z-30 select-none pointer-events-auto">
               <button
                 data-testid="close-server-settings-btn"
                 onClick={onClose}
-                className="w-9 h-9 rounded-full border-2 border-white/20 hover:border-white flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
+                className="w-9 h-9 rounded-full border-2 border-white/20 hover:border-white flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/10 transition-all cursor-pointer shadow-lg bg-[#313338]/60 backdrop-blur-sm"
                 title={`${t("common:close")} (ESC)`}
               >
                 <X className="w-5 h-5" />
@@ -559,6 +575,44 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                 ESC
               </span>
             </div>
+
+            {/* 内容画布容器 */}
+            {activeTab === "roles" ? (
+              <div className="flex-1 min-h-0 h-full overflow-hidden flex flex-col pr-16">
+                <RolesTab
+                  guild={guild}
+                  roles={roles}
+                  onCreateRole={handleCreateRole}
+                  onUpdateRole={handleUpdateRole}
+                  onDeleteRole={handleDeleteRole}
+                />
+              </div>
+            ) : (
+              <div className="flex-1 min-w-0 min-h-0 overflow-y-auto overscroll-contain px-4 md:px-10 py-5 md:py-10 pr-16 md:pr-20 pb-[max(1.25rem,env(safe-area-inset-bottom))] custom-scrollbar">
+                {activeTab === "overview" && (
+                  <OverviewTab guild={guild} onUpdateGuild={handleUpdateGuild} />
+                )}
+
+                {activeTab === "members" && (
+                  <MembersTab
+                    guild={guild}
+                    roles={roles}
+                    onUpdateMember={handleUpdateMember}
+                    onKickMember={handleKickMember}
+                    onBanMember={handleBanMember}
+                    onTransferOwnership={handleTransferOwnership}
+                  />
+                )}
+
+                {activeTab === "invites" && <InvitesTab guild={guild} />}
+
+                {activeTab === "bans" && (
+                  <BansTab guild={guild} onUnbanMember={handleUnbanMember} />
+                )}
+
+                {activeTab === "audit-log" && <AuditLogTab guild={guild} />}
+              </div>
+            )}
           </div>
         </div>
 

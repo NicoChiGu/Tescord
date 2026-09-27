@@ -17,6 +17,7 @@ import { useAuthStore } from "../../stores/useAuthStore.js";
 import { resolveServerUrl } from "../../config.js";
 import { dialog } from "../../stores/useDialogStore.js";
 import { toast } from "../../stores/useToastStore.js";
+import { usePermissions } from "../../hooks/usePermissions.js";
 
 interface MembersTabProps {
   guild: Guild;
@@ -49,7 +50,12 @@ export const MembersTab: React.FC<MembersTabProps> = ({
   >(null);
   const [tempNickname, setTempNickname] = useState("");
 
-  const isOwner = guild.ownerId === currentUser?.id;
+  const permissions = usePermissions(guild);
+  const isOwner =
+    permissions.isOwner ||
+    guild.ownerId === currentUser?.id ||
+    currentUser?.role === "SUPER_ADMIN" ||
+    (currentUser as any)?.role === "ADMIN";
 
   // 计算当前用户最高角色权重
   const actorHighestPos = useMemo(() => {
@@ -102,8 +108,12 @@ export const MembersTab: React.FC<MembersTabProps> = ({
 
     try {
       await onUpdateMember(member.userId, { roleIds: newRoleIds });
+      setActiveRolePickerUserId(null); // 单选即关
     } catch (err: any) {
-      toast.error(err?.message || "分配角色失败");
+      toast.error(
+        err?.message ||
+          t("server:members.roleUpdateFailed", { defaultValue: "分配角色失败" }),
+      );
     }
   };
 
@@ -112,12 +122,20 @@ export const MembersTab: React.FC<MembersTabProps> = ({
       await onUpdateMember(userId, { nickname: tempNickname.trim() || null });
       setEditingNicknameUserId(null);
     } catch (err: any) {
-      toast.error(err?.message || "更新昵称失败");
+      toast.error(
+        err?.message ||
+          t("server:members.nicknameUpdateFailed", {
+            defaultValue: "更新昵称失败",
+          }),
+      );
     }
   };
 
   const handleKick = async (member: GuildMember) => {
-    const name = member.nickname || member.user?.username || "该成员";
+    const name =
+      member.nickname ||
+      member.user?.username ||
+      t("server:members.defaultMemberName", { defaultValue: "该成员" });
     const reason = await dialog.prompt({
       title: t("server:members.kickConfirmTitle"),
       description: t("server:members.kickConfirmDesc", { name }),
@@ -127,7 +145,12 @@ export const MembersTab: React.FC<MembersTabProps> = ({
     if (reason !== null) {
       try {
         await onKickMember(member.userId, reason || undefined);
-        toast.success(`已将成员 “${name}” 踢出服务器`);
+        toast.success(
+          t("server:members.kickSuccess", {
+            defaultValue: "已将成员 “{{name}}” 踢出服务器",
+            name,
+          }),
+        );
       } catch (err: any) {
         toast.error(err?.message || t("errors:UNKNOWN_ERROR"));
       }
@@ -135,7 +158,10 @@ export const MembersTab: React.FC<MembersTabProps> = ({
   };
 
   const handleBan = async (member: GuildMember) => {
-    const name = member.nickname || member.user?.username || "该成员";
+    const name =
+      member.nickname ||
+      member.user?.username ||
+      t("server:members.defaultMemberName", { defaultValue: "该成员" });
     const reason = await dialog.prompt({
       title: t("server:members.banConfirmTitle"),
       description: t("server:members.banConfirmDesc", { name }),
@@ -146,7 +172,12 @@ export const MembersTab: React.FC<MembersTabProps> = ({
     if (reason !== null) {
       try {
         await onBanMember(member.userId, reason || undefined);
-        toast.success(`已封禁成员 “${name}”`);
+        toast.success(
+          t("server:members.banSuccess", {
+            defaultValue: "已封禁成员 “{{name}}”",
+            name,
+          }),
+        );
       } catch (err: any) {
         toast.error(err?.message || t("errors:UNKNOWN_ERROR"));
       }
@@ -154,10 +185,17 @@ export const MembersTab: React.FC<MembersTabProps> = ({
   };
 
   const handleTransfer = async (member: GuildMember) => {
-    const name = member.nickname || member.user?.username || "该成员";
+    const name =
+      member.nickname ||
+      member.user?.username ||
+      t("server:members.defaultMemberName", { defaultValue: "该成员" });
     const confirmed = await dialog.confirm({
       title: t("server:members.transferOwnership"),
-      description: `您确认将服务器的所有权转让给 “${name}” 吗？此操作无法撤销，转让后您将失去该服务器的最高所有者权限！`,
+      description: t("server:members.transferConfirmDesc", {
+        defaultValue:
+          "您确认将服务器的所有权转让给 “{{name}}” 吗？此操作无法撤销，转让后您将失去该服务器的最高所有者权限！",
+        name,
+      }),
       variant: "danger",
       requireSecurityCode: true,
       confirmText: t("common:confirm"),
@@ -167,7 +205,12 @@ export const MembersTab: React.FC<MembersTabProps> = ({
     if (onTransferOwnership) {
       try {
         await onTransferOwnership(member.userId);
-        toast.success(`已成功将服务器所有权转让给 “${name}”`);
+        toast.success(
+          t("server:members.transferSuccess", {
+            defaultValue: "已成功将服务器所有权转让给 “{{name}}”",
+            name,
+          }),
+        );
       } catch (err: any) {
         toast.error(err?.message || t("errors:UNKNOWN_ERROR"));
       }
@@ -223,7 +266,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({
           return (
             <div
               key={m.userId}
-              className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-white/[0.02] transition-colors"
+              className="p-4 grid grid-cols-1 sm:grid-cols-[minmax(180px,1.2fr)_minmax(180px,2fr)_auto] items-center gap-4 hover:bg-white/[0.02] transition-colors border-b border-white/5 last:border-b-0"
             >
               {/* 成员基础信息 */}
               <div className="flex items-center gap-3 min-w-0">
@@ -243,7 +286,9 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                           type="text"
                           value={tempNickname}
                           onChange={(e) => setTempNickname(e.target.value)}
-                          placeholder="输入服务器昵称"
+                          placeholder={t("server:members.nicknamePlaceholder", {
+                            defaultValue: "输入服务器昵称",
+                          })}
                           className="bg-[#1e1f22] border border-white/10 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-[#5865f2]"
                           autoFocus
                         />
@@ -263,7 +308,11 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                     ) : (
                       <>
                         <span className="text-sm font-bold text-white truncate">
-                          {m.nickname || u?.username || "未知成员"}
+                          {m.nickname ||
+                            u?.username ||
+                            t("server:members.unknownMember", {
+                              defaultValue: "未知成员",
+                            })}
                         </span>
                         {m.nickname && (
                           <span className="text-xs text-gray-400 truncate">
@@ -288,23 +337,24 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                 </div>
               </div>
 
-              {/* 身份组列表与分配 */}
-              <div className="flex flex-wrap items-center gap-1.5 sm:max-w-md">
+              {/* 身份组列表与分配（单行居中排列，Badge与Plus按钮中心对齐在一条线上） */}
+              <div className="flex items-center flex-nowrap overflow-x-auto gap-1.5 py-1 min-w-0 no-scrollbar">
                 {memberRoles.map((r) => (
                   <span
                     key={r.id}
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-[#1e1f22] border border-white/10 text-white"
+                    className="h-6 inline-flex items-center gap-1.5 text-[11px] font-semibold px-2.5 rounded-full bg-[#1e1f22] border border-white/10 text-white shrink-0 shadow-sm"
                   >
                     <span
                       className="w-2 h-2 rounded-full shrink-0"
                       style={{ backgroundColor: r.color || "#5865f2" }}
                     />
-                    <span>{r.name}</span>
+                    <span className="truncate max-w-[120px]">{r.name}</span>
                     {canManageThisMember &&
                       (isOwner || actorHighestPos > r.position) && (
                         <button
                           onClick={() => handleToggleMemberRole(m, r.id)}
-                          className="text-gray-400 hover:text-rose-400 ml-0.5"
+                          className="text-gray-400 hover:text-rose-400 transition-colors ml-0.5 text-xs font-bold leading-none cursor-pointer"
+                          title={t("common:remove", { defaultValue: "移除" })}
                         >
                           ×
                         </button>
@@ -314,23 +364,30 @@ export const MembersTab: React.FC<MembersTabProps> = ({
 
                 {/* 添加角色按钮与弹出浮层 */}
                 {canManageThisMember && (
-                  <div className="relative">
+                  <div className="relative shrink-0">
                     <button
                       onClick={() =>
                         setActiveRolePickerUserId(
                           isRolePickerOpen ? null : m.userId,
                         )
                       }
-                      className="p-1 rounded-full bg-[#1e1f22] hover:bg-white/10 text-gray-300 hover:text-white transition-colors border border-white/5"
+                      className="h-6 w-6 inline-flex items-center justify-center rounded-full bg-[#1e1f22] hover:bg-white/10 text-gray-300 hover:text-white transition-colors border border-white/10 cursor-pointer shadow-sm"
                       title={t("server:members.editRoles")}
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
 
                     {isRolePickerOpen && (
-                      <div className="absolute right-0 bottom-full mb-2 w-48 rounded-xl bg-[#1e1f22] border border-white/10 shadow-2xl p-2 z-30 space-y-1 animate-in fade-in duration-100 max-h-56 overflow-y-auto">
-                        <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-2 py-1">
-                          {t("server:roles.title")}
+                      <div className="absolute right-0 bottom-full mb-2 w-52 rounded-xl bg-[#1e1f22] border border-white/10 shadow-2xl p-2 z-30 space-y-1 animate-in fade-in duration-100 max-h-56 overflow-y-auto">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-gray-400 px-2 py-1 flex items-center justify-between">
+                          <span>{t("server:roles.title")}</span>
+                          <button
+                            type="button"
+                            onClick={() => setActiveRolePickerUserId(null)}
+                            className="text-gray-400 hover:text-white cursor-pointer"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
                         </div>
                         {roles
                           .filter((r) => !r.isDefault && r.name !== "@everyone")
@@ -345,13 +402,23 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                               <button
                                 key={r.id}
                                 disabled={!canAssignThisRole}
-                                onClick={() => handleToggleMemberRole(m, r.id)}
-                                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded text-xs transition-colors text-left ${
+                                onClick={async () => {
+                                  await handleToggleMemberRole(m, r.id);
+                                }}
+                                title={
+                                  !canAssignThisRole
+                                    ? t("server:roles.cannotAssignHigherRole", {
+                                        defaultValue:
+                                          "该身份组权重高于或等同于您拥有的最高身份组",
+                                      })
+                                    : undefined
+                                }
+                                className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors text-left ${
                                   !canAssignThisRole
                                     ? "opacity-40 cursor-not-allowed text-gray-500"
                                     : isAssigned
-                                      ? "bg-[#5865f2]/20 text-[#5865f2] font-semibold"
-                                      : "text-gray-300 hover:bg-white/5"
+                                      ? "bg-[#5865f2]/20 text-[#5865f2] font-semibold cursor-pointer"
+                                      : "text-gray-300 hover:bg-white/5 cursor-pointer"
                                 }`}
                               >
                                 <div className="flex items-center gap-2 truncate">
@@ -364,7 +431,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                                   <span className="truncate">{r.name}</span>
                                 </div>
                                 {isAssigned && (
-                                  <Check className="w-3.5 h-3.5" />
+                                  <Check className="w-3.5 h-3.5 shrink-0" />
                                 )}
                               </button>
                             );
@@ -375,8 +442,8 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                 )}
               </div>
 
-              {/* 操作按钮组 */}
-              <div className="flex items-center gap-1 shrink-0">
+              {/* 操作按钮组 (固定右对齐) */}
+              <div className="flex items-center justify-end gap-1 shrink-0">
                 {/* 修改昵称按钮 */}
                 {(canManageThisMember || m.userId === currentUser?.id) && (
                   <button
@@ -430,10 +497,18 @@ export const MembersTab: React.FC<MembersTabProps> = ({
 
         {filteredMembers.length === 0 && (
           <div className="p-8 text-center text-xs text-gray-500">
-            未找到匹配的成员
+            {t("server:members.noMembersFound", { defaultValue: "未找到匹配的成员" })}
           </div>
         )}
       </div>
+
+      {/* 浮层全局点击遮罩 (Backdrop) */}
+      {activeRolePickerUserId && (
+        <div
+          className="fixed inset-0 z-20 cursor-default"
+          onClick={() => setActiveRolePickerUserId(null)}
+        />
+      )}
     </div>
   );
 };

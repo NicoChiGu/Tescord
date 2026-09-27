@@ -17,6 +17,8 @@
     "auditLog": "稽核日誌",
     "deleteServer": "解散伺服器"
   },
+  "serverSettingsClose": "關閉伺服器設定",
+  "serverSettingsBack": "返回伺服器設定目錄",
   "overview": {
     "title": "伺服器概況",
     "nameLabel": "伺服器名稱",
@@ -25,6 +27,9 @@
     "uploadIcon": "上傳圖示",
     "changeIcon": "更換圖示",
     "randomIcon": "隨機產生",
+    "iconRecommendation": "推薦尺寸至少為 512x512，上傳時支援拖曳縮放裁剪與自動壓縮。",
+    "iconUploadSuccess": "圖示已裁剪壓縮並上傳",
+    "updateFailed": "更新伺服器資訊失敗",
     "descriptionLabel": "伺服器簡介",
     "descriptionPlaceholder": "告訴大家這個伺服器的主題...",
     "publicTitle": "在探索中心公開此伺服器",
@@ -44,11 +49,30 @@
     "roleName": "身分組名稱",
     "roleColor": "身分組色彩",
     "permissions": "權限分配",
+    "permissionsDesc": "為擁有此身分組的成員開啟或關閉相應的伺服器能力。",
+    "createSuccess": "身分組建立成功",
+    "deleteSuccess": "身分組已成功刪除",
+    "createFailed": "建立身分組失敗",
+    "updateFailed": "更新身分組失敗",
+    "deleteFailed": "刪除身分組失敗",
+    "hoistLabel": "成員列表分欄顯示 (Hoist)",
+    "hoistDesc": "在右側成員列表中按此身分組單獨分組",
+    "defaultColor": "預設無色",
+    "dangerousBadge": "高危",
+    "cannotAssignHigherRole": "該身分組的層級權重高於或等同於您擁有的最高身分組",
     "deleteRole": "刪除身分組",
     "deleteConfirmTitle": "刪除身分組",
     "deleteConfirmDesc": "確定要刪除身分組 \"{{name}}\" 嗎？此操作無法復原。",
     "saveSuccess": "身分組已成功更新",
     "hierarchyWarning": "該身分組的階層權重大於或等於您擁有的最高身分組，您僅擁有檢視權限，無法修改或調整。",
+    "categories": {
+      "all": "全部",
+      "general": "常規管理",
+      "membership": "成員與邀請",
+      "text": "文字互動",
+      "voice": "語音頻道",
+      "advanced": "高級特權"
+    },
     "perm": {
       "administrator": "管理員 (擁有所有權限)",
       "manageGuild": "管理伺服器",
@@ -71,6 +95,21 @@
     "title": "伺服器成員",
     "searchPlaceholder": "搜尋成員使用者名稱或暱稱...",
     "membersCount": "共 {{count}} 位成員",
+    "noMembersFound": "未找到相符的成員",
+    "nicknamePlaceholder": "輸入伺服器暱稱",
+    "defaultMemberName": "該成員",
+    "unknownMember": "未知成員",
+    "kickSuccess": "已將成員 “{{name}}” 踢出伺服器",
+    "banSuccess": "已封禁成員 “{{name}}”",
+    "transferConfirmDesc": "您確認將伺服器的所有權轉讓給 “{{name}}” 嗎？此操作無法撤銷，轉讓後您將失去該伺服器的最高所有者權限！",
+    "transferSuccess": "已成功將伺服器所有權轉讓給 “{{name}}”",
+    "transferSuccessNotice": "伺服器所有權已成功轉讓！",
+    "transferFailed": "轉讓所有權失敗",
+    "roleUpdateFailed": "分配身分組失敗",
+    "nicknameUpdateFailed": "更新暱稱失敗",
+    "updateFailed": "更新成員資訊失敗",
+    "kickFailed": "踢出成員失敗",
+    "banFailed": "封禁成員失敗",
     "table": {
       "user": "成員",
       "roles": "身分組",
@@ -126,7 +165,8 @@
       "actions": "操作"
     },
     "unban": "解除封禁",
-    "unbanSuccess": "已成功解除封禁"
+    "unbanSuccess": "已成功解除封禁",
+    "unbanFailed": "解除封禁失敗"
   },
   "auditLog": {
     "title": "稽核日誌",
@@ -161,7 +201,8 @@
     "warning": "解散伺服器具有毀滅性且無法復原。解散後，所有頻道、訊息歷史、附件和身分組將被永久抹除。",
     "promptLabel": "請輸入伺服器名稱以確認：",
     "confirmBtn": "解散伺服器",
-    "submitting": "正在解散..."
+    "submitting": "正在解散...",
+    "deleteFailed": "解散伺服器失敗"
   },
   "createChannel": "建立頻道",
   "channelName": "頻道名稱",

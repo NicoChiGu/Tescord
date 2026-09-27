@@ -586,6 +586,7 @@ export interface CreateInviteDTO {
   maxUses?: number;
   expiresInHours?: number;
   isTemporary?: boolean;
+  forceNew?: boolean;
 }
 
 export interface InvitePreviewDTO {

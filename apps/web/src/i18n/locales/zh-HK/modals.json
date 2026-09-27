@@ -198,7 +198,10 @@
     "editLink": "編輯邀請連結",
     "expireNever": "您的邀請連結將永不失效。",
     "expireDays": "您的邀請連結將在 {{count}} 天後過期。",
-    "expireHours": "您的邀請連結將在 {{count}} 小時後過期。"
+    "expireHours": "您的邀請連結將在 {{count}} 小時後過期。",
+    "createInviteBtn": "建立邀請連結",
+    "noActiveInvitePrompt": "目前尚未建立邀請連結，點擊右側按鈕建立。",
+    "generateNewLink": "產生新連結"
   },
   "inviteSettings": {
     "title": "伺服器邀請連結設定",
@@ -225,5 +228,10 @@
     "temporaryTitle": "允許臨時會員身分",
     "temporaryDesc": "當成員離線時自動被踢出伺服器，除非他們已取得身分組",
     "generateNew": "產生新的連結"
+  },
+  "cropModal": {
+    "title": "編輯圖示尺寸",
+    "description": "拖曳以平移取景位置，使用滑桿調整縮放大小。",
+    "confirmBtn": "確認並上傳"
   }
 }

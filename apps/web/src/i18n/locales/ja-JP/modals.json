@@ -198,7 +198,10 @@
     "editLink": "招待リンクを編集",
     "expireNever": "招待リンクは無期限です。",
     "expireDays": "招待リンクは {{count}} 日後に有効期限が切れます。",
-    "expireHours": "招待リンクは {{count}} 時間後に有効期限が切れます。"
+    "expireHours": "招待リンクは {{count}} 時間後に有効期限が切れます。",
+    "createInviteBtn": "招待リンクを作成",
+    "noActiveInvitePrompt": "有効な招待リンクがありません。ボタンをクリックして作成してください。",
+    "generateNewLink": "新しいリンクを生成"
   },
   "inviteSettings": {
     "title": "サーバー招待リンクの設定",
@@ -225,5 +228,10 @@
     "temporaryTitle": "一時的なメンバーシップを付与",
     "temporaryDesc": "役職が割り当てられていない場合、切断時に自動的にキックされます。",
     "generateNew": "新しいリンクを生成"
+  },
+  "cropModal": {
+    "title": "アイコンサイズの編集",
+    "description": "ドラッグして位置を調整し、スライダーで拡大縮小できます。",
+    "confirmBtn": "確定してアップロード"
   }
 }

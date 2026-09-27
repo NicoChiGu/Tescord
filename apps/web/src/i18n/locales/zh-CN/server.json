@@ -17,6 +17,8 @@
     "auditLog": "审计日志",
     "deleteServer": "解散服务器"
   },
+  "serverSettingsClose": "关闭服务器设置",
+  "serverSettingsBack": "返回服务器设置目录",
   "overview": {
     "title": "服务器概况",
     "nameLabel": "服务器名称",
@@ -25,6 +27,9 @@
     "uploadIcon": "上传图标",
     "changeIcon": "更换图标",
     "randomIcon": "随机生成",
+    "iconRecommendation": "推荐尺寸至少为 512x512，上传时支持拖拽缩放裁剪与自动压缩。",
+    "iconUploadSuccess": "图标已裁剪压缩并上传",
+    "updateFailed": "更新服务器信息失败",
     "descriptionLabel": "服务器简介",
     "descriptionPlaceholder": "告诉大家这个服务器的主题...",
     "publicTitle": "在探索中心公开此服务器",
@@ -44,11 +49,30 @@
     "roleName": "身份组名称",
     "roleColor": "身份组颜色",
     "permissions": "权限分配",
+    "permissionsDesc": "为拥有此身份组的成员开启或关闭相应的服务器能力。",
+    "createSuccess": "身份组创建成功",
+    "deleteSuccess": "身份组已成功删除",
+    "createFailed": "创建身份组失败",
+    "updateFailed": "更新身份组失败",
+    "deleteFailed": "删除身份组失败",
+    "hoistLabel": "成员列表分栏显示 (Hoist)",
+    "hoistDesc": "在右侧成员列表中按此身份组单独分组",
+    "defaultColor": "默认无色",
+    "dangerousBadge": "高危",
+    "cannotAssignHigherRole": "该身份组的层级权重高于或等同于您拥有的最高身份组",
     "deleteRole": "删除身份组",
     "deleteConfirmTitle": "删除身份组",
     "deleteConfirmDesc": "确定要删除身份组 \"{{name}}\" 吗？此操作无法撤销。",
     "saveSuccess": "身份组已成功更新",
     "hierarchyWarning": "该身份组的层级权重高于或等同于您拥有的最高身份组，您仅拥有查看权限，无法修改或调整。",
+    "categories": {
+      "all": "全部",
+      "general": "常规管理",
+      "membership": "成员与邀请",
+      "text": "文字互动",
+      "voice": "语音频道",
+      "advanced": "高级特权"
+    },
     "perm": {
       "administrator": "管理员 (拥有所有权限)",
       "manageGuild": "管理服务器",
@@ -71,6 +95,21 @@
     "title": "服务器成员",
     "searchPlaceholder": "搜索成员用户名或昵称...",
     "membersCount": "共 {{count}} 位成员",
+    "noMembersFound": "未找到匹配的成员",
+    "nicknamePlaceholder": "输入服务器昵称",
+    "defaultMemberName": "该成员",
+    "unknownMember": "未知成员",
+    "kickSuccess": "已将成员 “{{name}}” 踢出服务器",
+    "banSuccess": "已封禁成员 “{{name}}”",
+    "transferConfirmDesc": "您确认将服务器的所有权转让给 “{{name}}” 吗？此操作无法撤销，转让后您将失去该服务器的最高所有者权限！",
+    "transferSuccess": "已成功将服务器所有权转让给 “{{name}}”",
+    "transferSuccessNotice": "服务器所有权已成功转让！",
+    "transferFailed": "转让所有权失败",
+    "roleUpdateFailed": "分配角色失败",
+    "nicknameUpdateFailed": "更新昵称失败",
+    "updateFailed": "更新成员信息失败",
+    "kickFailed": "踢出成员失败",
+    "banFailed": "封禁成员失败",
     "table": {
       "user": "成员",
       "roles": "身份组",
@@ -126,7 +165,8 @@
       "actions": "操作"
     },
     "unban": "解除封禁",
-    "unbanSuccess": "已成功解除封禁"
+    "unbanSuccess": "已成功解除封禁",
+    "unbanFailed": "解除封禁失败"
   },
   "auditLog": {
     "title": "审计日志",
@@ -161,7 +201,8 @@
     "warning": "解散服务器具有毁灭性且无法撤销。解散后，所有频道、消息历史、附件和身份组将被永久抹除。",
     "promptLabel": "请输入服务器名称以确认：",
     "confirmBtn": "解散服务器",
-    "submitting": "正在解散..."
+    "submitting": "正在解散...",
+    "deleteFailed": "解散服务器失败"
   },
   "createChannel": "创建频道",
   "channelName": "频道名称",

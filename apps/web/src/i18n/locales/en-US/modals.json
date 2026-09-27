@@ -198,7 +198,10 @@
     "editLink": "Edit invite link",
     "expireNever": "Your invite link will never expire.",
     "expireDays": "Your invite link will expire in {{count}} days.",
-    "expireHours": "Your invite link will expire in {{count}} hours."
+    "expireHours": "Your invite link will expire in {{count}} hours.",
+    "createInviteBtn": "Create Invite Link",
+    "noActiveInvitePrompt": "No active invite link found. Click button to create one.",
+    "generateNewLink": "Generate New Link"
   },
   "inviteSettings": {
     "title": "Server Invite Link Settings",
@@ -225,5 +228,10 @@
     "temporaryTitle": "Grant temporary membership",
     "temporaryDesc": "Members are automatically kicked when they disconnect unless a role is assigned.",
     "generateNew": "Generate a New Link"
+  },
+  "cropModal": {
+    "title": "Edit Icon Size",
+    "description": "Drag to pan the preview, use slider to zoom in or out.",
+    "confirmBtn": "Confirm & Upload"
   }
 }

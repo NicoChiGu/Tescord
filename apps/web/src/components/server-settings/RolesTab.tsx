@@ -19,6 +19,7 @@ import {
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { dialog } from "../../stores/useDialogStore.js";
 import { toast } from "../../stores/useToastStore.js";
+import { usePermissions } from "../../hooks/usePermissions.js";
 
 interface RolesTabProps {
   guild: Guild;
@@ -92,7 +93,12 @@ export const RolesTab: React.FC<RolesTabProps> = ({
   }, [selectedRole?.id]);
 
   // 计算当前用户最高角色权重以进行防越权禁用判断
-  const isOwner = guild.ownerId === currentUser?.id;
+  const permissions = usePermissions(guild);
+  const isOwner =
+    permissions.isOwner ||
+    guild.ownerId === currentUser?.id ||
+    currentUser?.role === "SUPER_ADMIN" ||
+    (currentUser as any)?.role === "ADMIN";
   const actorHighestPos = useMemo(() => {
     if (isOwner) return Infinity;
     const currentMember = guild.members?.find(
@@ -156,7 +162,9 @@ export const RolesTab: React.FC<RolesTabProps> = ({
     try {
       const newRole = await onCreateRole(t("server:roles.createRole"));
       setSelectedRoleId(newRole.id);
-      toast.success(t("server:roles.createRole"));
+      toast.success(
+        t("server:roles.createSuccess", { defaultValue: "身份组创建成功" }),
+      );
     } catch (err: any) {
       toast.error(err?.message || t("errors:UNKNOWN_ERROR"));
     }
@@ -180,7 +188,9 @@ export const RolesTab: React.FC<RolesTabProps> = ({
       if (remaining.length > 0) {
         setSelectedRoleId(remaining[0].id);
       }
-      toast.success(t("server:roles.deleteRole"));
+      toast.success(
+        t("server:roles.deleteSuccess", { defaultValue: "身份组已成功删除" }),
+      );
     } catch (err: any) {
       toast.error(err?.message || t("errors:UNKNOWN_ERROR"));
     }
@@ -192,24 +202,24 @@ export const RolesTab: React.FC<RolesTabProps> = ({
   }, [activeCategory]);
 
   return (
-    <div className="flex h-[750px] -m-6 animate-in fade-in duration-200">
+    <div className="flex h-full min-h-0 flex-1 overflow-hidden animate-in fade-in duration-200">
       {/* 左侧：角色列表 */}
-      <div className="w-64 border-r border-white/5 bg-[#2b2d31]/50 p-4 flex flex-col justify-between">
-        <div className="space-y-3">
-          <div className="flex items-center justify-between px-1">
+      <div className="w-64 border-r border-white/5 bg-[#2b2d31]/50 p-4 flex flex-col justify-between shrink-0 h-full overflow-hidden">
+        <div className="space-y-3 flex-1 flex flex-col min-h-0">
+          <div className="flex items-center justify-between px-1 shrink-0">
             <span className="text-xs font-bold uppercase tracking-wider text-gray-400">
               {t("server:roles.title")} ({sortedRoles.length})
             </span>
             <button
               onClick={handleCreateNewRole}
               title={t("server:roles.createRole")}
-              className="p-1 rounded bg-[#5865f2] hover:bg-[#4752c4] text-white transition-colors"
+              className="p-1 rounded bg-[#5865f2] hover:bg-[#4752c4] text-white transition-colors cursor-pointer"
             >
               <Plus className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="space-y-1 overflow-y-auto max-h-[620px] pr-1">
+          <div className="space-y-1 overflow-y-auto flex-1 min-h-0 pr-1 custom-scrollbar">
             {sortedRoles.map((r) => {
               const isCurrent = r.id === selectedRole?.id;
               const isDef = r.isDefault || r.name === "@everyone";
@@ -298,11 +308,15 @@ export const RolesTab: React.FC<RolesTabProps> = ({
 
                 <div>
                   <label className="block text-xs font-bold text-gray-300 mb-1.5">
-                    成员列表分栏显示 (Hoist)
+                    {t("server:roles.hoistLabel", {
+                      defaultValue: "成员列表分栏显示 (Hoist)",
+                    })}
                   </label>
                   <div className="flex items-center justify-between p-2.5 rounded-lg bg-[#1e1f22] border border-white/5">
                     <span className="text-xs text-gray-300">
-                      在右侧成员列表中按此身份组单独分组
+                      {t("server:roles.hoistDesc", {
+                        defaultValue: "在右侧成员列表中按此身份组单独分组",
+                      })}
                     </span>
                     <button
                       type="button"
@@ -359,7 +373,9 @@ export const RolesTab: React.FC<RolesTabProps> = ({
                         onClick={() => setFormColor(null)}
                         className="text-xs text-gray-400 hover:text-white px-2 py-1 rounded bg-[#1e1f22] border border-white/5"
                       >
-                        默认无色
+                        {t("server:roles.defaultColor", {
+                          defaultValue: "默认无色",
+                        })}
                       </button>
                     </div>
                   </div>
@@ -369,35 +385,38 @@ export const RolesTab: React.FC<RolesTabProps> = ({
 
             {/* 权限配置树 */}
             <div className="space-y-4 pt-4 border-t border-white/10">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex flex-col gap-3">
                 <div>
                   <h3 className="text-sm font-bold uppercase tracking-wider text-gray-300">
                     {t("server:roles.permissions")}
                   </h3>
-                  <p className="text-xs text-gray-400">
-                    为拥有此身份组的成员开启或关闭相应的服务器能力。
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {t("server:roles.permissionsDesc", {
+                      defaultValue: "为拥有此身份组的成员开启或关闭相应的服务器能力。",
+                    })}
                   </p>
                 </div>
 
-                {/* 分类过滤器 */}
-                <div className="flex items-center gap-1 bg-[#1e1f22] p-1 rounded-lg border border-white/5 text-[11px]">
+                {/* 分类过滤器 (独立一行自适应换行，避免挤压) */}
+                <div className="flex flex-wrap items-center gap-1.5 bg-[#1e1f22] p-1.5 rounded-lg border border-white/5 text-[11px]">
                   {(
                     [
-                      ["ALL", "全部"],
-                      ["GENERAL", "常规管理"],
-                      ["MEMBERSHIP", "成员与邀请"],
-                      ["TEXT", "文字互动"],
-                      ["VOICE", "语音频道"],
-                      ["ADVANCED", "高级特权"],
+                      ["ALL", t("server:roles.categories.all", { defaultValue: "全部" })],
+                      ["GENERAL", t("server:roles.categories.general", { defaultValue: "常规管理" })],
+                      ["MEMBERSHIP", t("server:roles.categories.membership", { defaultValue: "成员与邀请" })],
+                      ["TEXT", t("server:roles.categories.text", { defaultValue: "文字互动" })],
+                      ["VOICE", t("server:roles.categories.voice", { defaultValue: "语音频道" })],
+                      ["ADVANCED", t("server:roles.categories.advanced", { defaultValue: "高级特权" })],
                     ] as const
                   ).map(([catKey, catLabel]) => (
                     <button
                       key={catKey}
+                      type="button"
                       onClick={() => setActiveCategory(catKey)}
-                      className={`px-2 py-1 rounded font-medium transition-colors ${
+                      className={`px-2.5 py-1 rounded-md font-medium transition-colors shrink-0 whitespace-nowrap cursor-pointer ${
                         activeCategory === catKey
-                          ? "bg-[#5865f2] text-white"
-                          : "text-gray-400 hover:text-white"
+                          ? "bg-[#5865f2] text-white shadow-sm"
+                          : "text-gray-400 hover:text-white hover:bg-white/5"
                       }`}
                     >
                       {catLabel}
@@ -432,7 +451,9 @@ export const RolesTab: React.FC<RolesTabProps> = ({
                           </span>
                           {isAdv && (
                             <span className="text-[10px] bg-rose-500/20 text-rose-400 font-bold px-1.5 py-0.5 rounded">
-                              高危
+                              {t("server:roles.dangerousBadge", {
+                                defaultValue: "高危",
+                              })}
                             </span>
                           )}
                         </div>
@@ -460,6 +481,32 @@ export const RolesTab: React.FC<RolesTabProps> = ({
                 })}
               </div>
             </div>
+
+            {/* 危险操作区：删除身份组 */}
+            {!isEveryone && canDeleteSelectedRole && (
+              <div className="pt-6 border-t border-rose-500/20">
+                <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="text-sm font-semibold text-rose-400">
+                      {t("server:roles.deleteRole")}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-0.5">
+                      {t("server:roles.deleteConfirmDesc", {
+                        name: selectedRole.name,
+                      })}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleDelete}
+                    className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow transition-colors flex items-center gap-1.5 shrink-0 cursor-pointer self-start sm:self-auto"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>{t("server:roles.deleteRole")}</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 底部保存浮动栏 */}

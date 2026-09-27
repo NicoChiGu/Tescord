@@ -70,6 +70,7 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
           <ContextMenuItem
             onClick={handleOpenInvite}
             className="text-discord-brand hover:text-white"
+            data-testid="server-menu-invite-btn"
           >
             <div className="flex items-center space-x-2">
               <UserPlus className="w-4 h-4" />
@@ -119,6 +120,7 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
           <ContextMenuItem
             onClick={() => onOpenServerSettings?.(guild)}
             className="hover:bg-discord-brand"
+            data-testid="server-menu-settings-btn"
           >
             <div className="flex items-center space-x-2">
               <Settings className="w-4 h-4 text-discord-textMuted" />

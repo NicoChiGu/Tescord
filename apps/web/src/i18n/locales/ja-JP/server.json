@@ -17,6 +17,8 @@
     "auditLog": "監査ログ",
     "deleteServer": "サーバーを削除"
   },
+  "serverSettingsClose": "サーバー設定を閉じる",
+  "serverSettingsBack": "サーバー設定メニューに戻る",
   "overview": {
     "title": "サーバーの概要",
     "nameLabel": "サーバー名",
@@ -25,6 +27,9 @@
     "uploadIcon": "アイコンをアップロード",
     "changeIcon": "アイコンを変更",
     "randomIcon": "ランダム生成",
+    "iconRecommendation": "推奨サイズは512x512以上です。ドラッグ、拡大縮小、トリミング、自動圧縮に対応しています。",
+    "iconUploadSuccess": "アイコンのトリミング・圧縮・アップロードが完了しました",
+    "updateFailed": "サーバー情報の更新に失敗しました",
     "descriptionLabel": "サーバーの説明",
     "descriptionPlaceholder": "このサーバーのテーマや目的を入力...",
     "publicTitle": "公開サーバーとしてディスカバリーに掲載する",
@@ -44,11 +49,30 @@
     "roleName": "役職名",
     "roleColor": "役職カラー",
     "permissions": "権限の割り当て",
+    "permissionsDesc": "このロールを持つメンバーに付与するサーバー権限を設定します。",
+    "createSuccess": "ロールを作成しました",
+    "deleteSuccess": "ロールを削除しました",
+    "createFailed": "ロールの作成に失敗しました",
+    "updateFailed": "ロールの更新に失敗しました",
+    "deleteFailed": "ロールの削除に失敗しました",
+    "hoistLabel": "オンラインメンバーとは別にロールメンバーを表示する (Hoist)",
+    "hoistDesc": "メンバーリストでこのロールを持つメンバーを個別にグループ分けします",
+    "defaultColor": "デフォルト（無色）",
+    "dangerousBadge": "危険",
+    "cannotAssignHigherRole": "このロールの階層権限は、あなたが持つ最上位ロール以上です",
     "deleteRole": "役職を削除",
     "deleteConfirmTitle": "役職の削除",
     "deleteConfirmDesc": "本当に役職「{{name}}」を削除しますか？この操作は取り消せません。",
     "saveSuccess": "役職を更新しました",
     "hierarchyWarning": "このロールの階層はあなたが持つ最高ロールと同等または上位であるため、閲覧権限のみ付与され、編集はできません。",
+    "categories": {
+      "all": "すべて",
+      "general": "一般管理",
+      "membership": "メンバーと招待",
+      "text": "テキスト権限",
+      "voice": "ボイス権限",
+      "advanced": "高度な権限"
+    },
     "perm": {
       "administrator": "管理者 (すべての権限が付与されます)",
       "manageGuild": "サーバーの管理",
@@ -71,6 +95,21 @@
     "title": "サーバーメンバー",
     "searchPlaceholder": "ユーザー名またはニックネームで検索...",
     "membersCount": "{{count}} 人のメンバー",
+    "noMembersFound": "一致するメンバーが見つかりません",
+    "nicknamePlaceholder": "サーバーニックネームを入力",
+    "defaultMemberName": "このメンバー",
+    "unknownMember": "不明なメンバー",
+    "kickSuccess": "メンバー「{{name}}」をサーバーからキックしました",
+    "banSuccess": "メンバー「{{name}}」をBANしました",
+    "transferConfirmDesc": "サーバーの所有権を「{{name}}」に譲渡してもよろしいですか？この操作は取り消せません。譲渡後、サーバー所有者権限は失われます。",
+    "transferSuccess": "サーバーの所有権を「{{name}}」に正常に譲渡しました",
+    "transferSuccessNotice": "サーバーの所有権が正常に譲渡されました！",
+    "transferFailed": "所有権の譲渡に失敗しました",
+    "roleUpdateFailed": "ロールの割り当てに失敗しました",
+    "nicknameUpdateFailed": "ニックネームの更新に失敗しました",
+    "updateFailed": "メンバー情報の更新に失敗しました",
+    "kickFailed": "メンバーのキックに失敗しました",
+    "banFailed": "メンバーのBANに失敗しました",
     "table": {
       "user": "メンバー",
       "roles": "役職",
@@ -126,7 +165,8 @@
       "actions": "操作"
     },
     "unban": "BANを解除",
-    "unbanSuccess": "BANを解除しました"
+    "unbanSuccess": "BANを解除しました",
+    "unbanFailed": "BANの解除に失敗しました"
   },
   "auditLog": {
     "title": "監査ログ",
@@ -161,7 +201,8 @@
     "warning": "サーバーの削除は元に戻せません。すべてのチャンネル、メッセージ履歴、添付ファイル、役職が完全に破棄されます。",
     "promptLabel": "確認のためサーバー名を入力してください:",
     "confirmBtn": "サーバーを削除",
-    "submitting": "削除中..."
+    "submitting": "削除中...",
+    "deleteFailed": "サーバーの削除に失敗しました"
   },
   "createChannel": "チャンネルを作成",
   "channelName": "チャンネル名",

@@ -1812,12 +1812,11 @@ server.post("/api/guilds/:guildId/roles", async (request, reply) => {
   }
 
   const body = (request.body || {}) as CreateRoleDTO;
-  const roles = await prisma.role.findMany({
-    where: { guildId },
-    select: { position: true },
+  // 新建角色 position 分配：置于 position 1（@everyone 0 之上），现有 >= 1 的角色顺延，确保创建者最高角色永远大于新角色
+  await prisma.role.updateMany({
+    where: { guildId, position: { gte: 1 }, isDefault: false },
+    data: { position: { increment: 1 } },
   });
-  const maxPos =
-    roles.length > 0 ? Math.max(...roles.map((r) => r.position)) : 0;
 
   const role = await prisma.role.create({
     data: {
@@ -1825,7 +1824,7 @@ server.post("/api/guilds/:guildId/roles", async (request, reply) => {
       name: body.name ? body.name.trim() : "新身份组",
       color: body.color || null,
       hoist: body.hoist || false,
-      position: maxPos + 1,
+      position: 1,
       permissions: body.permissions !== undefined ? body.permissions : 0,
       isDefault: false,
     },
@@ -2547,6 +2546,59 @@ server.get("/api/guilds/:guildId/audit-logs", async (request, reply) => {
   return logs;
 });
 
+// 获取当前用户在该公会的有效活跃邀请链接 (用于复用，避免每次打开弹窗都新建)
+server.get("/api/guilds/:guildId/invites/active", async (request, reply) => {
+  const { guildId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  const user = userId
+    ? await prisma.user.findUnique({ where: { id: userId } })
+    : null;
+  if (!user) {
+    return reply.status(401).send({ error: "需要登录后操作" });
+  }
+
+  const canInvite = await permissionService.hasGuildPermission(
+    user.id,
+    guildId,
+    PermissionFlags.CREATE_INVITE,
+  );
+  if (!canInvite) {
+    return reply
+      .status(403)
+      .send({ error: "您没有在该服务器创建邀请码的权限" });
+  }
+
+  const now = new Date();
+  const existingInvites = await prisma.invite.findMany({
+    where: {
+      guildId,
+      inviterId: user.id,
+      OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const validInvite = existingInvites.find(
+    (inv) => inv.maxUses === 0 || inv.uses < inv.maxUses,
+  );
+
+  if (!validInvite) {
+    return { invite: null };
+  }
+
+  return {
+    invite: {
+      code: validInvite.code,
+      guildId: validInvite.guildId,
+      inviterId: validInvite.inviterId,
+      maxUses: validInvite.maxUses,
+      uses: validInvite.uses,
+      expiresAt: validInvite.expiresAt ? validInvite.expiresAt.toISOString() : null,
+      createdAt: validInvite.createdAt.toISOString(),
+    },
+  };
+});
+
 // 生成专属邀请码 (Invite)
 server.post("/api/guilds/:guildId/invites", async (request, reply) => {
   const { guildId } = request.params as any;
@@ -2570,6 +2622,35 @@ server.post("/api/guilds/:guildId/invites", async (request, reply) => {
   }
 
   const body = (request.body || {}) as CreateInviteDTO;
+
+  // 若未显式指定 forceNew 为 true，优先复用已存在的未过期且未用尽的有效邀请码
+  if (!body.forceNew) {
+    const now = new Date();
+    const existingInvites = await prisma.invite.findMany({
+      where: {
+        guildId,
+        inviterId: user.id,
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    const validInvite = existingInvites.find(
+      (inv) => inv.maxUses === 0 || inv.uses < inv.maxUses,
+    );
+    if (validInvite) {
+      return {
+        code: validInvite.code,
+        guildId: validInvite.guildId,
+        inviterId: validInvite.inviterId,
+        maxUses: validInvite.maxUses,
+        uses: validInvite.uses,
+        expiresAt: validInvite.expiresAt
+          ? validInvite.expiresAt.toISOString()
+          : null,
+        createdAt: validInvite.createdAt.toISOString(),
+      };
+    }
+  }
   const maxUses = body.maxUses || 0;
   const expiresAt =
     body.maxAge !== undefined
@@ -4615,18 +4696,14 @@ server.get("/public-assets/:fileName", async (request, reply) => {
     return reply.status(404).send({ error: "资源不存在" });
   }
   const fileUrl = `${process.env.SERVER_BASE_URL || "http://localhost:3001"}/public-assets/${encodeURIComponent(decoded)}`;
-  const guild = await prisma.guild.findFirst({
-    where: { iconUrl: fileUrl },
-    select: { id: true },
-  });
-  if (!guild) return reply.status(404).send({ error: "资源不存在" });
   const ext = decoded.split(".").pop()?.toLowerCase();
   reply.header("Content-Type", ext === "jpg" ? "image/jpeg" : `image/${ext}`);
   reply.header("X-Content-Type-Options", "nosniff");
+  reply.header("Cache-Control", "public, max-age=86400");
   try {
     return reply.send(await storageService.openObject(fileUrl));
   } catch {
-    return reply.status(503).send({ error: "资源存储暂不可用" });
+    return reply.status(404).send({ error: "资源不存在" });
   }
 });
 

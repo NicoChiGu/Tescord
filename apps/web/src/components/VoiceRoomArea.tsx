@@ -20,6 +20,7 @@ import { p2pStreamManager } from "../services/p2p/P2PStreamManager.js";
 import { voiceMeshManager } from "../services/p2p/VoiceMeshManager.js";
 import { PeerLatencyReport } from "@tescord/types";
 import { UserContextMenu } from "./context-menu/UserContextMenu.js";
+import { getUserDisplayName } from "../utils/userDisplay.js";
 import {
   Volume2,
   VolumeX,
@@ -364,9 +365,22 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
       : "opacity-100"
   }`;
 
+  const targetMember = useMemo(() => {
+    return guild?.members?.find((m) => m.userId === participant.userId);
+  }, [guild?.members, participant.userId]);
+
+  const targetDisplayName = useMemo(() => {
+    const rawUser = participant.user || (isMe ? currentUser : null);
+    return getUserDisplayName(
+      rawUser,
+      targetMember,
+      isMe ? currentUser.username : "用户",
+    );
+  }, [participant.user, isMe, currentUser, targetMember]);
+
   const targetUser = participant.user || {
     id: participant.userId,
-    username: isMe ? currentUser.username : "用户",
+    username: targetDisplayName,
     avatarUrl: undefined,
   };
 
@@ -473,7 +487,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
                   participant.user?.avatarUrl ||
                   "https://api.dicebear.com/7.x/bottts/svg?seed=avatar"
                 }
-                alt={participant.user?.username || "用户"}
+                alt={targetDisplayName}
                 className={`rounded-full border-4 border-[#1e1f22] object-cover ${
                   isSpotlight
                     ? "w-28 h-28"
@@ -494,7 +508,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
 
             <div className="font-bold text-discord-textHeader text-xs flex items-center space-x-1 truncate max-w-full">
               <span className="truncate">
-                {participant.user?.username || "匿名成员"}
+                {targetDisplayName}
               </span>
               {isMe && (
                 <span className="text-[10px] text-discord-textMuted">(你)</span>
@@ -730,7 +744,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             <span className="w-2 h-2 rounded-full bg-discord-green animate-pulse flex-shrink-0" />
           )}
           <span className="font-semibold text-xs truncate">
-            {participant.user?.username || "匿名成员"}
+            {targetDisplayName}
           </span>
           {isMe && (
             <span className="text-[10px] text-discord-textMuted flex-shrink-0">
@@ -862,7 +876,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             containerRef={cardRef}
             participantIdentity={participant.userId}
             participantName={
-              participant.user?.username || (isMe ? "我的推流" : "视频流")
+              targetDisplayName || (isMe ? "我的推流" : "视频流")
             }
             onClose={handleCloseHUD}
           />

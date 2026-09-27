@@ -340,6 +340,14 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
               avatarUrl: null,
               status: undefined,
             };
+            const targetMember = guild?.members?.find(
+              (m) => m.userId === p.userId,
+            );
+            const displayName = getUserDisplayName(
+              targetUserObj,
+              targetMember,
+              targetUserObj.username,
+            );
             return (
               <UserContextMenu
                 key={p.userId}
@@ -368,7 +376,7 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
                     />
                   </div>
                   <span className="truncate flex-1">
-                    {targetUserObj.username}
+                    {displayName}
                   </span>
                   {(() => {
                     const peerReport = peerLatencies.get(p.userId);
@@ -954,7 +962,10 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
           onLeaveGuild={onLeaveGuild}
           onMarkAsRead={onMarkGuildAsRead}
         >
-          <div className="h-12 border-b border-[#1f2023] px-4 flex items-center justify-between font-bold text-discord-textHeader shadow-sm hover:bg-[#35373c] transition cursor-pointer">
+          <div
+            data-testid="server-header"
+            className="h-12 border-b border-[#1f2023] px-4 flex items-center justify-between font-bold text-discord-textHeader shadow-sm hover:bg-[#35373c] transition cursor-pointer"
+          >
             <span className="truncate">{guild.name}</span>
             <div className="flex items-center space-x-1">
               {canManageGuild && onOpenServerSettings && (

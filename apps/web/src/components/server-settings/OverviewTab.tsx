@@ -5,6 +5,7 @@ import { Camera, Copy, Check, UploadCloud } from "lucide-react";
 import { API_BASE, resolveServerUrl } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { toast } from "../../stores/useToastStore.js";
+import { ImageCropModal } from "../modals/ImageCropModal.js";
 
 interface OverviewTabProps {
   guild: Guild;
@@ -30,6 +31,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const [copiedId, setCopiedId] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [isCropModalOpen, setIsCropModalOpen] = useState(false);
 
   const hasChanges =
     name.trim() !== (guild.name || "").trim() ||
@@ -50,10 +53,18 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     setTimeout(() => setCopiedId(false), 2000);
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const mimeType = file.type || "image/png";
+    const objectUrl = URL.createObjectURL(file);
+    setCropSrc(objectUrl);
+    setIsCropModalOpen(true);
+    e.target.value = "";
+  };
+
+  const handleUploadCropped = async (croppedBlob: Blob) => {
+    const mimeType = "image/webp";
+    const fileName = `guild_icon_${Date.now()}.webp`;
 
     setIsUploading(true);
     try {
@@ -65,15 +76,15 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           ...getAuthHeaders(),
         },
         body: JSON.stringify({
-          fileName: file.name,
-          fileSize: file.size,
+          fileName,
+          fileSize: croppedBlob.size,
           mimeType,
           purpose: "guild-icon",
           guildId: guild.id,
         }),
       });
 
-      if (!res.ok) throw new Error("获取上传凭证失败");
+      if (!res.ok) throw new Error(t("errors:UPLOAD_FAILED", { defaultValue: "获取上传凭证失败" }));
       const { uploadUrl, fileUrl, requiresAuth } = await res.json();
 
       // 2. 直传文件 (经 resolveServerUrl 自愈相对路径走 Vite 代理)
@@ -84,13 +95,14 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           "Content-Type": mimeType,
           ...(requiresAuth ? getAuthHeaders() : {}),
         },
-        body: file,
+        body: croppedBlob,
       });
 
-      if (!uploadRes.ok) throw new Error("上传文件到存储服务失败");
+      if (!uploadRes.ok) throw new Error(t("errors:UPLOAD_FAILED", { defaultValue: "上传文件到存储服务失败" }));
       setIconUrl(fileUrl);
+      toast.success(t("server:overview.iconUploadSuccess", { defaultValue: "图标已裁剪压缩并上传" }));
     } catch (err: any) {
-      toast.error(err.message || "上传图标失败");
+      toast.error(err.message || t("errors:UPLOAD_FAILED", { defaultValue: "上传图标失败" }));
     } finally {
       setIsUploading(false);
     }
@@ -158,16 +170,18 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             <input
               type="file"
               accept="image/*"
-              onChange={handleFileUpload}
+              onChange={handleFileSelect}
               className="absolute inset-0 opacity-0 cursor-pointer"
               disabled={isUploading}
             />
           </div>
           <div className="text-[11px] text-gray-400 text-center md:text-left">
-            推荐尺寸至少为 512x512。
+            {t("server:overview.iconRecommendation", {
+              defaultValue: "推荐尺寸至少为 512x512，上传时支持拖拽缩放裁剪与自动压缩。",
+            })}
             {isUploading && (
               <span className="text-[#5865f2] block font-semibold animate-pulse">
-                正在上传文件...
+                {t("common:uploading", { defaultValue: "正在上传文件..." })}
               </span>
             )}
           </div>
@@ -186,19 +200,6 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
               onChange={(e) => setName(e.target.value)}
               placeholder={t("server:overview.namePlaceholder")}
               className="w-full bg-[#1e1f22] border border-white/10 rounded-lg px-4 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#5865f2] transition-colors"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-gray-300 mb-2">
-              图标网络直链 (URL 可选)
-            </label>
-            <input
-              type="text"
-              value={iconUrl}
-              onChange={(e) => setIconUrl(e.target.value)}
-              placeholder="https://example.com/icon.png"
-              className="w-full bg-[#1e1f22] border border-white/10 rounded-lg px-4 py-2 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-[#5865f2] transition-colors"
             />
           </div>
 
@@ -304,6 +305,21 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           </div>
         )}
       </div>
+
+      {/* 图标裁剪与压缩 Modal */}
+      <ImageCropModal
+        isOpen={isCropModalOpen}
+        imageSrc={cropSrc}
+        onClose={() => {
+          setIsCropModalOpen(false);
+          if (cropSrc) {
+            URL.revokeObjectURL(cropSrc);
+            setCropSrc(null);
+          }
+        }}
+        onConfirm={handleUploadCropped}
+        isCircular={true}
+      />
     </div>
   );
 };

@@ -514,9 +514,26 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
             </span>
           </div>
           {/* 桌面端内容与独立工具列的水平容器 */}
-          <div className="flex-1 min-h-0 flex flex-row">
+          <div className="flex-1 min-h-0 relative flex flex-col overflow-hidden">
+            {/* 桌面端 Discord 经典右侧独立工具列 (悬浮在右上侧，内容右侧，位于滚动条左侧) */}
+            <div className="hidden md:flex flex-col items-center absolute top-8 right-6 z-30 select-none pointer-events-auto">
+              <button
+                type="button"
+                data-testid="close-user-settings-btn"
+                onClick={onClose}
+                aria-label={t("common:close", { defaultValue: "关闭" })}
+                className="w-9 h-9 rounded-full border-2 border-white/20 hover:border-white flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/10 transition-all cursor-pointer shadow-lg bg-[#313338]/60 backdrop-blur-sm"
+                title={`${t("common:close", { defaultValue: "关闭" })} (ESC)`}
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <span className="text-[10px] font-bold text-gray-400 mt-1.5 select-none tracking-wide">
+                ESC
+              </span>
+            </div>
+
             {/* 内容画布容器 */}
-            <div className="flex-1 min-w-0 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-10 py-5 sm:py-8 pb-[max(1.25rem,env(safe-area-inset-bottom))] custom-scrollbar">
+            <div className="flex-1 min-w-0 min-h-0 overflow-y-auto overscroll-contain px-4 sm:px-10 py-5 sm:py-8 pr-16 sm:pr-20 pb-[max(1.25rem,env(safe-area-inset-bottom))] custom-scrollbar">
               {activeTab === "profile" && (
                 <div className="space-y-6 max-w-5xl">
                   <div>
@@ -1018,23 +1035,6 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
               {activeTab === "language" && <LanguageSettingsTab />}
 
               {activeTab === "updates" && <AboutUpdatesTab />}
-            </div>
-
-            {/* 桌面端 Discord 经典右侧独立工具列 (Tools Column) */}
-            <div className="hidden md:flex flex-col items-center w-16 pt-8 pr-3 flex-shrink-0 select-none">
-              <button
-                type="button"
-                data-testid="close-user-settings-btn"
-                onClick={onClose}
-                aria-label="关闭"
-                className="w-9 h-9 rounded-full border-2 border-white/20 hover:border-white flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/10 transition-all cursor-pointer"
-                title="关闭设置 (ESC)"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <span className="text-[10px] font-bold text-gray-400 mt-1.5 select-none tracking-wide">
-                ESC
-              </span>
             </div>
           </div>
         </div>

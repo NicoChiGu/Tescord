@@ -42,8 +42,39 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
   );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // 初始化拉取或创建邀请链接
-  const generateOrFetchInvite = async (opts: InviteOptions) => {
+  // 拉取当前用户在该服务器的现有活跃邀请链接（不自动创建新链接）
+  const fetchActiveInvite = async () => {
+    try {
+      setLoadingCode(true);
+      const res = await fetch(`${API_BASE}/api/guilds/${guild.id}/invites/active`, {
+        headers: {
+          ...getAuthHeaders(),
+        },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.invite) {
+          setInviteCode(data.invite.code);
+        } else {
+          setInviteCode("");
+        }
+      } else {
+        setInviteCode("");
+      }
+    } catch (err) {
+      console.error("Failed to fetch active invite:", err);
+      setInviteCode("");
+    } finally {
+      setLoadingCode(false);
+    }
+  };
+
+  // 通过按钮主动创建邀请链接（支持指定选项与 forceNew）
+  const handleCreateInvite = async (
+    opts?: InviteOptions,
+    forceNew: boolean = false,
+  ) => {
+    const targetOpts = opts || inviteOptions;
     try {
       setLoadingCode(true);
       const res = await fetch(`${API_BASE}/api/guilds/${guild.id}/invites`, {
@@ -53,15 +84,16 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
           ...getAuthHeaders(),
         },
         body: JSON.stringify({
-          maxAge: opts.maxAge,
-          maxUses: opts.maxUses,
-          isTemporary: opts.isTemporary,
+          maxAge: targetOpts.maxAge,
+          maxUses: targetOpts.maxUses,
+          isTemporary: targetOpts.isTemporary,
+          forceNew,
         }),
       });
       if (res.ok) {
         const data = await res.json();
         setInviteCode(data.code);
-        setInviteOptions(opts);
+        setInviteOptions(targetOpts);
       }
     } catch (err) {
       console.error("Failed to generate invite:", err);
@@ -73,7 +105,7 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       fetchRelationships();
-      generateOrFetchInvite(inviteOptions);
+      fetchActiveInvite();
       setSearchQuery("");
       setCopied(false);
     }
@@ -359,48 +391,84 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
               })}
             </div>
 
-            {/* 链接输入框 + 复制按钮 */}
-            <div className="flex items-center bg-[#1e1f22] rounded-md p-1 pl-3 border border-[#1f2023] focus-within:border-discord-brand transition">
-              <input
-                type="text"
-                readOnly
-                value={
-                  loadingCode
-                    ? t("common:loading", { defaultValue: "正在生成..." })
-                    : fullInviteUrl
-                }
-                className="bg-transparent text-sm text-discord-textNormal focus:outline-none flex-1 font-mono truncate select-all"
-              />
-              <button
-                onClick={handleCopy}
-                disabled={loadingCode || !fullInviteUrl}
-                className={`ml-2 px-4 py-2 rounded text-xs font-semibold transition text-white shrink-0 ${
-                  copied
-                    ? "bg-[#23a55a] hover:bg-[#23a55a]/90"
-                    : "bg-discord-brand hover:bg-discord-brand/90"
-                }`}
-              >
-                {copied
-                  ? t("common:copied", { defaultValue: "已複製" })
-                  : t("common:copy", { defaultValue: "複製" })}
-              </button>
-            </div>
+            {inviteCode ? (
+              <>
+                {/* 链接输入框 + 复制按钮 */}
+                <div className="flex items-center bg-[#1e1f22] rounded-md p-1 pl-3 border border-[#1f2023] focus-within:border-discord-brand transition">
+                  <input
+                    type="text"
+                    readOnly
+                    value={
+                      loadingCode
+                        ? t("common:loading", { defaultValue: "正在生成..." })
+                        : fullInviteUrl
+                    }
+                    className="bg-transparent text-sm text-discord-textNormal focus:outline-none flex-1 font-mono truncate select-all"
+                  />
+                  <button
+                    onClick={handleCopy}
+                    disabled={loadingCode || !fullInviteUrl}
+                    className={`ml-2 px-4 py-2 rounded text-xs font-semibold transition text-white shrink-0 ${
+                      copied
+                        ? "bg-[#23a55a] hover:bg-[#23a55a]/90"
+                        : "bg-discord-brand hover:bg-discord-brand/90"
+                    }`}
+                  >
+                    {copied
+                      ? t("common:copied", { defaultValue: "已複製" })
+                      : t("common:copy", { defaultValue: "複製" })}
+                  </button>
+                </div>
 
-            {/* 过期时间提示与编辑超链接 */}
-            <div className="flex items-center justify-between text-xs text-discord-textMuted pt-1">
-              <span className="truncate pr-2">{getExpirationText()}</span>
-              <button
-                onClick={() => setIsSettingsOpen(true)}
-                className="text-discord-brand hover:underline flex items-center space-x-1 shrink-0 font-medium"
-              >
-                <Settings className="w-3.5 h-3.5" />
-                <span>
-                  {t("modals:inviteFriends.editLink", {
-                    defaultValue: "編輯邀請連結",
-                  })}
+                {/* 过期时间提示与编辑超链接 */}
+                <div className="flex items-center justify-between text-xs text-discord-textMuted pt-1">
+                  <span className="truncate pr-2">{getExpirationText()}</span>
+                  <div className="flex items-center space-x-3">
+                    <button
+                      type="button"
+                      onClick={() => handleCreateInvite(inviteOptions, true)}
+                      disabled={loadingCode}
+                      className="text-gray-400 hover:text-white transition font-medium"
+                    >
+                      {t("modals:inviteFriends.generateNewLink", {
+                        defaultValue: "生成新链接",
+                      })}
+                    </button>
+                    <button
+                      onClick={() => setIsSettingsOpen(true)}
+                      className="text-discord-brand hover:underline flex items-center space-x-1 shrink-0 font-medium"
+                    >
+                      <Settings className="w-3.5 h-3.5" />
+                      <span>
+                        {t("modals:inviteFriends.editLink", {
+                          defaultValue: "編輯邀請連結",
+                        })}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-between bg-[#1e1f22] p-3 rounded-lg border border-white/5">
+                <span className="text-xs text-discord-textMuted">
+                  {loadingCode
+                    ? t("common:loading", { defaultValue: "查询中..." })
+                    : t("modals:inviteFriends.noActiveInvitePrompt", {
+                        defaultValue: "当前尚未建立邀请链接，点击右侧按钮建立。",
+                      })}
                 </span>
-              </button>
-            </div>
+                <button
+                  type="button"
+                  onClick={() => handleCreateInvite(inviteOptions, false)}
+                  disabled={loadingCode}
+                  className="px-4 py-2 rounded text-xs font-semibold bg-discord-brand hover:bg-discord-brand/90 text-white shrink-0 transition"
+                >
+                  {t("modals:inviteFriends.createInviteBtn", {
+                    defaultValue: "建立邀请链接",
+                  })}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -410,7 +478,7 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         currentOptions={inviteOptions}
-        onGenerate={generateOrFetchInvite}
+        onGenerate={(opts) => handleCreateInvite(opts, true)}
       />
     </>
   );

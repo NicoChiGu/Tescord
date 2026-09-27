@@ -41,6 +41,7 @@ import { GlobalToastContainer } from "./components/ui/dialog/GlobalToastContaine
 import { dialog } from "./stores/useDialogStore.js";
 import { useTranslation } from "react-i18next";
 import { installFetchInterceptor } from "./services/apiClient.js";
+import { getUserDisplayName } from "./utils/userDisplay.js";
 
 installFetchInterceptor();
 import { UserSettingsModal } from "./components/settings/UserSettingsModal.js";
@@ -291,13 +292,24 @@ export const App: React.FC = () => {
       const endpoint = callId
         ? `${API_BASE}/api/channels/dm/${channelId}/call-token`
         : `${API_BASE}/api/livekit/token`;
+      const currentGuild = guildsRef.current.find((g) =>
+        g.channels.some((c) => c.id === channelId),
+      );
+      const currentMember = currentGuild?.members?.find(
+        (m) => m.userId === user.id,
+      );
+      const participantName = getUserDisplayName(
+        user,
+        currentMember,
+        user.username,
+      );
       const body = callId
         ? { callId, sessionId: gatewayClient.getSessionId() }
         : {
             roomName: channelId,
             identity: user.id,
             gatewaySessionId: gatewayClient.getSessionId(),
-            name: user.username,
+            name: participantName,
             bitrate:
               channel?.bitrate || audioEngine.config.audioBitrate || 64000,
           };
@@ -3056,18 +3068,29 @@ export const App: React.FC = () => {
 
     try {
       if (!isP2PMesh && !isCloudflareActive && !joinSuccess) {
-        const token = useAuthStore.getState().token;
+        const currentGuild = guildsRef.current.find((g) =>
+          g.channels.some((c) => c.id === channel.id),
+        );
+        const currentMember = currentGuild?.members?.find(
+          (m) => m.userId === currentUser.id,
+        );
+        const participantName = getUserDisplayName(
+          currentUser,
+          currentMember,
+          currentUser.username,
+        );
+        const currentToken = useAuthStore.getState().token;
         const res = await fetch(`${API_BASE}/api/livekit/token`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(currentToken ? { Authorization: `Bearer ${currentToken}` } : {}),
           },
           body: JSON.stringify({
             roomName: channel.id,
             identity: currentUser.id,
             gatewaySessionId: gatewayClient.getSessionId(),
-            name: currentUser.username,
+            name: participantName,
             bitrate,
           }),
         });

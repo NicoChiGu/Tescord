@@ -17,6 +17,8 @@
     "auditLog": "Audit Log",
     "deleteServer": "Delete Server"
   },
+  "serverSettingsClose": "Close Server Settings",
+  "serverSettingsBack": "Back to Server Settings Menu",
   "overview": {
     "title": "Server Overview",
     "nameLabel": "Server Name",
@@ -25,6 +27,9 @@
     "uploadIcon": "Upload Icon",
     "changeIcon": "Change Icon",
     "randomIcon": "Random Icon",
+    "iconRecommendation": "Recommended size at least 512x512. Supports drag, zoom, crop, and automatic compression.",
+    "iconUploadSuccess": "Icon cropped, compressed, and uploaded successfully",
+    "updateFailed": "Failed to update server info",
     "descriptionLabel": "Server Description",
     "descriptionPlaceholder": "Tell people what this server is about...",
     "publicTitle": "Make this server public in Discovery",
@@ -44,11 +49,30 @@
     "roleName": "Role Name",
     "roleColor": "Role Color",
     "permissions": "Permissions",
+    "permissionsDesc": "Enable or disable corresponding server permissions for members with this role.",
+    "createSuccess": "Role created successfully",
+    "deleteSuccess": "Role deleted successfully",
+    "createFailed": "Failed to create role",
+    "updateFailed": "Failed to update role",
+    "deleteFailed": "Failed to delete role",
+    "hoistLabel": "Display role members separately in online list (Hoist)",
+    "hoistDesc": "Group members with this role separately in the member list",
+    "defaultColor": "Default (No Color)",
+    "dangerousBadge": "Dangerous",
+    "cannotAssignHigherRole": "This role's hierarchy position is higher than or equal to your highest role",
     "deleteRole": "Delete Role",
     "deleteConfirmTitle": "Delete Role",
     "deleteConfirmDesc": "Are you sure you want to delete role \"{{name}}\"? This cannot be undone.",
     "saveSuccess": "Role updated successfully",
     "hierarchyWarning": "This role has equal or higher hierarchy than your highest role. You only have view permissions and cannot modify it.",
+    "categories": {
+      "all": "All",
+      "general": "General",
+      "membership": "Membership",
+      "text": "Text Permissions",
+      "voice": "Voice Permissions",
+      "advanced": "Advanced Privileges"
+    },
     "perm": {
       "administrator": "Administrator (Grants all permissions)",
       "manageGuild": "Manage Server",
@@ -71,6 +95,21 @@
     "title": "Server Members",
     "searchPlaceholder": "Search members by name or nickname...",
     "membersCount": "{{count}} Members",
+    "noMembersFound": "No matching members found",
+    "nicknamePlaceholder": "Enter server nickname",
+    "defaultMemberName": "this member",
+    "unknownMember": "Unknown Member",
+    "kickSuccess": "Kicked member \"{{name}}\" from server",
+    "banSuccess": "Banned member \"{{name}}\"",
+    "transferConfirmDesc": "Are you sure you want to transfer ownership of this server to \"{{name}}\"? This action cannot be undone and you will lose full server owner privileges!",
+    "transferSuccess": "Successfully transferred server ownership to \"{{name}}\"",
+    "transferSuccessNotice": "Server ownership transferred successfully!",
+    "transferFailed": "Failed to transfer ownership",
+    "roleUpdateFailed": "Failed to update member roles",
+    "nicknameUpdateFailed": "Failed to update nickname",
+    "updateFailed": "Failed to update member info",
+    "kickFailed": "Failed to kick member",
+    "banFailed": "Failed to ban member",
     "table": {
       "user": "Member",
       "roles": "Roles",
@@ -126,7 +165,8 @@
       "actions": "Actions"
     },
     "unban": "Unban",
-    "unbanSuccess": "Member unbanned successfully"
+    "unbanSuccess": "Member unbanned successfully",
+    "unbanFailed": "Failed to unban member"
   },
   "auditLog": {
     "title": "Audit Log",
@@ -161,7 +201,8 @@
     "warning": "Deleting a server is permanent and irreversible. All channels, message history, attachments, and roles will be purged forever.",
     "promptLabel": "Enter server name to confirm:",
     "confirmBtn": "Delete Server",
-    "submitting": "Deleting..."
+    "submitting": "Deleting...",
+    "deleteFailed": "Failed to delete server"
   },
   "createChannel": "Create Channel",
   "channelName": "Channel Name",
