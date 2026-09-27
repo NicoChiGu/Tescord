@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import "@fontsource-variable/inter";
 import { App } from "./App.js";
 import { AuthWindowApp } from "./AuthWindowApp.js";
 import "./index.css";

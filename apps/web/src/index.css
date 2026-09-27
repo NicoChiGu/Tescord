@@ -4,6 +4,38 @@
 
 :root {
   --visual-viewport-height: 100dvh;
+  /* 基础 CJK 回退字体序列，默认 zh-CN 简体中文 */
+  --font-cjk: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Source Han Sans CN", "Noto Sans SC", sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", Menlo, Monaco, Consolas, "Courier New", monospace;
+}
+
+/* 简体中文环境 (zh-CN) */
+:root:lang(zh-CN),
+:root:lang(zh) {
+  --font-cjk: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei UI", "Microsoft YaHei", "Source Han Sans CN", "Noto Sans SC", sans-serif;
+}
+
+/* 繁體中文 - 台灣 (zh-TW) */
+:root:lang(zh-TW) {
+  --font-cjk: "PingFang TC", "Hiragino Sans TC", "Microsoft JhengHei UI", "Microsoft JhengHei", "Source Han Sans TC", "Noto Sans TC", sans-serif;
+}
+
+/* 繁體中文 - 香港 (zh-HK) */
+:root:lang(zh-HK),
+:root:lang(zh-MO) {
+  --font-cjk: "PingFang HK", "Microsoft JhengHei UI", "Microsoft JhengHei", "Noto Sans HK", "Source Han Sans HK", sans-serif;
+}
+
+/* 日本語环境 (ja-JP) */
+:root:lang(ja),
+:root:lang(ja-JP) {
+  --font-cjk: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic", Meiryo, "Noto Sans JP", sans-serif;
+}
+
+/* 英语环境 (en-US) */
+:root:lang(en),
+:root:lang(en-US) {
+  --font-cjk: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 
 html,
@@ -17,6 +49,29 @@ body,
   overscroll-behavior-x: none;
   overscroll-behavior-y: none;
   touch-action: pan-y pinch-zoom;
+}
+
+html,
+body {
+  font-family: "Inter Variable", Inter, var(--font-cjk), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  /* Discord 风格 OpenType 易读性优化：
+     cv02: 单层无衬线小写 a
+     cv03: 带弯钩小写 g
+     cv04: 带衬线数字 1 (消除与小写 l、大写 I 混淆)
+     cv11: 带尾弯小写 l (进一步强化辨识度)
+  */
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+code,
+kbd,
+samp,
+pre {
+  font-family: var(--font-mono);
+  font-feature-settings: normal;
 }
 
 /* 消息内容区允许正常选词与复制 */

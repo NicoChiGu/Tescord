@@ -217,4 +217,65 @@ test.describe("Tescord 多国语言 (i18n: zh-CN / zh-TW / zh-HK / en-US / ja-JP
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "保留中" })).toBeVisible();
   });
+
+  test("3. 多语言环境下 Inter 西文字体、OpenType 易读性特征与 CJK 动态字形栈严格联动", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      localStorage.removeItem("tescord_access_token");
+      localStorage.removeItem("tescord_refresh_token");
+      localStorage.setItem("tescord_locale", "zh-CN");
+    });
+
+    await page.goto("/");
+
+    // 3.1 默认简体中文环境验证
+    const defaultLang = await page.evaluate(() => document.documentElement.lang);
+    expect(defaultLang).toMatch(/^zh/i);
+
+    const bodyTypography = await page.evaluate(() => {
+      const style = window.getComputedStyle(document.body);
+      const rootStyle = window.getComputedStyle(document.documentElement);
+      return {
+        fontFamily: style.fontFamily,
+        fontFeatureSettings: style.fontFeatureSettings,
+        fontCjk: rootStyle.getPropertyValue("--font-cjk").trim(),
+      };
+    });
+
+    expect(bodyTypography.fontFamily).toMatch(/Inter/i);
+    expect(bodyTypography.fontFeatureSettings).toContain("cv02");
+    expect(bodyTypography.fontFeatureSettings).toContain("cv11");
+    expect(bodyTypography.fontCjk).toMatch(/PingFang SC|Microsoft YaHei/i);
+
+    // 3.2 切换至日语 ja-JP 并验证 --font-cjk 动态响应切换为日文字体
+    const langSelector = page.getByTestId("auth-language-selector");
+    await expect(langSelector).toBeVisible();
+    await langSelector.click();
+    await page.getByTestId("auth-lang-ja-JP").click();
+
+    const jaTypography = await page.evaluate(() => {
+      const rootStyle = window.getComputedStyle(document.documentElement);
+      return {
+        lang: document.documentElement.lang,
+        fontCjk: rootStyle.getPropertyValue("--font-cjk").trim(),
+      };
+    });
+    expect(jaTypography.lang).toBe("ja-JP");
+    expect(jaTypography.fontCjk).toMatch(/Hiragino|Yu Gothic|Meiryo/i);
+
+    // 3.3 切换至繁体台湾 zh-TW 并验证 --font-cjk 切换为台湾正体字体
+    await langSelector.click();
+    await page.getByTestId("auth-lang-zh-TW").click();
+
+    const twTypography = await page.evaluate(() => {
+      const rootStyle = window.getComputedStyle(document.documentElement);
+      return {
+        lang: document.documentElement.lang,
+        fontCjk: rootStyle.getPropertyValue("--font-cjk").trim(),
+      };
+    });
+    expect(twTypography.lang).toBe("zh-TW");
+    expect(twTypography.fontCjk).toMatch(/PingFang TC|Microsoft JhengHei/i);
+  });
 });
