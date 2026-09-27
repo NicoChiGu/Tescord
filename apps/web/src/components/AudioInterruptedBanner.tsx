@@ -1,31 +1,46 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { VolumeX, Loader2, Play } from "lucide-react";
-import { livekitService, AudioPlaybackStatus } from "../services/livekit";
+import { AudioPlaybackStatus } from "@tescord/types";
+import { livekitService } from "../services/livekit";
+import { cloudflareRealtimeService } from "../services/cloudflare_realtime";
 
 export const AudioInterruptedBanner: React.FC = () => {
   const { t } = useTranslation("voice");
-  const [playbackStatus, setPlaybackStatus] = useState<AudioPlaybackStatus>(
-    () => livekitService.getAudioPlaybackStatus(),
+  const [livekitStatus, setLivekitStatus] = useState<AudioPlaybackStatus>(() =>
+    livekitService.getAudioPlaybackStatus(),
+  );
+  const [cloudflareStatus, setCloudflareStatus] = useState<AudioPlaybackStatus>(
+    () => cloudflareRealtimeService.getAudioPlaybackStatus(),
   );
   const [isResuming, setIsResuming] = useState(false);
   const isResumingRef = useRef(false);
 
   useEffect(() => {
-    const unsubscribe = livekitService.onAudioPlaybackStatusChange((status) => {
-      setPlaybackStatus(status);
-    });
+    const unsubscribeLiveKit =
+      livekitService.onAudioPlaybackStatusChange(setLivekitStatus);
+    const unsubscribeCloudflare =
+      cloudflareRealtimeService.onAudioPlaybackStatusChange(
+        setCloudflareStatus,
+      );
     return () => {
-      unsubscribe();
+      unsubscribeLiveKit();
+      unsubscribeCloudflare();
     };
   }, []);
+
+  const isInterrupted =
+    livekitStatus.isInterrupted || cloudflareStatus.isInterrupted;
 
   const handleResume = useCallback(async () => {
     if (isResumingRef.current) return;
     isResumingRef.current = true;
     setIsResuming(true);
     try {
-      await livekitService.resumeAudio();
+      await Promise.all([
+        livekitService.resumeAudio(),
+        cloudflareRealtimeService.resumeAudio(),
+      ]);
     } catch (err) {
       console.warn("[AudioInterruptedBanner] Resume error:", err);
     } finally {
@@ -36,7 +51,7 @@ export const AudioInterruptedBanner: React.FC = () => {
 
   // 全屏透明手势兜底：当音频处于中断状态时，用户轻触屏幕任意区域即可解锁 WebKit 音频上下文
   useEffect(() => {
-    if (!playbackStatus.isInterrupted) return;
+    if (!isInterrupted) return;
 
     const onPassiveUserGesture = () => {
       void handleResume();
@@ -59,9 +74,9 @@ export const AudioInterruptedBanner: React.FC = () => {
         capture: true,
       });
     };
-  }, [playbackStatus.isInterrupted, handleResume]);
+  }, [isInterrupted, handleResume]);
 
-  if (!playbackStatus.isInterrupted) {
+  if (!isInterrupted) {
     return null;
   }
 

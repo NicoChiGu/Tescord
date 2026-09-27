@@ -9,6 +9,7 @@ import {
   CfStreamViewersEvent,
   NetworkStats,
   StreamDetailedStats,
+  AudioPlaybackStatus,
   clampVolume,
 } from "@tescord/types";
 import { sframeManager } from "../sframe.js";
@@ -93,6 +94,14 @@ export class CloudflareRealtimeService {
   private playbackContext: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private masterVolume = 100;
+  private audioPlaybackStatus: AudioPlaybackStatus = {
+    canPlay: true,
+    isInterrupted: false,
+  };
+  private audioPlaybackStatusListeners = new Set<
+    (status: AudioPlaybackStatus) => void
+  >();
+  private playbackLifecycleBound = false;
   private deafened = false;
   private streamVolumes = new Map<string, number>();
   private activeSpeakers = new Set<string>();
@@ -172,14 +181,128 @@ export class CloudflareRealtimeService {
   private getOrCreatePlaybackContext(): AudioContext {
     if (!this.playbackContext || this.playbackContext.state === "closed") {
       this.playbackContext = new AudioContext();
+      this.playbackContext.addEventListener(
+        "statechange",
+        this.handlePlaybackContextStateChange,
+      );
       this.masterGain = this.playbackContext.createGain();
       this.masterGain.connect(this.playbackContext.destination);
       this.updatePlaybackGains();
       void this.applyOutputDevice();
+      this.bindPlaybackLifecycleListeners();
     }
     if (this.playbackContext.state === "suspended")
       void this.playbackContext.resume().catch(() => undefined);
     return this.playbackContext;
+  }
+
+  public getAudioPlaybackStatus(): AudioPlaybackStatus {
+    return { ...this.audioPlaybackStatus };
+  }
+
+  public onAudioPlaybackStatusChange(
+    listener: (status: AudioPlaybackStatus) => void,
+  ): () => void {
+    this.audioPlaybackStatusListeners.add(listener);
+    listener(this.getAudioPlaybackStatus());
+    return () => this.audioPlaybackStatusListeners.delete(listener);
+  }
+
+  private setAudioPlaybackStatus(status: Partial<AudioPlaybackStatus>): void {
+    const next = { ...this.audioPlaybackStatus, ...status };
+    if (
+      next.canPlay === this.audioPlaybackStatus.canPlay &&
+      next.isInterrupted === this.audioPlaybackStatus.isInterrupted &&
+      next.error === this.audioPlaybackStatus.error
+    )
+      return;
+    this.audioPlaybackStatus = next;
+    for (const listener of this.audioPlaybackStatusListeners) listener(next);
+  }
+
+  private handlePlaybackContextStateChange = (): void => {
+    const state = this.playbackContext?.state as string | undefined;
+    if (state === "suspended" || state === "interrupted") {
+      this.setAudioPlaybackStatus({ canPlay: false, isInterrupted: true });
+    } else if (state === "running") {
+      this.setAudioPlaybackStatus({
+        canPlay: true,
+        isInterrupted: false,
+        error: undefined,
+      });
+    }
+  };
+
+  private attemptSilentAudioRecovery = (): void => {
+    if (!this.currentChannelId) return;
+    void this.resumeAudio();
+  };
+
+  private onPlaybackVisibilityChange = (): void => {
+    if (document.visibilityState === "visible")
+      this.attemptSilentAudioRecovery();
+  };
+
+  private bindPlaybackLifecycleListeners(): void {
+    if (this.playbackLifecycleBound || typeof window === "undefined") return;
+    document.addEventListener(
+      "visibilitychange",
+      this.onPlaybackVisibilityChange,
+    );
+    window.addEventListener("pageshow", this.attemptSilentAudioRecovery);
+    window.addEventListener("focus", this.attemptSilentAudioRecovery);
+    this.playbackLifecycleBound = true;
+  }
+
+  private unbindPlaybackLifecycleListeners(): void {
+    if (!this.playbackLifecycleBound || typeof window === "undefined") return;
+    document.removeEventListener(
+      "visibilitychange",
+      this.onPlaybackVisibilityChange,
+    );
+    window.removeEventListener("pageshow", this.attemptSilentAudioRecovery);
+    window.removeEventListener("focus", this.attemptSilentAudioRecovery);
+    this.playbackLifecycleBound = false;
+  }
+
+  public async resumeAudio(): Promise<boolean> {
+    let canPlay = true;
+    if (this.playbackContext && this.playbackContext.state !== "closed") {
+      const state = this.playbackContext.state as string;
+      if (state === "suspended" || state === "interrupted") {
+        try {
+          await this.playbackContext.resume();
+        } catch (error) {
+          console.warn("[CF Realtime] Resume AudioContext failed", error);
+          canPlay = false;
+        }
+      }
+      canPlay = canPlay && this.playbackContext.state === "running";
+    }
+
+    const fallbackElements = [...this.audioElements.entries()].filter(
+      ([trackId, audio]) => !this.audioRoutes.has(trackId) && audio.paused,
+    );
+    const playbackResults = await Promise.allSettled(
+      fallbackElements.map(([, audio]) => audio.play()),
+    );
+    if (playbackResults.some((result) => result.status === "rejected"))
+      canPlay = false;
+
+    this.setAudioPlaybackStatus({
+      canPlay,
+      isInterrupted: !canPlay,
+      error: undefined,
+    });
+    return canPlay;
+  }
+
+  public simulateInterruption(isInterrupted = true): void {
+    this.setAudioPlaybackStatus({
+      canPlay: !isInterrupted,
+      isInterrupted,
+      error: undefined,
+    });
   }
 
   private async applyOutputDevice(): Promise<void> {
@@ -1921,10 +2044,21 @@ export class CloudflareRealtimeService {
     // 释放远端播放 Audio 元素
     for (const trackId of [...this.audioElements.keys()])
       this.releaseRemoteTrack(trackId);
-    if (this.playbackContext)
+    this.unbindPlaybackLifecycleListeners();
+    if (this.playbackContext) {
+      this.playbackContext.removeEventListener(
+        "statechange",
+        this.handlePlaybackContextStateChange,
+      );
       await this.playbackContext.close().catch(() => undefined);
+    }
     this.playbackContext = null;
     this.masterGain = null;
+    this.setAudioPlaybackStatus({
+      canPlay: true,
+      isInterrupted: false,
+      error: undefined,
+    });
     this.activeSpeakers.clear();
     this.emitSpeakers();
     this.remoteStreams.clear();
@@ -1982,18 +2116,43 @@ export class CloudflareRealtimeService {
       maxGatherTimeMs?: number;
     },
   ): Promise<void> {
-    const timeoutMs = options?.timeoutMs ?? 3500;
+    const timeoutMs = options?.timeoutMs ?? 10_000;
     const debounceMs = options?.debounceMs ?? 500;
-    const maxGatherTimeMs = options?.maxGatherTimeMs ?? 1200;
+    const maxGatherTimeMs = options?.maxGatherTimeMs ?? 2500;
 
-    let gatheredCount = 0;
-    const hasCandidate = () =>
-      pc.localDescription?.sdp?.includes("a=candidate:") === true ||
-      gatheredCount > 0;
+    const candidateTypes = new Set<string>();
+    let gatheredCandidateCount = 0;
+    const captureSdpCandidates = () => {
+      const sdp = pc.localDescription?.sdp || "";
+      for (const match of sdp.matchAll(/\btyp\s+(host|srflx|prflx|relay)\b/g))
+        candidateTypes.add(match[1]);
+    };
+    const configuration = pc.getConfiguration?.() || {};
+    const relayOnly = configuration.iceTransportPolicy === "relay";
+    const hasTurnServer = (configuration.iceServers || []).some((server) => {
+      const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+      return urls.some((url) => /^turns?:/i.test(url));
+    });
+    const hasAnyCandidate = () => {
+      captureSdpCandidates();
+      return candidateTypes.size > 0 || gatheredCandidateCount > 0;
+    };
+    const hasPreferredCandidate = () => {
+      captureSdpCandidates();
+      return relayOnly
+        ? candidateTypes.has("relay")
+        : candidateTypes.has("srflx") || candidateTypes.has("relay");
+    };
+    const hasFinalCandidate = () => {
+      return relayOnly ? hasPreferredCandidate() : hasAnyCandidate();
+    };
 
-    // 1. 若进入前已处于 complete 状态且已包含有效候选，直接 0ms 返回
-    if (pc.iceGatheringState === "complete" && hasCandidate()) {
-      return;
+    // Cloudflare 使用完整 SDP（非 trickle ICE）协商。收集中不能因首个
+    // host 候选提前提交；收集完成后普通策略仍保留 host-only 的 ICE 回退，
+    // relay-only 策略则必须实际收集到 relay 候选。
+    if (pc.iceGatheringState === "complete") {
+      if (hasFinalCandidate()) return;
+      throw new Error("No ICE candidates gathered for the required transport");
     }
 
     await new Promise<void>((resolve, reject) => {
@@ -2023,30 +2182,39 @@ export class CloudflareRealtimeService {
       const finish = (isSuccess: boolean, reason?: string) => {
         if (finished) return;
         cleanup();
-        if (isSuccess && hasCandidate()) {
+        if (isSuccess && hasFinalCandidate()) {
           resolve();
-        } else if (!hasCandidate()) {
-          reject(new Error(reason || "No ICE candidates gathered"));
         } else {
-          resolve();
+          reject(
+            new Error(
+              reason || "No ICE candidates gathered for the required transport",
+            ),
+          );
         }
       };
 
       const onCandidate = (e: RTCPeerConnectionIceEvent) => {
         if (!e.candidate) {
           // 浏览器底层所有候选收集完成标志
-          finish(true);
+          finish(hasFinalCandidate());
           return;
         }
 
-        gatheredCount++;
+        gatheredCandidateCount++;
         const candidateStr = e.candidate.candidate || "";
+        const typeMatch = candidateStr.match(
+          /\btyp\s+(host|srflx|prflx|relay)\b/,
+        );
+        if (typeMatch) candidateTypes.add(typeMatch[1]);
         // 捕获到公网反射 (srflx) 或中继 (relay) 候选时，启动短防抖打捞，不必死等慢速的 TLS/TCP TURN 协议
-        const isPublicOrRelay =
-          candidateStr.includes("typ srflx") ||
-          candidateStr.includes("typ relay");
+        const isPublicOrRelay = relayOnly
+          ? candidateTypes.has("relay")
+          : candidateTypes.has("srflx") || candidateTypes.has("relay");
 
-        if (isPublicOrRelay && !debounceTimer) {
+        const canDebounce =
+          candidateTypes.has("relay") ||
+          (!hasTurnServer && candidateTypes.has("srflx"));
+        if (isPublicOrRelay && canDebounce && !debounceTimer) {
           debounceTimer = setTimeout(() => {
             finish(true);
           }, debounceMs);
@@ -2055,20 +2223,20 @@ export class CloudflareRealtimeService {
 
       const onStateChange = () => {
         if (pc.iceGatheringState === "complete") {
-          finish(true);
+          finish(hasFinalCandidate());
         }
       };
 
-      // 达到最大打捞时间，若已有候选立即出发，杜绝在慢速协议上浪费时间
+      // 达到最大打捞时间，仅在已有公网可用候选时提前提交 SDP。
       maxTimer = setTimeout(() => {
-        if (hasCandidate()) {
+        if (hasPreferredCandidate()) {
           finish(true);
         }
       }, maxGatherTimeMs);
 
       // 最终硬超时兜底保护
       hardTimer = setTimeout(() => {
-        finish(hasCandidate(), "ICE candidate gathering timed out");
+        finish(hasFinalCandidate(), "ICE candidate gathering timed out");
       }, timeoutMs);
 
       pc.addEventListener("icecandidate", onCandidate);
@@ -2076,7 +2244,7 @@ export class CloudflareRealtimeService {
 
       // 防御性立即检查一次状态
       if (pc.iceGatheringState === "complete") {
-        finish(true);
+        finish(hasFinalCandidate());
       }
     });
   }

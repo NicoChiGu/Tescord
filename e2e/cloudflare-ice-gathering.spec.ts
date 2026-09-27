@@ -12,8 +12,9 @@ test.describe("Cloudflare Realtime ICE Gathering Smart Early-Exit", () => {
 
       const pc = new EventTarget() as any;
       pc.iceGatheringState = "complete";
+      pc.getConfiguration = () => ({ iceTransportPolicy: "all" });
       pc.localDescription = {
-        sdp: "v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=-\r\na=candidate:1 1 UDP 2130706431 192.168.1.1 5000 typ host\r\n",
+        sdp: "v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=-\r\na=candidate:1 1 UDP 2130706431 203.0.113.10 5000 typ srflx\r\n",
       };
 
       const startTime = performance.now();
@@ -28,6 +29,85 @@ test.describe("Cloudflare Realtime ICE Gathering Smart Early-Exit", () => {
     });
 
     expect(result.elapsed).toBeLessThan(100);
+  });
+
+  test("Host-only gathering does not exit early but remains a final fallback after completion", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const result = await page.evaluate(async () => {
+      const service = (window as any).cloudflareRealtimeService;
+      const pc = new EventTarget() as any;
+      pc.iceGatheringState = "gathering";
+      pc.getConfiguration = () => ({ iceTransportPolicy: "all" });
+      pc.localDescription = {
+        sdp: "v=0\r\na=candidate:1 1 UDP 2130706431 192.168.1.1 5000 typ host\r\n",
+      };
+      const waiting = service.testWaitForIceGathering(pc, {
+        timeoutMs: 1000,
+        debounceMs: 50,
+        maxGatherTimeMs: 100,
+      });
+      await new Promise((resolve) => setTimeout(resolve, 180));
+      const wasStillWaiting = await Promise.race([
+        waiting.then(() => false),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 20)),
+      ]);
+      pc.iceGatheringState = "complete";
+      pc.dispatchEvent(new Event("icegatheringstatechange"));
+      await waiting;
+      return { wasStillWaiting };
+    });
+    expect(result.wasStillWaiting).toBe(true);
+  });
+
+  test("Relay-only policy does not resolve for srflx and waits for a relay candidate", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const result = await page.evaluate(async () => {
+      const service = (window as any).cloudflareRealtimeService;
+      const pc = new EventTarget() as any;
+      pc.iceGatheringState = "gathering";
+      pc.getConfiguration = () => ({ iceTransportPolicy: "relay" });
+      pc.localDescription = { sdp: "v=0\r\n" };
+      const startedAt = performance.now();
+      const waiting = service.testWaitForIceGathering(pc, {
+        timeoutMs: 1000,
+        debounceMs: 50,
+        maxGatherTimeMs: 100,
+      });
+      pc.dispatchEvent(
+        new RTCPeerConnectionIceEvent("icecandidate", {
+          candidate: new RTCIceCandidate({
+            candidate:
+              "candidate:1 1 UDP 1694498815 203.0.113.10 5000 typ srflx",
+            sdpMid: "0",
+            sdpMLineIndex: 0,
+          }),
+        }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, 180));
+      const wasStillWaiting = await Promise.race([
+        waiting.then(() => false),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(true), 20)),
+      ]);
+      pc.dispatchEvent(
+        new RTCPeerConnectionIceEvent("icecandidate", {
+          candidate: new RTCIceCandidate({
+            candidate:
+              "candidate:2 1 UDP 1677729535 198.51.100.20 6000 typ relay",
+            sdpMid: "0",
+            sdpMLineIndex: 0,
+          }),
+        }),
+      );
+      await waiting;
+      return { wasStillWaiting, elapsed: performance.now() - startedAt };
+    });
+    expect(result.wasStillWaiting).toBe(true);
+    expect(result.elapsed).toBeGreaterThanOrEqual(200);
+    expect(result.elapsed).toBeLessThan(800);
   });
 
   test("Early-Exit completes well under 2.5 seconds with active STUN/TURN gathering instead of waiting 10+ seconds", async ({
@@ -85,6 +165,7 @@ test.describe("Cloudflare Realtime ICE Gathering Smart Early-Exit", () => {
       // 创建一个完全没有任何 candidate 的 dummy pc
       const pc = new EventTarget() as any;
       pc.iceGatheringState = "gathering";
+      pc.getConfiguration = () => ({ iceTransportPolicy: "all" });
       pc.localDescription = {
         sdp: "v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=-\r\n",
       }; // 无 a=candidate

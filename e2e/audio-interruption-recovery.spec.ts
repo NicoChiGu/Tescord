@@ -60,7 +60,22 @@ test.describe("iOS & 移动端 Web 音频中断恢复与生命周期唤醒（方
     await expect(banner).toHaveCount(0, { timeout: 5000 });
   });
 
-  test("3. 多语言环境下 (zh-CN / zh-TW / zh-HK / en-US / ja-JP) 文案 100% 完整与无硬编码", async ({
+  test("3. Cloudflare Realtime 回放中断使用同一横幅恢复", async ({ page }) => {
+    await page.goto("/");
+    const banner = page.locator("aside[role='alert']");
+    await page.evaluate(() => {
+      (window as any).cloudflareRealtimeService?.simulateInterruption(true);
+    });
+    await expect(banner).toBeVisible({ timeout: 5000 });
+    await banner.getByRole("button", { name: /点击恢复音频/i }).click();
+    await expect(banner).toHaveCount(0, { timeout: 5000 });
+    const status = await page.evaluate(() =>
+      (window as any).cloudflareRealtimeService?.getAudioPlaybackStatus(),
+    );
+    expect(status).toMatchObject({ canPlay: true, isInterrupted: false });
+  });
+
+  test("4. 多语言环境下 (zh-CN / zh-TW / zh-HK / en-US / ja-JP) 文案 100% 完整与无硬编码", async ({
     page,
   }) => {
     const locales = [

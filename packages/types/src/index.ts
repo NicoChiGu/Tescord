@@ -719,6 +719,12 @@ export type GatewayConnectionState =
 export type VoiceConnectionStatus =
   "disconnected" | "connecting" | "connected" | "reconnecting";
 
+export interface AudioPlaybackStatus {
+  canPlay: boolean;
+  isInterrupted: boolean;
+  error?: string;
+}
+
 export interface GatewayPingStats {
   ping: number; // 毫秒往返延迟 (RTT)
   lastAckTimestamp: number;

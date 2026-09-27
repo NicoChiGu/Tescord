@@ -27,6 +27,7 @@ import {
   MIN_CUSTOM_BITRATE,
   MAX_CUSTOM_BITRATE,
   VoiceConnectionStatus,
+  AudioPlaybackStatus,
   StreamDetailedStats,
   ConnectionTopology,
 } from "@tescord/types";
@@ -38,12 +39,6 @@ import { useSettingsStore } from "../stores/useSettingsStore.js";
 import { bitrateCalculator } from "./stats/BitrateCalculator.js";
 
 export type { StreamDetailedStats };
-
-export interface AudioPlaybackStatus {
-  canPlay: boolean;
-  isInterrupted: boolean;
-  error?: string;
-}
 
 let cachedH265Supported: boolean | null = null;
 let cachedH265Reason: string | undefined = undefined;
