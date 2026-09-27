@@ -549,71 +549,6 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
         <div
           className={`absolute top-2 right-2 flex items-center space-x-1.5 z-20 ${controlsVisibilityClass}`}
         >
-          {/* 语音 P2P 模式下右上角成员独立 Ping 延迟展示 (SFU 模式下不展示) */}
-          {isP2P && !isMe && (
-            <button
-              type="button"
-              data-testid={`participant-p2p-ping-${participant.userId}`}
-              data-connection-status={peerLatency?.status || "connecting"}
-              data-connection-type={peerLatency?.connectionType || "P2P"}
-              disabled={peerLatency?.status !== "failed"}
-              onClick={(event) => {
-                event.stopPropagation();
-                if (peerLatency?.status === "failed") {
-                  void voiceMeshManager.retryPeer(participant.userId);
-                }
-              }}
-              className={`flex items-center space-x-1 px-1.5 py-0.5 rounded-md text-[10px] font-mono border backdrop-blur-md transition shadow-sm select-none ${
-                peerLatency?.status === "failed"
-                  ? "bg-discord-danger/20 text-discord-danger border-discord-danger/50 cursor-pointer hover:bg-discord-danger/30"
-                  : peerLatency?.status === "connected" && peerLatency.rtt > 0
-                    ? peerLatency.rtt < 50
-                      ? "bg-discord-green/20 text-discord-green border-discord-green/40"
-                      : peerLatency.rtt < 120
-                        ? "bg-[#faa61a]/20 text-[#faa61a] border-[#faa61a]/40"
-                        : "bg-discord-danger/20 text-discord-danger border-discord-danger/40"
-                    : "bg-black/60 text-gray-400 border-white/10 animate-pulse"
-              }`}
-              title={
-                peerLatency?.status === "failed"
-                  ? t("voice:connectionBadge.retryTooltip")
-                  : t("voice:connectionPopover.p2pLatencyTooltip", {
-                      value:
-                        peerLatency?.status === "connected" &&
-                        peerLatency.rtt > 0
-                          ? `${peerLatency.rtt}ms`
-                          : t("voice:connectionPopover.noData"),
-                      type: peerLatency?.connectionType || "P2P",
-                    })
-              }
-            >
-              {peerLatency?.status === "failed" ? (
-                <X className="w-3 h-3 flex-shrink-0" />
-              ) : peerLatency?.status === "connected" ? (
-                peerLatency.connectionType === "RELAY" ? (
-                  <Radio className="w-3 h-3 flex-shrink-0" />
-                ) : (
-                  <Zap className="w-3 h-3 flex-shrink-0" />
-                )
-              ) : (
-                <Loader2 className="w-3 h-3 flex-shrink-0 animate-spin" />
-              )}
-              <span>
-                {peerLatency?.status === "failed"
-                  ? t("voice:connectionBadge.failed")
-                  : peerLatency?.status === "connected"
-                    ? `${t(
-                        peerLatency.connectionType === "RELAY"
-                          ? "voice:connectionBadge.turn"
-                          : peerLatency.connectionType === "LAN"
-                            ? "voice:connectionBadge.lan"
-                            : "voice:connectionBadge.p2p",
-                      )}${peerLatency.rtt > 0 ? ` ${peerLatency.rtt}ms` : ""}`
-                    : t("voice:connectionBadge.connecting")}
-              </span>
-            </button>
-          )}
-
           {/* 全屏播放切换按钮 (双击亦可切换，快捷键 F) */}
           {hasAnyVideo && (
             <button
@@ -737,35 +672,77 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
               title={t("voice:mediaTooltips.stopStream")}
             >
               <ScreenShareOff className="w-3.5 h-3.5" />
-              <span className="font-semibold text-[11px]">停止直播</span>
+              <span className="font-semibold text-[11px]">
+                {t("voice:stopScreenShare")}
+              </span>
             </button>
           )}
 
-          {!isTheaterMode && (
-            <div
-              className="flex items-center space-x-1 bg-black/60 backdrop-blur-md px-1.5 py-0.5 rounded-full text-[10px] text-discord-textMuted"
-              title={t("voice:connectionPopover.statsTooltip", {
-                rtt:
-                  typeof stats?.rtt === "number"
-                    ? `${stats.rtt}ms`
-                    : t("voice:connectionPopover.noData"),
-                loss:
-                  typeof stats?.packetLoss === "number"
-                    ? `${stats.packetLoss}%`
-                    : t("voice:connectionPopover.noData"),
-                jitter:
-                  typeof stats?.jitter === "number"
-                    ? `${stats.jitter}ms`
-                    : t("voice:connectionPopover.noData"),
-              })}
+          {/* 语音 P2P 模式下右上角成员独立网络延迟胶囊指示 (SFU 模式下完全隐藏) */}
+          {!isTheaterMode && isP2P && !isMe && (
+            <button
+              type="button"
+              data-testid={`participant-p2p-ping-${participant.userId}`}
+              data-connection-status={peerLatency?.status || "connecting"}
+              data-connection-type={peerLatency?.connectionType || "P2P"}
+              disabled={peerLatency?.status !== "failed"}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (peerLatency?.status === "failed") {
+                  void voiceMeshManager.retryPeer(participant.userId);
+                }
+              }}
+              className={`flex items-center space-x-1 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full text-[10px] border transition select-none ${
+                peerLatency?.status === "failed"
+                  ? "border-discord-danger/50 text-discord-danger cursor-pointer hover:bg-discord-danger/20"
+                  : peerLatency?.status === "connected" && peerLatency.rtt > 0
+                    ? peerLatency.rtt < 80
+                      ? "border-white/10 text-discord-green cursor-default"
+                      : peerLatency.rtt < 150
+                        ? "border-white/10 text-[#faa61a] cursor-default"
+                        : "border-white/10 text-discord-danger cursor-default"
+                    : "border-white/10 text-yellow-400 cursor-default"
+              }`}
+              title={
+                peerLatency?.status === "failed"
+                  ? t("voice:connectionBadge.retryTooltip")
+                  : t("voice:connectionPopover.p2pLatencyTooltip", {
+                      value:
+                        peerLatency?.status === "connected" &&
+                        peerLatency.rtt > 0
+                          ? `${peerLatency.rtt}ms`
+                          : t("voice:connectionPopover.noData"),
+                      type: peerLatency?.connectionType || "P2P",
+                    })
+              }
             >
-              <Wifi className="w-3 h-3 text-discord-green" />
+              <Wifi
+                className={`w-3 h-3 flex-shrink-0 ${
+                  peerLatency?.status === "failed"
+                    ? "text-discord-danger"
+                    : peerLatency?.status === "connected" && peerLatency.rtt > 0
+                      ? peerLatency.rtt < 80
+                        ? "text-discord-green"
+                        : peerLatency.rtt < 150
+                          ? "text-[#faa61a]"
+                          : "text-discord-danger"
+                      : "text-yellow-400 animate-pulse"
+                }`}
+              />
               <span className="font-mono">
-                {typeof stats?.rtt === "number" && stats.rtt > 0
-                  ? `${stats.rtt}ms`
-                  : t("voice:connectionPopover.noData")}
+                {peerLatency?.status === "failed"
+                  ? t("voice:connectionBadge.failed")
+                  : peerLatency?.status === "connected"
+                    ? `${t(
+                        peerLatency.connectionType === "RELAY"
+                          ? "voice:connectionBadge.turn"
+                          : peerLatency.connectionType === "LAN"
+                            ? "voice:connectionBadge.lan"
+                            : "voice:connectionBadge.p2p",
+                      )}${peerLatency.rtt > 0 ? ` ${peerLatency.rtt}ms` : ""}`
+                    : t("voice:connectionBadge.connecting")}
               </span>
-            </div>
+            </button>
           )}
         </div>
 

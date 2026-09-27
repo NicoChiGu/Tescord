@@ -248,6 +248,19 @@ export const App: React.FC = () => {
       sfuFallbackInProgressRef.current
     )
       return false;
+
+    // 守卫：若当前频道除自己外已无其他成员，严禁降级回退至 SFU，保持 P2P 就绪待命
+    const currentUserId = useAuthStore.getState().user?.id;
+    const otherInChannel = voiceStates.filter(
+      (vs) => vs.channelId === channelId && vs.userId !== currentUserId,
+    );
+    if (!callId && otherInChannel.length === 0) {
+      console.log(
+        `[Voice] 频道 ${channelId} 仅剩当前用户，拦截 SFU 回退，保持 P2P 就绪待命`,
+      );
+      return false;
+    }
+
     if (
       VOICE_ENGINE === "cloudflare_realtime" &&
       cloudflareRealtimeService.status === "connected"
@@ -1542,8 +1555,32 @@ export const App: React.FC = () => {
 
             if (!wasInMyChannel && isNowInMyChannel) {
               soundManager.play("USER_JOIN");
+              // 同步更新 VoiceMeshManager 成员列表
+              const nextOtherMembers = [
+                ...prev
+                  .filter(
+                    (p) =>
+                      p.channelId === currentVoiceId &&
+                      p.userId !== currentUser.id &&
+                      p.userId !== vs.userId,
+                  )
+                  .map((p) => p.userId),
+                vs.userId,
+              ];
+              voiceMeshManager.updateChannelMembers(nextOtherMembers);
             } else if (wasInMyChannel && !isNowInMyChannel) {
               soundManager.play("USER_LEAVE");
+              // 联动 VoiceMeshManager 即刻清理离线节点并取消重试
+              voiceMeshManager.handlePeerLeave(vs.userId);
+              const remainingOtherMembers = prev
+                .filter(
+                  (p) =>
+                    p.channelId === currentVoiceId &&
+                    p.userId !== currentUser.id &&
+                    p.userId !== vs.userId,
+                )
+                .map((p) => p.userId);
+              voiceMeshManager.updateChannelMembers(remainingOtherMembers);
             }
           }
 
@@ -3218,7 +3255,8 @@ export const App: React.FC = () => {
     // 清理 SFrame 语音加密管线状态与纯语音 Mesh P2P
     sframeManager.disable();
     livekitService.setNegotiatedE2EEKey(null);
-    cloudflareRealtimeService.setNegotiatedE2EEKey(null);
+    // 向频道内对端广播 VOICE_LEAVE 离开信令，使其毫秒级释放连接并取消重试
+    voiceMeshManager.broadcastLeaveSignal();
     voiceMeshManager.stopAll();
     audioEngine.stop();
     await cloudflareRealtimeService.disconnect();

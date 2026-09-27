@@ -5,6 +5,11 @@ import { App } from "./App.js";
 import { AuthWindowApp } from "./AuthWindowApp.js";
 import "./index.css";
 import "./i18n/index.js";
+import { voiceMeshManager } from "./services/p2p/VoiceMeshManager.js";
+
+if (typeof window !== "undefined") {
+  (window as any).voiceMeshManager = voiceMeshManager;
+}
 
 function getIsAuthWindow(): boolean {
   if (typeof window === "undefined") return false;

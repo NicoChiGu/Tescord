@@ -56,6 +56,8 @@ export class VoiceMeshManager {
   private statsTimer: any = null;
   private latencyCallbacks: Set<LatencyUpdateCallback> = new Set();
   private localAudioTrack: MediaStreamTrack | null = null;
+  // 当前频道内除自身外的其他在线成员 ID 集合
+  private channelMemberIds: Set<string> = new Set();
 
   /**
    * 动态拉取服务端 Coturn TURN 与双栈 STUN 列表
@@ -111,6 +113,13 @@ export class VoiceMeshManager {
     if (!this.allowFallbackToSFU) {
       console.log(
         `[VoiceMesh] 频道配置为强制纯 P2P Mesh，阻止自动降级至 SFU: ${reason}`,
+      );
+      return;
+    }
+    // 守卫：若当前频道内除自己外无其他有效成员（最后一人留守），严禁降级至 SFU，保持纯 P2P 待命
+    if (this.channelMemberIds.size === 0) {
+      console.log(
+        `[VoiceMesh] 频道内仅剩当前用户一人，拦截 SFU 降级回退，保持 P2P 引擎待命: ${reason}`,
       );
       return;
     }
@@ -170,6 +179,11 @@ export class VoiceMeshManager {
       this.localAudioTrack = audioTrack;
     }
 
+    const effectiveOtherMembers = (otherUserIds || []).filter(
+      (id) => id && id !== this.currentUserId,
+    );
+    this.channelMemberIds = new Set(effectiveOtherMembers);
+
     // 与房间内已存在的其他成员主动建立点对点呼叫 (PeerConnection Offer)
     for (const targetId of otherUserIds) {
       if (targetId && targetId !== this.currentUserId) {
@@ -199,6 +213,7 @@ export class VoiceMeshManager {
     this.activeChannelId = null;
     this.activeGuildId = null;
     this.activeCallId = null;
+    this.channelMemberIds.clear();
 
     if (this.statsTimer) {
       clearInterval(this.statsTimer);
@@ -231,6 +246,78 @@ export class VoiceMeshManager {
     this.remoteAudioElements.clear();
     this.latencyReports.clear();
     this.notifyLatencyUpdate();
+  }
+
+  /**
+   * 广播 VOICE_LEAVE 信令，通知频道内所有对端立即关闭连接并清理打洞状态
+   */
+  public broadcastLeaveSignal(): void {
+    if (!this.isMeshActive || !this.activeChannelId) return;
+    try {
+      this.sendSignal({
+        guildId: this.activeGuildId || "",
+        channelId: this.activeChannelId || "",
+        senderId: this.currentUserId || "",
+        streamOwnerId: this.currentUserId || "",
+        type: "VOICE_LEAVE",
+      });
+      console.log(
+        `[VoiceMesh] 已向频道 ${this.activeChannelId} 广播 VOICE_LEAVE 离开信令`,
+      );
+    } catch (e) {
+      console.warn("[VoiceMesh] 广播 VOICE_LEAVE 离开信令失败:", e);
+    }
+  }
+
+  /**
+   * 对端用户离开语音频道处理（信令或网关状态广播联动触发）
+   */
+  public handlePeerLeave(peerId: string): void {
+    this.channelMemberIds.delete(peerId);
+    this.closePeer(peerId);
+
+    // 若当前频道仅剩本端一人，重置待命状态并清除所有打洞队列
+    if (this.channelMemberIds.size === 0) {
+      console.log(
+        `[VoiceMesh] 节点 ${peerId} 已离开，频道内仅剩当前用户，保持纯 P2P 待命，清空打洞重试队列`,
+      );
+      this.hasConnectedPeer = false;
+      for (const info of this.peerRetries.values()) {
+        if (info.timer) clearTimeout(info.timer);
+      }
+      this.peerRetries.clear();
+      this.notifyLatencyUpdate();
+    }
+  }
+
+  /**
+   * 权威同步频道内在线成员列表（供网关状态对齐）
+   */
+  public updateChannelMembers(memberIds: string[]): void {
+    const nextMembers = new Set(
+      memberIds.filter((id) => id && id !== this.currentUserId),
+    );
+    this.channelMemberIds = nextMembers;
+
+    // 清理已不在成员列表中的连接与重试
+    for (const peerId of Array.from(this.peerConnections.keys())) {
+      if (!this.channelMemberIds.has(peerId)) {
+        this.closePeer(peerId);
+      }
+    }
+
+    if (this.channelMemberIds.size === 0) {
+      this.hasConnectedPeer = false;
+      for (const info of this.peerRetries.values()) {
+        if (info.timer) clearTimeout(info.timer);
+      }
+      this.peerRetries.clear();
+      this.notifyLatencyUpdate();
+    }
+  }
+
+  public getOtherMemberCount(): number {
+    return this.channelMemberIds.size;
   }
 
   /**
@@ -400,7 +487,10 @@ export class VoiceMeshManager {
       }
 
       case "VOICE_LEAVE": {
-        this.closePeer(senderId);
+        console.log(
+          `[VoiceMesh] 收到来自对端 ${senderId} 的 VOICE_LEAVE 信令，即刻执行离房清理`,
+        );
+        this.handlePeerLeave(senderId);
         break;
       }
     }
@@ -509,8 +599,26 @@ export class VoiceMeshManager {
   /**
    * 规划针对对端节点的打洞重试 (最多 3 次，指数退避 1.2s -> 2.5s -> 4s)
    */
-  private scheduleHolePunchRetry(peerId: string): void {
+  public scheduleHolePunchRetry(peerId: string): void {
     if (!this.isMeshActive) return;
+
+    // 守卫 1：若该节点已不在当前频道在线成员集合中，直接关闭并清理
+    if (!this.channelMemberIds.has(peerId)) {
+      console.log(
+        `[VoiceMesh] 节点 ${peerId} 已不在当前语音频道，跳过打洞重试调度并清理`,
+      );
+      this.closePeer(peerId);
+      return;
+    }
+
+    // 守卫 2：若当前频道内已无对端成员（单人留守），保持纯 P2P 待命
+    if (this.channelMemberIds.size === 0) {
+      console.log(
+        `[VoiceMesh] 当前频道内仅剩当前用户，保持纯 P2P 待命，跳过打洞重试`,
+      );
+      return;
+    }
+
     const pc = this.peerConnections.get(peerId);
     if (!pc || pc.connectionState === "connected") return;
 
@@ -560,7 +668,13 @@ export class VoiceMeshManager {
   ): Promise<void> {
     const pc = this.peerConnections.get(peerId);
     const retryInfo = this.peerRetries.get(peerId);
-    if (!pc || pc.connectionState === "connected" || !this.isMeshActive) {
+    if (
+      !pc ||
+      pc.connectionState === "connected" ||
+      !this.isMeshActive ||
+      !this.channelMemberIds.has(peerId) ||
+      this.channelMemberIds.size === 0
+    ) {
       if (retryInfo) retryInfo.inProgress = false;
       return;
     }
@@ -629,10 +743,7 @@ export class VoiceMeshManager {
     }
   }
 
-  private closePeer(
-    peerId: string,
-    options: { preserveReport?: boolean } = {},
-  ) {
+  public closePeer(peerId: string, options: { preserveReport?: boolean } = {}) {
     const retryInfo = this.peerRetries.get(peerId);
     if (retryInfo?.timer) clearTimeout(retryInfo.timer);
     this.peerRetries.delete(peerId);
@@ -657,6 +768,9 @@ export class VoiceMeshManager {
     }
 
     if (!options.preserveReport) this.latencyReports.delete(peerId);
+    if (this.getConnectedPeersCount() === 0) {
+      this.hasConnectedPeer = false;
+    }
     this.notifyLatencyUpdate();
   }
 
@@ -943,3 +1057,6 @@ export class VoiceMeshManager {
 }
 
 export const voiceMeshManager = new VoiceMeshManager();
+if (typeof window !== "undefined") {
+  (window as any).voiceMeshManager = voiceMeshManager;
+}
