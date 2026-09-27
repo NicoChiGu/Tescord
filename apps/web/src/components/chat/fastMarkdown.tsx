@@ -1,4 +1,11 @@
 import React, { useState } from "react";
+import {
+  AUTOLINK_CANDIDATE_REGEX,
+  extractBalancedAutolink,
+  MARKDOWN_LINK_REGEX,
+} from "../../utils/url.js";
+
+export { extractBalancedAutolink };
 
 export interface MarkdownContext {
   onMentionClick?: (username: string, rect: DOMRect) => void;
@@ -79,8 +86,7 @@ const BOLD_REGEX = /^\*\*([\s\S]+?)\*\*/;
 const ITALIC_STAR_REGEX = /^\*([^\*\n]+)\*/;
 const ITALIC_UNDER_REGEX = /^_([^\_\n\s]+?)_(?![a-zA-Z0-9_\u4e00-\u9fa5])/;
 const STRIKE_REGEX = /^~~([\s\S]+?)~~/;
-const LINK_REGEX = /^\[([^\]]+)\]\(((?:https?:\/\/|\/)[^\s)]+)\)/;
-const AUTOLINK_REGEX = /^(https?:\/\/[^\s<]+[^<.,:;"')\]\s])/;
+const LINK_REGEX = MARKDOWN_LINK_REGEX;
 
 // 行内解析器：将文本解析为 React 节点流
 function parseInline(
@@ -151,23 +157,26 @@ function parseInline(
       continue;
     }
 
-    // 5. 纯文本自动链接 (AutoLink)
-    match = remaining.match(AUTOLINK_REGEX);
+    // 5. 纯文本自动链接 (AutoLink，支持成对括号平衡与全角标点安全剥离)
+    match = remaining.match(AUTOLINK_CANDIDATE_REGEX);
     if (match) {
-      nodes.push(
-        <a
-          key={key}
-          href={match[1]}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-discord-brand hover:underline font-medium break-all"
-        >
-          {match[1]}
-        </a>,
-      );
-      prevChar = remaining[match[0].length - 1];
-      remaining = remaining.slice(match[0].length);
-      continue;
+      const validUrl = extractBalancedAutolink(match[1]);
+      if (validUrl) {
+        nodes.push(
+          <a
+            key={key}
+            href={validUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-discord-brand hover:underline font-medium break-all"
+          >
+            {validUrl}
+          </a>,
+        );
+        prevChar = validUrl[validUrl.length - 1];
+        remaining = remaining.slice(validUrl.length);
+        continue;
+      }
     }
 
     const isPrecededByWord = /[a-zA-Z0-9_\u4e00-\u9fa5]/.test(prevChar);

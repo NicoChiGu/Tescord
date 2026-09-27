@@ -13,6 +13,7 @@
     "livekit": "powershell -ExecutionPolicy Bypass -File ./scripts/start-livekit.ps1",
     "build": "turbo run build",
     "build:web": "turbo run build --filter=@tescord/web...",
+    "test:autolink": "pnpm --filter @tescord/server exec tsx ../../scripts/test-autolink-markdown.mjs",
     "test:context-menu": "node ./scripts/test-context-menu.mjs",
     "test:member-add": "node ./scripts/test-member-add.mjs",
     "test:e2e": "playwright test",
