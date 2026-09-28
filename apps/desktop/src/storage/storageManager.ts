@@ -36,6 +36,7 @@ export class StorageManager {
     number,
     { userId: string | null; generation: number }
   >();
+  private senderValidator?: (event: IpcMainInvokeEvent) => boolean;
 
   private constructor() {}
 
@@ -44,6 +45,18 @@ export class StorageManager {
       this.instance = new StorageManager();
     }
     return this.instance;
+  }
+
+  public setSenderValidator(
+    validator: (event: IpcMainInvokeEvent) => boolean,
+  ): void {
+    this.senderValidator = validator;
+  }
+
+  private ensureTrustedSender(event?: IpcMainInvokeEvent): void {
+    if (this.senderValidator && event && !this.senderValidator(event)) {
+      throw new Error("Forbidden: Untrusted IPC sender");
+    }
   }
 
   public initialize(): void {
@@ -138,6 +151,7 @@ export class StorageManager {
     type: string,
     payload: object = {},
   ): Promise<T> {
+    this.ensureTrustedSender(event);
     const senderId = event.sender.id;
     const binding = this.cacheUsers.get(senderId);
     if (!binding) throw new Error("Storage user is not bound to this window");
@@ -155,27 +169,31 @@ export class StorageManager {
     // 1. Preferences
     ipcMain.handle(
       STORAGE_IPC_CHANNELS.PREF_GET,
-      async (_event, key: string) => {
+      async (event, key: string) => {
+        this.ensureTrustedSender(event);
         return this.sendWorkerRequest<any>("pref-get", { key });
       },
     );
 
     ipcMain.handle(
       STORAGE_IPC_CHANNELS.PREF_SET,
-      async (_event, { key, value }: { key: string; value: any }) => {
+      async (event, { key, value }: { key: string; value: any }) => {
+        this.ensureTrustedSender(event);
         return this.sendWorkerRequest<boolean>("pref-set", { key, value });
       },
     );
 
     ipcMain.handle(
       STORAGE_IPC_CHANNELS.PREF_REMOVE,
-      async (_event, key: string) => {
+      async (event, key: string) => {
+        this.ensureTrustedSender(event);
         return this.sendWorkerRequest<boolean>("pref-remove", { key });
       },
     );
 
     // 2. Saved Accounts (配合 safeStorage 加解密)
-    ipcMain.handle(STORAGE_IPC_CHANNELS.ACCOUNTS_GET, async () => {
+    ipcMain.handle(STORAGE_IPC_CHANNELS.ACCOUNTS_GET, async (event) => {
+      this.ensureTrustedSender(event);
       if (!SafeStorageCipher.isAvailable()) {
         throw new Error("Native credential encryption is unavailable");
       }
@@ -204,7 +222,8 @@ export class StorageManager {
 
     ipcMain.handle(
       STORAGE_IPC_CHANNELS.ACCOUNTS_SAVE,
-      async (_event, accounts: SavedAccount[]) => {
+      async (event, accounts: SavedAccount[]) => {
+        this.ensureTrustedSender(event);
         if (!SafeStorageCipher.isAvailable()) {
           throw new Error("Native credential encryption is unavailable");
         }
@@ -229,7 +248,8 @@ export class StorageManager {
     );
 
     // 3. Active Tokens
-    ipcMain.handle(STORAGE_IPC_CHANNELS.TOKENS_GET, async () => {
+    ipcMain.handle(STORAGE_IPC_CHANNELS.TOKENS_GET, async (event) => {
+      this.ensureTrustedSender(event);
       if (this.volatileActiveTokens) return this.volatileActiveTokens;
       const raw = await this.sendWorkerRequest<any>("tokens-get");
       if (!raw) return null;
@@ -256,12 +276,13 @@ export class StorageManager {
     ipcMain.handle(
       STORAGE_IPC_CHANNELS.TOKENS_SET,
       async (
-        _event,
+        event,
         payload: {
           tokens: { accessToken: string; refreshToken: string; user: User };
           remember: boolean;
         },
       ) => {
+        this.ensureTrustedSender(event);
         const { tokens, remember } = payload;
         if (!remember) {
           this.volatileActiveTokens = {
@@ -289,7 +310,8 @@ export class StorageManager {
       },
     );
 
-    ipcMain.handle(STORAGE_IPC_CHANNELS.TOKENS_CLEAR, async () => {
+    ipcMain.handle(STORAGE_IPC_CHANNELS.TOKENS_CLEAR, async (event) => {
+      this.ensureTrustedSender(event);
       this.volatileActiveTokens = null;
       return this.sendWorkerRequest<boolean>("tokens-clear");
     });
@@ -298,6 +320,7 @@ export class StorageManager {
     ipcMain.handle(
       STORAGE_IPC_CHANNELS.USER_SWITCH,
       async (event, userId: string | null) => {
+        this.ensureTrustedSender(event);
         if (
           userId !== null &&
           (typeof userId !== "string" ||

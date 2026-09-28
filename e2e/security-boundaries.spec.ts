@@ -774,3 +774,144 @@ test("pending guild icons remain private and can be discarded only by their auth
   );
   expect(repeatedDiscard.status()).toBe(404);
 });
+
+test("POST /api/guilds rejects creating guild with untrusted iconUrl", async ({
+  request,
+}) => {
+  const login = await request.post("/api/auth/login", {
+    data: { emailOrUsername: "Jackey", password: "adminpassword123" },
+  });
+  expect(login.ok()).toBeTruthy();
+  const token = ((await login.json()) as { accessToken: string }).accessToken;
+  const headers = { Authorization: `Bearer ${token}` };
+
+  const response = await request.post("/api/guilds", {
+    headers,
+    data: {
+      name: "Malicious Icon Guild",
+      iconUrl: "http://localhost:3001/uploads/some-target-file.png",
+    },
+  });
+  expect(response.status()).toBe(400);
+  const body = await response.json();
+  expect(body.error).toContain("直接设置图标");
+});
+
+test("PATCH /api/users/@me enforces user-banner claim authorization", async ({
+  request,
+}) => {
+  const login = await request.post("/api/auth/login", {
+    data: { emailOrUsername: "Jackey", password: "adminpassword123" },
+  });
+  expect(login.ok()).toBeTruthy();
+  const token = ((await login.json()) as { accessToken: string }).accessToken;
+  const headers = { Authorization: `Bearer ${token}` };
+
+  // 1. 尝试伪造一个未授权的 bannerUrl
+  const forgedResponse = await request.patch("/api/users/@me", {
+    headers,
+    data: {
+      bannerUrl: "http://localhost:3001/uploads/forged-banner.png",
+    },
+  });
+  expect(forgedResponse.status()).toBe(403);
+
+  // 2. 正常获取 user-banner 预签名
+  const image = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    "base64",
+  );
+  const grantResponse = await request.post("/api/attachments/presigned-url", {
+    headers,
+    data: {
+      fileName: `e2e-user-banner-${Date.now()}.png`,
+      fileSize: image.length,
+      mimeType: "image/png",
+      purpose: "user-banner",
+    },
+  });
+  expect(grantResponse.ok()).toBeTruthy();
+  const grant = (await grantResponse.json()) as {
+    uploadUrl: string;
+    fileUrl: string;
+  };
+
+  // 3. 上传图片内容
+  const upload = await request.put(grant.uploadUrl, {
+    headers: { ...headers, "Content-Type": "image/png" },
+    data: image,
+  });
+  expect(upload.ok()).toBeTruthy();
+
+  // 4. 正确 Claim 绑定
+  const updateResponse = await request.patch("/api/users/@me", {
+    headers,
+    data: {
+      bannerUrl: grant.fileUrl,
+    },
+  });
+  expect(updateResponse.status()).toBe(200);
+
+  // 5. 还原 bannerUrl 为 null
+  await request.patch("/api/users/@me", {
+    headers,
+    data: { bannerUrl: null },
+  });
+});
+
+test("PUT /api/guilds/:guildId/roles/positions enforces guild boundary and protects @everyone", async ({
+  request,
+}) => {
+  const login = await request.post("/api/auth/login", {
+    data: { emailOrUsername: "Jackey", password: "adminpassword123" },
+  });
+  expect(login.ok()).toBeTruthy();
+  const token = ((await login.json()) as { accessToken: string }).accessToken;
+  const headers = { Authorization: `Bearer ${token}` };
+  const guildId = "gld_default_01";
+
+  // 尝试传入虚假/跨公会 roleId
+  const badRoleResponse = await request.put(
+    `/api/guilds/${guildId}/roles/positions`,
+    {
+      headers,
+      data: {
+        roles: [{ id: "rol_foreign_99999", position: 10 }],
+      },
+    },
+  );
+  expect(badRoleResponse.status()).toBe(400);
+
+  // 尝试修改 @everyone 角色 (id 等同于 guildId)
+  const everyoneResponse = await request.put(
+    `/api/guilds/${guildId}/roles/positions`,
+    {
+      headers,
+      data: {
+        roles: [{ id: guildId, position: 10 }],
+      },
+    },
+  );
+  expect(everyoneResponse.status()).toBe(400);
+});
+
+test("PATCH /api/channels/:channelId rejects parentId belonging to different guild", async ({
+  request,
+}) => {
+  const login = await request.post("/api/auth/login", {
+    data: { emailOrUsername: "Jackey", password: "adminpassword123" },
+  });
+  expect(login.ok()).toBeTruthy();
+  const token = ((await login.json()) as { accessToken: string }).accessToken;
+  const headers = { Authorization: `Bearer ${token}` };
+
+  // 尝试将 gld_default_01 的默认频道移动到不存在或非本公会的分类
+  const response = await request.patch("/api/channels/chn_default_text_01", {
+    headers,
+    data: {
+      parentId: "cat_foreign_invalid_category",
+    },
+  });
+  expect(response.status()).toBe(400);
+});
+

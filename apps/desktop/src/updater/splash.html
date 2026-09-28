@@ -158,15 +158,14 @@
   <div class="footer" id="version-text">v0.1.0</div>
 
   <script>
-    const { ipcRenderer } = require("electron");
-
     const statusText = document.getElementById("status-text");
     const progressContainer = document.getElementById("progress-container");
     const progressFill = document.getElementById("progress-fill");
     const spinner = document.getElementById("spinner");
     const versionText = document.getElementById("version-text");
 
-    ipcRenderer.on("splash-status", (_event, { text, percent, showProgress, hideSpinner, version }) => {
+    const onStatus = window.splashApi?.onStatus || ((cb) => {});
+    onStatus(({ text, percent, showProgress, hideSpinner, version }) => {
       if (text) statusText.innerText = text;
       if (version) versionText.innerText = version;
       if (showProgress) {

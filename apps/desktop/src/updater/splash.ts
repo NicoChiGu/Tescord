@@ -28,10 +28,17 @@ export class SplashWindow {
       backgroundColor: "#1e1f22",
       skipTaskbar: false,
       webPreferences: {
-        nodeIntegration: true,
-        contextIsolation: false, // Splash 仅用于内部轻量纯展示，开启简易通信
+        nodeIntegration: false,
+        contextIsolation: true,
+        sandbox: true,
+        preload: path.join(__dirname, "splashPreload.js"),
       },
     });
+
+    this.win.webContents.on("will-navigate", (event) => {
+      event.preventDefault();
+    });
+    this.win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
 
     const htmlPath = path.join(__dirname, "splash.html");
     this.win.loadFile(htmlPath);

@@ -46,6 +46,7 @@ interface ClientConnection {
   };
   isAlive: boolean;
   heartbeatIntervalTimer?: NodeJS.Timeout;
+  authTimer?: NodeJS.Timeout;
 }
 
 export class GatewayManager {
@@ -121,6 +122,21 @@ export class GatewayManager {
         heartbeatInterval: HEARTBEAT_INTERVAL,
       } as HelloPayload,
     });
+
+    // 2. 未认证连接 15 秒超时自动踢出，防范未认证僵尸长连接悬挂
+    conn.authTimer = setTimeout(() => {
+      if (!conn.userId) {
+        console.log(
+          "[Gateway] Closing unauthenticated connection due to IDENTIFY timeout",
+        );
+        this.send(conn.ws, { op: GatewayOpCode.INVALID_SESSION });
+        conn.ws.close(GatewayCloseCode.UNAUTHORIZED, "Authentication timed out");
+        this.cleanup(conn);
+      }
+    }, 15000);
+    if (conn.authTimer.unref) {
+      conn.authTimer.unref();
+    }
 
     ws.on("message", async (raw: string) => {
       try {
@@ -274,6 +290,11 @@ export class GatewayManager {
         conn.sessionId = sessionId;
         conn.properties = data?.properties;
 
+        if (conn.authTimer) {
+          clearTimeout(conn.authTimer);
+          conn.authTimer = undefined;
+        }
+
         if (!this.userSessions.has(user.id)) {
           this.userSessions.set(user.id, new Map());
         }
@@ -411,9 +432,24 @@ export class GatewayManager {
               showActivity: user.showActivity,
             },
             guilds: hydratedGuilds,
-            voiceStates: Array.from(this.voiceStates.values()).filter((state) =>
-              guilds.some((guild) => guild.id === state.guildId),
-            ),
+            voiceStates: (
+              await Promise.all(
+                Array.from(this.voiceStates.values())
+                  .filter((state) =>
+                    guilds.some((guild) => guild.id === state.guildId),
+                  )
+                  .map(async (state) => {
+                    if (!state.channelId) return null;
+                    const canView =
+                      await permissionService.hasChannelPermission(
+                        user.id,
+                        state.channelId,
+                        PermissionFlags.VIEW_CHANNEL,
+                      );
+                    return canView ? state : null;
+                  }),
+              )
+            ).filter((s): s is VoiceState => s !== null),
           },
         });
 
@@ -1170,25 +1206,6 @@ export class GatewayManager {
       }
       return;
     }
-    let guildId = typeof data.guildId === "string" ? data.guildId : undefined;
-    if (
-      !guildId &&
-      payload.t === GatewayEvents.GUILD_UPDATE &&
-      typeof data.id === "string"
-    ) {
-      guildId = data.id;
-    }
-    if (guildId) {
-      await this.broadcastToGuild(guildId, payload);
-      if (
-        (payload.t === GatewayEvents.GUILD_MEMBER_REMOVE ||
-          payload.t === GatewayEvents.GUILD_BAN_ADD) &&
-        typeof data.userId === "string"
-      ) {
-        this.sendToUser(data.userId, payload);
-      }
-      return;
-    }
     if (typeof data.channelId === "string") {
       const channel = await prisma.channel.findUnique({
         where: { id: data.channelId },
@@ -1217,6 +1234,25 @@ export class GatewayManager {
       } else {
         for (const recipient of channel?.recipients || [])
           this.sendToUser(recipient.userId, payload);
+      }
+      return;
+    }
+    let guildId = typeof data.guildId === "string" ? data.guildId : undefined;
+    if (
+      !guildId &&
+      payload.t === GatewayEvents.GUILD_UPDATE &&
+      typeof data.id === "string"
+    ) {
+      guildId = data.id;
+    }
+    if (guildId) {
+      await this.broadcastToGuild(guildId, payload);
+      if (
+        (payload.t === GatewayEvents.GUILD_MEMBER_REMOVE ||
+          payload.t === GatewayEvents.GUILD_BAN_ADD) &&
+        typeof data.userId === "string"
+      ) {
+        this.sendToUser(data.userId, payload);
       }
       return;
     }
@@ -1628,11 +1664,18 @@ export class GatewayManager {
     if (!recipients.includes(user.id)) return;
     if (
       channel.guildId &&
-      !(await permissionService.hasChannelPermission(
-        user.id,
-        channelId,
-        PermissionFlags.VIEW_CHANNEL,
-      ))
+      !(
+        (await permissionService.hasChannelPermission(
+          user.id,
+          channelId,
+          PermissionFlags.VIEW_CHANNEL,
+        )) &&
+        (await permissionService.hasChannelPermission(
+          user.id,
+          channelId,
+          PermissionFlags.SEND_MESSAGES,
+        ))
+      )
     )
       return;
     for (const userId of recipients) {

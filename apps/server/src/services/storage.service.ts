@@ -24,7 +24,7 @@ export class StorageService {
       expiresAt: number;
       claimed: boolean;
       uploaded: boolean;
-      purpose: "attachment" | "guild-icon" | "user-avatar";
+      purpose: "attachment" | "guild-icon" | "user-avatar" | "user-banner";
       channelId?: string;
       guildId?: string;
       preview?: { url: string; size: number; width: number; height: number };
@@ -128,6 +128,7 @@ export class StorageService {
     if (
       req.purpose !== "guild-icon" &&
       req.purpose !== "user-avatar" &&
+      req.purpose !== "user-banner" &&
       !req.channelId
     )
       throw new Error("channelId is required");
@@ -174,6 +175,13 @@ export class StorageService {
         ".ps1",
         ".com",
         ".scr",
+        ".lnk",
+        ".hta",
+        ".url",
+        ".cpl",
+        ".reg",
+        ".wsf",
+        ".iso",
       ]).has(ext.toLowerCase())
     ) {
       throw new Error("该文件扩展名属于高危脚本或程序，禁止作为附件上传");
@@ -189,7 +197,9 @@ export class StorageService {
     const signature = this.signLocalUpload(fileKey, userId, expiresAt);
     const uploadUrl = `${this.baseUrl}/api/attachments/upload/${encodeURIComponent(fileKey)}?expires=${expiresAt}&signature=${encodeURIComponent(signature)}`;
     const fileUrl =
-      req.purpose === "guild-icon" || req.purpose === "user-avatar"
+      req.purpose === "guild-icon" ||
+      req.purpose === "user-avatar" ||
+      req.purpose === "user-banner"
         ? `${this.baseUrl}/public-assets/${encodeURIComponent(fileKey)}`
         : `${this.baseUrl}/uploads/${encodeURIComponent(fileKey)}`;
 
@@ -355,6 +365,49 @@ export class StorageService {
       grant.userId === userId &&
       grant.fileUrl === fileUrl &&
       grant.purpose === "user-avatar"
+    ) {
+      grant.claimed = false;
+    }
+  }
+
+  public claimUserBanner(userId: string, fileUrl: string): boolean {
+    let key: string;
+    try {
+      const url = new URL(fileUrl, this.baseUrl);
+      if (
+        url.origin !== new URL(this.baseUrl).origin ||
+        !url.pathname.startsWith("/public-assets/")
+      )
+        return false;
+      key = decodeURIComponent(url.pathname.slice("/public-assets/".length));
+    } catch {
+      return false;
+    }
+    const grant = this.uploadGrants.get(key);
+    if (
+      !grant ||
+      !grant.uploaded ||
+      grant.claimed ||
+      grant.expiresAt < Date.now() ||
+      grant.userId !== userId ||
+      grant.purpose !== "user-banner" ||
+      grant.fileUrl !== fileUrl ||
+      !grant.mimeType.startsWith("image/")
+    )
+      return false;
+    grant.claimed = true;
+    return true;
+  }
+
+  public releaseUserBannerClaim(userId: string, fileUrl: string): void {
+    const key = this.getPublicAssetKey(fileUrl);
+    if (!key) return;
+    const grant = this.uploadGrants.get(key);
+    if (
+      grant?.claimed &&
+      grant.userId === userId &&
+      grant.fileUrl === fileUrl &&
+      grant.purpose === "user-banner"
     ) {
       grant.claimed = false;
     }
@@ -529,7 +582,9 @@ export class StorageService {
     const grant = this.uploadGrants.get(fileKey);
     if (
       !grant ||
-      (grant.purpose !== "guild-icon" && grant.purpose !== "user-avatar")
+      (grant.purpose !== "guild-icon" &&
+        grant.purpose !== "user-avatar" &&
+        grant.purpose !== "user-banner")
     ) {
       return false;
     }
@@ -557,7 +612,7 @@ export class StorageService {
     fileKey: string,
     userId: string,
   ): {
-    purpose: "attachment" | "guild-icon" | "user-avatar";
+    purpose: "attachment" | "guild-icon" | "user-avatar" | "user-banner";
     channelId?: string;
     guildId?: string;
   } | null {

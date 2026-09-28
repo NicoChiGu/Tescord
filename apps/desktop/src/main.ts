@@ -20,6 +20,7 @@ import fs from "fs";
 import { createHash } from "crypto";
 import http from "http";
 import https from "https";
+import { fileURLToPath } from "node:url";
 import {
   DesktopNotificationPayload,
   DesktopSource,
@@ -391,10 +392,17 @@ const isTrustedIpcSender = (event: IpcMainInvokeEvent | IpcMainEvent) => {
     const senderUrl = event.senderFrame?.url;
     if (!senderUrl) return false;
     const url = new URL(senderUrl);
+    if (url.protocol === "file:") {
+      const activeEntry = UpdateManager.getInstance().getActiveWebEntry();
+      const allowedDir = path
+        .dirname(path.resolve(activeEntry.indexPath))
+        .toLowerCase();
+      const senderPath = path.resolve(fileURLToPath(senderUrl)).toLowerCase();
+      return senderPath.startsWith(allowedDir);
+    }
     return (
-      url.protocol === "file:" ||
-      ((url.protocol === "https:" || url.protocol === "http:") &&
-        (url.hostname === "localhost" || url.hostname === "127.0.0.1"))
+      (url.protocol === "https:" || url.protocol === "http:") &&
+      (url.hostname === "localhost" || url.hostname === "127.0.0.1")
     );
   } catch {
     return false;
@@ -491,10 +499,25 @@ function setupWindowHandlers(win: BrowserWindow, _isAuth: boolean) {
       const current = currentUrl ? new URL(currentUrl) : null;
       if (
         current &&
+        target.protocol === "file:" &&
+        current.protocol === "file:"
+      ) {
+        const activeEntry = UpdateManager.getInstance().getActiveWebEntry();
+        const allowedDir = path
+          .dirname(path.resolve(activeEntry.indexPath))
+          .toLowerCase();
+        const targetPath = path.resolve(fileURLToPath(targetUrl)).toLowerCase();
+        if (targetPath.startsWith(allowedDir)) {
+          return;
+        }
+      } else if (
+        current &&
+        target.protocol !== "file:" &&
         target.origin === current.origin &&
         target.protocol === current.protocol
-      )
+      ) {
         return;
+      }
     } catch {}
     event.preventDefault();
     if (isSafeExternalUrl(targetUrl)) void shell.openExternal(targetUrl);
@@ -1328,7 +1351,8 @@ ipcMain.handle(
     ) {
       throw new Error("Invalid UPnP request");
     }
-    return await UPnPClient.mapPort(port, protocol || "UDP");
+    const safeProtocol = protocol === "TCP" ? "TCP" : "UDP";
+    return await UPnPClient.mapPort(port, safeProtocol);
   },
 );
 
@@ -1580,6 +1604,7 @@ function startBackgroundUpdateChecker(): void {
 }
 
 app.whenReady().then(async () => {
+  StorageManager.getInstance().setSenderValidator(isTrustedIpcSender);
   StorageManager.getInstance().initialize();
   await startApplicationWithSplash();
   setupSystemTray();

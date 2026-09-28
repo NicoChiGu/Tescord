@@ -693,7 +693,7 @@ server.patch(
       const body = request.body as UpdateProfileDTO;
       const current = await prisma.user.findUnique({
         where: { id: userId },
-        select: { avatarUrl: true },
+        select: { avatarUrl: true, bannerUrl: true },
       });
       if (!current) {
         return sendApiError(
@@ -705,18 +705,49 @@ server.patch(
       }
       const nextAvatar = body.avatarUrl;
       let claimedNewAvatar = false;
-      if (
-        typeof nextAvatar === "string" &&
-        nextAvatar.includes("/public-assets/") &&
-        nextAvatar !== current.avatarUrl &&
-        !(claimedNewAvatar = storageService.claimUserAvatar(userId, nextAvatar))
-      ) {
-        return sendApiError(
-          reply,
-          403,
-          ErrorCode.FORBIDDEN,
-          "头像上传授权无效",
-        );
+      if (typeof nextAvatar === "string" && nextAvatar !== current.avatarUrl) {
+        if (nextAvatar.includes("/uploads/")) {
+          return sendApiError(
+            reply,
+            403,
+            ErrorCode.FORBIDDEN,
+            "头像不能使用私有附件",
+          );
+        }
+        if (
+          nextAvatar.includes("/public-assets/") &&
+          !(claimedNewAvatar = storageService.claimUserAvatar(userId, nextAvatar))
+        ) {
+          return sendApiError(
+            reply,
+            403,
+            ErrorCode.FORBIDDEN,
+            "头像上传授权无效",
+          );
+        }
+      }
+      const nextBanner = body.bannerUrl;
+      let claimedNewBanner = false;
+      if (typeof nextBanner === "string" && nextBanner !== current.bannerUrl) {
+        if (nextBanner.includes("/uploads/")) {
+          return sendApiError(
+            reply,
+            403,
+            ErrorCode.FORBIDDEN,
+            "横幅不能使用私有附件",
+          );
+        }
+        if (
+          nextBanner.includes("/public-assets/") &&
+          !(claimedNewBanner = storageService.claimUserBanner(userId, nextBanner))
+        ) {
+          return sendApiError(
+            reply,
+            403,
+            ErrorCode.FORBIDDEN,
+            "横幅上传授权无效",
+          );
+        }
       }
       let updated;
       try {
@@ -724,6 +755,9 @@ server.patch(
       } catch (error) {
         if (claimedNewAvatar && nextAvatar) {
           storageService.releaseUserAvatarClaim(userId, nextAvatar);
+        }
+        if (claimedNewBanner && nextBanner) {
+          storageService.releaseUserBannerClaim(userId, nextBanner);
         }
         throw error;
       }
@@ -739,6 +773,21 @@ server.patch(
             server.log.warn(
               { error, userId },
               "Failed to remove replaced avatar",
+            ),
+          );
+      }
+      if (
+        nextBanner !== undefined &&
+        current.bannerUrl &&
+        current.bannerUrl !== updated.bannerUrl &&
+        current.bannerUrl.includes("/public-assets/")
+      ) {
+        void storageService
+          .removePublicAsset(current.bannerUrl)
+          .catch((error) =>
+            server.log.warn(
+              { error, userId },
+              "Failed to remove replaced banner",
             ),
           );
       }
@@ -1507,6 +1556,14 @@ server.post("/api/guilds", async (request, reply) => {
       400,
       ErrorCode.GUILD_NAME_REQUIRED,
       "服务器名称不能为空",
+    );
+  }
+  if (iconUrl) {
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.INVALID_PARAMS,
+      "创建服务器时不可直接设置图标，请在服务器创建后上传更新",
     );
   }
 
@@ -2331,8 +2388,53 @@ server.put("/api/guilds/:guildId/roles/positions", async (request, reply) => {
   }
 
   const { roles } = (request.body || {}) as UpdateRolePositionsDTO;
-  if (!Array.isArray(roles)) {
-    return reply.status(400).send({ error: "roles 参数必须为数组" });
+  if (!Array.isArray(roles) || roles.length === 0) {
+    return reply.status(400).send({ error: "roles 参数必须为非空数组" });
+  }
+
+  const roleIds = roles.map((r) => r.id);
+  const existingRoles = await prisma.role.findMany({
+    where: { id: { in: roleIds }, guildId },
+  });
+  if (existingRoles.length !== roleIds.length) {
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.INVALID_PARAMS,
+      "包含不属于当前公会的无效角色",
+    );
+  }
+
+  const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+  const isPrivileged =
+    guild?.ownerId === user.id || user.role === "SUPER_ADMIN";
+  if (!isPrivileged) {
+    const actorHighestPos =
+      await permissionService.getMemberHighestRolePosition(user.id, guildId);
+    for (const r of roles) {
+      const existing = existingRoles.find((er) => er.id === r.id);
+      if (!existing) continue;
+      if (existing.isDefault || existing.name === "@everyone") {
+        if (r.position !== 0) {
+          return sendApiError(
+            reply,
+            400,
+            ErrorCode.INVALID_PARAMS,
+            "无法修改基础角色 @everyone 的层级位置",
+          );
+        }
+      } else if (
+        r.position >= actorHighestPos ||
+        existing.position >= actorHighestPos
+      ) {
+        return sendApiError(
+          reply,
+          403,
+          ErrorCode.GUILD_ROLE_HIERARCHY_TOO_LOW,
+          "无法调整等于或高于自身层级的角色位置",
+        );
+      }
+    }
   }
 
   await prisma.$transaction(
@@ -2410,6 +2512,14 @@ server.patch(
       const assignedRoles = await prisma.role.findMany({
         where: { id: { in: body.roleIds }, guildId },
       });
+      if (assignedRoles.length !== body.roleIds.length) {
+        return sendApiError(
+          reply,
+          400,
+          ErrorCode.INVALID_PARAMS,
+          "包含不属于当前公会的无效角色",
+        );
+      }
 
       const guild = await prisma.guild.findUnique({ where: { id: guildId } });
       const isOwner = guild?.ownerId === user.id;
@@ -3442,6 +3552,20 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
     );
   }
 
+  if (parentId !== undefined && parentId !== null) {
+    const parentCategory = await prisma.channelCategory.findUnique({
+      where: { id: parentId },
+    });
+    if (!parentCategory || parentCategory.guildId !== channel.guildId) {
+      return sendApiError(
+        reply,
+        400,
+        ErrorCode.INVALID_PARAMS,
+        "目标分类不存在或不属于当前公会",
+      );
+    }
+  }
+
   const updatedChannel = await prisma.channel.update({
     where: { id: channelId },
     data: {
@@ -3682,6 +3806,19 @@ server.patch(
       return reply.status(400).send({ error: "参数格式错误" });
     }
 
+    const catIds = categories.map((c) => c.id);
+    const existingCats = await prisma.channelCategory.findMany({
+      where: { id: { in: catIds }, guildId },
+    });
+    if (existingCats.length !== catIds.length) {
+      return sendApiError(
+        reply,
+        400,
+        ErrorCode.INVALID_PARAMS,
+        "包含不属于当前公会的分类",
+      );
+    }
+
     await prisma.$transaction(
       categories.map((cat) =>
         prisma.channelCategory.update({
@@ -3728,6 +3865,36 @@ server.patch(
     const { channels } = (request.body || {}) as ReorderChannelsDTO;
     if (!Array.isArray(channels)) {
       return reply.status(400).send({ error: "参数格式错误" });
+    }
+
+    const chIds = channels.map((c) => c.id);
+    const existingChs = await prisma.channel.findMany({
+      where: { id: { in: chIds }, guildId },
+    });
+    if (existingChs.length !== chIds.length) {
+      return sendApiError(
+        reply,
+        400,
+        ErrorCode.INVALID_PARAMS,
+        "包含不属于当前公会的频道",
+      );
+    }
+
+    const parentIds = channels
+      .map((c) => c.parentId)
+      .filter((p): p is string => typeof p === "string");
+    if (parentIds.length > 0) {
+      const validParents = await prisma.channelCategory.findMany({
+        where: { id: { in: parentIds }, guildId },
+      });
+      if (validParents.length !== new Set(parentIds).size) {
+        return sendApiError(
+          reply,
+          400,
+          ErrorCode.INVALID_PARAMS,
+          "目标分类不属于当前公会",
+        );
+      }
     }
 
     await prisma.$transaction(
@@ -4325,13 +4492,18 @@ server.post("/api/channels/:channelId/typing", async (request, reply) => {
         });
       }
     }
-  } else {
-    const canRead = await permissionService.hasChannelPermission(
-      user.id,
-      channelId,
-      PermissionFlags.READ_MESSAGE_HISTORY,
-    );
-    if (!canRead) return reply.status(403).send({ error: "无权访问该频道" });
+    const canSend =
+      (await permissionService.hasChannelPermission(
+        user.id,
+        channelId,
+        PermissionFlags.VIEW_CHANNEL,
+      )) &&
+      (await permissionService.hasChannelPermission(
+        user.id,
+        channelId,
+        PermissionFlags.SEND_MESSAGES,
+      ));
+    if (!canSend) return reply.status(403).send({ error: "缺少发信权限" });
     await gatewayManager.broadcastTypingAuthorized(channelId, user);
   }
   return reply.status(204).send();
@@ -4611,8 +4783,28 @@ server.delete(
     const channel = await prisma.channel.findUnique({
       where: { id: channelId },
     });
+    if (!channel) {
+      return reply.status(404).send({ error: "频道不存在" });
+    }
+    if (channel.guildId) {
+      const isMember = await prisma.guildMember.findUnique({
+        where: {
+          guildId_userId: { guildId: channel.guildId, userId: user.id },
+        },
+      });
+      const isBanned = await prisma.ban.findUnique({
+        where: {
+          guildId_userId: { guildId: channel.guildId, userId: user.id },
+        },
+      });
+      if (!isMember || isBanned) {
+        return reply
+          .status(403)
+          .send({ error: "您已被移出或封禁于该服务器，无权操作" });
+      }
+    }
     const canManage =
-      channel?.type === "DM" || channel?.type === "GROUP_DM"
+      channel.type === "DM" || channel.type === "GROUP_DM"
         ? false
         : await permissionService.hasChannelPermission(
             user.id,
@@ -4789,6 +4981,15 @@ server.post("/api/attachments/presigned-url", async (request, reply) => {
           "不支持的用户头像格式",
         );
       }
+    } else if (body.purpose === "user-banner") {
+      if (!publicImageMime || publicImageMime !== body.mimeType) {
+        return sendApiError(
+          reply,
+          400,
+          ErrorCode.FILE_TYPE_UNSUPPORTED,
+          "不支持的用户横幅格式",
+        );
+      }
     } else {
       if (body.purpose && body.purpose !== "attachment") {
         return reply.status(400).send({ error: "未知上传用途" });
@@ -4901,7 +5102,7 @@ server.put("/api/attachments/upload/:fileName", async (request, reply) => {
             PermissionFlags.MANAGE_GUILD,
           )),
         )
-      : scope.purpose === "user-avatar"
+      : scope.purpose === "user-avatar" || scope.purpose === "user-banner"
         ? true
         : Boolean(
             scope.channelId &&
@@ -4949,7 +5150,9 @@ server.put("/api/attachments/upload/:fileName", async (request, reply) => {
     return reply.status(403).send({ error: "上传内容与授权不一致" });
   }
   if (
-    (scope.purpose === "guild-icon" || scope.purpose === "user-avatar") &&
+    (scope.purpose === "guild-icon" ||
+      scope.purpose === "user-avatar" ||
+      scope.purpose === "user-banner") &&
     !(await storageService.hasValidPublicImage(decodedFileName, buffer))
   ) {
     return sendApiError(
@@ -5219,9 +5422,7 @@ server.get("/public-assets/:fileName", async (request, reply) => {
         select: { id: true },
       });
 
-  const isPending = storageService.isPendingPublicAsset(decoded);
-
-  if (!guild && !user && !isPending) {
+  if (!guild && !user) {
     return sendPublicAssetError(404, "资源不存在");
   }
 
@@ -5230,12 +5431,8 @@ server.get("/public-assets/:fileName", async (request, reply) => {
   reply.header("X-Content-Type-Options", "nosniff");
   try {
     const stream = await storageService.openObject(fileUrl);
-    if (guild || user) {
-      reply.header("Cache-Control", "public, max-age=31536000, immutable");
-      reply.header("ETag", `"${decoded}"`);
-    } else {
-      reply.header("Cache-Control", "no-cache");
-    }
+    reply.header("Cache-Control", "public, max-age=31536000, immutable");
+    reply.header("ETag", `"${decoded}"`);
     return reply.send(stream);
   } catch {
     return sendPublicAssetError(404, "资源不存在");
@@ -5887,12 +6084,30 @@ server.post("/api/livekit/token", async (request, reply) => {
       "Voice permission denied",
     );
 
+  const wantsPublish = body.isPublisher !== false;
+  let isPublisher = wantsPublish;
+  if (wantsPublish && channel.guildId) {
+    const canSpeak = await permissionService.hasChannelPermission(
+      reqUserId,
+      channel.id,
+      PermissionFlags.SPEAK,
+    );
+    const canStream = await permissionService.hasChannelPermission(
+      reqUserId,
+      channel.id,
+      PermissionFlags.STREAM,
+    );
+    if (!canSpeak && !canStream) {
+      isPublisher = false;
+    }
+  }
+
   return await generateLiveKitToken({
     roomName: body.roomName,
     identity: body.identity,
     gatewaySessionId,
     name: typeof body.name === "string" ? body.name.slice(0, 128) : undefined,
-    isPublisher: body.isPublisher !== false,
+    isPublisher,
     bitrate: body.bitrate,
   });
 });

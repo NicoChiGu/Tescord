@@ -5,22 +5,44 @@ import {
 } from "livekit-server-sdk";
 import { LiveKitTokenRequest, LiveKitTokenResponse } from "@tescord/types";
 
+function resolveLiveKitCredentials(
+  apiKey?: string,
+  apiSecret?: string,
+): { key: string; secret: string } {
+  const resolvedKey = apiKey || process.env.LIVEKIT_API_KEY || "devkey";
+  const resolvedSecret =
+    apiSecret || process.env.LIVEKIT_API_SECRET || "secretsecretsecret";
+
+  if (
+    process.env.NODE_ENV === "production" &&
+    (resolvedKey === "devkey" || resolvedSecret === "secretsecretsecret")
+  ) {
+    throw new Error(
+      "LiveKit API key or secret must be explicitly configured in production environment.",
+    );
+  }
+
+  return { key: resolvedKey, secret: resolvedSecret };
+}
+
 export function getWebhookReceiver(
-  apiKey: string = process.env.LIVEKIT_API_KEY || "devkey",
-  apiSecret: string = process.env.LIVEKIT_API_SECRET || "secretsecretsecret",
+  apiKey?: string,
+  apiSecret?: string,
 ): WebhookReceiver {
-  return new WebhookReceiver(apiKey, apiSecret);
+  const { key, secret } = resolveLiveKitCredentials(apiKey, apiSecret);
+  return new WebhookReceiver(key, secret);
 }
 
 export function getRoomServiceClient(
-  apiKey: string = process.env.LIVEKIT_API_KEY || "devkey",
-  apiSecret: string = process.env.LIVEKIT_API_SECRET || "secretsecretsecret",
+  apiKey?: string,
+  apiSecret?: string,
   livekitUrl: string = process.env.LIVEKIT_URL || "ws://localhost:7880",
 ): RoomServiceClient {
+  const { key, secret } = resolveLiveKitCredentials(apiKey, apiSecret);
   const httpUrl =
     process.env.LIVEKIT_HTTP_URL ||
     livekitUrl.replace(/^ws:\/\//, "http://").replace(/^wss:\/\//, "https://");
-  return new RoomServiceClient(httpUrl, apiKey, apiSecret);
+  return new RoomServiceClient(httpUrl, key, secret);
 }
 
 export async function removeParticipantFromRoom(
@@ -43,8 +65,8 @@ export async function removeParticipantFromRoom(
 
 export async function generateLiveKitToken(
   req: LiveKitTokenRequest,
-  apiKey: string = process.env.LIVEKIT_API_KEY || "devkey",
-  apiSecret: string = process.env.LIVEKIT_API_SECRET || "secretsecretsecret",
+  apiKey?: string,
+  apiSecret?: string,
   livekitUrl: string = process.env.LIVEKIT_URL || "ws://localhost:7880",
 ): Promise<LiveKitTokenResponse> {
   if (!req || !req.roomName || !req.identity) {
@@ -53,17 +75,19 @@ export async function generateLiveKitToken(
     );
   }
 
+  const { key, secret } = resolveLiveKitCredentials(apiKey, apiSecret);
+
   const metadata = JSON.stringify({
     bitrate: req.bitrate || 64000,
     codec: "opus",
     gatewaySessionId: req.gatewaySessionId,
   });
 
-  const at = new AccessToken(apiKey, apiSecret, {
+  const at = new AccessToken(key, secret, {
     identity: req.identity,
     name: req.name || req.identity,
     metadata,
-    ttl: "24h",
+    ttl: "2h",
   });
 
   at.addGrant({

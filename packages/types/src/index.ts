@@ -1361,7 +1361,7 @@ export interface PresignedUploadRequest {
   fileName: string;
   fileSize: number;
   mimeType: string;
-  purpose?: "attachment" | "guild-icon" | "user-avatar";
+  purpose?: "attachment" | "guild-icon" | "user-avatar" | "user-banner";
   channelId?: string;
   guildId?: string;
 }
