@@ -569,7 +569,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
           className={`absolute top-2 right-2 flex items-center space-x-1.5 z-20 ${controlsVisibilityClass}`}
         >
           {/* 仅主播本人在推流时展示的红点【（·）人数】徽标 */}
-          {isMe && hasAnyVideo && (
+          {isMe && (hasAnyVideo || streamAvailable) && (
             <button
               type="button"
               onClick={(e) => {
@@ -682,8 +682,8 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             </span>
           )}
 
-          {/* 直播与视频/语音属性详细统计 (Stats for nerds) - 仅在有活跃视频流 (hasAnyVideo) 时才允许查看 */}
-          {hasAnyVideo && (
+          {/* 本人直播可能仅有 SFU 发布轨，尚无可预览的本地视频轨。 */}
+          {(hasAnyVideo || (isMe && streamAvailable)) && (
             <button
               type="button"
               data-testid="participant-stats-btn"
