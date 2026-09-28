@@ -110,6 +110,12 @@
       "errorFailed": "Failed to start direct message",
       "errorServerRequired": "Cannot start DM. Both users must share a server."
     },
+    "startVoiceCall": "Start Voice Call",
+    "startVideoCall": "Start Video Call",
+    "e2eeTrusted": "Verified Device · E2EE",
+    "e2eeTofu": "First-Trust Device · E2EE",
+    "e2eeFailed": "Device verification failed",
+    "e2eeNegotiating": "Negotiating device keys...",
     "incomingCall": {
       "ariaLabel": "Incoming call from {{username}}",
       "callingVoice": "is inviting you to a voice call...",
@@ -120,7 +126,17 @@
       "e2eeFailed": "Device verification failed",
       "e2eeNegotiating": "Verifying device keys...",
       "acceptTooltip": "Accept Call (Alt+A)",
-      "rejectTooltip": "Decline Call (Alt+R)"
+      "rejectTooltip": "Decline Call (Alt+R)",
+      "muteRingtone": "Mute Ringtone",
+      "unmuteRingtone": "Unmute Ringtone"
+    },
+    "callHistory": {
+      "missed": "Missed Call",
+      "declined": "Call Declined",
+      "canceled": "Call Canceled",
+      "ended": "Call Ended",
+      "duration": "Call duration {{duration}}",
+      "noAnswer": "No answer"
     }
   },
   "invite": {

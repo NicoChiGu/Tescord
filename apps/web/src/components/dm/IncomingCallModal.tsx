@@ -1,7 +1,9 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { User } from "@tescord/types";
-import { Phone, PhoneOff, ShieldCheck, Video } from "lucide-react";
+import { Phone, PhoneOff, ShieldCheck, Video, BellOff, Bell } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { soundManager } from "../../services/soundManager.js";
+import { useAuthStore } from "../../stores/useAuthStore.js";
 
 interface IncomingCallModalProps {
   caller: User;
@@ -23,63 +25,31 @@ export const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
   encryption,
 }) => {
   const { t } = useTranslation(["chat", "common"]);
+  const [isRingtoneMuted, setIsRingtoneMuted] = useState(false);
+  const currentUserStatus = useAuthStore.getState().user?.status;
 
-  // 振铃提示音 (Web Audio API 合成和弦振铃)
+  // 振铃提示音 (统一收口至 soundManager 程序化合成管线)
   useEffect(() => {
-    let audioCtx: AudioContext | null = null;
-    let timer: any = null;
-
-    try {
-      const AudioContextClass =
-        window.AudioContext || (window as any).webkitAudioContext;
-      if (AudioContextClass) {
-        audioCtx = new AudioContextClass();
-
-        const playChime = () => {
-          if (!audioCtx || audioCtx.state === "closed") return;
-          try {
-            const osc1 = audioCtx.createOscillator();
-            const osc2 = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-
-            osc1.type = "sine";
-            osc1.frequency.setValueAtTime(440, audioCtx.currentTime); // A4
-            osc2.type = "sine";
-            osc2.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
-
-            gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-            gain.gain.exponentialRampToValueAtTime(
-              0.001,
-              audioCtx.currentTime + 0.8,
-            );
-
-            osc1.connect(gain);
-            osc2.connect(gain);
-            gain.connect(audioCtx.destination);
-
-            osc1.start();
-            osc2.start();
-            osc1.stop(audioCtx.currentTime + 0.8);
-            osc2.stop(audioCtx.currentTime + 0.8);
-          } catch {
-            // ignore
-          }
-        };
-
-        playChime();
-        timer = setInterval(playChime, 2500);
-      }
-    } catch {
-      // ignore
+    // 若当前为请勿打扰 (DND) 则静默振铃
+    if (currentUserStatus !== "DND" && !isRingtoneMuted) {
+      soundManager.startLoop("CALL_RINGING");
     }
 
     return () => {
-      if (timer) clearInterval(timer);
-      if (audioCtx) {
-        audioCtx.close().catch(() => {});
-      }
+      soundManager.stopLoop();
     };
-  }, []);
+  }, [currentUserStatus, isRingtoneMuted]);
+
+  const handleToggleMuteRingtone = () => {
+    setIsRingtoneMuted((prev) => {
+      if (!prev) {
+        soundManager.stopLoop();
+      } else if (currentUserStatus !== "DND") {
+        soundManager.startLoop("CALL_RINGING");
+      }
+      return !prev;
+    });
+  };
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -184,6 +154,28 @@ export const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
 
         {/* 交互按钮 */}
         <div className="flex items-center space-x-2">
+          {/* 静音振铃 */}
+          <button
+            onClick={handleToggleMuteRingtone}
+            className={`w-9 h-9 rounded-full flex items-center justify-center transition ${
+              isRingtoneMuted
+                ? "bg-amber-500/20 text-amber-300"
+                : "bg-white/10 hover:bg-white/20 text-white/80"
+            }`}
+            title={
+              isRingtoneMuted
+                ? t("chat:dm.incomingCall.unmuteRingtone", { defaultValue: "恢复铃声" })
+                : t("chat:dm.incomingCall.muteRingtone", { defaultValue: "静音铃声" })
+            }
+            data-testid="mute-ringtone-btn"
+          >
+            {isRingtoneMuted ? (
+              <BellOff className="w-4 h-4" />
+            ) : (
+              <Bell className="w-4 h-4" />
+            )}
+          </button>
+
           {/* 接听 */}
           <button
             onClick={onAccept}

@@ -223,12 +223,121 @@ class SoundEffectManager {
           );
           break;
 
+        case "CALL_CONNECT":
+          // 通话接通：清脆明快的大三和弦升调
+          this.playNotes(
+            ctx,
+            [
+              { freq: 440.0, duration: 0.06, type: "sine", gain: 0.14 },
+              { freq: 554.37, duration: 0.06, type: "sine", gain: 0.16 },
+              { freq: 659.25, duration: 0.08, type: "sine", gain: 0.18 },
+              { freq: 880.0, duration: 0.12, type: "sine", gain: 0.2 },
+            ],
+            0.02,
+          );
+          break;
+
+        case "CALL_DISCONNECT":
+          // 通话挂断/拒接：Discord 经典下行沉闷三连音
+          this.playNotes(
+            ctx,
+            [
+              { freq: 587.33, duration: 0.07, type: "sine", gain: 0.16 }, // D5
+              { freq: 440.0, duration: 0.07, type: "sine", gain: 0.14 },  // A4
+              { freq: 329.63, duration: 0.12, type: "sine", gain: 0.12 }, // E4
+            ],
+            0.03,
+          );
+          break;
+
+        case "CALL_CALLING":
+        case "CALL_RINGING":
+          // 单次触发直接委托给单周期播放
+          this.playLoopStep(ctx, effect);
+          break;
+
         default:
           break;
       }
     } catch (err) {
       console.warn("[SoundManager] Failed to synthesize sound effect:", err);
     }
+  }
+
+  private loopIntervalTimer: ReturnType<typeof setInterval> | null = null;
+  private currentLoopEffect: "CALL_RINGING" | "CALL_CALLING" | null = null;
+
+  private playLoopStep(ctx: AudioContext, effect: "CALL_RINGING" | "CALL_CALLING") {
+    if (effect === "CALL_CALLING") {
+      // 呼出回铃音：经典优雅的 440Hz + 480Hz 双音和弦，节奏 1.2s 响，1.8s 停
+      const now = ctx.currentTime + 0.01;
+      this.playDualTone(ctx, 440, 480, now, 1.1, "sine", 0.12);
+    } else if (effect === "CALL_RINGING") {
+      // 来电振铃音：模拟 Discord 标志性的活力和弦旋律节奏
+      this.playNotes(
+        ctx,
+        [
+          { freq: 523.25, duration: 0.09, type: "sine", gain: 0.16 }, // C5
+          { freq: 659.25, duration: 0.09, type: "sine", gain: 0.16 }, // E5
+          { freq: 783.99, duration: 0.12, type: "sine", gain: 0.18 }, // G5
+          { freq: 659.25, duration: 0.09, type: "sine", gain: 0.15 }, // E5
+          { freq: 783.99, duration: 0.09, type: "sine", gain: 0.18 }, // G5
+          { freq: 1046.5, duration: 0.18, type: "sine", gain: 0.2 },  // C6
+        ],
+        0.02,
+      );
+    }
+  }
+
+  /**
+   * 播放双音和弦 (如呼出回铃音)
+   */
+  private playDualTone(
+    ctx: AudioContext,
+    freq1: number,
+    freq2: number,
+    startTime: number,
+    duration: number,
+    type: OscillatorType = "sine",
+    peakGain: number = 0.12,
+  ) {
+    this.playTone(ctx, freq1, startTime, duration, type, peakGain * 0.6);
+    this.playTone(ctx, freq2, startTime, duration, type, peakGain * 0.6);
+  }
+
+  /**
+   * 开启持续循环音效 (如回铃音或来电铃声)
+   */
+  public startLoop(effect: "CALL_RINGING" | "CALL_CALLING"): void {
+    if (this.currentLoopEffect === effect && this.loopIntervalTimer) {
+      return; // 已经在播放该循环
+    }
+    this.stopLoop();
+    this.currentLoopEffect = effect;
+
+    const ctx = this.getAudioContext();
+    if (!ctx) return;
+
+    // 立即播放第一拍
+    this.playLoopStep(ctx, effect);
+
+    const periodMs = effect === "CALL_CALLING" ? 3000 : 2500;
+    this.loopIntervalTimer = setInterval(() => {
+      const activeCtx = this.getAudioContext();
+      if (!activeCtx) return;
+      this.playLoopStep(activeCtx, effect);
+    }, periodMs);
+  }
+
+  /**
+   * 停止循环音效
+   */
+  public stopLoop(): void {
+    if (this.loopIntervalTimer) {
+      clearInterval(this.loopIntervalTimer);
+      this.loopIntervalTimer = null;
+    }
+    this.currentLoopEffect = null;
   }
 
   /**

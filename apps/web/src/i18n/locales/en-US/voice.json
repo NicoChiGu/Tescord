@@ -209,5 +209,24 @@
     "kickedNotice": "The streamer has ended the screen share for you",
     "watching": "Watching",
     "viewerCount": "{{count}} viewers"
+  },
+  "speaking": "Speaking...",
+  "unmute": "Unmute",
+  "mute": "Mute",
+  "userVolume": "User Volume",
+  "stopShare": "Stop Sharing Screen",
+  "shareScreen": "Share Your Screen",
+  "connecting": "Connecting...",
+  "cancel": "Cancel",
+  "exitFullscreen": "Exit Full Screen",
+  "fullscreen": "Full Screen",
+  "dmCall": {
+    "inCallWith": "In call with {{name}}",
+    "callingUser": "Calling {{name}}...",
+    "cancelCall": "Cancel Call",
+    "expandStage": "Expand Call Stage",
+    "expand": "Expand",
+    "collapseStage": "Collapse Stage",
+    "returnToCall": "Return to Call"
   }
 }

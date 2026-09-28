@@ -110,6 +110,12 @@
       "errorFailed": "发起私信会话失败",
       "errorServerRequired": "无法发起私信，需双方同属同一服务器"
     },
+    "startVoiceCall": "发起语音呼叫",
+    "startVideoCall": "发起视频呼叫",
+    "e2eeTrusted": "已验证设备 · E2EE",
+    "e2eeTofu": "首次信任设备 · E2EE",
+    "e2eeFailed": "设备验证失败",
+    "e2eeNegotiating": "正在协商设备密钥",
     "incomingCall": {
       "ariaLabel": "{{username}} 的来电",
       "callingVoice": "正在向您发起语音呼叫...",
@@ -120,7 +126,17 @@
       "e2eeFailed": "设备验证失败",
       "e2eeNegotiating": "正在验证设备密钥",
       "acceptTooltip": "接听通话（Alt+A）",
-      "rejectTooltip": "拒绝呼叫（Alt+R）"
+      "rejectTooltip": "拒绝呼叫（Alt+R）",
+      "muteRingtone": "静音铃声",
+      "unmuteRingtone": "恢复铃声"
+    },
+    "callHistory": {
+      "missed": "未接来电",
+      "declined": "已拒绝通话",
+      "canceled": "已取消呼叫",
+      "ended": "通话已结束",
+      "duration": "通话时长 {{duration}}",
+      "noAnswer": "未建立通话连接"
     }
   },
   "invite": {

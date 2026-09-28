@@ -61,6 +61,9 @@ import { InviteFriendsModal } from "./components/modals/InviteFriendsModal.js";
 import { P2PFallbackModal } from "./components/modals/P2PFallbackModal.js";
 import { AdminDashboardModal } from "./components/admin/AdminDashboardModal.js";
 import { IncomingCallModal } from "./components/dm/IncomingCallModal.js";
+import { DMCallStage } from "./components/dm/DMCallStage.js";
+import { DMPictureInPicture } from "./components/dm/DMPictureInPicture.js";
+import { useDMCallStore } from "./stores/dmCallStore.js";
 import { FloatingPiP } from "./components/FloatingPiP.js";
 import { MaintenanceScreen } from "./components/maintenance/MaintenanceScreen.js";
 import { MaintenanceAdminBanner } from "./components/maintenance/MaintenanceAdminBanner.js";
@@ -502,6 +505,7 @@ export const App: React.FC = () => {
     status: "idle" | "negotiating" | "tofu" | "trusted" | "failed";
     fingerprint?: string;
   }>({ status: "idle" });
+  const dmCallStoreState = useDMCallStore();
   const [systemBroadcast, setSystemBroadcast] = useState<{
     id: string;
     title?: string;
@@ -858,6 +862,8 @@ export const App: React.FC = () => {
       (window as any).useSettingsStore = useSettingsStore;
       (window as any).__gatewayClient = gatewayClient;
       (window as any).__livekitService = livekitService;
+      (window as any).__dmCallStore = useDMCallStore;
+      (window as any).__soundManager = soundManager;
     }
 
     // 浏览器关闭前主动断开网关，加速服务端 3.5s 防抖下线
@@ -1857,6 +1863,12 @@ export const App: React.FC = () => {
         activeDMCallRef.current = activeCall;
         setActiveDMCall(activeCall);
         setCallEncryption({ status: "negotiating" });
+        useDMCallStore.getState().receiveIncoming({
+          callId: data.callId,
+          channelId: data.channelId,
+          caller: data.caller as User,
+          hasVideo: !!data.hasVideo,
+        });
         setIncomingCall({
           callId: data.callId,
           caller: data.caller as User,
@@ -1869,6 +1881,9 @@ export const App: React.FC = () => {
     const unbindCallAnswer = gatewayClient.on(
       GatewayEvents.CALL_ANSWER,
       (data: { callId: string; channelId: string }) => {
+        soundManager.stopLoop();
+        soundManager.play("CALL_CONNECT");
+        useDMCallStore.getState().setConnected(data.callId);
         showGlobalToast("对方已接听通话", "info");
         if (activeDMCallRef.current?.callId === data.callId) {
           handleJoinDMCall(
@@ -1881,8 +1896,14 @@ export const App: React.FC = () => {
     );
 
     const unbindCallReject = gatewayClient.on(GatewayEvents.CALL_REJECT, () => {
+      soundManager.stopLoop();
+      soundManager.play("CALL_DISCONNECT");
       showGlobalToast("对方已挂断或拒绝了通话", "warning");
-      soundManager.play("VOICE_LEAVE");
+      const currChId = activeDMCallRef.current?.channelId || useDMCallStore.getState().channelId;
+      if (currChId) {
+        handleSendDMCallHistoryMessage(currChId, "[CALL_EVENT:declined]");
+      }
+      useDMCallStore.getState().reset();
       activeDMCallRef.current = null;
       setActiveDMCall(null);
       setCallEncryption({ status: "idle" });
@@ -1906,6 +1927,18 @@ export const App: React.FC = () => {
           };
           activeDMCallRef.current = call;
           setActiveDMCall(call);
+
+          if (data.state === "ringing") {
+            if (data.callerId === currentUser?.id) {
+              soundManager.startLoop("CALL_CALLING");
+              useDMCallStore.getState().setConnecting(data.callId);
+            }
+          } else if (data.state === "active") {
+            soundManager.stopLoop();
+            soundManager.play("CALL_CONNECT");
+            useDMCallStore.getState().setConnected(data.callId);
+          }
+
           if (data.callerId === currentUser?.id && data.state === "ringing") {
             try {
               const token = useAuthStore.getState().token;
@@ -1976,13 +2009,29 @@ export const App: React.FC = () => {
 
     const unbindCallEnd = gatewayClient.on(
       GatewayEvents.CALL_END,
-      (data: { channelId: string }) => {
+      (data: { channelId: string; reason?: string }) => {
+        soundManager.stopLoop();
+        soundManager.play("CALL_DISCONNECT");
+        const currentDMStore = useDMCallStore.getState();
+        const callChId = data.channelId || currentDMStore.channelId || activeDMCallRef.current?.channelId;
+        if (callChId) {
+          if (currentDMStore.callState === "connected" && currentDMStore.callStartTime) {
+            const elapsedSeconds = Math.floor((Date.now() - currentDMStore.callStartTime) / 1000);
+            const mins = Math.floor(elapsedSeconds / 60).toString().padStart(2, "0");
+            const secs = (elapsedSeconds % 60).toString().padStart(2, "0");
+            handleSendDMCallHistoryMessage(callChId, `[CALL_EVENT:ended:${mins}:${secs}]`);
+          } else if (currentDMStore.callState === "outgoing_calling") {
+            handleSendDMCallHistoryMessage(callChId, "[CALL_EVENT:canceled]");
+          } else if (currentDMStore.callState === "incoming_ringing") {
+            handleSendDMCallHistoryMessage(callChId, "[CALL_EVENT:missed]");
+          }
+        }
+        useDMCallStore.getState().reset();
         setIncomingCall(null);
         activeDMCallRef.current = null;
         setActiveDMCall(null);
         setCallEncryption({ status: "idle" });
         if (activeVoiceChannelIdRef.current === data.channelId) {
-          soundManager.play("VOICE_LEAVE");
           handleLeaveVoiceChannel();
         }
       },
@@ -3359,10 +3408,19 @@ export const App: React.FC = () => {
   const handleLeaveVoiceChannel = async () => {
     voiceOperationEpochRef.current++;
     isVoiceSwitchingRef.current = false;
-    if (!activeVoiceChannelId && !activeVoiceChannelIdRef.current) return;
+    const currentDMStoreEarly = useDMCallStore.getState();
+    if (
+      !activeVoiceChannelId &&
+      !activeVoiceChannelIdRef.current &&
+      currentDMStoreEarly.callState === "idle"
+    ) {
+      return;
+    }
 
     const leavingChannelId =
-      activeVoiceChannelIdRef.current || activeVoiceChannelId;
+      activeVoiceChannelIdRef.current ||
+      activeVoiceChannelId ||
+      currentDMStoreEarly.channelId;
     activeVoiceChannelIdRef.current = null;
 
     if (isVideoEnabled) {
@@ -3385,8 +3443,22 @@ export const App: React.FC = () => {
     await cloudflareRealtimeService.disconnect();
     await livekitService.leaveRoom();
 
-    // 播放退出语音频道提示音
-    soundManager.play("VOICE_LEAVE");
+    // 播放退出提示音并停止可能的回铃/振铃循环
+    soundManager.stopLoop();
+    const currentDMStore = useDMCallStore.getState();
+    if (currentDMStore.callState !== "idle") {
+      soundManager.play("CALL_DISCONNECT");
+      const callChId = currentDMStore.channelId || activeDMCallRef.current?.channelId;
+      if (callChId && currentDMStore.callState === "connected" && currentDMStore.callStartTime) {
+        const elapsedSeconds = Math.floor((Date.now() - currentDMStore.callStartTime) / 1000);
+        const mins = Math.floor(elapsedSeconds / 60).toString().padStart(2, "0");
+        const secs = (elapsedSeconds % 60).toString().padStart(2, "0");
+        handleSendDMCallHistoryMessage(callChId, `[CALL_EVENT:ended:${mins}:${secs}]`);
+      }
+      useDMCallStore.getState().reset();
+    } else {
+      soundManager.play("VOICE_LEAVE");
+    }
 
     const currentChannel = guildsRef.current
       .flatMap((g) => g.channels)
@@ -3406,7 +3478,11 @@ export const App: React.FC = () => {
         gatewayClient.send({
           op: GatewayOpCode.DISPATCH,
           t: GatewayEvents.CALL_END,
-          d: { callId: activeDMCallRef.current.callId, reason: "hangup" },
+          d: {
+            callId: activeDMCallRef.current.callId,
+            channelId: activeDMCallRef.current.channelId,
+            reason: "hangup",
+          },
         });
       }
     }
@@ -3698,6 +3774,30 @@ export const App: React.FC = () => {
     }
   };
 
+  // 发送私信通话历史系统消息 (Discord 原生体验)
+  const handleSendDMCallHistoryMessage = async (
+    channelId: string,
+    eventContent: string,
+  ) => {
+    if (!currentUser) return;
+    try {
+      const token = localStorage.getItem("tescord_access_token");
+      await fetch(`${API_BASE}/api/channels/${channelId}/messages`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          content: eventContent,
+          authorId: currentUser.id,
+        }),
+      });
+    } catch (e) {
+      console.warn("Failed to post call history event message:", e);
+    }
+  };
+
   // 主动发起 1v1 私信呼叫
   const handleStartCall = (channelId: string, hasVideo: boolean) => {
     if (!currentUser) return;
@@ -3707,6 +3807,18 @@ export const App: React.FC = () => {
     setCallEncryption({ status: "negotiating" });
     const ch = dmChannels.find((c) => c.id === channelId) || selectedChannel;
     if (!ch) return;
+    const targetUser = ch.recipients?.find((r) => r.id !== currentUser.id);
+    useDMCallStore.getState().startOutgoing({
+      channelId,
+      targetUser:
+        targetUser ||
+        ({
+          id: "peer",
+          username: ch.name || "Friend",
+        } as any),
+      hasVideo,
+    });
+    soundManager.startLoop("CALL_CALLING");
     gatewayClient.send({
       op: GatewayOpCode.DISPATCH,
       t: GatewayEvents.CALL_OFFER,
@@ -3717,9 +3829,37 @@ export const App: React.FC = () => {
     });
   };
 
+  // 主动取消呼叫 (拨号中取消)
+  const handleCancelCall = () => {
+    soundManager.stopLoop();
+    soundManager.play("CALL_DISCONNECT");
+    const dmStore = useDMCallStore.getState();
+    const callId = dmStore.callId || activeDMCallRef.current?.callId;
+    const channelId = dmStore.channelId || activeDMCallRef.current?.channelId;
+    if (channelId) {
+      if (callId) {
+        gatewayClient.send({
+          op: GatewayOpCode.DISPATCH,
+          t: GatewayEvents.CALL_END,
+          d: {
+            callId,
+            channelId,
+            reason: "canceled",
+          },
+        });
+      }
+      handleSendDMCallHistoryMessage(channelId, "[CALL_EVENT:canceled]");
+    }
+    useDMCallStore.getState().reset();
+    activeDMCallRef.current = null;
+    setActiveDMCall(null);
+    setCallEncryption({ status: "idle" });
+  };
+
   // 接听呼叫
   const handleAcceptCall = async () => {
     if (!incomingCall) return;
+    soundManager.stopLoop();
     const call = incomingCall;
     if (!sframeManager.getStats().enabled) {
       try {
@@ -3775,6 +3915,7 @@ export const App: React.FC = () => {
     }
     if (activeDMCallRef.current?.callId !== call.callId) return;
     setIncomingCall(null);
+    useDMCallStore.getState().setConnecting(call.callId);
     gatewayClient.send({
       op: GatewayOpCode.DISPATCH,
       t: GatewayEvents.CALL_ANSWER,
@@ -3785,6 +3926,7 @@ export const App: React.FC = () => {
     const ch = dmChannels.find((c) => c.id === call.channelId);
     if (ch) {
       setSelectedGuildId(null);
+      setIsFriendsTabActive(false);
       setSelectedChannel(ch);
     }
     const activeCall = {
@@ -3799,6 +3941,8 @@ export const App: React.FC = () => {
   // 拒绝呼叫
   const handleRejectCall = () => {
     if (!incomingCall) return;
+    soundManager.stopLoop();
+    soundManager.play("CALL_DISCONNECT");
     const call = incomingCall;
     setIncomingCall(null);
     gatewayClient.send({
@@ -3808,6 +3952,10 @@ export const App: React.FC = () => {
         callId: call.callId,
       },
     });
+    if (call.channelId) {
+      handleSendDMCallHistoryMessage(call.channelId, "[CALL_EVENT:declined]");
+    }
+    useDMCallStore.getState().reset();
   };
 
   // 切换静音
@@ -4316,7 +4464,16 @@ export const App: React.FC = () => {
   const activeVoiceChannelObj = activeVoiceChannelId
     ? guilds
         .flatMap((g) => g.channels || [])
-        .find((c) => c.id === activeVoiceChannelId) || null
+        .find((c) => c.id === activeVoiceChannelId) ||
+      (() => {
+        const dm = dmChannels.find((d) => d.id === activeVoiceChannelId);
+        if (!dm) return null;
+        const otherUser = dm.recipients?.find((r) => r.id !== currentUser?.id);
+        return {
+          ...dm,
+          name: dm.name || otherUser?.username || "私信通话",
+        };
+      })()
     : null;
 
   const renderSidebarElements = (isDrawer: boolean = false) => (
@@ -4510,6 +4667,53 @@ export const App: React.FC = () => {
     </>
   );
 
+  const renderDMCallStage = () => {
+    if (
+      selectedChannel?.type !== "DM" ||
+      dmCallStoreState.callState === "idle" ||
+      dmCallStoreState.channelId !== selectedChannel.id ||
+      !dmCallStoreState.targetUser ||
+      !currentUser
+    ) {
+      return null;
+    }
+
+    return (
+      <DMCallStage
+        channelId={selectedChannel.id}
+        currentUser={currentUser}
+        targetUser={dmCallStoreState.targetUser}
+        callState={dmCallStoreState.callState}
+        hasVideo={dmCallStoreState.hasVideo}
+        onCancelCall={handleCancelCall}
+        onHangup={handleLeaveVoiceChannel}
+        isMuted={isMuted}
+        isDeafened={isDeafened}
+        isVideoEnabled={isVideoEnabled}
+        isScreenSharing={isCurrentUserStreaming()}
+        onToggleMute={handleToggleMute}
+        onToggleDeafen={handleToggleDeafen}
+        onToggleCamera={handleToggleCamera}
+        onToggleScreenShare={handleToggleScreenShare}
+        isNoiseSuppressionEnabled={isNoiseSuppressionEnabled}
+        noiseSuppressionMode={noiseSuppressionMode}
+        onToggleNoiseSuppression={handleToggleNoiseSuppression}
+        isSpeakingLocal={isSpeaking}
+        isSpeakingRemote={activeSpeakers.includes(dmCallStoreState.targetUser.id)}
+        localVideoTrack={livekitService.localCameraTrack}
+        remoteVideoTrack={
+          livekitService.cameraTracksMap.get(dmCallStoreState.targetUser.id) ||
+          p2pStreamManager.getRemoteStream()
+        }
+        screenShareTrack={
+          activeScreenShare?.track ||
+          p2pStreamManager.getRemoteStream()
+        }
+        encryption={callEncryption}
+      />
+    );
+  };
+
   return (
     <div className="flex flex-col h-dvh h-[var(--visual-viewport-height,100dvh)] w-screen overflow-hidden bg-discord-chat relative">
       {/* 顶部自定义标题栏 (仅在 Electron 桌面环境下展示，Web 端自动隐藏) */}
@@ -4667,6 +4871,7 @@ export const App: React.FC = () => {
             }
             onMarkChannelAsRead={handleSyncChannelReadProgress}
             onReloadLatestMessages={handleReloadLatestMessages}
+            dmCallElement={renderDMCallStage()}
           />
         ) : guilds.length === 0 ? (
           <EmptyGuildsWelcome
@@ -5153,6 +5358,50 @@ export const App: React.FC = () => {
           onReject={handleRejectCall}
         />
       )}
+
+      {/* 16.1 离开私信频道时的悬浮画中画 (DM Picture-in-Picture) */}
+      {dmCallStoreState.callState === "connected" &&
+        selectedChannel?.id !== dmCallStoreState.channelId &&
+        dmCallStoreState.targetUser && (
+          <DMPictureInPicture
+            targetUser={dmCallStoreState.targetUser}
+            onReturnToCall={() => {
+              const ch = dmChannels.find(
+                (c) => c.id === dmCallStoreState.channelId,
+              );
+              if (ch) {
+                setSelectedGuildId(null);
+                setIsFriendsTabActive(false);
+                setSelectedChannel(ch);
+              }
+            }}
+            onHangup={handleLeaveVoiceChannel}
+            isMuted={isMuted}
+            onToggleMute={handleToggleMute}
+            isSpeakingRemote={activeSpeakers.includes(
+              dmCallStoreState.targetUser.id,
+            )}
+            remoteVideoTrack={
+              livekitService.cameraTracksMap.get(
+                dmCallStoreState.targetUser.id,
+              ) || p2pStreamManager.getRemoteStream()
+            }
+            callDuration={
+              dmCallStoreState.callStartTime
+                ? (() => {
+                    const elapsed = Math.floor(
+                      (Date.now() - dmCallStoreState.callStartTime) / 1000,
+                    );
+                    const mins = Math.floor(elapsed / 60)
+                      .toString()
+                      .padStart(2, "0");
+                    const secs = (elapsed % 60).toString().padStart(2, "0");
+                    return `${mins}:${secs}`;
+                  })()
+                : "00:00"
+            }
+          />
+        )}
 
       {/* 14. 全局浮动 Toast 提示（伴音降级提示、异常反馈等） */}
       {globalToast && (

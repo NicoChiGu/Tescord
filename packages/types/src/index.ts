@@ -948,7 +948,28 @@ export type SoundEffectType =
   | "VOICE_JOIN"
   | "VOICE_LEAVE"
   | "USER_JOIN"
-  | "USER_LEAVE";
+  | "USER_LEAVE"
+  | "CALL_RINGING"
+  | "CALL_CALLING"
+  | "CALL_CONNECT"
+  | "CALL_DISCONNECT";
+
+export type ClientCallState =
+  | "idle"
+  | "outgoing_calling"
+  | "incoming_ringing"
+  | "connecting"
+  | "connected"
+  | "ended";
+
+export interface DMCallEventMetadata {
+  callId: string;
+  callType: "voice" | "video";
+  status: "completed" | "missed" | "declined" | "canceled";
+  durationSeconds?: number;
+  startedAt: string;
+  endedAt: string;
+}
 
 export interface AudioProcessingConfig {
   noiseSuppression: boolean; // RNNoise AI 神经网络降噪 (兼容旧布尔配置)

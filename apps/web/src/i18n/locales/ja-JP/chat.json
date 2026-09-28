@@ -110,6 +110,12 @@
       "errorFailed": "DMの開始に失敗しました",
       "errorServerRequired": "DMを開始できません。双方が同じサーバーに所属している必要があります"
     },
+    "startVoiceCall": "音声通話を開始",
+    "startVideoCall": "ビデオ通話を開始",
+    "e2eeTrusted": "認証済みデバイス · E2EE",
+    "e2eeTofu": "初回信頼デバイス · E2EE",
+    "e2eeFailed": "デバイスの検証に失敗しました",
+    "e2eeNegotiating": "デバイス鍵を交渉中...",
     "incomingCall": {
       "ariaLabel": "{{username}} からの着信",
       "callingVoice": "から音声通話のリクエストが届いています...",
@@ -120,7 +126,17 @@
       "e2eeFailed": "デバイスの検証に失敗しました",
       "e2eeNegotiating": "デバイス鍵を検証中...",
       "acceptTooltip": "応答（Alt+A）",
-      "rejectTooltip": "拒否（Alt+R）"
+      "rejectTooltip": "拒否（Alt+R）",
+      "muteRingtone": "着信音を消音",
+      "unmuteRingtone": "着信音を再開"
+    },
+    "callHistory": {
+      "missed": "不在着信",
+      "declined": "通話を拒否しました",
+      "canceled": "発信をキャンセルしました",
+      "ended": "通話終了",
+      "duration": "通話時間 {{duration}}",
+      "noAnswer": "接続されませんでした"
     }
   },
   "invite": {

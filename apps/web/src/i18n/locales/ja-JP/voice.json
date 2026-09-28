@@ -209,5 +209,24 @@
     "kickedNotice": "配信者が画面共有を終了しました",
     "watching": "視聴中",
     "viewerCount": "{{count}} 人が視聴中"
+  },
+  "speaking": "発言中...",
+  "unmute": "ミュート解除",
+  "mute": "ミュート",
+  "userVolume": "ユーザー音量",
+  "stopShare": "画面共有を停止",
+  "shareScreen": "画面を共有",
+  "connecting": "接続中...",
+  "cancel": "キャンセル",
+  "exitFullscreen": "フルスクリーンを終了",
+  "fullscreen": "フルスクリーン",
+  "dmCall": {
+    "inCallWith": "{{name}} と通話中",
+    "callingUser": "{{name}} を呼び出し中...",
+    "cancelCall": "発信をキャンセル",
+    "expandStage": "通話ステージを展開",
+    "expand": "展開",
+    "collapseStage": "ステージを折りたたむ",
+    "returnToCall": "通話画面に戻る"
   }
 }

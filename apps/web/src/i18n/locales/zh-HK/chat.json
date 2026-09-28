@@ -110,6 +110,12 @@
       "errorFailed": "發起私信會話失敗",
       "errorServerRequired": "無法發起私信，需雙方同屬同一伺服器"
     },
+    "startVoiceCall": "發起語音呼叫",
+    "startVideoCall": "發起視像通話",
+    "e2eeTrusted": "已驗證裝置 · E2EE",
+    "e2eeTofu": "首次信任裝置 · E2EE",
+    "e2eeFailed": "裝置驗證失敗",
+    "e2eeNegotiating": "正在協商裝置密鑰",
     "incomingCall": {
       "ariaLabel": "{{username}} 的來電",
       "callingVoice": "正在向您發起語音呼叫...",
@@ -120,7 +126,17 @@
       "e2eeFailed": "裝置驗證失敗",
       "e2eeNegotiating": "正在驗證裝置密鑰",
       "acceptTooltip": "接聽通話（Alt+A）",
-      "rejectTooltip": "拒絕呼叫（Alt+R）"
+      "rejectTooltip": "拒絕呼叫（Alt+R）",
+      "muteRingtone": "靜音鈴聲",
+      "unmuteRingtone": "恢復鈴聲"
+    },
+    "callHistory": {
+      "missed": "未接來電",
+      "declined": "已拒絕通話",
+      "canceled": "已取消呼叫",
+      "ended": "通話已結束",
+      "duration": "通話時長 {{duration}}",
+      "noAnswer": "未建立通話連線"
     }
   },
   "invite": {

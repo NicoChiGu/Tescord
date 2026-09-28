@@ -102,6 +102,7 @@ interface ChatAreaProps {
   };
   onMarkChannelAsRead?: (channelId: string, sequence: number) => void;
   onReloadLatestMessages?: () => Promise<void> | void;
+  dmCallElement?: React.ReactNode;
 }
 
 interface ChatMessageItemProps {
@@ -167,6 +168,7 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
   isHighlighted,
   onJumpToMessage,
 }) => {
+  const { t } = useTranslation(["chat", "voice", "common"]);
   const isMe = msg.authorId === currentUser.id;
   const isTouchDevice = isMobile || isTablet || isTouch;
   const member = guild?.members?.find((m) => m.userId === msg.author.id);
@@ -387,15 +389,61 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
             )}
           </div>
 
-          {/* 消息正文 (支持 Markdown 与剧透) */}
+          {/* 消息正文 (支持 Markdown、剧透与通话历史系统卡片) */}
           {displayContent ? (
-            <div className="mt-1 selectable-text">
-              <MarkdownRenderer
-                content={displayContent}
-                currentUsername={currentUser.username}
-                onMentionClick={onOpenProfileByName}
-              />
-            </div>
+            displayContent.startsWith("[CALL_EVENT:") ? (
+              <div
+                data-testid="dm-call-event-card"
+                className="mt-1 flex items-center space-x-3 text-xs py-2 px-3.5 bg-[#2b2d31] rounded-xl border border-[#35373c] max-w-sm shadow-sm select-none"
+              >
+                <div
+                  className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                    displayContent.includes(":missed") || displayContent.includes(":declined")
+                      ? "bg-rose-500/20 text-rose-400"
+                      : "bg-emerald-500/20 text-emerald-400"
+                  }`}
+                >
+                  {displayContent.includes(":missed") ||
+                  displayContent.includes(":declined") ||
+                  displayContent.includes(":canceled") ? (
+                    <PhoneOff className="w-4 h-4" />
+                  ) : (
+                    <Phone className="w-4 h-4" />
+                  )}
+                </div>
+                <div className="flex flex-col min-w-0">
+                  <span className="font-semibold text-white">
+                    {displayContent.includes(":missed")
+                      ? t("chat:dm.callHistory.missed", "未接来电")
+                      : displayContent.includes(":declined")
+                        ? t("chat:dm.callHistory.declined", "已拒绝通话")
+                        : displayContent.includes(":canceled")
+                          ? t("chat:dm.callHistory.canceled", "已取消呼叫")
+                          : t("chat:dm.callHistory.ended", "通话已结束")}
+                  </span>
+                  <span className="text-[11px] text-zinc-400">
+                    {displayContent.includes(":ended:")
+                      ? t("chat:dm.callHistory.duration", {
+                          duration: displayContent
+                            .split(":ended:")[1]
+                            ?.replace("]", "") || "",
+                          defaultValue: `通话时长 ${
+                            displayContent.split(":ended:")[1]?.replace("]", "")
+                          }`,
+                        })
+                      : t("chat:dm.callHistory.noAnswer", "未建立通话连接")}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div className="mt-1 selectable-text">
+                <MarkdownRenderer
+                  content={displayContent}
+                  currentUsername={currentUser.username}
+                  onMentionClick={onOpenProfileByName}
+                />
+              </div>
+            )
           ) : null}
 
           {/* 服务器邀请卡片 (Discord 风格) */}
@@ -619,6 +667,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   callEncryption,
   onMarkChannelAsRead,
   onReloadLatestMessages,
+  dmCallElement,
 }) => {
   const { t } = useTranslation(["chat", "common"]);
   const { isMobile, isTablet, isDesktop } = useViewport();
@@ -2020,26 +2069,39 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   }`}
                   title={
                     callEncryption.fingerprint
-                      ? `对端设备指纹：${callEncryption.fingerprint}`
-                      : "正在协商设备密钥"
+                      ? t("chat:dm.incomingCall.deviceFingerprint", {
+                          fingerprint: callEncryption.fingerprint,
+                          defaultValue: `设备指纹：${callEncryption.fingerprint}`,
+                        })
+                      : t("chat:dm.incomingCall.e2eeNegotiating", {
+                          defaultValue: "正在验证设备密钥",
+                        })
                   }
                   data-testid="dm-call-encryption-status"
                 >
                   <ShieldCheck className="h-3 w-3" />
                   {callEncryption.status === "trusted"
-                    ? "设备已验证"
+                    ? t("chat:dm.incomingCall.e2eeTrusted", {
+                        defaultValue: "已验证设备 · E2EE",
+                      })
                     : callEncryption.status === "tofu"
-                      ? "首次信任 · E2EE"
+                      ? t("chat:dm.incomingCall.e2eeTofu", {
+                          defaultValue: "首次信任设备 · E2EE",
+                        })
                       : callEncryption.status === "failed"
-                        ? "加密失败"
-                        : "协商 E2EE"}
+                        ? t("chat:dm.incomingCall.e2eeFailed", {
+                            defaultValue: "设备验证失败",
+                          })
+                        : t("chat:dm.incomingCall.e2eeNegotiating", {
+                            defaultValue: "正在验证设备密钥",
+                          })}
                 </span>
               )}
               <button
                 type="button"
                 onClick={() => onStartCall?.(channel.id, false)}
                 className="hover:text-discord-textHeader transition p-1.5 rounded hover:bg-[#35373c] text-discord-textMuted"
-                title="发起语音呼叫"
+                title={t("chat:dm.startVoiceCall", { defaultValue: "发起语音呼叫" })}
                 data-testid="dm-start-voice-call-btn"
               >
                 <Phone className="w-5 h-5" />
@@ -2048,7 +2110,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 type="button"
                 onClick={() => onStartCall?.(channel.id, true)}
                 className="hover:text-discord-textHeader transition p-1.5 rounded hover:bg-[#35373c] text-discord-textMuted"
-                title="发起视频呼叫"
+                title={t("chat:dm.startVideoCall", { defaultValue: "发起视频呼叫" })}
                 data-testid="dm-start-video-call-btn"
               >
                 <Video className="w-5 h-5" />
@@ -2150,6 +2212,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           </button>
         </div>
       )}
+
+      {/* 私信音视频通话舞台 (Discord 风格 DM Call Stage) */}
+      {dmCallElement}
 
       {/* 消息视口区域主容器：包含吸顶历史提示横幅与上下边缘渐变模糊遮罩 */}
       <div className="flex-1 relative min-h-0 overflow-hidden flex flex-col">

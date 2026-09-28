@@ -209,5 +209,24 @@
     "kickedNotice": "主播已终止对您的画面分享",
     "watching": "正在观看",
     "viewerCount": "{{count}} 人正在观看"
+  },
+  "speaking": "正在说话...",
+  "unmute": "取消静音",
+  "mute": "静音",
+  "userVolume": "用户音量",
+  "stopShare": "停止屏幕共享",
+  "shareScreen": "共享屏幕",
+  "connecting": "正在连接...",
+  "cancel": "取消",
+  "exitFullscreen": "退出全屏",
+  "fullscreen": "全屏",
+  "dmCall": {
+    "inCallWith": "与 {{name}} 通话中",
+    "callingUser": "正在呼叫 {{name}}...",
+    "cancelCall": "取消呼叫",
+    "expandStage": "展开通话舞台",
+    "expand": "展开",
+    "collapseStage": "折叠舞台",
+    "returnToCall": "返回通话视窗"
   }
 }
