@@ -6,6 +6,11 @@ import {
   DesktopAuthSuccessPayload,
   DesktopAudioInferenceStart,
   DesktopAudioInferenceStop,
+  STORAGE_IPC_CHANNELS,
+  SavedAccount,
+  Message,
+  ChannelMetaRecord,
+  StorageSearchMessagesQuery,
 } from "@tescord/types";
 
 ipcRenderer.on("audio-inference-exit", (_event, data) => {
@@ -181,5 +186,66 @@ contextBridge.exposeInMainWorld("electronAPI", {
         ipcRenderer.removeListener("updater-update-ready", handler);
       };
     },
+  },
+
+  // 本地 SQLite 统一离线存储服务 (包含 safeStorage 凭据加密与 FTS5 全文搜索)
+  storage: {
+    getPreference: (key: string) =>
+      ipcRenderer.invoke(STORAGE_IPC_CHANNELS.PREF_GET, key),
+    setPreference: (key: string, value: any) =>
+      ipcRenderer.invoke(STORAGE_IPC_CHANNELS.PREF_SET, { key, value }),
+    removePreference: (key: string) =>
+      ipcRenderer.invoke(STORAGE_IPC_CHANNELS.PREF_REMOVE, key),
+
+    getSavedAccounts: () =>
+      ipcRenderer.invoke(STORAGE_IPC_CHANNELS.ACCOUNTS_GET),
+    saveSavedAccounts: (accounts: SavedAccount[]) =>
+      ipcRenderer.invoke(STORAGE_IPC_CHANNELS.ACCOUNTS_SAVE, accounts),
+    getActiveTokens: () => ipcRenderer.invoke(STORAGE_IPC_CHANNELS.TOKENS_GET),
+    setActiveTokens: (
+      tokens: { accessToken: string; refreshToken: string; user: any },
+      remember: boolean,
+    ) =>
+      ipcRenderer.invoke(STORAGE_IPC_CHANNELS.TOKENS_SET, { tokens, remember }),
+    clearActiveTokens: () =>
+      ipcRenderer.invoke(STORAGE_IPC_CHANNELS.TOKENS_CLEAR),
+
+    switchUser: (userId: string | null) =>
+      ipcRenderer.invoke(STORAGE_IPC_CHANNELS.USER_SWITCH, userId),
+
+    saveMessages: (channelId: string, messages: Message[]) =>
+      ipcRenderer.invoke(STORAGE_IPC_CHANNELS.MESSAGES_SAVE_BATCH, {
+        channelId,
+        messages,
+      }),
+    saveMessage: (message: Message) =>
+      ipcRenderer.invoke(STORAGE_IPC_CHANNELS.MESSAGE_SAVE_SINGLE, message),
+    getLatestMessages: (channelId: string, limit?: number) =>
+      ipcRenderer.invoke(STORAGE_IPC_CHANNELS.MESSAGES_GET_LATEST, {
+        channelId,
+        limit,
+      }),
+    getChannelSnapshot: (channelId: string, limit?: number) =>
+      ipcRenderer.invoke(STORAGE_IPC_CHANNELS.CHANNEL_SNAPSHOT_GET, {
+        channelId,
+        limit,
+      }),
+    deleteMessage: (messageId: string) =>
+      ipcRenderer.invoke(STORAGE_IPC_CHANNELS.MESSAGE_DELETE, messageId),
+    saveChannelMeta: (channelId: string, meta: Partial<ChannelMetaRecord>) =>
+      ipcRenderer.invoke(STORAGE_IPC_CHANNELS.CHANNEL_META_SAVE, {
+        channelId,
+        meta,
+      }),
+    getChannelMeta: (channelId: string) =>
+      ipcRenderer.invoke(STORAGE_IPC_CHANNELS.CHANNEL_META_GET, channelId),
+    clearChannel: (channelId: string) =>
+      ipcRenderer.invoke(STORAGE_IPC_CHANNELS.CHANNEL_CLEAR, channelId),
+    clearAllMessages: () =>
+      ipcRenderer.invoke(STORAGE_IPC_CHANNELS.MESSAGES_CLEAR_ALL),
+
+    searchMessages: (query: StorageSearchMessagesQuery) =>
+      ipcRenderer.invoke(STORAGE_IPC_CHANNELS.MESSAGES_SEARCH_FTS, query),
+    getStorageStats: () => ipcRenderer.invoke(STORAGE_IPC_CHANNELS.STATS_GET),
   },
 });

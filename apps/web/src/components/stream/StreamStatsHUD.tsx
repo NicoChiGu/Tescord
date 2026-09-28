@@ -467,14 +467,18 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
         ) : (
           <>
             <div className="flex justify-between items-start gap-2">
-              <span className="text-gray-400 flex-shrink-0">下行/下载码率:</span>
+              <span className="text-gray-400 flex-shrink-0">
+                下行/下载码率:
+              </span>
               <span className="text-discord-brand font-semibold text-right">
                 {stats?.downloadBitrate || "未知"}
               </span>
             </div>
             {stats?.uploadBitrate && (
               <div className="flex justify-between items-start gap-2">
-                <span className="text-gray-400 flex-shrink-0">上行/推流码率:</span>
+                <span className="text-gray-400 flex-shrink-0">
+                  上行/推流码率:
+                </span>
                 <span className="text-indigo-400 font-semibold text-right">
                   {stats.uploadBitrate}
                 </span>

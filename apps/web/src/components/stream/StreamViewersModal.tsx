@@ -1,12 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { User, GuildMember } from "@tescord/types";
-import {
-  X,
-  Users,
-  UserX,
-  GripHorizontal,
-  Eye,
-} from "lucide-react";
+import { X, Users, UserX, GripHorizontal, Eye } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 export interface StreamViewerItem {
@@ -147,7 +141,10 @@ export const StreamViewersModal: React.FC<StreamViewersModalProps> = ({
       const minX = padding;
       const maxX = Math.max(minX, parentRect.width - modalRect.width - padding);
       const minY = padding;
-      const maxY = Math.max(minY, parentRect.height - modalRect.height - padding);
+      const maxY = Math.max(
+        minY,
+        parentRect.height - modalRect.height - padding,
+      );
 
       const clampedX = Math.min(Math.max(minX, rawX), maxX);
       const clampedY = Math.min(Math.max(minY, rawY), maxY);

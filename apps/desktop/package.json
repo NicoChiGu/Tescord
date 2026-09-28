@@ -16,11 +16,13 @@
   "dependencies": {
     "@tescord/types": "workspace:*",
     "adm-zip": "^0.6.1",
+    "better-sqlite3": "^13.0.3",
     "onnxruntime-node": "1.22.0"
   },
   "devDependencies": {
     "@shiguredo/rnnoise-wasm": "2022.2.0",
     "@types/adm-zip": "^0.5.8",
+    "@types/better-sqlite3": "^9.6.0",
     "electron": "^33.2.1",
     "electron-builder": "^26.15.3",
     "node-gyp": "11.5.0",
@@ -39,7 +41,8 @@
       "package.json"
     ],
     "asarUnpack": [
-      "dist/audio/*.node"
+      "dist/audio/*.node",
+      "**/better-sqlite3/build/Release/*.node"
     ],
     "extraResources": [
       {

@@ -9,6 +9,7 @@ import {
 } from "@tescord/types";
 import { API_BASE } from "../config.js";
 import { cancelPendingRequests } from "../services/apiClient.js";
+import { getStorageAdapter } from "../services/storage/index.js";
 
 const MAX_SAVED_ACCOUNTS = 10;
 const SAVED_ACCOUNTS_STORAGE_KEY = "tescord_saved_accounts";
@@ -35,6 +36,15 @@ function storeActiveTokens(tokens: AuthTokens, remember: boolean): void {
     localStorage.removeItem(REFRESH_KEY);
   }
   localStorage.setItem("tescord_last_user", JSON.stringify(tokens.user));
+
+  // 同步写入 StorageAdapter (在桌面端通过 safeStorage 系统级加密入 SQLite)
+  try {
+    getStorageAdapter()
+      .setActiveTokens(tokens, remember)
+      .catch((err) =>
+        console.warn("[useAuthStore] Adapter setActiveTokens warning:", err),
+      );
+  } catch {}
 }
 
 function clearActiveTokens(): void {
@@ -42,6 +52,14 @@ function clearActiveTokens(): void {
   sessionStorage.removeItem(ACCESS_KEY);
   localStorage.removeItem(REFRESH_KEY);
   sessionStorage.removeItem(REFRESH_KEY);
+
+  try {
+    getStorageAdapter()
+      .clearActiveTokens()
+      .catch((err) =>
+        console.warn("[useAuthStore] Adapter clearActiveTokens warning:", err),
+      );
+  } catch {}
 }
 
 function accessExpiresAt(token: string | null): number {
@@ -92,11 +110,18 @@ export function getStoredSavedAccounts(): SavedAccount[] {
 
 export function persistSavedAccounts(accounts: SavedAccount[]): void {
   try {
-    if (typeof localStorage === "undefined") return;
-    localStorage.setItem(
-      SAVED_ACCOUNTS_STORAGE_KEY,
-      JSON.stringify(accounts.slice(0, MAX_SAVED_ACCOUNTS)),
-    );
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(
+        SAVED_ACCOUNTS_STORAGE_KEY,
+        JSON.stringify(accounts.slice(0, MAX_SAVED_ACCOUNTS)),
+      );
+    }
+    // 同步到 StorageAdapter (SQLite safeStorage)
+    getStorageAdapter()
+      .saveSavedAccounts(accounts.slice(0, MAX_SAVED_ACCOUNTS))
+      .catch((err) =>
+        console.warn("[useAuthStore] Adapter saveSavedAccounts warning:", err),
+      );
   } catch {
     // 忽略持久化异常
   }
@@ -274,12 +299,50 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initAuth: async () => {
     set({ isLoading: true, error: null });
     try {
-      const accounts = getStoredSavedAccounts();
+      let accounts = getStoredSavedAccounts();
+      if (
+        (!accounts || accounts.length === 0) &&
+        typeof window !== "undefined" &&
+        window.electronAPI?.storage
+      ) {
+        try {
+          const nativeAccounts = await getStorageAdapter().getSavedAccounts();
+          if (nativeAccounts && nativeAccounts.length > 0) {
+            accounts = nativeAccounts;
+            persistSavedAccounts(accounts);
+          }
+        } catch {}
+      }
       set({ savedAccounts: accounts });
 
-      const accessToken =
+      let accessToken =
         sessionStorage.getItem(ACCESS_KEY) || localStorage.getItem(ACCESS_KEY);
-      const refreshToken = currentRefreshToken();
+      let refreshToken = currentRefreshToken();
+
+      // 如果浏览器缓存被清除，尝试从桌面端 safeStorage + SQLite 恢复活跃会话
+      if (
+        !accessToken &&
+        !refreshToken &&
+        typeof window !== "undefined" &&
+        window.electronAPI?.storage
+      ) {
+        try {
+          const active = await getStorageAdapter().getActiveTokens();
+          if (active && (active.accessToken || active.refreshToken)) {
+            accessToken = active.accessToken;
+            refreshToken = active.refreshToken;
+            storeActiveTokens(
+              {
+                accessToken: active.accessToken,
+                refreshToken: active.refreshToken,
+                user: active.user,
+                expiresIn: 3600,
+              },
+              active.remember,
+            );
+          }
+        } catch {}
+      }
 
       // 1. 优先尝试本地活跃的 access/refresh token
       if (accessToken || refreshToken) {
@@ -713,6 +776,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     clearActiveTokens();
+    try {
+      getStorageAdapter()
+        .switchUser(null)
+        .catch(() => {});
+    } catch {}
     set({
       user: null,
       accessToken: null,

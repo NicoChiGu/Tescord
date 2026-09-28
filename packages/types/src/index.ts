@@ -3413,3 +3413,103 @@ export interface CfTurnIceServersResponse {
   }>;
   expiresAt: number;
 }
+
+// ==========================================
+// 25. 本地持久化与离线存储契约 (Local Storage & SQLite Contracts)
+// ==========================================
+
+export interface StoredActiveTokens {
+  accessToken: string;
+  refreshToken: string;
+  user: User;
+  remember: boolean;
+  updatedAt: number;
+}
+
+export interface StorageSearchMessagesQuery {
+  keyword: string;
+  channelId?: string;
+  limit?: number;
+}
+
+export interface StorageChannelSnapshot {
+  messages: Message[];
+  meta: ChannelMetaRecord;
+}
+
+export interface StorageStats {
+  adapterType: "sqlite" | "indexeddb";
+  appDbSize?: number;
+  userDbSize?: number;
+  messageCount?: number;
+  isEncryptionAvailable?: boolean;
+}
+
+export interface IStorageAdapter {
+  // 1. 全局与用户偏好 (KV)
+  getPreference<T = any>(key: string): Promise<T | null>;
+  setPreference<T = any>(key: string, value: T): Promise<void>;
+  removePreference(key: string): Promise<void>;
+
+  // 2. 账号鉴权与凭据（桌面端走 safeStorage 加密）
+  getSavedAccounts(): Promise<SavedAccount[]>;
+  saveSavedAccounts(accounts: SavedAccount[]): Promise<void>;
+  getActiveTokens(): Promise<StoredActiveTokens | null>;
+  setActiveTokens(
+    tokens: { accessToken: string; refreshToken: string; user: User },
+    remember: boolean,
+  ): Promise<void>;
+  clearActiveTokens(): Promise<void>;
+
+  // 3. 用户切换与多账号隔离
+  switchUser(userId: string | null): Promise<void>;
+
+  // 4. 频道消息与元数据缓存
+  saveMessages(channelId: string, messages: Message[]): Promise<void>;
+  saveMessage(msg: Message): Promise<void>;
+  getLatestMessages(channelId: string, limit?: number): Promise<Message[]>;
+  getChannelSnapshot(
+    channelId: string,
+    limit?: number,
+  ): Promise<StorageChannelSnapshot>;
+  deleteMessage(messageId: string): Promise<void>;
+  saveChannelMeta(
+    channelId: string,
+    meta: Partial<ChannelMetaRecord>,
+  ): Promise<void>;
+  getChannelMeta(channelId: string): Promise<ChannelMetaRecord | null>;
+  clearChannel(channelId: string): Promise<void>;
+  clearAllMessages(): Promise<void>;
+
+  // 5. 本地全文搜索 (FTS5)
+  searchMessages(query: StorageSearchMessagesQuery): Promise<Message[]>;
+
+  // 6. 统计信息
+  getStorageStats?(): Promise<StorageStats>;
+}
+
+export const STORAGE_IPC_CHANNELS = {
+  PREF_GET: "storage:pref-get",
+  PREF_SET: "storage:pref-set",
+  PREF_REMOVE: "storage:pref-remove",
+  ACCOUNTS_GET: "storage:accounts-get",
+  ACCOUNTS_SAVE: "storage:accounts-save",
+  TOKENS_GET: "storage:tokens-get",
+  TOKENS_SET: "storage:tokens-set",
+  TOKENS_CLEAR: "storage:tokens-clear",
+  USER_SWITCH: "storage:user-switch",
+  MESSAGES_SAVE_BATCH: "storage:messages-save-batch",
+  MESSAGE_SAVE_SINGLE: "storage:message-save-single",
+  MESSAGES_GET_LATEST: "storage:messages-get-latest",
+  CHANNEL_SNAPSHOT_GET: "storage:channel-snapshot-get",
+  MESSAGE_DELETE: "storage:message-delete",
+  CHANNEL_META_SAVE: "storage:channel-meta-save",
+  CHANNEL_META_GET: "storage:channel-meta-get",
+  CHANNEL_CLEAR: "storage:channel-clear",
+  MESSAGES_CLEAR_ALL: "storage:messages-clear-all",
+  MESSAGES_SEARCH_FTS: "storage:messages-search-fts",
+  STATS_GET: "storage:stats-get",
+} as const;
+
+export type StorageIpcChannel =
+  (typeof STORAGE_IPC_CHANNELS)[keyof typeof STORAGE_IPC_CHANNELS];

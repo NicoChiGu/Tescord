@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
 import {
   AudioProcessingConfig,
   VideoSettingsConfig,
@@ -12,6 +12,7 @@ import {
 import { API_BASE } from "../config.js";
 import { useAuthStore } from "./useAuthStore.js";
 import i18n from "../i18n/index.js";
+import { getStorageAdapter } from "../services/storage/index.js";
 
 interface SettingsState extends UserSettingsDTO {
   isCloudSyncing: boolean;
@@ -388,6 +389,32 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: "tescord_user_settings",
+      storage: createJSONStorage(() => ({
+        getItem: (name: string) => {
+          if (typeof localStorage === "undefined") return null;
+          return localStorage.getItem(name);
+        },
+        setItem: (name: string, value: string) => {
+          if (typeof localStorage !== "undefined") {
+            localStorage.setItem(name, value);
+          }
+          try {
+            getStorageAdapter()
+              .setPreference(name, JSON.parse(value))
+              .catch(() => {});
+          } catch {}
+        },
+        removeItem: (name: string) => {
+          if (typeof localStorage !== "undefined") {
+            localStorage.removeItem(name);
+          }
+          try {
+            getStorageAdapter()
+              .removePreference(name)
+              .catch(() => {});
+          } catch {}
+        },
+      })),
       partialize: (state) => ({
         audio: state.audio,
         video: state.video,

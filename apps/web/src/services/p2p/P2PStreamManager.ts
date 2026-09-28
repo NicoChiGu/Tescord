@@ -866,19 +866,27 @@ export class P2PStreamManager {
           }
         });
 
-        const formatCodecLabel = (codec: any, kind: "video" | "audio" = "video") => {
+        const formatCodecLabel = (
+          codec: any,
+          kind: "video" | "audio" = "video",
+        ) => {
           if (!codec || !codec.mimeType) return "";
-          const name = codec.mimeType.replace(/^(video|audio)\//i, "").toUpperCase();
+          const name = codec.mimeType
+            .replace(/^(video|audio)\//i, "")
+            .toUpperCase();
           if (kind === "video") {
             const sub: string[] = [];
-            if (codec.payloadType !== undefined) sub.push(String(codec.payloadType));
+            if (codec.payloadType !== undefined)
+              sub.push(String(codec.payloadType));
             if (codec.sdpFmtpLine) sub.push(codec.sdpFmtpLine);
             return sub.length > 0 ? `${name} (${sub.join(", ")})` : name;
           } else {
             const parts: string[] = [];
-            if (codec.clockRate) parts.push(`${Math.round(codec.clockRate / 1000)}kHz`);
+            if (codec.clockRate)
+              parts.push(`${Math.round(codec.clockRate / 1000)}kHz`);
             if (codec.channels) parts.push(`${codec.channels}ch`);
-            if (codec.payloadType !== undefined) parts.push(`PT:${codec.payloadType}`);
+            if (codec.payloadType !== undefined)
+              parts.push(`PT:${codec.payloadType}`);
             return parts.length > 0 ? `${name} (${parts.join(", ")})` : name;
           }
         };
@@ -935,12 +943,14 @@ export class P2PStreamManager {
               decodedFrames = `${stat.framesDecoded} frames (${stat.framesDropped || 0} dropped)`;
             }
             const codecLabel = formatCodecLabel(codec, "video");
-            const resFps = stat.frameWidth && stat.frameHeight
-              ? (stat.framesPerSecond
+            const resFps =
+              stat.frameWidth && stat.frameHeight
+                ? stat.framesPerSecond
                   ? `${stat.frameWidth}x${stat.frameHeight}@${Math.round(stat.framesPerSecond)}fps`
-                  : `${stat.frameWidth}x${stat.frameHeight}`)
-              : "";
-            videoInfo = [resFps, codecLabel].filter(Boolean).join(" · ") || "接收中";
+                  : `${stat.frameWidth}x${stat.frameHeight}`
+                : "";
+            videoInfo =
+              [resFps, codecLabel].filter(Boolean).join(" · ") || "接收中";
           }
 
           if (
@@ -956,7 +966,8 @@ export class P2PStreamManager {
               actualSendCodec = codec.mimeType;
             if (stat.bytesSent) totalBytesSent += stat.bytesSent;
             const parts: string[] = [];
-            if (stat.encoderImplementation) parts.push(stat.encoderImplementation);
+            if (stat.encoderImplementation)
+              parts.push(stat.encoderImplementation);
             if (stat.scalabilityMode) parts.push(stat.scalabilityMode);
             if (parts.length > 0) encoder = parts.join(" · ");
 
@@ -964,12 +975,14 @@ export class P2PStreamManager {
               decodedFrames = `Encoded: ${stat.framesEncoded} frames${stat.retransmittedPacketsSent ? ` (${stat.retransmittedPacketsSent} retrans)` : ""}`;
             }
             const codecLabel = formatCodecLabel(codec, "video");
-            const resFps = stat.frameWidth && stat.frameHeight
-              ? (stat.framesPerSecond
+            const resFps =
+              stat.frameWidth && stat.frameHeight
+                ? stat.framesPerSecond
                   ? `${stat.frameWidth}x${stat.frameHeight}@${Math.round(stat.framesPerSecond)}fps`
-                  : `${stat.frameWidth}x${stat.frameHeight}`)
-              : "";
-            videoInfo = [resFps, codecLabel].filter(Boolean).join(" · ") || "推流中";
+                  : `${stat.frameWidth}x${stat.frameHeight}`
+                : "";
+            videoInfo =
+              [resFps, codecLabel].filter(Boolean).join(" · ") || "推流中";
           }
 
           // 采集远端回传给发送端的 RTCP 指标

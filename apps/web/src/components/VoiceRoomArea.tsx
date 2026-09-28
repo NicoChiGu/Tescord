@@ -14,7 +14,10 @@ import {
   P2PSignalPayload,
 } from "@tescord/types";
 import { gatewayClient } from "../services/gateway.js";
-import { StreamViewersModal, StreamViewerItem } from "./stream/StreamViewersModal.js";
+import {
+  StreamViewersModal,
+  StreamViewerItem,
+} from "./stream/StreamViewersModal.js";
 import { livekitService, ActiveScreenShare } from "../services/livekit.js";
 import { cloudflareRealtimeService } from "../services/cloudflare_realtime/index.js";
 import { VOICE_ENGINE, resolveServerUrl } from "../config.js";
@@ -581,7 +584,9 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
               </span>
-              <span className="font-mono">({viewersList ? viewersList.length : (viewerCount || 0)})</span>
+              <span className="font-mono">
+                ({viewersList ? viewersList.length : viewerCount || 0})
+              </span>
             </button>
           )}
 
@@ -1116,9 +1121,9 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
   const [pinnedUserId, setPinnedUserId] = useState<string | null>(null);
   const [statsUserId, setStatsUserId] = useState<string | null>(null);
   const [showViewersModal, setShowViewersModal] = useState(false);
-  const [streamViewersMap, setStreamViewersMap] = useState<Map<string, Set<string>>>(
-    () => new Map(),
-  );
+  const [streamViewersMap, setStreamViewersMap] = useState<
+    Map<string, Set<string>>
+  >(() => new Map());
   const [isMixerOpen, setIsMixerOpen] = useState(false);
   const [isTheaterMode, setIsTheaterMode] = useState(false);
   const [activeVolumeUserId, setActiveVolumeUserId] = useState<string | null>(
@@ -1452,7 +1457,10 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
 
   // 当被观察统计的成员离开频道时，自动清理统计面板
   useEffect(() => {
-    if (statsUserId && !displayParticipants.some((p) => p.userId === statsUserId)) {
+    if (
+      statsUserId &&
+      !displayParticipants.some((p) => p.userId === statsUserId)
+    ) {
       setStatsUserId(null);
     }
   }, [displayParticipants, statsUserId]);
@@ -1939,7 +1947,13 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
         });
       } catch {}
     }
-  }, [isScreenSharing, isVideoEnabled, channel.id, channel.guildId, currentUser.id]);
+  }, [
+    isScreenSharing,
+    isVideoEnabled,
+    channel.id,
+    channel.guildId,
+    currentUser.id,
+  ]);
 
   // 离开房间的成员自动从观众列表中移除
   useEffect(() => {
@@ -2226,10 +2240,14 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                     showStatsHUD={statsUserId === p.userId}
                     onToggleStats={() => handleToggleStats(p.userId)}
                     onCloseStats={() => setStatsUserId(null)}
-                    viewersList={isMe ? getStreamViewersList(p.userId) : undefined}
+                    viewersList={
+                      isMe ? getStreamViewersList(p.userId) : undefined
+                    }
                     onKickViewer={handleKickViewer}
                     showViewersModal={isMe && showViewersModal}
-                    onToggleViewersModal={() => setShowViewersModal((prev) => !prev)}
+                    onToggleViewersModal={() =>
+                      setShowViewersModal((prev) => !prev)
+                    }
                     onCloseViewersModal={() => setShowViewersModal(false)}
                   />
                 );
@@ -2331,10 +2349,14 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                       showStatsHUD={statsUserId === p.userId}
                       onToggleStats={() => handleToggleStats(p.userId)}
                       onCloseStats={() => setStatsUserId(null)}
-                      viewersList={isMe ? getStreamViewersList(p.userId) : undefined}
+                      viewersList={
+                        isMe ? getStreamViewersList(p.userId) : undefined
+                      }
                       onKickViewer={handleKickViewer}
                       showViewersModal={isMe && showViewersModal}
-                      onToggleViewersModal={() => setShowViewersModal((prev) => !prev)}
+                      onToggleViewersModal={() =>
+                        setShowViewersModal((prev) => !prev)
+                      }
                       onCloseViewersModal={() => setShowViewersModal(false)}
                     />
                   );

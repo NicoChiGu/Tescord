@@ -2808,20 +2808,30 @@ export class LiveKitService {
             const codecMap = new Map<string, CodecMeta>();
             let selectedCandidatePairId = "";
 
-            const formatCodecLabel = (meta?: CodecMeta, kind: "video" | "audio" = "video") => {
+            const formatCodecLabel = (
+              meta?: CodecMeta,
+              kind: "video" | "audio" = "video",
+            ) => {
               if (!meta || !meta.mimeType) return "";
-              const name = meta.mimeType.replace(/^(video|audio)\//i, "").toUpperCase();
+              const name = meta.mimeType
+                .replace(/^(video|audio)\//i, "")
+                .toUpperCase();
               if (kind === "video") {
                 const sub: string[] = [];
-                if (meta.payloadType !== undefined) sub.push(String(meta.payloadType));
+                if (meta.payloadType !== undefined)
+                  sub.push(String(meta.payloadType));
                 if (meta.sdpFmtpLine) sub.push(meta.sdpFmtpLine);
                 return sub.length > 0 ? `${name} (${sub.join(", ")})` : name;
               } else {
                 const parts: string[] = [];
-                if (meta.clockRate) parts.push(`${Math.round(meta.clockRate / 1000)}kHz`);
+                if (meta.clockRate)
+                  parts.push(`${Math.round(meta.clockRate / 1000)}kHz`);
                 if (meta.channels) parts.push(`${meta.channels}ch`);
-                if (meta.payloadType !== undefined) parts.push(`PT:${meta.payloadType}`);
-                return parts.length > 0 ? `${name} (${parts.join(", ")})` : name;
+                if (meta.payloadType !== undefined)
+                  parts.push(`PT:${meta.payloadType}`);
+                return parts.length > 0
+                  ? `${name} (${parts.join(", ")})`
+                  : name;
               }
             };
 
@@ -2910,7 +2920,9 @@ export class LiveKitService {
                     targetTrackIds.has(stat.trackIdentifier));
 
                 if (matchTrack) {
-                  const meta = stat.codecId ? codecMap.get(stat.codecId) : undefined;
+                  const meta = stat.codecId
+                    ? codecMap.get(stat.codecId)
+                    : undefined;
                   const negotiatedCodec = meta?.mimeType;
                   if (
                     negotiatedCodec &&
@@ -2924,12 +2936,15 @@ export class LiveKitService {
                   }
                   if (stat.kind === "video") {
                     const codecLabel = formatCodecLabel(meta, "video");
-                    const resFps = stat.frameWidth && stat.frameHeight
-                      ? (stat.framesPerSecond
+                    const resFps =
+                      stat.frameWidth && stat.frameHeight
+                        ? stat.framesPerSecond
                           ? `${stat.frameWidth}x${stat.frameHeight}@${Math.round(stat.framesPerSecond)}fps`
-                          : `${stat.frameWidth}x${stat.frameHeight}`)
-                      : "";
-                    videoInfo = [resFps, codecLabel].filter(Boolean).join(" · ") || "视频流接收中";
+                          : `${stat.frameWidth}x${stat.frameHeight}`
+                        : "";
+                    videoInfo =
+                      [resFps, codecLabel].filter(Boolean).join(" · ") ||
+                      "视频流接收中";
 
                     if (stat.framesDecoded !== undefined) {
                       decodedFrames = `${stat.framesDecoded} frames (${stat.framesDropped || 0} dropped)`;
@@ -2952,7 +2967,9 @@ export class LiveKitService {
                     }
                   } else if (stat.kind === "audio") {
                     const audioLabel = formatCodecLabel(meta, "audio");
-                    audioInfo = audioLabel ? `音频 (${audioLabel})` : "音频轨道已接收";
+                    audioInfo = audioLabel
+                      ? `音频 (${audioLabel})`
+                      : "音频轨道已接收";
                     if (videoInfo === "未知") videoInfo = "无视频轨道";
                     if (typeof stat.jitter === "number" && jitter === "未知") {
                       jitter = `${(stat.jitter * 1000).toFixed(1)}ms`;
@@ -2963,7 +2980,9 @@ export class LiveKitService {
 
               // 3. 上行推流统计 (Outbound RTP)
               if (stat.type === "outbound-rtp") {
-                const meta = stat.codecId ? codecMap.get(stat.codecId) : undefined;
+                const meta = stat.codecId
+                  ? codecMap.get(stat.codecId)
+                  : undefined;
                 const negotiatedCodec = meta?.mimeType;
                 if (
                   negotiatedCodec &&
@@ -2977,28 +2996,38 @@ export class LiveKitService {
                 }
                 if (stat.kind === "video") {
                   const parts: string[] = [];
-                  if (stat.encoderImplementation) parts.push(stat.encoderImplementation);
+                  if (stat.encoderImplementation)
+                    parts.push(stat.encoderImplementation);
                   if (stat.scalabilityMode) parts.push(stat.scalabilityMode);
                   if (stat.powerEfficientEncoder !== undefined) {
-                    parts.push(stat.powerEfficientEncoder ? "省电编码:是" : "省电编码:否");
+                    parts.push(
+                      stat.powerEfficientEncoder
+                        ? "省电编码:是"
+                        : "省电编码:否",
+                    );
                   }
                   if (parts.length > 0) {
                     encoder = parts.join(" · ");
                   }
                   const codecLabel = formatCodecLabel(meta, "video");
-                  const resFps = stat.frameWidth && stat.frameHeight
-                    ? (stat.framesPerSecond
+                  const resFps =
+                    stat.frameWidth && stat.frameHeight
+                      ? stat.framesPerSecond
                         ? `${stat.frameWidth}x${stat.frameHeight}@${Math.round(stat.framesPerSecond)}fps`
-                        : `${stat.frameWidth}x${stat.frameHeight}`)
-                    : "";
-                  videoInfo = [resFps, codecLabel].filter(Boolean).join(" · ") || "推流中";
+                        : `${stat.frameWidth}x${stat.frameHeight}`
+                      : "";
+                  videoInfo =
+                    [resFps, codecLabel].filter(Boolean).join(" · ") ||
+                    "推流中";
 
                   if (stat.framesEncoded !== undefined) {
                     decodedFrames = `Encoded: ${stat.framesEncoded} frames${stat.retransmittedPacketsSent ? ` (${stat.retransmittedPacketsSent} retrans)` : ""}`;
                   }
                 } else if (stat.kind === "audio") {
                   const audioLabel = formatCodecLabel(meta, "audio");
-                  audioInfo = audioLabel ? `音频 (${audioLabel})` : "音频推流中";
+                  audioInfo = audioLabel
+                    ? `音频 (${audioLabel})`
+                    : "音频推流中";
                 }
               }
 

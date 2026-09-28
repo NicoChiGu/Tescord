@@ -39,6 +39,7 @@ import { SplashWindow } from "./updater/splash.js";
 import { ProxyManager } from "./updater/proxy-manager.js";
 import { BUILD_CONFIG } from "./build-config.js";
 import { ToastManager } from "./toastManager.js";
+import { StorageManager } from "./storage/storageManager.js";
 
 if (process.env.TESCORD_E2E_USER_DATA_DIR) {
   app.setPath("userData", process.env.TESCORD_E2E_USER_DATA_DIR);
@@ -1579,6 +1580,7 @@ function startBackgroundUpdateChecker(): void {
 }
 
 app.whenReady().then(async () => {
+  StorageManager.getInstance().initialize();
   await startApplicationWithSplash();
   setupSystemTray();
   startBackgroundUpdateChecker();
@@ -1616,6 +1618,7 @@ app.whenReady().then(async () => {
 
 app.on("before-quit", () => {
   isQuitting = true;
+  StorageManager.getInstance().destroy();
 });
 
 app.on("will-quit", () => {

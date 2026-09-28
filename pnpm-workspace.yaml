@@ -5,6 +5,7 @@ packages:
 allowBuilds:
   '@prisma/client': true
   '@prisma/engines': true
+  better-sqlite3: true
   electron: true
   electron-winstaller: true
   esbuild: true
@@ -19,6 +20,7 @@ onlyBuiltDependencies:
   - '@prisma/client'
   - '@prisma/engines'
   - prisma
+  - better-sqlite3
 
 overrides:
   'minio>query-string': 9.5.1

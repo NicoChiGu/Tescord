@@ -98,6 +98,7 @@ interface ElectronAPI {
       callback: (data: { version: string }) => void,
     ) => () => void;
   };
+  storage?: import("@tescord/types").IStorageAdapter;
 }
 
 interface Window {
