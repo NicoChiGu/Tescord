@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
 
+env:
+  ONNXRUNTIME_NODE_INSTALL: skip
+
 jobs:
   verify:
     name: Required release verification

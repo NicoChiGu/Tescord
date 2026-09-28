@@ -16,6 +16,9 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  ONNXRUNTIME_NODE_INSTALL: skip
+
 jobs:
   build-and-test:
     name: Build & Verify Monorepo

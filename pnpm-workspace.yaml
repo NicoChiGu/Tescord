@@ -9,7 +9,7 @@ allowBuilds:
   electron: true
   electron-winstaller: true
   esbuild: true
-  onnxruntime-node: true
+  onnxruntime-node: false
   prisma: true
   protobufjs: true
 
