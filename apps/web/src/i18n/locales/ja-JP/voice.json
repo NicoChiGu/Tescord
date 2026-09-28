@@ -166,5 +166,15 @@
     "bannerDesc": "システムのスリープ、バックグラウンド移行、またはブラウザの再生制限により音声が一時停止しました",
     "resumeButton": "音声を再開",
     "resuming": "音声を再開中..."
+  },
+  "viewers": {
+    "title": "視聴中のユーザー",
+    "badgeCount": "({{count}})",
+    "noViewers": "現在この配信を視聴しているユーザーはいません",
+    "kick": "視聴停止",
+    "kickSuccess": "対象ユーザーへの画面配信を停止しました",
+    "kickedNotice": "配信者が画面共有を終了しました",
+    "watching": "視聴中",
+    "viewerCount": "{{count}} 人が視聴中"
   }
 }

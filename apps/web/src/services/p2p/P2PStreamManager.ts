@@ -827,8 +827,10 @@ export class P2PStreamManager {
     peerId?: string,
   ): Promise<StreamDetailedStats | null> {
     const targetPeerId = peerId || this.streamOwnerId || "";
-    const pc = this.peerConnections.get(targetPeerId);
     const isPublisher = Boolean(this.localStream);
+    const pc =
+      this.peerConnections.get(targetPeerId) ||
+      (isPublisher ? this.peerConnections.values().next().value : undefined);
 
     let rtt = "N/A";
     let jitter = "N/A";
@@ -841,6 +843,7 @@ export class P2PStreamManager {
     let totalBytesReceived = 0;
     let decodedFrames = "N/A";
     let videoInfo = "未知";
+    let encoder = "浏览器 WebRTC 媒体管线";
     let actualSendCodec: string | undefined;
     let actualReceiveCodec: string | undefined;
     let selectedPairFound = false;
@@ -862,6 +865,23 @@ export class P2PStreamManager {
             selectedPairId = stat.selectedCandidatePairId;
           }
         });
+
+        const formatCodecLabel = (codec: any, kind: "video" | "audio" = "video") => {
+          if (!codec || !codec.mimeType) return "";
+          const name = codec.mimeType.replace(/^(video|audio)\//i, "").toUpperCase();
+          if (kind === "video") {
+            const sub: string[] = [];
+            if (codec.payloadType !== undefined) sub.push(String(codec.payloadType));
+            if (codec.sdpFmtpLine) sub.push(codec.sdpFmtpLine);
+            return sub.length > 0 ? `${name} (${sub.join(", ")})` : name;
+          } else {
+            const parts: string[] = [];
+            if (codec.clockRate) parts.push(`${Math.round(codec.clockRate / 1000)}kHz`);
+            if (codec.channels) parts.push(`${codec.channels}ch`);
+            if (codec.payloadType !== undefined) parts.push(`PT:${codec.payloadType}`);
+            return parts.length > 0 ? `${name} (${parts.join(", ")})` : name;
+          }
+        };
 
         report.forEach((stat: any) => {
           if (
@@ -914,11 +934,13 @@ export class P2PStreamManager {
             if (stat.framesDecoded !== undefined) {
               decodedFrames = `${stat.framesDecoded} frames (${stat.framesDropped || 0} dropped)`;
             }
-            if (stat.frameWidth && stat.frameHeight) {
-              videoInfo = stat.framesPerSecond
-                ? `${stat.frameWidth}x${stat.frameHeight}, ${Math.round(stat.framesPerSecond)}FPS`
-                : `${stat.frameWidth}x${stat.frameHeight}`;
-            }
+            const codecLabel = formatCodecLabel(codec, "video");
+            const resFps = stat.frameWidth && stat.frameHeight
+              ? (stat.framesPerSecond
+                  ? `${stat.frameWidth}x${stat.frameHeight}@${Math.round(stat.framesPerSecond)}fps`
+                  : `${stat.frameWidth}x${stat.frameHeight}`)
+              : "";
+            videoInfo = [resFps, codecLabel].filter(Boolean).join(" · ") || "接收中";
           }
 
           if (
@@ -933,13 +955,33 @@ export class P2PStreamManager {
             )
               actualSendCodec = codec.mimeType;
             if (stat.bytesSent) totalBytesSent += stat.bytesSent;
+            const parts: string[] = [];
+            if (stat.encoderImplementation) parts.push(stat.encoderImplementation);
+            if (stat.scalabilityMode) parts.push(stat.scalabilityMode);
+            if (parts.length > 0) encoder = parts.join(" · ");
+
             if (stat.framesEncoded !== undefined) {
-              decodedFrames = `Encoded: ${stat.framesEncoded} frames`;
+              decodedFrames = `Encoded: ${stat.framesEncoded} frames${stat.retransmittedPacketsSent ? ` (${stat.retransmittedPacketsSent} retrans)` : ""}`;
             }
-            if (stat.frameWidth && stat.frameHeight) {
-              videoInfo = stat.framesPerSecond
-                ? `${stat.frameWidth}x${stat.frameHeight}, ${Math.round(stat.framesPerSecond)}FPS`
-                : `${stat.frameWidth}x${stat.frameHeight}`;
+            const codecLabel = formatCodecLabel(codec, "video");
+            const resFps = stat.frameWidth && stat.frameHeight
+              ? (stat.framesPerSecond
+                  ? `${stat.frameWidth}x${stat.frameHeight}@${Math.round(stat.framesPerSecond)}fps`
+                  : `${stat.frameWidth}x${stat.frameHeight}`)
+              : "";
+            videoInfo = [resFps, codecLabel].filter(Boolean).join(" · ") || "推流中";
+          }
+
+          // 采集远端回传给发送端的 RTCP 指标
+          if (isPublisher && stat.type === "remote-inbound-rtp") {
+            if (typeof stat.roundTripTime === "number") {
+              rtt = `${Math.round(stat.roundTripTime * 1000)}ms`;
+            }
+            if (typeof stat.fractionLost === "number") {
+              packetLoss = `${(stat.fractionLost * 100).toFixed(1)}%`;
+            }
+            if (typeof stat.jitter === "number") {
+              jitter = `${(stat.jitter * 1000).toFixed(1)}ms`;
             }
           }
         });
@@ -978,12 +1020,12 @@ export class P2PStreamManager {
       playerCore: "WebRTC P2P Stream Engine",
       videoInfo,
       audioInfo: "由 WebRTC 协商（未单独采集）",
-      encoder: "浏览器 WebRTC 媒体管线",
+      encoder,
       streamHost,
       connectionMode,
       topology,
       protocol,
-      bufferLength: "未知",
+      bufferLength: isPublisher ? "0.0ms (推流直出)" : "未知",
       decodedFrames,
       downloadBitrate:
         totalBytesSent + totalBytesReceived > 0

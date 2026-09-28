@@ -16,6 +16,7 @@ import {
 interface StreamStatsHUDProps {
   participantIdentity?: string;
   participantName?: string;
+  isLocal?: boolean;
   onClose: () => void;
   containerRef?: React.RefObject<HTMLElement | null>;
 }
@@ -23,10 +24,12 @@ interface StreamStatsHUDProps {
 export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
   participantIdentity,
   participantName = "媒体流",
+  isLocal: propIsLocal,
   onClose,
   containerRef,
 }) => {
   const [stats, setStats] = useState<StreamDetailedStats | null>(null);
+  const effectiveIsLocal = propIsLocal ?? stats?.isLocal ?? false;
   const [copied, setCopied] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const hudRef = useRef<HTMLDivElement>(null);
@@ -318,7 +321,7 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
         <div className="flex justify-between items-start gap-2">
           <span className="text-gray-400 flex-shrink-0">目标对象:</span>
           <span className="text-white text-right truncate font-sans">
-            {participantName} ({stats?.isLocal ? "本地推流" : "远端拉流"})
+            {participantName} ({effectiveIsLocal ? "本地推流" : "远端拉流"})
           </span>
         </div>
 
@@ -446,26 +449,38 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
         </div>
 
         <div className="flex justify-between items-start gap-2">
-          <span className="text-gray-400 flex-shrink-0">Decoded Frames:</span>
+          <span className="text-gray-400 flex-shrink-0">
+            {effectiveIsLocal ? "Encoded Frames:" : "Decoded Frames:"}
+          </span>
           <span className="text-gray-300 text-right">
             {stats?.decodedFrames || "N/A"}
           </span>
         </div>
 
-        <div className="flex justify-between items-start gap-2">
-          <span className="text-gray-400 flex-shrink-0">下行/下载码率:</span>
-          <span className="text-discord-brand font-semibold text-right">
-            {stats?.downloadBitrate || "未知"}
-          </span>
-        </div>
-
-        {stats?.uploadBitrate && (
+        {effectiveIsLocal ? (
           <div className="flex justify-between items-start gap-2">
-            <span className="text-gray-400 flex-shrink-0">上行/推流码率:</span>
+            <span className="text-gray-400 flex-shrink-0">推流发送码率:</span>
             <span className="text-indigo-400 font-semibold text-right">
-              {stats.uploadBitrate}
+              {stats?.uploadBitrate || stats?.downloadBitrate || "未知"}
             </span>
           </div>
+        ) : (
+          <>
+            <div className="flex justify-between items-start gap-2">
+              <span className="text-gray-400 flex-shrink-0">下行/下载码率:</span>
+              <span className="text-discord-brand font-semibold text-right">
+                {stats?.downloadBitrate || "未知"}
+              </span>
+            </div>
+            {stats?.uploadBitrate && (
+              <div className="flex justify-between items-start gap-2">
+                <span className="text-gray-400 flex-shrink-0">上行/推流码率:</span>
+                <span className="text-indigo-400 font-semibold text-right">
+                  {stats.uploadBitrate}
+                </span>
+              </div>
+            )}
+          </>
         )}
 
         <div className="flex justify-between items-start gap-2">

@@ -166,5 +166,15 @@
     "bannerDesc": "Audio playback was paused due to system sleep, backgrounding, or browser policy",
     "resumeButton": "Resume Audio",
     "resuming": "Resuming audio..."
+  },
+  "viewers": {
+    "title": "Current Viewers",
+    "badgeCount": "({{count}})",
+    "noViewers": "No viewers watching this stream yet",
+    "kick": "Kick Viewer",
+    "kickSuccess": "Stopped sharing stream with this viewer",
+    "kickedNotice": "The streamer has ended the screen share for you",
+    "watching": "Watching",
+    "viewerCount": "{{count}} viewers"
   }
 }

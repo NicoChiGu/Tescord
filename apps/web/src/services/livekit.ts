@@ -2798,12 +2798,42 @@ export class LiveKitService {
             : await pcManager.subscriber?.getStats();
 
           if (report) {
-            const codecMap = new Map<string, string>();
+            interface CodecMeta {
+              mimeType: string;
+              payloadType?: number;
+              sdpFmtpLine?: string;
+              clockRate?: number;
+              channels?: number;
+            }
+            const codecMap = new Map<string, CodecMeta>();
             let selectedCandidatePairId = "";
+
+            const formatCodecLabel = (meta?: CodecMeta, kind: "video" | "audio" = "video") => {
+              if (!meta || !meta.mimeType) return "";
+              const name = meta.mimeType.replace(/^(video|audio)\//i, "").toUpperCase();
+              if (kind === "video") {
+                const sub: string[] = [];
+                if (meta.payloadType !== undefined) sub.push(String(meta.payloadType));
+                if (meta.sdpFmtpLine) sub.push(meta.sdpFmtpLine);
+                return sub.length > 0 ? `${name} (${sub.join(", ")})` : name;
+              } else {
+                const parts: string[] = [];
+                if (meta.clockRate) parts.push(`${Math.round(meta.clockRate / 1000)}kHz`);
+                if (meta.channels) parts.push(`${meta.channels}ch`);
+                if (meta.payloadType !== undefined) parts.push(`PT:${meta.payloadType}`);
+                return parts.length > 0 ? `${name} (${parts.join(", ")})` : name;
+              }
+            };
 
             report.forEach((stat: any) => {
               if (stat.type === "codec" && stat.mimeType) {
-                codecMap.set(stat.id, stat.mimeType);
+                codecMap.set(stat.id, {
+                  mimeType: stat.mimeType,
+                  payloadType: stat.payloadType,
+                  sdpFmtpLine: stat.sdpFmtpLine,
+                  clockRate: stat.clockRate,
+                  channels: stat.channels,
+                });
               }
               if (stat.type === "transport" && stat.selectedCandidatePairId) {
                 selectedCandidatePairId = stat.selectedCandidatePairId;
@@ -2880,9 +2910,8 @@ export class LiveKitService {
                     targetTrackIds.has(stat.trackIdentifier));
 
                 if (matchTrack) {
-                  const negotiatedCodec = stat.codecId
-                    ? codecMap.get(stat.codecId)
-                    : undefined;
+                  const meta = stat.codecId ? codecMap.get(stat.codecId) : undefined;
+                  const negotiatedCodec = meta?.mimeType;
                   if (
                     negotiatedCodec &&
                     !/rtx|red|ulpfec|flexfec|cn/i.test(negotiatedCodec)
@@ -2894,11 +2923,14 @@ export class LiveKitService {
                     totalBytesReceived += stat.bytesReceived;
                   }
                   if (stat.kind === "video") {
-                    if (stat.frameWidth && stat.frameHeight) {
-                      videoInfo = stat.framesPerSecond
-                        ? `${stat.frameWidth}x${stat.frameHeight}, ${Math.round(stat.framesPerSecond)}FPS`
-                        : `${stat.frameWidth}x${stat.frameHeight}`;
-                    }
+                    const codecLabel = formatCodecLabel(meta, "video");
+                    const resFps = stat.frameWidth && stat.frameHeight
+                      ? (stat.framesPerSecond
+                          ? `${stat.frameWidth}x${stat.frameHeight}@${Math.round(stat.framesPerSecond)}fps`
+                          : `${stat.frameWidth}x${stat.frameHeight}`)
+                      : "";
+                    videoInfo = [resFps, codecLabel].filter(Boolean).join(" · ") || "视频流接收中";
+
                     if (stat.framesDecoded !== undefined) {
                       decodedFrames = `${stat.framesDecoded} frames (${stat.framesDropped || 0} dropped)`;
                     }
@@ -2919,7 +2951,8 @@ export class LiveKitService {
                       packetLoss = `${(stat.fractionLost * 100).toFixed(1)}%`;
                     }
                   } else if (stat.kind === "audio") {
-                    audioInfo = "音频轨道已接收";
+                    const audioLabel = formatCodecLabel(meta, "audio");
+                    audioInfo = audioLabel ? `音频 (${audioLabel})` : "音频轨道已接收";
                     if (videoInfo === "未知") videoInfo = "无视频轨道";
                     if (typeof stat.jitter === "number" && jitter === "未知") {
                       jitter = `${(stat.jitter * 1000).toFixed(1)}ms`;
@@ -2930,9 +2963,8 @@ export class LiveKitService {
 
               // 3. 上行推流统计 (Outbound RTP)
               if (stat.type === "outbound-rtp") {
-                const negotiatedCodec = stat.codecId
-                  ? codecMap.get(stat.codecId)
-                  : undefined;
+                const meta = stat.codecId ? codecMap.get(stat.codecId) : undefined;
+                const negotiatedCodec = meta?.mimeType;
                 if (
                   negotiatedCodec &&
                   !/rtx|red|ulpfec|flexfec|cn/i.test(negotiatedCodec)
@@ -2944,17 +2976,42 @@ export class LiveKitService {
                   totalBytesSent += stat.bytesSent;
                 }
                 if (stat.kind === "video") {
-                  if (stat.encoderImplementation) {
-                    encoder = stat.encoderImplementation;
+                  const parts: string[] = [];
+                  if (stat.encoderImplementation) parts.push(stat.encoderImplementation);
+                  if (stat.scalabilityMode) parts.push(stat.scalabilityMode);
+                  if (stat.powerEfficientEncoder !== undefined) {
+                    parts.push(stat.powerEfficientEncoder ? "省电编码:是" : "省电编码:否");
                   }
-                  if (stat.frameWidth && stat.frameHeight) {
-                    videoInfo = stat.framesPerSecond
-                      ? `${stat.frameWidth}x${stat.frameHeight}, ${Math.round(stat.framesPerSecond)}FPS`
-                      : `${stat.frameWidth}x${stat.frameHeight}`;
+                  if (parts.length > 0) {
+                    encoder = parts.join(" · ");
                   }
+                  const codecLabel = formatCodecLabel(meta, "video");
+                  const resFps = stat.frameWidth && stat.frameHeight
+                    ? (stat.framesPerSecond
+                        ? `${stat.frameWidth}x${stat.frameHeight}@${Math.round(stat.framesPerSecond)}fps`
+                        : `${stat.frameWidth}x${stat.frameHeight}`)
+                    : "";
+                  videoInfo = [resFps, codecLabel].filter(Boolean).join(" · ") || "推流中";
+
                   if (stat.framesEncoded !== undefined) {
-                    decodedFrames = `Encoded: ${stat.framesEncoded} frames`;
+                    decodedFrames = `Encoded: ${stat.framesEncoded} frames${stat.retransmittedPacketsSent ? ` (${stat.retransmittedPacketsSent} retrans)` : ""}`;
                   }
+                } else if (stat.kind === "audio") {
+                  const audioLabel = formatCodecLabel(meta, "audio");
+                  audioInfo = audioLabel ? `音频 (${audioLabel})` : "音频推流中";
+                }
+              }
+
+              // 4. 推流端回传的 RTCP 统计 (Remote Inbound RTP - 用于本地推流端获取上行 RTT/丢包率/抖动)
+              if (isLocal && stat.type === "remote-inbound-rtp") {
+                if (typeof stat.roundTripTime === "number") {
+                  rtt = `${Math.round(stat.roundTripTime * 1000)}ms`;
+                }
+                if (typeof stat.fractionLost === "number") {
+                  packetLoss = `${(stat.fractionLost * 100).toFixed(1)}%`;
+                }
+                if (typeof stat.jitter === "number") {
+                  jitter = `${(stat.jitter * 1000).toFixed(1)}ms`;
                 }
               }
             });
@@ -2993,7 +3050,7 @@ export class LiveKitService {
       connectionMode,
       topology: "SFU_SERVER" as ConnectionTopology,
       protocol,
-      bufferLength,
+      bufferLength: isLocal ? "0.0ms (推流直出)" : bufferLength,
       decodedFrames: decodedFrames || "N/A",
       downloadBitrate,
       uploadBitrate,

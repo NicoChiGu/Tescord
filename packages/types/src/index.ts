@@ -986,6 +986,9 @@ export interface StreamDetailedStats {
   protocol: string;
   bufferLength: string;
   decodedFrames?: string;
+  encodedFrames?: string;
+  droppedFrames?: string;
+  scalabilityMode?: string;
   downloadBitrate: string; // 格式化瞬时下行速率与累计量 (如 "1.45 Mbps (12.4 MB)")
   uploadBitrate?: string; // 格式化瞬时上行速率与累计量 (如 "850 Kbps (4.2 MB)")
   rawDownloadBitrateBps?: number; // 瞬时下行真实速率 (bps)
@@ -1385,7 +1388,11 @@ export interface P2PSignalPayload {
     | "VOICE_OFFER"
     | "VOICE_ANSWER"
     | "VOICE_ICE_CANDIDATE"
-    | "VOICE_LEAVE";
+    | "VOICE_LEAVE"
+    | "STREAM_WATCH_START"
+    | "STREAM_WATCH_STOP"
+    | "STREAM_KICK"
+    | "REQUEST_STREAM_VIEWERS";
   sdp?: any;
   candidate?: any;
   transmissionMode?: StreamTransmissionMode;

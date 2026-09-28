@@ -166,5 +166,15 @@
     "bannerDesc": "由於系統睡眠、切至後台或瀏覽器播放策略限制，通話聲音已暫停",
     "resumeButton": "點擊恢復音訊",
     "resuming": "正在恢復音訊..."
+  },
+  "viewers": {
+    "title": "目前正在觀看",
+    "badgeCount": "({{count}})",
+    "noViewers": "目前無觀眾觀看此直播",
+    "kick": "踢出觀看",
+    "kickSuccess": "已停止向該觀眾推送畫面",
+    "kickedNotice": "主播已終止對您的畫面分享",
+    "watching": "正在觀看",
+    "viewerCount": "{{count}} 人正在觀看"
   }
 }

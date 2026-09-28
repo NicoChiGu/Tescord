@@ -9,7 +9,12 @@ import {
   NoiseSuppressionMode,
   CfMediaPublication,
   CfStreamWatchState,
+  GatewayOpCode,
+  GatewayEvents,
+  P2PSignalPayload,
 } from "@tescord/types";
+import { gatewayClient } from "../services/gateway.js";
+import { StreamViewersModal, StreamViewerItem } from "./stream/StreamViewersModal.js";
 import { livekitService, ActiveScreenShare } from "../services/livekit.js";
 import { cloudflareRealtimeService } from "../services/cloudflare_realtime/index.js";
 import { VOICE_ENGINE, resolveServerUrl } from "../config.js";
@@ -149,6 +154,11 @@ interface ParticipantCardProps {
   showStatsHUD?: boolean;
   onToggleStats?: () => void;
   onCloseStats?: () => void;
+  viewersList?: StreamViewerItem[];
+  onKickViewer?: (userId: string) => void;
+  showViewersModal?: boolean;
+  onToggleViewersModal?: () => void;
+  onCloseViewersModal?: () => void;
 }
 
 const ParticipantCard: React.FC<ParticipantCardProps> = ({
@@ -183,6 +193,11 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
   showStatsHUD,
   onToggleStats,
   onCloseStats,
+  viewersList,
+  onKickViewer,
+  showViewersModal,
+  onToggleViewersModal,
+  onCloseViewersModal,
 }) => {
   const { t } = useTranslation(["voice", "common", "auth"]);
   // 当同时存在屏幕分享与摄像头时，是否对调主次画面 (默认: 屏幕分享为主，摄像头小窗在右下角)
@@ -190,19 +205,15 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
   const [isVolumeOpen, setIsVolumeOpen] = useState(false);
   const [internalShowStatsHUD, setInternalShowStatsHUD] = useState(false);
 
-  // 严格遵循：若未处于聚焦放大状态，绝不允许显示 HUD
+  // 允许在聚焦或网格卡片中展示 HUD
   const isHUDVisible = Boolean(
-    isSpotlight &&
-    (showStatsHUD !== undefined ? showStatsHUD : internalShowStatsHUD),
+    showStatsHUD !== undefined ? showStatsHUD : internalShowStatsHUD,
   );
 
   const handleToggleHUD = () => {
     if (onToggleStats) {
       onToggleStats();
     } else {
-      if (!isSpotlight) {
-        onTogglePin();
-      }
       setInternalShowStatsHUD((prev) => !prev);
     }
   };
@@ -310,7 +321,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
         if (isFullscreen) {
           e.preventDefault();
           toggleFullscreen();
-        } else if (hasAnyVideo && (isSpotlight || isPinned)) {
+        } else if (hasAnyVideo && !isMe && (isSpotlight || isPinned)) {
           e.preventDefault();
           toggleFullscreen();
         }
@@ -398,7 +409,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
         onMouseMove={handleMouseMove}
         onDoubleClick={(e) => {
           e.stopPropagation();
-          if (hasAnyVideo) {
+          if (hasAnyVideo && !isMe) {
             toggleFullscreen();
           } else {
             onTogglePin();
@@ -554,8 +565,28 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
         <div
           className={`absolute top-2 right-2 flex items-center space-x-1.5 z-20 ${controlsVisibilityClass}`}
         >
-          {/* 全屏播放切换按钮 (双击亦可切换，快捷键 F) */}
-          {hasAnyVideo && (
+          {/* 仅主播本人在推流时展示的红点【（·）人数】徽标 */}
+          {isMe && hasAnyVideo && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleViewersModal?.();
+              }}
+              data-testid={`stream-viewers-badge-btn-${participant.userId}`}
+              className="px-2 py-0.5 rounded-full bg-black/75 hover:bg-black/90 border border-red-500/40 hover:border-red-500 text-white text-[11px] font-medium flex items-center space-x-1.5 shadow-lg backdrop-blur-md transition cursor-pointer"
+              title={t("voice:viewers.title")}
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+              </span>
+              <span className="font-mono">({viewersList ? viewersList.length : (viewerCount || 0)})</span>
+            </button>
+          )}
+
+          {/* 全屏播放切换按钮 (双击亦可切换，快捷键 F；主播本人禁止全屏播放，仅可聚焦放大) */}
+          {hasAnyVideo && !isMe && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -890,10 +921,21 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
           <StreamStatsHUD
             containerRef={cardRef}
             participantIdentity={participant.userId}
+            isLocal={isMe}
             participantName={
               targetDisplayName || (isMe ? "我的推流" : "视频流")
             }
             onClose={handleCloseHUD}
+          />
+        )}
+
+        {/* 仅主播本人的观众管理弹窗 */}
+        {isMe && showViewersModal && viewersList && (
+          <StreamViewersModal
+            containerRef={cardRef}
+            viewers={viewersList}
+            onKickViewer={onKickViewer || (() => {})}
+            onClose={onCloseViewersModal || (() => {})}
           />
         )}
       </div>
@@ -1073,6 +1115,10 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
   };
   const [pinnedUserId, setPinnedUserId] = useState<string | null>(null);
   const [statsUserId, setStatsUserId] = useState<string | null>(null);
+  const [showViewersModal, setShowViewersModal] = useState(false);
+  const [streamViewersMap, setStreamViewersMap] = useState<Map<string, Set<string>>>(
+    () => new Map(),
+  );
   const [isMixerOpen, setIsMixerOpen] = useState(false);
   const [isTheaterMode, setIsTheaterMode] = useState(false);
   const [activeVolumeUserId, setActiveVolumeUserId] = useState<string | null>(
@@ -1404,20 +1450,15 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
     }
   }, [pinnedUserId, displayParticipants]);
 
-  // 当未处于聚焦状态或切换聚焦成员时，自动清理统计面板显示（严格保证“如果没有聚焦就不允许显示”）
+  // 当被观察统计的成员离开频道时，自动清理统计面板
   useEffect(() => {
-    if (statsUserId && pinnedUserId !== statsUserId) {
+    if (statsUserId && !displayParticipants.some((p) => p.userId === statsUserId)) {
       setStatsUserId(null);
     }
-  }, [pinnedUserId, statsUserId]);
+  }, [displayParticipants, statsUserId]);
 
   const handleToggleStats = (userId: string) => {
-    if (statsUserId === userId) {
-      setStatsUserId(null);
-    } else {
-      setPinnedUserId(userId);
-      setStatsUserId(userId);
-    }
+    setStatsUserId((prev) => (prev === userId ? null : userId));
   };
 
   // 根据参与者信息索取对应的摄像头与屏幕分享轨道
@@ -1627,6 +1668,79 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
     );
   };
 
+  const sendViewerSignal = (streamOwnerId: string, isStarting: boolean) => {
+    try {
+      const payload: P2PSignalPayload = {
+        guildId: channel.guildId || "",
+        channelId: channel.id,
+        senderId: currentUser.id,
+        targetId: streamOwnerId,
+        streamOwnerId,
+        type: isStarting ? "STREAM_WATCH_START" : "STREAM_WATCH_STOP",
+        timestamp: Date.now(),
+      };
+      gatewayClient.send({
+        op: GatewayOpCode.DISPATCH,
+        t: GatewayEvents.P2P_SIGNAL,
+        d: payload,
+      });
+    } catch (err) {
+      console.warn("Failed to dispatch stream watch signal:", err);
+    }
+  };
+
+  const handleKickViewer = (viewerUserId: string) => {
+    try {
+      const payload: P2PSignalPayload = {
+        guildId: channel.guildId || "",
+        channelId: channel.id,
+        senderId: currentUser.id,
+        targetId: viewerUserId,
+        streamOwnerId: currentUser.id,
+        type: "STREAM_KICK",
+        timestamp: Date.now(),
+      };
+      gatewayClient.send({
+        op: GatewayOpCode.DISPATCH,
+        t: GatewayEvents.P2P_SIGNAL,
+        d: payload,
+      });
+      // 本地乐观更新观众列表
+      setStreamViewersMap((prev) => {
+        const next = new Map(prev);
+        const set = new Set(next.get(currentUser.id) || []);
+        set.delete(viewerUserId);
+        next.set(currentUser.id, set);
+        return next;
+      });
+    } catch (e) {
+      console.warn("Failed to dispatch STREAM_KICK:", e);
+    }
+  };
+
+  const getStreamViewersList = (streamerId: string): StreamViewerItem[] => {
+    const viewerIds = streamViewersMap.get(streamerId) || new Set<string>();
+    const list: StreamViewerItem[] = [];
+    viewerIds.forEach((uid) => {
+      if (!displayParticipants.some((p) => p.userId === uid)) return;
+      const p = displayParticipants.find((x) => x.userId === uid);
+      const member = guild?.members?.find((m) => m.userId === uid);
+      const displayName = getUserDisplayName(
+        p?.user || null,
+        member,
+        uid === currentUser.id ? currentUser.username : "观众",
+      );
+      list.push({
+        userId: uid,
+        user: p?.user,
+        member,
+        displayName,
+        avatarUrl: p?.user?.avatarUrl || undefined,
+      });
+    });
+    return list;
+  };
+
   const handleToggleWatching = async (
     participant: VoiceState,
   ): Promise<void> => {
@@ -1678,6 +1792,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
         if (watchedP2PStreamerId === userId) {
           p2pStreamManager.stopAll();
           setWatchedP2PStreamerId(null);
+          sendViewerSignal(userId, false);
         } else {
           await p2pStreamManager.joinStream(
             channel.id,
@@ -1686,19 +1801,23 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
             effectiveStreamMode,
           );
           setWatchedP2PStreamerId(userId);
+          sendViewerSignal(userId, true);
         }
       } else if (VOICE_ENGINE === "cloudflare_realtime") {
         const publication = getScreenPublication(userId);
         if (!publication)
           throw new Error(t("voice:connectionPopover.streamTrackNotReady"));
-        if (isWatchingStream(userId, effectiveStreamMode))
+        if (isWatchingStream(userId, effectiveStreamMode)) {
           await cloudflareRealtimeService.stopWatchingStream(
             publication.sessionId,
           );
-        else
+          sendViewerSignal(userId, false);
+        } else {
           await cloudflareRealtimeService.startWatchingStream(
             publication.sessionId,
           );
+          sendViewerSignal(userId, true);
+        }
       } else {
         const next = !watchedLiveKitUsers.has(userId);
         livekitService.setScreenWatching(userId, next);
@@ -1708,6 +1827,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
           else updated.delete(userId);
           return updated;
         });
+        sendViewerSignal(userId, next);
       }
     } catch (error) {
       setWatchErrors((previous) =>
@@ -1736,6 +1856,115 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
     }
     return networkStats.get(userId) || null;
   };
+
+  // 监听直播观众与踢出信令 (STREAM_WATCH_START / STREAM_WATCH_STOP / STREAM_KICK / REQUEST_STREAM_VIEWERS)
+  useEffect(() => {
+    const handleP2PSignal = (payload: P2PSignalPayload) => {
+      if (!payload || payload.channelId !== channel.id) return;
+
+      if (payload.type === "STREAM_WATCH_START") {
+        const streamerId = payload.streamOwnerId;
+        const viewerId = payload.senderId;
+        if (streamerId && viewerId) {
+          setStreamViewersMap((prev) => {
+            const next = new Map(prev);
+            const viewers = new Set(next.get(streamerId) || []);
+            viewers.add(viewerId);
+            next.set(streamerId, viewers);
+            return next;
+          });
+        }
+      } else if (payload.type === "STREAM_WATCH_STOP") {
+        const streamerId = payload.streamOwnerId;
+        const viewerId = payload.senderId;
+        if (streamerId && viewerId) {
+          setStreamViewersMap((prev) => {
+            const next = new Map(prev);
+            const viewers = new Set(next.get(streamerId) || []);
+            viewers.delete(viewerId);
+            next.set(streamerId, viewers);
+            return next;
+          });
+        }
+      } else if (payload.type === "STREAM_KICK") {
+        if (payload.targetId === currentUser.id && payload.streamOwnerId) {
+          const streamerId = payload.streamOwnerId;
+          const targetParticipant = displayParticipants.find(
+            (p) => p.userId === streamerId,
+          );
+          if (
+            targetParticipant &&
+            isWatchingStream(streamerId, targetParticipant.streamMode)
+          ) {
+            handleToggleWatching(targetParticipant);
+          }
+        }
+      } else if (payload.type === "REQUEST_STREAM_VIEWERS") {
+        const streamerId = payload.streamOwnerId;
+        if (
+          streamerId &&
+          streamerId !== currentUser.id &&
+          isWatchingStream(streamerId)
+        ) {
+          sendViewerSignal(streamerId, true);
+        }
+      }
+    };
+
+    const unsubscribe = gatewayClient.on(
+      GatewayEvents.P2P_SIGNAL,
+      handleP2PSignal,
+    );
+    return () => {
+      unsubscribe();
+    };
+  }, [channel.id, channel.guildId, currentUser.id, displayParticipants]);
+
+  // 主播开始分享屏幕或摄像头时，广播请求在线观众上报
+  useEffect(() => {
+    if (isScreenSharing || isVideoEnabled) {
+      try {
+        const payload: P2PSignalPayload = {
+          guildId: channel.guildId || "",
+          channelId: channel.id,
+          senderId: currentUser.id,
+          streamOwnerId: currentUser.id,
+          type: "REQUEST_STREAM_VIEWERS",
+          timestamp: Date.now(),
+        };
+        gatewayClient.send({
+          op: GatewayOpCode.DISPATCH,
+          t: GatewayEvents.P2P_SIGNAL,
+          d: payload,
+        });
+      } catch {}
+    }
+  }, [isScreenSharing, isVideoEnabled, channel.id, channel.guildId, currentUser.id]);
+
+  // 离开房间的成员自动从观众列表中移除
+  useEffect(() => {
+    setStreamViewersMap((prev) => {
+      let changed = false;
+      const next = new Map(prev);
+      const onlineUserIds = new Set(displayParticipants.map((p) => p.userId));
+      next.forEach((viewers, streamerId) => {
+        let viewersChanged = false;
+        const filtered = new Set<string>();
+        viewers.forEach((uid) => {
+          if (onlineUserIds.has(uid)) {
+            filtered.add(uid);
+          } else {
+            viewersChanged = true;
+            changed = true;
+          }
+        });
+        if (viewersChanged) {
+          next.set(streamerId, filtered);
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [displayParticipants]);
 
   const localStats = getParticipantStats(currentUser.id);
   const isPTTMode =
@@ -1957,7 +2186,6 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                     isPinned={isPinned}
                     onTogglePin={() => {
                       setPinnedUserId(isPinned ? null : p.userId);
-                      if (isPinned) setStatsUserId(null);
                     }}
                     cameraTrack={media.cameraTrack}
                     screenShareTrack={media.screenShareTrack}
@@ -1998,6 +2226,11 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                     showStatsHUD={statsUserId === p.userId}
                     onToggleStats={() => handleToggleStats(p.userId)}
                     onCloseStats={() => setStatsUserId(null)}
+                    viewersList={isMe ? getStreamViewersList(p.userId) : undefined}
+                    onKickViewer={handleKickViewer}
+                    showViewersModal={isMe && showViewersModal}
+                    onToggleViewersModal={() => setShowViewersModal((prev) => !prev)}
+                    onCloseViewersModal={() => setShowViewersModal(false)}
                   />
                 );
               })}
@@ -2095,9 +2328,14 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                       }
                       peerLatency={peerLatencies.get(p.userId)}
                       isP2P={isP2P}
-                      showStatsHUD={false}
+                      showStatsHUD={statsUserId === p.userId}
                       onToggleStats={() => handleToggleStats(p.userId)}
                       onCloseStats={() => setStatsUserId(null)}
+                      viewersList={isMe ? getStreamViewersList(p.userId) : undefined}
+                      onKickViewer={handleKickViewer}
+                      showViewersModal={isMe && showViewersModal}
+                      onToggleViewersModal={() => setShowViewersModal((prev) => !prev)}
+                      onCloseViewersModal={() => setShowViewersModal(false)}
                     />
                   );
                 })}
