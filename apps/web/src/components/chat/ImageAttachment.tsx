@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ImageIcon, ImageOff, RefreshCw } from "lucide-react";
 import type { Attachment } from "@tescord/types";
 import { loadAttachmentBlob } from "../../services/attachmentAccess.js";
@@ -16,6 +17,7 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
   onLoadSuccess,
   className = "",
 }) => {
+  const { t } = useTranslation("chat");
   const [status, setStatus] = useState<"loading" | "loaded" | "error">(
     "loading",
   );
@@ -54,7 +56,7 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
           className="w-64 h-36 aspect-video max-w-full bg-[#2b2d31] animate-pulse flex flex-col items-center justify-center text-discord-textMuted/60 gap-2"
         >
           <ImageIcon className="w-8 h-8" />
-          <span className="text-xs">图片加载中...</span>
+          <span className="text-xs">{t("lightbox.loading")}</span>
         </div>
       )}
       {status === "error" && (
@@ -66,14 +68,16 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
           <span className="text-xs text-discord-textNormal truncate max-w-[200px]">
             {attachment.fileName}
           </span>
-          <span className="text-[11px] text-red-400">图片加载失败</span>
+          <span className="text-[11px] text-red-400">
+            {t("lightbox.loadFailed")}
+          </span>
           <button
             type="button"
             onClick={() => setRetryCount((count) => count + 1)}
             className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#35373c] hover:bg-[#3f4147] text-white text-xs rounded"
           >
             <RefreshCw className="w-3.5 h-3.5" />
-            点击重试
+            {t("lightbox.retry")}
           </button>
         </div>
       )}
@@ -86,7 +90,9 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
               ? "block w-fit h-fit"
               : "absolute opacity-0 pointer-events-none"
           }
-          aria-label={`预览图片 ${attachment.fileName}`}
+          aria-label={t("lightbox.previewAria", {
+            fileName: attachment.fileName,
+          })}
         >
           <img
             src={imageUrl}

@@ -145,5 +145,30 @@
     "spoiler": "劇透標籤 (||)",
     "quote": "引用 (>)",
     "link": "超連結 ([文字](連結))"
+  },
+  "lightbox": {
+    "previewAria": "預覽 {{fileName}}",
+    "zoomIn": "放大",
+    "zoomInAria": "放大圖片",
+    "zoomOut": "縮小",
+    "zoomOutAria": "縮小圖片",
+    "resetZoom": "重設為 100%",
+    "resetZoomAria": "重設縮放",
+    "viewOriginal": "原圖",
+    "viewOriginalTitle": "查看原圖",
+    "forward": "轉發",
+    "forwardAria": "轉發圖片",
+    "forwardInProgress": "轉發功能接入中...",
+    "download": "下載原圖",
+    "downloadAria": "下載原圖",
+    "downloading": "正在獲取連結...",
+    "downloadFailed": "下載失敗，請稍後重試",
+    "close": "關閉預覽 (ESC)",
+    "closeAria": "關閉預覽",
+    "loading": "圖片載入中...",
+    "loadFailed": "圖片載入失敗",
+    "retry": "點擊重試",
+    "originalBadge": "原圖",
+    "zoomBadge": "縮放 {{percent}}%"
   }
 }

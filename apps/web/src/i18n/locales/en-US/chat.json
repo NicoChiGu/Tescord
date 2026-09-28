@@ -145,5 +145,30 @@
     "spoiler": "Spoiler (||)",
     "quote": "Quote (>)",
     "link": "Link ([text](url))"
+  },
+  "lightbox": {
+    "previewAria": "Preview {{fileName}}",
+    "zoomIn": "Zoom In",
+    "zoomInAria": "Zoom in image",
+    "zoomOut": "Zoom Out",
+    "zoomOutAria": "Zoom out image",
+    "resetZoom": "Reset to 100%",
+    "resetZoomAria": "Reset zoom",
+    "viewOriginal": "Original",
+    "viewOriginalTitle": "View original image",
+    "forward": "Forward",
+    "forwardAria": "Forward image",
+    "forwardInProgress": "Forwarding feature in development...",
+    "download": "Download original",
+    "downloadAria": "Download original image",
+    "downloading": "Fetching download link...",
+    "downloadFailed": "Download failed, please try again later",
+    "close": "Close preview (ESC)",
+    "closeAria": "Close preview",
+    "loading": "Loading image...",
+    "loadFailed": "Failed to load image",
+    "retry": "Click to retry",
+    "originalBadge": "Original",
+    "zoomBadge": "Zoom {{percent}}%"
   }
 }
