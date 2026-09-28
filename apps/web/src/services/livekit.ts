@@ -284,7 +284,12 @@ export class LiveKitService {
   private localActiveSpeakers: Set<string> = new Set();
   private remoteSpeakingStates: Map<
     string,
-    { isSpeaking: boolean; lastActive: number }
+    {
+      isSpeaking: boolean;
+      lastActive: number;
+      consecutiveAbove: number;
+      smoothedEnergy: number;
+    }
   > = new Map();
   private remoteEnergyTimer: any = null;
 
@@ -2393,24 +2398,41 @@ export class LiveKitService {
           }
         });
 
-        // 门限判断: avg >= 6 判定说话，辅以 250ms 滞后计时器 (Hangover) 滤除微弱停顿
+        // 门限判断与平滑防抖:
+        // 1. 指数移动平均 (EMA) 平滑滤波，消除频谱微小起伏
+        // 2. 连续 2 帧 (约 70ms) 超过门限确认启动 (Attack)，杜绝微弱爆音/噪音误触发
+        // 3. 释放滞后 (Hangover) 延长至 450ms，消除人声自然呼吸停顿带来的绿圈剧烈闪烁抖动
         const ENERGY_THRESHOLD = 6;
-        const HANGOVER_MS = 250;
+        const HANGOVER_MS = 450;
 
         let state = this.remoteSpeakingStates.get(identity);
         if (!state) {
-          state = { isSpeaking: false, lastActive: 0 };
+          state = {
+            isSpeaking: false,
+            lastActive: 0,
+            consecutiveAbove: 0,
+            smoothedEnergy: 0,
+          };
           this.remoteSpeakingStates.set(identity, state);
         }
 
-        if (maxAvgEnergy >= ENERGY_THRESHOLD) {
-          state.lastActive = now;
-          if (!state.isSpeaking) {
-            state.isSpeaking = true;
-            this.localActiveSpeakers.add(identity);
-            hasChange = true;
+        state.smoothedEnergy =
+          state.smoothedEnergy === 0
+            ? maxAvgEnergy
+            : state.smoothedEnergy * 0.6 + maxAvgEnergy * 0.4;
+
+        if (state.smoothedEnergy >= ENERGY_THRESHOLD) {
+          state.consecutiveAbove++;
+          if (state.consecutiveAbove >= 2) {
+            state.lastActive = now;
+            if (!state.isSpeaking) {
+              state.isSpeaking = true;
+              this.localActiveSpeakers.add(identity);
+              hasChange = true;
+            }
           }
         } else {
+          state.consecutiveAbove = 0;
           if (state.isSpeaking && now - state.lastActive > HANGOVER_MS) {
             state.isSpeaking = false;
             this.localActiveSpeakers.delete(identity);

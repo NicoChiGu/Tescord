@@ -923,20 +923,6 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
           )}
         </div>
 
-        {/* 详细媒体属性与实时统计 (Stats for nerds) HUD */}
-        {isHUDVisible && (
-          <StreamStatsHUD
-            containerRef={cardRef}
-            participantIdentity={participant.userId}
-            isLocal={isMe}
-            participantName={
-              targetDisplayName ||
-              t(isMe ? "voice:hud.myStream" : "voice:hud.mediaStream")
-            }
-            onClose={handleCloseHUD}
-          />
-        )}
-
         {/* 仅主播本人的观众管理弹窗 */}
         {isMe && showViewersModal && viewersList && (
           <StreamViewersModal
@@ -1123,6 +1109,11 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
   };
   const [pinnedUserId, setPinnedUserId] = useState<string | null>(null);
   const [statsUserId, setStatsUserId] = useState<string | null>(null);
+  const [hudPosition, setHudPosition] = useState<{
+    x: number;
+    y: number;
+  } | null>(null);
+  const voiceContainerRef = useRef<HTMLDivElement>(null);
   const [showViewersModal, setShowViewersModal] = useState(false);
   const [streamViewersMap, setStreamViewersMap] = useState<
     Map<string, Set<string>>
@@ -1624,8 +1615,18 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
         ? cloudflareRealtimeService
         : livekitService
     ).onActiveSpeakersChange((speakers) => {
-      setActiveSpeakers([...speakers]);
+      if (!voiceMeshManager.getIsMeshActive()) {
+        setActiveSpeakers([...speakers]);
+      }
     });
+
+    const unbindMeshSpeakers = voiceMeshManager.onActiveSpeakersChange(
+      (meshSpeakers) => {
+        if (voiceMeshManager.getIsMeshActive()) {
+          setActiveSpeakers([...meshSpeakers]);
+        }
+      },
+    );
 
     const unbindError = audioEngine.onError((err) => {
       setMicError(err);
@@ -1645,6 +1646,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
       unbindVol();
       unbindPTT();
       unbindSpeakers();
+      unbindMeshSpeakers();
       unbindError();
       unbindSFrame();
       unbindCamera();
@@ -1702,6 +1704,10 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
 
   const handleKickViewer = (viewerUserId: string) => {
     try {
+      // 1. 若当前持有 P2P 直播推流，从物理层直接斩断对该观众的推流连接，彻底停止发送音视频 RTP 数据包
+      p2pStreamManager.kickViewer(viewerUserId);
+
+      // 2. 发送 STREAM_KICK 信令通知观众端与服务端
       const payload: P2PSignalPayload = {
         guildId: channel.guildId || "",
         channelId: channel.id,
@@ -1907,24 +1913,49 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
           payload.senderId === payload.streamOwnerId
         ) {
           const streamerId = payload.streamOwnerId;
+
+          // 1. 彻底断开与重置 P2P 直播拉流
+          if (
+            watchedP2PStreamerId === streamerId ||
+            p2pStreamManager.getStreamOwnerId() === streamerId
+          ) {
+            p2pStreamManager.stopAll();
+            setWatchedP2PStreamerId(null);
+          }
+          setP2pScreenShares((previous) => {
+            const next = new Map(previous);
+            next.delete(streamerId);
+            return next;
+          });
+          setP2PRemoteAudio((prev) =>
+            prev?.userId === streamerId ? null : prev,
+          );
+
+          // 2. 彻底断开 LiveKit SFU 订阅并清理本地渲染轨
+          livekitService.setScreenWatching(streamerId, false);
+          setWatchedLiveKitUsers((previous) => {
+            const next = new Set(previous);
+            next.delete(streamerId);
+            return next;
+          });
+          setScreenShares((previous) => {
+            const next = new Map(previous);
+            next.delete(streamerId);
+            return next;
+          });
+
+          // 3. 彻底断开 Cloudflare SFU 订阅
           if (VOICE_ENGINE === "cloudflare_realtime") {
             const publication = getScreenPublication(streamerId);
-            if (publication)
+            if (publication) {
               void cloudflareRealtimeService.stopWatchingStream(
                 publication.sessionId,
                 true,
               );
-          } else if (watchedP2PStreamerId === streamerId) {
-            p2pStreamManager.stopAll();
-            setWatchedP2PStreamerId(null);
-          } else {
-            livekitService.setScreenWatching(streamerId, false);
-            setWatchedLiveKitUsers((previous) => {
-              const next = new Set(previous);
-              next.delete(streamerId);
-              return next;
-            });
+            }
           }
+
+          // 4. 展示被踢出提示
           setWatchErrors((previous) =>
             new Map(previous).set(streamerId, t("voice:viewers.kickedNotice")),
           );
@@ -2015,6 +2046,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
 
   return (
     <div
+      ref={voiceContainerRef}
       data-testid="voice-room-area"
       className="flex-1 flex flex-col h-full bg-[#111214] relative overflow-hidden select-none"
     >
@@ -2939,6 +2971,35 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
             </span>
           </div>
         </div>
+      )}
+
+      {/* 全局单例详细媒体属性与实时统计 (Stats for nerds) HUD，支持在中间内容区域内自由拖拽并记住位置 */}
+      {statsUserId && (
+        <StreamStatsHUD
+          containerRef={voiceContainerRef}
+          participantIdentity={statsUserId}
+          isLocal={statsUserId === currentUser.id}
+          initialPosition={hudPosition}
+          onPositionChange={setHudPosition}
+          participantName={(() => {
+            const p = displayParticipants.find((x) => x.userId === statsUserId);
+            const m = guild?.members?.find((mem) => mem.userId === statsUserId);
+            const name = getUserDisplayName(
+              p?.user || null,
+              m,
+              statsUserId === currentUser.id ? currentUser.username : "用户",
+            );
+            return (
+              name ||
+              t(
+                statsUserId === currentUser.id
+                  ? "voice:hud.myStream"
+                  : "voice:hud.mediaStream",
+              )
+            );
+          })()}
+          onClose={() => setStatsUserId(null)}
+        />
       )}
     </div>
   );

@@ -2383,11 +2383,23 @@ export const App: React.FC = () => {
     const unbindSpeakers =
       VOICE_ENGINE === "cloudflare_realtime"
         ? cloudflareRealtimeService.onActiveSpeakersChange((speakers) => {
-            setActiveSpeakers([...speakers]);
+            if (!voiceMeshManager.getIsMeshActive()) {
+              setActiveSpeakers([...speakers]);
+            }
           })
         : livekitService.onActiveSpeakersChange((speakers) => {
-            setActiveSpeakers([...speakers]);
+            if (!voiceMeshManager.getIsMeshActive()) {
+              setActiveSpeakers([...speakers]);
+            }
           });
+
+    const unbindMeshSpeakers = voiceMeshManager.onActiveSpeakersChange(
+      (meshSpeakers) => {
+        if (voiceMeshManager.getIsMeshActive()) {
+          setActiveSpeakers([...meshSpeakers]);
+        }
+      },
+    );
 
     const unbindConnStatus = livekitService.onConnectionStatusChange(
       (status) => {
@@ -2402,6 +2414,7 @@ export const App: React.FC = () => {
       unbindShare?.();
       unbindP2P?.();
       unbindSpeakers?.();
+      unbindMeshSpeakers?.();
       unbindConnStatus?.();
     };
   }, [guilds, isScreenSharing]);

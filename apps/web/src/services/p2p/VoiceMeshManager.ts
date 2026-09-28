@@ -23,6 +23,7 @@ export type VoiceFallbackCallback = (context: {
   callId: string | null;
   reason: string;
 }) => void;
+export type ActiveSpeakersChangeCallback = (speakers: string[]) => void;
 
 export class VoiceMeshManager {
   private activeChannelId: string | null = null;
@@ -52,6 +53,30 @@ export class VoiceMeshManager {
     string,
     { attempts: number; timer?: any; inProgress: boolean }
   > = new Map();
+
+  // 远端音频 Web Audio 能量分析旁路 (peerId -> { stream, sourceNode, analyserNode })
+  private participantAudioMap: Map<
+    string,
+    {
+      stream: MediaStream;
+      sourceNode?: MediaStreamAudioSourceNode;
+      analyserNode?: AnalyserNode;
+    }
+  > = new Map();
+  private sharedAudioContext: AudioContext | null = null;
+  private activeSpeakers: Set<string> = new Set();
+  private remoteSpeakingStates: Map<
+    string,
+    {
+      isSpeaking: boolean;
+      lastActive: number;
+      consecutiveAbove: number;
+      smoothedEnergy: number;
+    }
+  > = new Map();
+  private remoteEnergyTimer: any = null;
+  private activeSpeakersCallbacks: Set<ActiveSpeakersChangeCallback> =
+    new Set();
 
   private statsTimer: any = null;
   private latencyCallbacks: Set<LatencyUpdateCallback> = new Set();
@@ -150,6 +175,18 @@ export class VoiceMeshManager {
     };
   }
 
+  public onActiveSpeakersChange(cb: ActiveSpeakersChangeCallback): () => void {
+    this.activeSpeakersCallbacks.add(cb);
+    cb(Array.from(this.activeSpeakers));
+    return () => {
+      this.activeSpeakersCallbacks.delete(cb);
+    };
+  }
+
+  public getActiveSpeakers(): string[] {
+    return Array.from(this.activeSpeakers);
+  }
+
   /**
    * 加入或切换到纯语音 Mesh P2P 通话
    */
@@ -246,6 +283,23 @@ export class VoiceMeshManager {
       } catch {}
     }
     this.remoteAudioElements.clear();
+
+    // 释放远端音频 Web Audio 能量分析旁路
+    this.stopRemoteAudioEnergyMonitoring();
+    for (const entry of this.participantAudioMap.values()) {
+      if (entry.sourceNode) {
+        try {
+          entry.sourceNode.disconnect();
+        } catch {}
+      }
+    }
+    this.participantAudioMap.clear();
+    this.remoteSpeakingStates.clear();
+    if (this.activeSpeakers.size > 0) {
+      this.activeSpeakers.clear();
+      this.notifyActiveSpeakersUpdate();
+    }
+
     this.latencyReports.clear();
     this.notifyLatencyUpdate();
   }
@@ -738,6 +792,9 @@ export class VoiceMeshManager {
     audioEl.volume = Math.min(1.0, Math.max(0, userVol / 100));
     audioEl.srcObject = stream;
     audioEl.play().catch(() => {});
+
+    // 挂接 Web Audio AnalyserNode 进行实时说话能量检测（仅旁路分析，不输出至 destination 以免与 audio 标签重复发声）
+    this.setupRemoteAudioAnalysis(peerId, stream);
   }
 
   private async flushPendingCandidates(
@@ -781,11 +838,168 @@ export class VoiceMeshManager {
       this.remoteAudioElements.delete(peerId);
     }
 
+    // 清理 Web Audio 能量分析节点
+    const audioEntry = this.participantAudioMap.get(peerId);
+    if (audioEntry?.sourceNode) {
+      try {
+        audioEntry.sourceNode.disconnect();
+      } catch {}
+    }
+    this.participantAudioMap.delete(peerId);
+    this.remoteSpeakingStates.delete(peerId);
+    if (this.activeSpeakers.delete(peerId)) {
+      this.notifyActiveSpeakersUpdate();
+    }
+
     if (!options.preserveReport) this.latencyReports.delete(peerId);
     if (this.getConnectedPeersCount() === 0) {
       this.hasConnectedPeer = false;
     }
     this.notifyLatencyUpdate();
+  }
+
+  private getOrCreateAudioContext(): AudioContext | null {
+    if (typeof window === "undefined") return null;
+    if (
+      !this.sharedAudioContext ||
+      this.sharedAudioContext.state === "closed"
+    ) {
+      const AudioCtx =
+        window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return null;
+      this.sharedAudioContext = new AudioCtx();
+    }
+    if (this.sharedAudioContext.state === "suspended") {
+      this.sharedAudioContext.resume().catch(() => {});
+    }
+    return this.sharedAudioContext;
+  }
+
+  private setupRemoteAudioAnalysis(peerId: string, stream: MediaStream) {
+    try {
+      const audioTracks = stream.getAudioTracks();
+      if (audioTracks.length === 0) return;
+
+      const ctx = this.getOrCreateAudioContext();
+      if (!ctx) return;
+
+      const existing = this.participantAudioMap.get(peerId);
+      if (existing?.sourceNode) {
+        try {
+          existing.sourceNode.disconnect();
+        } catch {}
+      }
+
+      const sourceNode = ctx.createMediaStreamSource(stream);
+      const analyserNode = ctx.createAnalyser();
+      analyserNode.fftSize = 256;
+      analyserNode.smoothingTimeConstant = 0.2;
+      sourceNode.connect(analyserNode);
+
+      this.participantAudioMap.set(peerId, {
+        stream,
+        sourceNode,
+        analyserNode,
+      });
+      this.startRemoteAudioEnergyMonitoring();
+    } catch (e) {
+      console.warn(`[VoiceMesh] 为节点 ${peerId} 挂接音频能量分析器失败:`, e);
+    }
+  }
+
+  private startRemoteAudioEnergyMonitoring() {
+    if (this.remoteEnergyTimer) return;
+
+    const sampleBuffer = new Uint8Array(128); // 256 / 2
+    this.remoteEnergyTimer = setInterval(() => {
+      if (!this.isMeshActive || this.participantAudioMap.size === 0) {
+        if (this.participantAudioMap.size === 0) {
+          this.stopRemoteAudioEnergyMonitoring();
+        }
+        return;
+      }
+
+      const now = Date.now();
+      let hasChange = false;
+
+      this.participantAudioMap.forEach((entry, peerId) => {
+        let maxAvgEnergy = 0;
+        if (entry.analyserNode) {
+          try {
+            entry.analyserNode.getByteFrequencyData(sampleBuffer);
+            let sum = 0;
+            for (let i = 0; i < sampleBuffer.length; i++) {
+              sum += sampleBuffer[i];
+            }
+            maxAvgEnergy = sum / sampleBuffer.length;
+          } catch {}
+        }
+
+        // 门限判断与平滑防抖算法（对齐 SFU 标准）:
+        // 1. 指数移动平均 (EMA) 平滑滤波，消除频谱微小起伏
+        // 2. 连续 2 帧 (约 70ms) 超过门限确认启动 (Attack)
+        // 3. 释放滞后 (Hangover) 延长至 450ms
+        const ENERGY_THRESHOLD = 6;
+        const HANGOVER_MS = 450;
+
+        let state = this.remoteSpeakingStates.get(peerId);
+        if (!state) {
+          state = {
+            isSpeaking: false,
+            lastActive: 0,
+            consecutiveAbove: 0,
+            smoothedEnergy: 0,
+          };
+          this.remoteSpeakingStates.set(peerId, state);
+        }
+
+        state.smoothedEnergy =
+          state.smoothedEnergy === 0
+            ? maxAvgEnergy
+            : state.smoothedEnergy * 0.6 + maxAvgEnergy * 0.4;
+
+        if (state.smoothedEnergy >= ENERGY_THRESHOLD) {
+          state.consecutiveAbove++;
+          if (state.consecutiveAbove >= 2) {
+            state.lastActive = now;
+            if (!state.isSpeaking) {
+              state.isSpeaking = true;
+              this.activeSpeakers.add(peerId);
+              hasChange = true;
+            }
+          }
+        } else {
+          state.consecutiveAbove = 0;
+          if (state.isSpeaking && now - state.lastActive > HANGOVER_MS) {
+            state.isSpeaking = false;
+            this.activeSpeakers.delete(peerId);
+            hasChange = true;
+          }
+        }
+      });
+
+      if (hasChange) {
+        this.notifyActiveSpeakersUpdate();
+      }
+    }, 35);
+  }
+
+  private stopRemoteAudioEnergyMonitoring() {
+    if (this.remoteEnergyTimer) {
+      clearInterval(this.remoteEnergyTimer);
+      this.remoteEnergyTimer = null;
+    }
+  }
+
+  private notifyActiveSpeakersUpdate() {
+    const list = Array.from(this.activeSpeakers);
+    for (const cb of this.activeSpeakersCallbacks) {
+      try {
+        cb(list);
+      } catch (e) {
+        console.warn("[VoiceMesh] onActiveSpeakersChange 回调异常:", e);
+      }
+    }
   }
 
   private setPeerReport(

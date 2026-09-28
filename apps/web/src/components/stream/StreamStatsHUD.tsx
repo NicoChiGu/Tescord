@@ -20,6 +20,8 @@ interface StreamStatsHUDProps {
   isLocal?: boolean;
   onClose: () => void;
   containerRef?: React.RefObject<HTMLElement | null>;
+  initialPosition?: { x: number; y: number } | null;
+  onPositionChange?: (pos: { x: number; y: number }) => void;
 }
 
 export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
@@ -28,6 +30,8 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
   isLocal: propIsLocal,
   onClose,
   containerRef,
+  initialPosition,
+  onPositionChange,
 }) => {
   const { t } = useTranslation("voice");
   const displayName = participantName || t("hud.mediaStream");
@@ -37,7 +41,7 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
   const [isRefreshing, setIsRefreshing] = useState(false);
   const hudRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<{ x: number; y: number } | null>(
-    null,
+    () => initialPosition || null,
   );
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef<{
@@ -185,7 +189,9 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
       const clampedX = Math.min(Math.max(minX, rawX), maxX);
       const clampedY = Math.min(Math.max(minY, rawY), maxY);
 
-      setPosition({ x: clampedX, y: clampedY });
+      const nextPos = { x: clampedX, y: clampedY };
+      setPosition(nextPos);
+      onPositionChange?.(nextPos);
     };
 
     const handlePointerUp = () => {

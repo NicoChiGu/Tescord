@@ -464,6 +464,14 @@ export class P2PStreamManager {
           console.warn("Failed to add ICE candidate directly:", e);
         }
       }
+    } else if (type === "STREAM_KICK") {
+      // 观众端收到主播的踢出信令，主动立即停止拉流与一切重试打洞
+      if (signal.targetId === this.currentUserId) {
+        console.info(
+          `[P2PStream] 收到主播 ${signal.streamOwnerId || senderId} 的踢出信令，彻底终结本地拉流与重试`,
+        );
+        this.stopAll();
+      }
     }
   }
 
@@ -800,6 +808,19 @@ export class P2PStreamManager {
       this.peerConnections.delete(peerId);
     }
     this.pendingCandidatesMap.delete(peerId);
+  }
+
+  /**
+   * 主播端物理切断并踢出指定观众节点，从源头彻底停止视频音频 RTP 推流
+   */
+  public kickViewer(viewerId: string): void {
+    console.info(`[P2PStream] 主动物理切断并踢出观众节点: ${viewerId}`);
+    // 1. 从下游子节点推流列表中移除
+    this.currentChildrenIds = this.currentChildrenIds.filter(
+      (id) => id !== viewerId,
+    );
+    // 2. 物理关闭并移除与该观众的 RTCPeerConnection，彻底切断物理推流
+    this.closePeerConnection(viewerId);
   }
 
   private sendSignal(signal: P2PSignalPayload): void {
