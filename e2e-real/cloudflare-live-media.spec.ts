@@ -833,11 +833,14 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
         () =>
           diagnostics[2].filter(
             (event) =>
-              event.event === "/api/cloudflare-realtime/streams/watch" &&
-              event.status === 403,
+              [
+                "/api/cloudflare-realtime/streams/watch",
+                "/api/cloudflare-realtime/tracks/subscribe",
+              ].includes(event.event) && event.status === 403,
           ).length,
       )
       .toBe(1);
+    expect(diagnostics[2].filter((event) => event.status === 400)).toEqual([]);
   } else {
     await watchButtons[1].click();
   }
