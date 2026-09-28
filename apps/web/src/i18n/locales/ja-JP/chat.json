@@ -135,5 +135,15 @@
     "invalidTitle": "無効な招待",
     "invalidDesc": "この招待リンクは期限切れか、参加権限がありません。",
     "resolving": "招待を解決中..."
+  },
+  "toolbar": {
+    "bold": "太字 (**)",
+    "italic": "斜体 (*)",
+    "strikethrough": "取り消し線 (~~)",
+    "inlineCode": "インラインコード (`)",
+    "codeBlock": "コードブロック (```)",
+    "spoiler": "ネタバレ (||)",
+    "quote": "引用 (>)",
+    "link": "リンク ([テキスト](URL))"
   }
 }

@@ -157,6 +157,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   // 自定义头像上传与裁切状态
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
+  const [previewAvatarBlobUrl, setPreviewAvatarBlobUrl] = useState<string | null>(null);
   const [isCropModalOpen, setIsCropModalOpen] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
@@ -165,8 +166,11 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
       if (cropSrc) {
         URL.revokeObjectURL(cropSrc);
       }
+      if (previewAvatarBlobUrl) {
+        URL.revokeObjectURL(previewAvatarBlobUrl);
+      }
     };
-  }, [cropSrc]);
+  }, [cropSrc, previewAvatarBlobUrl]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -181,6 +185,14 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   const handleUploadCropped = async (croppedBlob: Blob) => {
     const mimeType = "image/webp";
     const fileName = `user_avatar_${Date.now()}.webp`;
+
+    // 本地即时生成 Blob 预览，避免在点击保存前向服务端发起 GET 请求产生 404
+    const localBlob = URL.createObjectURL(croppedBlob);
+    setPreviewAvatarBlobUrl((prev) => {
+      if (prev) URL.revokeObjectURL(prev);
+      return localBlob;
+    });
+
     setIsUploadingAvatar(true);
     try {
       const res = await fetch(`${API_BASE}/api/attachments/presigned-url`, {
@@ -220,6 +232,10 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
       setIsCropModalOpen(false);
       toast.success(t("settings:avatarUploadSuccess"));
     } catch (err: any) {
+      if (previewAvatarBlobUrl) {
+        URL.revokeObjectURL(previewAvatarBlobUrl);
+        setPreviewAvatarBlobUrl(null);
+      }
       toast.error(err.message || t("settings:avatarUploadFailed"));
     } finally {
       setIsUploadingAvatar(false);
@@ -297,6 +313,10 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   // 重置表单状态至当前已保存值
   const handleResetChanges = () => {
     if (!user) return;
+    if (previewAvatarBlobUrl) {
+      URL.revokeObjectURL(previewAvatarBlobUrl);
+      setPreviewAvatarBlobUrl(null);
+    }
     const currentPrefix = user.username.includes("#")
       ? user.username.split("#")[0]
       : user.username;
@@ -354,7 +374,13 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
 
   if (!isOpen || !user) return null;
 
+  const displayAvatarUrl = previewAvatarBlobUrl || avatarUrl;
+
   const handleRandomAvatar = () => {
+    if (previewAvatarBlobUrl) {
+      URL.revokeObjectURL(previewAvatarBlobUrl);
+      setPreviewAvatarBlobUrl(null);
+    }
     const seed = Math.random().toString(36).substring(2, 9);
     setAvatarUrl(`https://api.dicebear.com/7.x/bottts/svg?seed=${seed}`);
   };
@@ -375,6 +401,10 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
         themeColor: themeColor.trim() || null,
         showActivity,
       });
+      if (previewAvatarBlobUrl) {
+        URL.revokeObjectURL(previewAvatarBlobUrl);
+        setPreviewAvatarBlobUrl(null);
+      }
       if (isElectron) {
         window.electronAPI?.syncUserStatus(status);
       }
@@ -664,7 +694,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                         >
                           <Avatar
                             size="2xl"
-                            src={avatarUrl || user.avatarUrl}
+                            src={displayAvatarUrl || user.avatarUrl}
                             fallbackSeed={user.username}
                             className="ring-4 ring-[#313338] shadow-inner transition-opacity group-hover:opacity-85"
                           />
@@ -725,11 +755,17 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                               <Dices className="w-3.5 h-3.5 text-amber-400" />
                               <span>{t("settings:randomAvatar")}</span>
                             </button>
-                            {Boolean(avatarUrl || user.avatarUrl) && (
+                            {Boolean(displayAvatarUrl || user.avatarUrl) && (
                               <button
                                 type="button"
                                 data-testid="remove-avatar-btn"
-                                onClick={() => setAvatarUrl("")}
+                                onClick={() => {
+                                  if (previewAvatarBlobUrl) {
+                                    URL.revokeObjectURL(previewAvatarBlobUrl);
+                                    setPreviewAvatarBlobUrl(null);
+                                  }
+                                  setAvatarUrl("");
+                                }}
                                 className="px-2.5 py-1 rounded-lg bg-[#383a40] hover:bg-[#da373c]/80 text-xs font-medium text-gray-300 hover:text-white flex items-center gap-1.5 transition"
                                 title={t("settings:removeAvatar")}
                               >
@@ -762,10 +798,10 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
 
                         <div className="space-y-1.5 pt-2 border-t border-white/5">
                           <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">
-                            用户识别码 (Unique Identifier)
+                            {t("settings:userIdentifier", "用户识别码 (Unique Identifier)")}
                           </label>
-                          <div className="flex items-center bg-[#1e1f22] rounded-xl border border-white/5 focus-within:ring-2 focus-within:ring-[#5865f2] px-3 py-2">
-                            <span className="text-gray-400 text-sm font-mono mr-1 select-none">
+                          <div className="group relative flex items-center bg-[#1e1f22] hover:bg-[#1a1b1e] rounded-xl border border-white/10 focus-within:border-[#5865f2] focus-within:ring-2 focus-within:ring-[#5865f2]/40 transition-all duration-150 px-3.5 py-2.5">
+                            <span className="text-[#949ba4] text-sm font-semibold select-none mr-1">
                               @
                             </span>
                             <input
@@ -777,22 +813,24 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                                 )
                               }
                               data-testid="profile-username-prefix-input"
-                              className="flex-1 bg-transparent text-white text-base sm:text-sm focus:outline-none"
-                              placeholder="用户名"
+                              className="flex-1 min-w-0 bg-transparent text-white text-base sm:text-sm font-medium focus:outline-none placeholder-gray-500 pr-2 selection:bg-[#5865f2]/30"
+                              placeholder={t("settings:usernamePlaceholder", "用户名")}
                             />
-                            <span
-                              className="bg-[#2b2d31] text-gray-400 font-mono text-xs px-2.5 py-1 rounded-md border border-white/10 select-none ml-2"
-                              title="数字标签终身唯一绑定不可修改"
-                            >
-                              #{userTag}
-                            </span>
+                            <div className="flex items-center shrink-0 select-none pl-2.5 border-l border-white/10">
+                              <span
+                                className="font-mono text-xs sm:text-sm tracking-tight text-[#949ba4] group-hover:text-gray-300 transition-colors cursor-not-allowed"
+                                title={t("settings:userTagTooltip", "数字鉴别码终身唯一绑定，不可修改")}
+                              >
+                                #{userTag}
+                              </span>
+                            </div>
                           </div>
-                          <p className="text-[11px] text-gray-400">
-                            识别码前缀可自由定制；后面的 5 位数字标签{" "}
+                          <p className="text-[11px] text-gray-400 flex items-center flex-wrap gap-1 mt-1">
+                            <span>{t("settings:userIdentifierHint", "识别码前缀可自由定制；后面的 5 位数字标签")}</span>
                             <span className="font-mono text-zinc-300">
                               #{userTag}
-                            </span>{" "}
-                            为终身唯一绑定不可更改。
+                            </span>
+                            <span>{t("settings:userIdentifierImmutable", "为终身唯一绑定不可更改。")}</span>
                           </p>
                         </div>
                       </div>
@@ -1047,7 +1085,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                         user={user}
                         displayName={displayName}
                         usernamePrefix={usernamePrefix}
-                        avatarUrl={avatarUrl}
+                        avatarUrl={displayAvatarUrl}
                         status={status}
                         customStatus={customStatus}
                         bio={bio}
@@ -1109,7 +1147,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                             user={user}
                             displayName={displayName}
                             usernamePrefix={usernamePrefix}
-                            avatarUrl={avatarUrl}
+                            avatarUrl={displayAvatarUrl}
                             status={status}
                             customStatus={customStatus}
                             bio={bio}

@@ -384,7 +384,7 @@ export class StorageService {
     return Boolean(
       grant &&
       grant.uploaded &&
-      grant.purpose === "guild-icon" &&
+      (grant.purpose === "guild-icon" || grant.purpose === "user-avatar") &&
       grant.expiresAt >= Date.now(),
     );
   }

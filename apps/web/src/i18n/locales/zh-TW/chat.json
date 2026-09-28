@@ -135,5 +135,15 @@
     "invalidTitle": "邀請已失效",
     "invalidDesc": "此邀請連結可能已過期，或者您沒有加入此伺服器的權限。",
     "resolving": "正在解析伺服器邀請..."
+  },
+  "toolbar": {
+    "bold": "粗體 (**)",
+    "italic": "斜體 (*)",
+    "strikethrough": "刪除線 (~~)",
+    "inlineCode": "行內代碼 (`)",
+    "codeBlock": "程式碼區塊 (```)",
+    "spoiler": "防爆雷標籤 (||)",
+    "quote": "引言 (>)",
+    "link": "超連結 ([文字](連結))"
   }
 }

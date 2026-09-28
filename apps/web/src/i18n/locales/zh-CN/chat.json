@@ -135,5 +135,15 @@
     "invalidTitle": "邀请已失效",
     "invalidDesc": "此邀请链接可能已过期，或者您没有加入此服务器的权限。",
     "resolving": "正在解析服务器邀请..."
+  },
+  "toolbar": {
+    "bold": "粗体 (**)",
+    "italic": "斜体 (*)",
+    "strikethrough": "删除线 (~~)",
+    "inlineCode": "行内代码 (`)",
+    "codeBlock": "代码块 (```)",
+    "spoiler": "剧透标签 (||)",
+    "quote": "引用 (>)",
+    "link": "超链接 ([文字](链接))"
   }
 }

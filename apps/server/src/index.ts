@@ -5060,12 +5060,21 @@ server.get("/public-assets/:fileName", async (request, reply) => {
               },
             },
             { avatarUrl: { endsWith: `/public-assets/${decoded}` } },
+            { bannerUrl: fileUrl },
+            {
+              bannerUrl: {
+                endsWith: `/public-assets/${encodeURIComponent(decoded)}`,
+              },
+            },
+            { bannerUrl: { endsWith: `/public-assets/${decoded}` } },
           ],
         },
         select: { id: true },
       });
 
-  if (!guild && !user) {
+  const isPending = storageService.isPendingPublicAsset(decoded);
+
+  if (!guild && !user && !isPending) {
     return sendPublicAssetError(404, "资源不存在");
   }
 
@@ -5074,8 +5083,12 @@ server.get("/public-assets/:fileName", async (request, reply) => {
   reply.header("X-Content-Type-Options", "nosniff");
   try {
     const stream = await storageService.openObject(fileUrl);
-    reply.header("Cache-Control", "public, max-age=31536000, immutable");
-    reply.header("ETag", `"${decoded}"`);
+    if (guild || user) {
+      reply.header("Cache-Control", "public, max-age=31536000, immutable");
+      reply.header("ETag", `"${decoded}"`);
+    } else {
+      reply.header("Cache-Control", "no-cache");
+    }
     return reply.send(stream);
   } catch {
     return sendPublicAssetError(404, "资源不存在");

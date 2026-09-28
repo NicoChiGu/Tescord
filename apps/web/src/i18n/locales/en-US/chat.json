@@ -135,5 +135,15 @@
     "invalidTitle": "Invite Invalid",
     "invalidDesc": "This invite may be expired, or you might not have permission to join.",
     "resolving": "Resolving server invite..."
+  },
+  "toolbar": {
+    "bold": "Bold (**)",
+    "italic": "Italic (*)",
+    "strikethrough": "Strikethrough (~~)",
+    "inlineCode": "Inline Code (`)",
+    "codeBlock": "Code Block (```)",
+    "spoiler": "Spoiler (||)",
+    "quote": "Quote (>)",
+    "link": "Link ([text](url))"
   }
 }

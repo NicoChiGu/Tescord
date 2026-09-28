@@ -11,6 +11,10 @@ import {
   MentionAutocomplete,
   MentionCandidate,
 } from "./MentionAutocomplete.js";
+import {
+  FloatingFormatToolbar,
+  FormatType,
+} from "./FloatingFormatToolbar.js";
 import { getUserDisplayName } from "../../utils/userDisplay.js";
 
 export interface MentionInputHandle {
@@ -58,6 +62,27 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
 
     // 记录触发 @ 的位置与 Range
     const mentionRangeRef = useRef<Range | null>(null);
+
+    // 富文本悬浮菜单状态
+    const [selectedRange, setSelectedRange] = useState<Range | null>(null);
+    const [toolbarPos, setToolbarPos] = useState<{ top: number; left: number } | null>(null);
+    const [showToolbar, setShowToolbar] = useState(false);
+    const [isMobileDevice, setIsMobileDevice] = useState(false);
+    const isCtrlAPressedRef = useRef(false);
+
+    // 移动端视口检测
+    useEffect(() => {
+      const checkMobile = () => {
+        setIsMobileDevice(
+          typeof window !== "undefined" &&
+            (window.innerWidth < 768 ||
+              ("ontouchstart" in window && window.innerWidth < 1024)),
+        );
+      };
+      checkMobile();
+      window.addEventListener("resize", checkMobile);
+      return () => window.removeEventListener("resize", checkMobile);
+    }, []);
 
     // 序列化 contenteditable 内容为纯文本字符串
     const serializeToPlainText = useCallback((node: Node | null): string => {
@@ -242,6 +267,164 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
       };
     }, [insertMentionAtCursor]);
 
+    // 选区与悬浮富文本工具栏更新
+    const updateSelectionToolbar = useCallback(() => {
+      if (disabled) {
+        setShowToolbar(false);
+        return;
+      }
+      // 严格仅在用户按下 Ctrl+A / Command+A 快捷键时抑制悬浮菜单，若鼠标划选则依旧展示
+      if (isCtrlAPressedRef.current) {
+        setShowToolbar(false);
+        return;
+      }
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || sel.isCollapsed) {
+        setShowToolbar(false);
+        return;
+      }
+      const range = sel.getRangeAt(0);
+      if (
+        !editorRef.current ||
+        !editorRef.current.contains(range.commonAncestorContainer)
+      ) {
+        setShowToolbar(false);
+        return;
+      }
+      const text = sel.toString();
+      if (!text || !text.trim()) {
+        setShowToolbar(false);
+        return;
+      }
+
+      setSelectedRange(range.cloneRange());
+
+      const isMobile =
+        typeof window !== "undefined" &&
+        (window.innerWidth < 768 ||
+          ("ontouchstart" in window && window.innerWidth < 1024));
+
+      if (!isMobile) {
+        const rect = range.getBoundingClientRect();
+        const toolbarWidth = 320;
+        const toolbarHeight = 36;
+        const gap = 8;
+
+        let left = rect.left + rect.width / 2 - toolbarWidth / 2;
+        left = Math.max(12, Math.min(left, window.innerWidth - toolbarWidth - 12));
+
+        let top = rect.top - toolbarHeight - gap;
+        if (top < 10) {
+          top = rect.bottom + gap;
+        }
+        setToolbarPos({ top, left });
+      }
+      setShowToolbar(true);
+    }, [disabled]);
+
+    useEffect(() => {
+      const onSelectionChange = () => {
+        requestAnimationFrame(updateSelectionToolbar);
+      };
+      document.addEventListener("selectionchange", onSelectionChange);
+      return () => {
+        document.removeEventListener("selectionchange", onSelectionChange);
+      };
+    }, [updateSelectionToolbar]);
+
+    // 执行富文本 Markdown 智能包裹
+    const applyFormat = useCallback(
+      (formatType: FormatType) => {
+        if (!editorRef.current) return;
+        const sel = window.getSelection();
+        let range = selectedRange;
+        if (
+          sel &&
+          sel.rangeCount > 0 &&
+          editorRef.current.contains(sel.getRangeAt(0).commonAncestorContainer)
+        ) {
+          range = sel.getRangeAt(0);
+        }
+        if (!range) return;
+
+        const rawText = range.toString();
+        if (!rawText) return;
+
+        let newText = rawText;
+        switch (formatType) {
+          case "bold":
+            newText =
+              rawText.startsWith("**") &&
+              rawText.endsWith("**") &&
+              rawText.length >= 4
+                ? rawText.slice(2, -2)
+                : `**${rawText}**`;
+            break;
+          case "italic":
+            newText =
+              rawText.startsWith("*") &&
+              rawText.endsWith("*") &&
+              rawText.length >= 2
+                ? rawText.slice(1, -1)
+                : `*${rawText}*`;
+            break;
+          case "strikethrough":
+            newText =
+              rawText.startsWith("~~") &&
+              rawText.endsWith("~~") &&
+              rawText.length >= 4
+                ? rawText.slice(2, -2)
+                : `~~${rawText}~~`;
+            break;
+          case "inlineCode":
+            newText =
+              rawText.startsWith("`") &&
+              rawText.endsWith("`") &&
+              rawText.length >= 2
+                ? rawText.slice(1, -1)
+                : `\`${rawText}\``;
+            break;
+          case "codeBlock":
+            newText = `\`\`\`\n${rawText}\n\`\`\``;
+            break;
+          case "spoiler":
+            newText =
+              rawText.startsWith("||") &&
+              rawText.endsWith("||") &&
+              rawText.length >= 4
+                ? rawText.slice(2, -2)
+                : `||${rawText}||`;
+            break;
+          case "quote":
+            newText = rawText.startsWith("> ")
+              ? rawText.replace(/^> /gm, "")
+              : rawText
+                  .split("\n")
+                  .map((line) => `> ${line}`)
+                  .join("\n");
+            break;
+          case "link":
+            newText = `[${rawText}](https://)`;
+            break;
+        }
+
+        range.deleteContents();
+        const textNode = document.createTextNode(newText);
+        range.insertNode(textNode);
+
+        const newRange = document.createRange();
+        newRange.selectNodeContents(textNode);
+        sel?.removeAllRanges();
+        sel?.addRange(newRange);
+
+        handleContentChange();
+        setShowToolbar(false);
+        setSelectedRange(null);
+        editorRef.current.focus();
+      },
+      [selectedRange, handleContentChange],
+    );
+
     // 计算候选成员列表
     useEffect(() => {
       if (!isMenuOpen) {
@@ -387,6 +570,14 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
 
     // 键盘事件处理：退格原子删除、Enter 发送、候选菜单导航
     const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+      // 0. Ctrl+A / Command+A 快捷键全选检测（严格抑制悬浮工具栏展示）
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") {
+        isCtrlAPressedRef.current = true;
+        setShowToolbar(false);
+      } else {
+        isCtrlAPressedRef.current = false;
+      }
+
       // 1. 如果补全菜单已打开，接管快捷键导航
       if (isMenuOpen && candidates.length > 0) {
         if (e.key === "ArrowDown") {
@@ -412,6 +603,7 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
         if (e.key === "Escape") {
           e.preventDefault();
           setIsMenuOpen(false);
+          setShowToolbar(false);
           mentionRangeRef.current = null;
           return;
         }
@@ -426,6 +618,8 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
         editorRef.current.innerHTML = "";
         handleContentChange();
         setIsMenuOpen(false);
+        setShowToolbar(false);
+        isCtrlAPressedRef.current = false;
         return;
       }
 
@@ -504,6 +698,15 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
 
     return (
       <div className="relative flex-1 flex items-center min-w-0">
+        {/* 选中文本富文本悬浮/固定功能菜单 */}
+        {showToolbar && (
+          <FloatingFormatToolbar
+            isMobile={isMobileDevice}
+            position={toolbarPos}
+            onApply={applyFormat}
+          />
+        )}
+
         {/* 上拉候选菜单 */}
         {isMenuOpen && (
           <MentionAutocomplete
@@ -534,6 +737,9 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
             checkMentionTrigger();
           }}
           onKeyDown={handleKeyDown}
+          onMouseDown={() => {
+            isCtrlAPressedRef.current = false;
+          }}
           onPaste={handlePaste}
           onClick={checkMentionTrigger}
           onBlur={() => {
