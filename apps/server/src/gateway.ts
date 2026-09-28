@@ -67,6 +67,11 @@ export class GatewayManager {
     return revision;
   }
   private transferTimestamps: Map<string, number> = new Map();
+  // 进房过渡锁：防止进房 DB 异步鉴权期间并发到来的 WebRTC 信令被静默丢弃
+  private pendingVoiceJoins: Map<
+    string,
+    { channelId: string; sessionId: string; timestamp: number }
+  > = new Map();
   public hasIdentifiedSession(userId: string, sessionId: string): boolean {
     const conn = this.userSessions.get(userId)?.get(sessionId);
     return conn?.userId === userId && conn.ws.readyState === WebSocket.OPEN;
@@ -96,6 +101,9 @@ export class GatewayManager {
         }
       }
     }, 30000);
+    if (this.heartbeatSweepTimer.unref) {
+      this.heartbeatSweepTimer.unref();
+    }
   }
 
   handleConnection(ws: WebSocket) {
@@ -470,6 +478,11 @@ export class GatewayManager {
         const existingVoice = this.voiceStates.get(conn.userId);
 
         if (data.channelId) {
+          this.pendingVoiceJoins.set(conn.userId, {
+            channelId: data.channelId,
+            sessionId: conn.sessionId,
+            timestamp: Date.now(),
+          });
           const channel = await prisma.channel.findUnique({
             where: { id: data.channelId },
             select: { id: true, guildId: true, type: true },
@@ -482,8 +495,10 @@ export class GatewayManager {
               channel.id,
               PermissionFlags.CONNECT,
             ))
-          )
+          ) {
+            this.pendingVoiceJoins.delete(conn.userId);
             return;
+          }
           data.guildId = channel.guildId;
           // 1. 如果已有语音会话，且来自不同 sessionId，进行互斥裁决与踢出旧设备
           if (
@@ -599,6 +614,7 @@ export class GatewayManager {
           };
 
           this.voiceStates.set(conn.userId, voiceState);
+          this.pendingVoiceJoins.delete(conn.userId);
           await this.broadcastToChannelViewers(data.channelId, {
             op: GatewayOpCode.DISPATCH,
             t: "VOICE_STATE_UPDATE",
@@ -653,6 +669,7 @@ export class GatewayManager {
             existingVoice.sessionId === conn.sessionId
           ) {
             this.voiceStates.delete(conn.userId);
+            this.pendingVoiceJoins.delete(conn.userId);
             await this.broadcastToChannelViewers(existingVoice.channelId, {
               op: GatewayOpCode.DISPATCH,
               t: "VOICE_STATE_UPDATE",
@@ -878,12 +895,17 @@ export class GatewayManager {
             !(await this.canSignalVoice(conn, signalData.channelId))
           )
             return;
-          if (
-            signalData.targetId &&
-            this.voiceStates.get(signalData.targetId)?.channelId !==
-              signalData.channelId
-          )
-            return;
+          if (signalData.targetId) {
+            const targetVoice = this.voiceStates.get(signalData.targetId);
+            const targetPending = this.pendingVoiceJoins.get(
+              signalData.targetId,
+            );
+            const targetInChannel =
+              targetVoice?.channelId === signalData.channelId ||
+              (targetPending?.channelId === signalData.channelId &&
+                Date.now() - targetPending.timestamp < 5000);
+            if (!targetInChannel) return;
+          }
           if (
             signalData.targetId &&
             !(await permissionService.hasChannelPermission(
@@ -1043,14 +1065,23 @@ export class GatewayManager {
   ): Promise<boolean> {
     if (!conn.userId || !conn.sessionId) return false;
     const voice = this.voiceStates.get(conn.userId);
-    return (
-      voice?.channelId === channelId &&
-      voice.sessionId === conn.sessionId &&
-      (await permissionService.hasChannelPermission(
-        conn.userId,
-        channelId,
-        PermissionFlags.CONNECT,
-      ))
+    const hasActiveVoiceState =
+      voice?.channelId === channelId && voice.sessionId === conn.sessionId;
+
+    if (!hasActiveVoiceState) {
+      const pending = this.pendingVoiceJoins.get(conn.userId);
+      const isPendingJoin =
+        pending &&
+        pending.channelId === channelId &&
+        pending.sessionId === conn.sessionId &&
+        Date.now() - pending.timestamp < 5000;
+      if (!isPendingJoin) return false;
+    }
+
+    return await permissionService.hasChannelPermission(
+      conn.userId,
+      channelId,
+      PermissionFlags.CONNECT,
     );
   }
 
@@ -1280,6 +1311,9 @@ export class GatewayManager {
   }
 
   private cleanup(conn: ClientConnection) {
+    if (conn.userId) {
+      this.pendingVoiceJoins.delete(conn.userId);
+    }
     if (conn.userId && conn.sessionId) {
       const sessions = this.userSessions.get(conn.userId);
       const isCurrentSessionConnection = sessions?.get(conn.sessionId) === conn;

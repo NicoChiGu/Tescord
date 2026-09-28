@@ -498,6 +498,55 @@ export class GatewayClient {
     return true;
   }
 
+  async updateVoiceStateAndWait(
+    guildId: string,
+    channelId: string | null,
+    extra?: {
+      selfMute?: boolean;
+      selfDeaf?: boolean;
+      selfVideo?: boolean;
+      streaming?: boolean;
+      streamMode?: import("@tescord/types").StreamTransmissionMode;
+    },
+    timeoutMs = 3000,
+  ): Promise<boolean> {
+    const activeUserId = useAuthStore.getState().user?.id;
+    if (!activeUserId || !this.isReadyForUser(activeUserId)) return false;
+
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          cleanup();
+          // 超时兜底允许继续
+          resolve(true);
+        }
+      }, timeoutMs);
+
+      const cleanup = this.on("VOICE_STATE_UPDATE", (vs: any) => {
+        if (vs.userId === activeUserId && vs.channelId === channelId) {
+          if (!settled) {
+            settled = true;
+            clearTimeout(timer);
+            cleanup();
+            resolve(true);
+          }
+        }
+      });
+
+      const sent = this.updateVoiceState(guildId, channelId, extra);
+      if (!sent) {
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          cleanup();
+          resolve(false);
+        }
+      }
+    });
+  }
+
   sendTyping(channelId: string) {
     this.send({
       op: GatewayOpCode.DISPATCH,

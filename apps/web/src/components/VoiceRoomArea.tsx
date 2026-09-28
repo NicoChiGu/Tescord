@@ -1212,8 +1212,34 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
       setActiveShare(share);
     });
     const unbindCamera = livekitService.onCameraTracksChange((tracks) => {
-      setCameraTracks(new Map(tracks));
+      if (
+        !voiceMeshManager.getIsMeshActive() &&
+        VOICE_ENGINE !== "cloudflare_realtime"
+      ) {
+        setCameraTracks(new Map(tracks));
+      }
     });
+    const unbindMeshCamera = voiceMeshManager.onCameraTracksChange(
+      (meshTracks) => {
+        setCameraTracks((previous) => {
+          const next = new Map(previous);
+          for (const [key, track] of meshTracks) {
+            const effectiveKey = key === "local" ? currentUser.id : key;
+            next.set(effectiveKey, track);
+          }
+          for (const [key] of previous) {
+            const isMeshKey =
+              key === currentUser.id
+                ? meshTracks.has("local")
+                : meshTracks.has(key);
+            if (!isMeshKey && voiceMeshManager.getIsMeshActive()) {
+              next.delete(key);
+            }
+          }
+          return next;
+        });
+      },
+    );
     const unbindCloudflareVideo = cloudflareRealtimeService.onRemoteVideo(
       (publication, stream) => {
         const track = stream?.getVideoTracks()[0] || null;
@@ -1279,6 +1305,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
       unbindShares();
       unbindShare();
       unbindCamera();
+      unbindMeshCamera();
       unbindCloudflareVideo();
       unbindPublications();
       unbindWatchState();
@@ -1636,10 +1663,6 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
       setSframeStats(stats);
     });
 
-    const unbindCamera = livekitService.onCameraTracksChange((tracks) => {
-      setCameraTracks(new Map(tracks));
-    });
-
     return () => {
       unbindStats();
       unbindCloudflareStats();
@@ -1649,7 +1672,6 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
       unbindMeshSpeakers();
       unbindError();
       unbindSFrame();
-      unbindCamera();
     };
   }, []);
 

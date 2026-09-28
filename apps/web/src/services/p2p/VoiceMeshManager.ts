@@ -81,6 +81,16 @@ export class VoiceMeshManager {
   private statsTimer: any = null;
   private latencyCallbacks: Set<LatencyUpdateCallback> = new Set();
   private localAudioTrack: MediaStreamTrack | null = null;
+  private localVideoTrack: MediaStreamTrack | null = null;
+  private videoSenders: Map<string, RTCRtpSender> = new Map();
+  private remoteCameraTracks: Map<string, MediaStreamTrack> = new Map();
+  private cameraTracksCallbacks: Set<
+    (tracks: Map<string, MediaStreamTrack>) => void
+  > = new Set();
+  private handshakeTimers: Map<string, ReturnType<typeof setTimeout>> =
+    new Map();
+  private memberJoinTimers: Map<string, ReturnType<typeof setTimeout>> =
+    new Map();
   // 当前频道内除自身外的其他在线成员 ID 集合
   private channelMemberIds: Set<string> = new Set();
 
@@ -126,6 +136,70 @@ export class VoiceMeshManager {
       if (pc.connectionState === "connected") count++;
     }
     return count;
+  }
+
+  /**
+   * 订阅 P2P 网状网络内的所有摄像头视频轨道（包含本地与远端）
+   */
+  public onCameraTracksChange(
+    callback: (tracks: Map<string, MediaStreamTrack>) => void,
+  ): () => void {
+    this.cameraTracksCallbacks.add(callback);
+    callback(this.getAllCameraTracks());
+    return () => {
+      this.cameraTracksCallbacks.delete(callback);
+    };
+  }
+
+  public getAllCameraTracks(): Map<string, MediaStreamTrack> {
+    const map = new Map<string, MediaStreamTrack>(this.remoteCameraTracks);
+    if (this.localVideoTrack) {
+      map.set("local", this.localVideoTrack);
+    }
+    return map;
+  }
+
+  private notifyCameraTracksChange(): void {
+    const tracks = this.getAllCameraTracks();
+    for (const cb of this.cameraTracksCallbacks) {
+      try {
+        cb(tracks);
+      } catch (err) {
+        console.error("[VoiceMesh] Camera tracks callback error:", err);
+      }
+    }
+  }
+
+  /**
+   * 动态设置本地摄像头视频轨道并通过 replaceTrack 实时推送给网状网络对端
+   */
+  public async setLocalVideoTrack(
+    track: MediaStreamTrack | null,
+  ): Promise<void> {
+    this.localVideoTrack = track;
+    if (track) {
+      track.onended = () => {
+        if (this.localVideoTrack === track) {
+          void this.setLocalVideoTrack(null);
+        }
+      };
+    }
+
+    for (const [peerId, pc] of this.peerConnections) {
+      const sender = this.videoSenders.get(peerId);
+      if (sender) {
+        try {
+          await sender.replaceTrack(track);
+        } catch (err) {
+          console.error(
+            `[VoiceMesh] replaceTrack for peer ${peerId} failed:`,
+            err,
+          );
+        }
+      }
+    }
+
+    this.notifyCameraTracksChange();
   }
 
   public setAllowFallbackToSFU(allow: boolean): void {
@@ -216,6 +290,10 @@ export class VoiceMeshManager {
     if (audioTrack) {
       this.localAudioTrack = audioTrack;
     }
+    const videoTrack = localStream.getVideoTracks()[0];
+    if (videoTrack) {
+      this.localVideoTrack = videoTrack;
+    }
 
     const effectiveOtherMembers = (otherUserIds || []).filter(
       (id) => id && id !== this.currentUserId,
@@ -259,6 +337,17 @@ export class VoiceMeshManager {
       this.statsTimer = null;
     }
 
+    // 清理握手与对端探测定时器
+    for (const timer of this.handshakeTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.handshakeTimers.clear();
+
+    for (const timer of this.memberJoinTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.memberJoinTimers.clear();
+
     // 清理所有重试定时器
     for (const info of this.peerRetries.values()) {
       if (info.timer) clearTimeout(info.timer);
@@ -272,6 +361,11 @@ export class VoiceMeshManager {
       } catch {}
     }
     this.peerConnections.clear();
+    this.videoSenders.clear();
+    this.remoteCameraTracks.clear();
+    this.localVideoTrack = null;
+    this.localAudioTrack = null;
+    this.notifyCameraTracksChange();
     this.pendingCandidatesMap.clear();
 
     // 释放远端音频元素
@@ -376,6 +470,29 @@ export class VoiceMeshManager {
       }
       this.peerRetries.clear();
       this.notifyLatencyUpdate();
+    } else if (this.isMeshActive && this.activeChannelId) {
+      // 针对新加入或重进的成员，若 2.5 秒内双方仍未建立 PeerConnection，主动发起探测呼叫，打破单边等待僵局
+      for (const peerId of nextMembers) {
+        if (
+          !this.peerConnections.has(peerId) &&
+          !this.memberJoinTimers.has(peerId)
+        ) {
+          const timer = setTimeout(() => {
+            this.memberJoinTimers.delete(peerId);
+            if (
+              this.isMeshActive &&
+              this.channelMemberIds.has(peerId) &&
+              !this.peerConnections.has(peerId)
+            ) {
+              console.log(
+                `[VoiceMesh] 成员 ${peerId} 进房 2.5 秒内未收到呼叫，本地主动发起双向建连握手...`,
+              );
+              void this.initiateCallToPeer(peerId);
+            }
+          }, 2500);
+          this.memberJoinTimers.set(peerId, timer);
+        }
+      }
     }
   }
 
@@ -492,6 +609,11 @@ export class VoiceMeshManager {
     switch (type) {
       case "VOICE_OFFER": {
         if (!sdp) return;
+        const joinTimer = this.memberJoinTimers.get(senderId);
+        if (joinTimer) {
+          clearTimeout(joinTimer);
+          this.memberJoinTimers.delete(senderId);
+        }
         const pc = this.getOrCreatePeerConnection(senderId);
         try {
           await pc.setRemoteDescription(new RTCSessionDescription(sdp));
@@ -518,6 +640,11 @@ export class VoiceMeshManager {
 
       case "VOICE_ANSWER": {
         if (!sdp) return;
+        const hsTimer = this.handshakeTimers.get(senderId);
+        if (hsTimer) {
+          clearTimeout(hsTimer);
+          this.handshakeTimers.delete(senderId);
+        }
         const pc = this.peerConnections.get(senderId);
         if (pc) {
           try {
@@ -573,9 +700,29 @@ export class VoiceMeshManager {
     try {
       const offer = await pc.createOffer({
         offerToReceiveAudio: true,
-        offerToReceiveVideo: false,
+        offerToReceiveVideo: true,
       });
       await pc.setLocalDescription(offer);
+
+      const existingHsTimer = this.handshakeTimers.get(targetId);
+      if (existingHsTimer) clearTimeout(existingHsTimer);
+
+      const hsTimer = setTimeout(() => {
+        this.handshakeTimers.delete(targetId);
+        const currentPc = this.peerConnections.get(targetId);
+        if (
+          this.isMeshActive &&
+          this.channelMemberIds.has(targetId) &&
+          currentPc &&
+          currentPc.connectionState !== "connected"
+        ) {
+          console.warn(
+            `[VoiceMesh] 与节点 ${targetId} 的 Offer-Answer 握手 5 秒超时，触发 ICE Restart 自愈...`,
+          );
+          this.scheduleHolePunchRetry(targetId);
+        }
+      }, 5000);
+      this.handshakeTimers.set(targetId, hsTimer);
 
       this.sendSignal({
         guildId: this.activeGuildId || "",
@@ -615,6 +762,21 @@ export class VoiceMeshManager {
       if (sframeManager.getStats().enabled) sframeManager.attachSender(sender);
     }
 
+    // 预置双向视频 Transceiver，实现统一 PeerConnection 热插拔
+    try {
+      const videoTransceiver = pc.addTransceiver("video", {
+        direction: "sendrecv",
+      });
+      if (videoTransceiver.sender) {
+        this.videoSenders.set(peerId, videoTransceiver.sender);
+        if (this.localVideoTrack) {
+          void videoTransceiver.sender.replaceTrack(this.localVideoTrack);
+        }
+      }
+    } catch (err) {
+      console.warn(`[VoiceMesh] 预置视频 Transceiver 异常 (${peerId}):`, err);
+    }
+
     // 处理 ICE candidate (包含 IPv4 与 IPv6 双栈候选)
     pc.onicecandidate = (event) => {
       if (event.candidate) {
@@ -630,18 +792,39 @@ export class VoiceMeshManager {
       }
     };
 
-    // 监听远端音频流
+    // 监听远端音视频流
     pc.ontrack = (event) => {
-      if (sframeManager.getStats().enabled)
-        sframeManager.attachReceiver(event.receiver);
-      const remoteStream = event.streams[0] || new MediaStream([event.track]);
-      this.attachRemoteAudio(peerId, remoteStream);
+      if (event.track.kind === "audio") {
+        if (sframeManager.getStats().enabled)
+          sframeManager.attachReceiver(event.receiver);
+        const remoteStream = event.streams[0] || new MediaStream([event.track]);
+        this.attachRemoteAudio(peerId, remoteStream);
+      } else if (event.track.kind === "video") {
+        console.log(`[VoiceMesh] 收到节点 ${peerId} 的远端摄像头视频轨道`);
+        this.remoteCameraTracks.set(peerId, event.track);
+        this.notifyCameraTracksChange();
+        event.track.onended = () => {
+          this.remoteCameraTracks.delete(peerId);
+          this.notifyCameraTracksChange();
+        };
+        event.track.onmute = () => {
+          this.notifyCameraTracksChange();
+        };
+        event.track.onunmute = () => {
+          this.notifyCameraTracksChange();
+        };
+      }
     };
 
     pc.onconnectionstatechange = () => {
       const state = pc?.connectionState;
       if (state === "connected") {
         this.hasConnectedPeer = true;
+        const hsTimer = this.handshakeTimers.get(peerId);
+        if (hsTimer) {
+          clearTimeout(hsTimer);
+          this.handshakeTimers.delete(peerId);
+        }
         const retryInfo = this.peerRetries.get(peerId);
         if (retryInfo?.timer) clearTimeout(retryInfo.timer);
         this.peerRetries.delete(peerId);
@@ -757,7 +940,7 @@ export class VoiceMeshManager {
       const offer = await pc.createOffer({
         iceRestart: true,
         offerToReceiveAudio: true,
-        offerToReceiveVideo: false,
+        offerToReceiveVideo: true,
       });
       await pc.setLocalDescription(offer);
 
@@ -818,6 +1001,22 @@ export class VoiceMeshManager {
     const retryInfo = this.peerRetries.get(peerId);
     if (retryInfo?.timer) clearTimeout(retryInfo.timer);
     this.peerRetries.delete(peerId);
+
+    const hsTimer = this.handshakeTimers.get(peerId);
+    if (hsTimer) {
+      clearTimeout(hsTimer);
+      this.handshakeTimers.delete(peerId);
+    }
+    const joinTimer = this.memberJoinTimers.get(peerId);
+    if (joinTimer) {
+      clearTimeout(joinTimer);
+      this.memberJoinTimers.delete(peerId);
+    }
+    this.videoSenders.delete(peerId);
+    if (this.remoteCameraTracks.has(peerId)) {
+      this.remoteCameraTracks.delete(peerId);
+      this.notifyCameraTracksChange();
+    }
 
     const pc = this.peerConnections.get(peerId);
     if (pc) {

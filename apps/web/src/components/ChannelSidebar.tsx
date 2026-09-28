@@ -1276,7 +1276,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                         activeVoiceChannel?.voiceMode === "p2p_mesh" ||
                         voiceMeshManager.getIsMeshActive();
                       if (voiceConnectionStatus === "connecting") {
-                        return isP2P ? "P2P --ms" : "--ms";
+                        return isP2P ? "P2P" : "--ms";
                       }
                       const activeSpeakerId =
                         activeSpeakers && activeSpeakers.length > 0

@@ -3,7 +3,10 @@ import { API_BASE, VOICE_ENGINE } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { apiFetch } from "../apiClient.js";
 
-const ICE_CACHE_TTL_MS = 60 * 60 * 1000;
+// Coturn / Cloudflare TURN credentials have a 10-minute server validity window.
+// Keep frontend cache TTL strictly under 8 minutes (e.g. 7 minutes) so clients
+// never reuse expired TURN relay credentials during hole punching or renegotiation.
+const ICE_CACHE_TTL_MS = 7 * 60 * 1000;
 const ICE_FETCH_RETRY_DELAYS_MS = [0, 300, 900] as const;
 
 // Cloudflare Realtime is an explicitly selected deployment mode. Its public
@@ -111,4 +114,9 @@ export async function getP2PIceServers(
     });
   }
   return cloneIceServers(await inFlightRequest);
+}
+
+export function invalidateIceServersCache(): void {
+  cachedAt = 0;
+  cachedIceServers = [];
 }

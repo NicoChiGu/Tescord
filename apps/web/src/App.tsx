@@ -3052,7 +3052,7 @@ export const App: React.FC = () => {
         VOICE_ENGINE === "cloudflare_realtime");
 
     if (isP2PMesh && processedStream && channel.guildId) {
-      const voiceStateAccepted = gatewayClient.updateVoiceState(
+      const voiceStateAccepted = await gatewayClient.updateVoiceStateAndWait(
         channel.guildId,
         channel.id,
         {
@@ -3237,6 +3237,8 @@ export const App: React.FC = () => {
     activeVoiceChannelIdRef.current = null;
     setActiveVoiceChannelId(null);
     livekitService.setConnectionStatus("disconnected");
+    voiceMeshManager.broadcastLeaveSignal();
+    voiceMeshManager.stopAll();
     audioEngine.stop();
     await cloudflareRealtimeService.disconnect();
     await livekitService.leaveRoom();
@@ -3268,6 +3270,8 @@ export const App: React.FC = () => {
     if (isVideoEnabled) {
       if (VOICE_ENGINE === "cloudflare_realtime")
         await cloudflareRealtimeService.unpublishSource("camera");
+      else if (voiceMeshManager.getIsMeshActive())
+        await voiceMeshManager.setLocalVideoTrack(null);
       else await livekitService.setCameraEnabled(false);
       setIsVideoEnabled(false);
     }
@@ -3785,6 +3789,21 @@ export const App: React.FC = () => {
           }
         } else {
           await cloudflareRealtimeService.unpublishSource("camera");
+        }
+      } else if (voiceMeshManager.getIsMeshActive()) {
+        if (nextVideo) {
+          const deviceId = livekitService.getCameraDeviceId();
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video:
+              deviceId && deviceId !== "default"
+                ? { deviceId: { exact: deviceId } }
+                : true,
+            audio: false,
+          });
+          const videoTrack = stream.getVideoTracks()[0];
+          await voiceMeshManager.setLocalVideoTrack(videoTrack);
+        } else {
+          await voiceMeshManager.setLocalVideoTrack(null);
         }
       } else {
         await livekitService.setCameraEnabled(nextVideo);
