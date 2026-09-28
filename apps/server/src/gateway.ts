@@ -902,8 +902,7 @@ export class GatewayManager {
               signalData.targetId === conn.userId ||
               signalData.streamOwnerId !== conn.userId ||
               this.voiceStates.get(conn.userId)?.channelId !==
-                signalData.channelId ||
-              !this.voiceStates.get(conn.userId)?.streaming
+                signalData.channelId
             )
               return;
             const cfHost = cloudflareRealtimeService
@@ -912,6 +911,11 @@ export class GatewayManager {
                 (track) =>
                   track.source === "screen" && track.userId === conn.userId,
               );
+            // A Cloudflare publication can be ready before the separate voice
+            // state update arrives. The server-owned screen track is sufficient
+            // proof of an active stream; P2P still requires streaming state.
+            if (!cfHost && !this.voiceStates.get(conn.userId)?.streaming)
+              return;
             if (cfHost) {
               try {
                 if (
@@ -920,8 +924,12 @@ export class GatewayManager {
                     conn.userId,
                     signalData.targetId,
                   ))
-                )
+                ) {
+                  console.warn(
+                    "[Gateway] STREAM_KICK has no active SFU viewer",
+                  );
                   return;
+                }
                 for (const event of cloudflareRealtimeService.drainViewerEvents()) {
                   await this.broadcastChannel(event.channelId, {
                     op: GatewayOpCode.DISPATCH,
@@ -939,8 +947,12 @@ export class GatewayManager {
                     targetId: conn.userId,
                   },
                 });
-              } catch {
+              } catch (error) {
                 // Do not acknowledge a kick while the SFU still sends media.
+                console.warn(
+                  "[Gateway] STREAM_KICK SFU close failed:",
+                  error instanceof Error ? error.message : "unknown",
+                );
                 return;
               }
             }

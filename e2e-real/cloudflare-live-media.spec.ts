@@ -252,7 +252,13 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
 
   const pages: Page[] = [];
   const diagnostics: Array<
-    Array<{ event: string; count?: number; status?: number }>
+    Array<{
+      event: string;
+      count?: number;
+      status?: number;
+      targetId?: string;
+      senderId?: string;
+    }>
   > = [[], [], []];
   const activeConsoleErrors: string[] = [];
   let tearingDown = false;
@@ -394,7 +400,19 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
       },
     );
     const page = await context.newPage();
-    page.on("websocket", (socket) =>
+    page.on("websocket", (socket) => {
+      socket.on("framesent", (frame) => {
+        try {
+          const packet = JSON.parse(String(frame.payload));
+          if (packet.t === "P2P_SIGNAL" && packet.d?.type === "STREAM_KICK")
+            diagnostics[index].push({
+              event: "kick_sent",
+              targetId: packet.d.targetId,
+            });
+        } catch {
+          /* Ignore unrelated frames. */
+        }
+      });
       socket.on("framereceived", (frame) => {
         try {
           const packet = JSON.parse(String(frame.payload));
@@ -403,11 +421,21 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
               event: "gateway_tracks",
               count: packet.d?.tracks?.length || 0,
             });
+          if (packet.t === "P2P_SIGNAL" && packet.d?.type === "STREAM_KICK")
+            diagnostics[index].push({
+              event: "kick_received",
+              senderId: packet.d.senderId,
+            });
+          if (packet.t === "CF_STREAM_VIEWERS")
+            diagnostics[index].push({
+              event: "viewers_update",
+              count: packet.d?.viewerCount,
+            });
         } catch {
           /* Other Gateway frames are irrelevant. */
         }
-      }),
-    );
+      });
+    });
     page.on("response", async (response) => {
       const pathname = new URL(response.url()).pathname;
       if (
@@ -781,7 +809,23 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
       .getByTestId(`stream-viewers-badge-btn-${adminSession.user.id}`)
       .click();
     await pages[0].getByTestId(`kick-viewer-btn-${bobUserId}`).click();
-    await expect(watchButtons[1]).toHaveText("观看直播", { timeout: 20_000 });
+    try {
+      await expect(watchButtons[1]).toHaveText("观看直播", { timeout: 20_000 });
+    } catch (error) {
+      console.log(
+        JSON.stringify({
+          stage: "stream_kick",
+          events: diagnostics.map((rows) =>
+            rows.filter((row) =>
+              ["kick_sent", "kick_received", "viewers_update"].includes(
+                row.event,
+              ),
+            ),
+          ),
+        }),
+      );
+      throw error;
+    }
     await watchButtons[1].click();
     await expect(watchButtons[1]).toHaveText("观看直播", { timeout: 20_000 });
   } else {
