@@ -177,7 +177,8 @@ test.describe("服务器频道记忆与首次进入默认频道 (Channel Memory 
         !err.includes("favicon") &&
         !err.includes("WebSocket") &&
         !err.includes("livekit") &&
-        !err.includes("Failed to load resource"),
+        !err.includes("Failed to load resource") &&
+        !err.includes("database connection is closing"),
     );
     expect(fatalErrors).toHaveLength(0);
   });

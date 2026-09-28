@@ -122,8 +122,15 @@ export const App: React.FC = () => {
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isMobileMemberOpen, setIsMobileMemberOpen] = useState(false);
 
-  // 核心数据状态
-  const [guilds, setGuilds] = useState<Guild[]>([]);
+  // 核心数据状态（同步从本地持久化缓存水合，首帧 0ms 秒开）
+  const [initialNavState] = useState(() => {
+    const navStore = useChannelNavStore.getState();
+    const cached = navStore.loadCachedGuilds(navStore.userId);
+    const initialNav = navStore.getInitialNavigation(navStore.userId, cached);
+    return { cachedGuilds: cached, ...initialNav };
+  });
+
+  const [guilds, setGuilds] = useState<Guild[]>(initialNavState.cachedGuilds);
   const guildPositions = useSettingsStore((s) => s.guildPositions);
   const setGuildPositions = useSettingsStore((s) => s.setGuildPositions);
 
@@ -148,9 +155,15 @@ export const App: React.FC = () => {
     [setGuildPositions],
   );
 
-  const [selectedGuildId, setSelectedGuildId] = useState<string | null>(null);
-  const [selectedChannel, setSelectedChannel] = useState<Channel | null>(null);
-  const [isFriendsTabActive, setIsFriendsTabActive] = useState<boolean>(true);
+  const [selectedGuildId, setSelectedGuildId] = useState<string | null>(
+    initialNavState.selectedGuildId,
+  );
+  const [selectedChannel, setSelectedChannel] = useState<Channel | null>(
+    initialNavState.selectedChannel,
+  );
+  const [isFriendsTabActive, setIsFriendsTabActive] = useState<boolean>(
+    initialNavState.isFriendsTabActive,
+  );
 
   // 切换频道或切换至宽屏桌面端时，自动收起移动端/平板端右侧抽屉
   useEffect(() => {
@@ -236,6 +249,24 @@ export const App: React.FC = () => {
   guildsRef.current = guilds;
   const selectedGuildIdRef = useRef<string | null>(null);
   selectedGuildIdRef.current = selectedGuildId;
+
+  // 实时同步公会列表到本地持久化缓存（按当前用户隔离）
+  useEffect(() => {
+    const currentUserId =
+      currentUser?.id || useChannelNavStore.getState().userId;
+    if (currentUserId && !isAccountTransitionRef.current) {
+      useChannelNavStore.getState().saveCachedGuilds(guilds, currentUserId);
+    }
+  }, [guilds, currentUser?.id]);
+
+  // 记忆用户最后访问的服务器（或私信/好友主页）
+  useEffect(() => {
+    const currentUserId =
+      currentUser?.id || useChannelNavStore.getState().userId;
+    if (currentUserId && !isAccountTransitionRef.current) {
+      useChannelNavStore.getState().recordLastSelectedGuild(selectedGuildId);
+    }
+  }, [selectedGuildId, currentUser?.id]);
   const getVoiceGuildId = (channelId: string | null) =>
     channelId
       ? (guildsRef.current
@@ -581,9 +612,6 @@ export const App: React.FC = () => {
           cloudflareRealtimeService.disconnect(),
           livekitService.leaveRoom(),
         ]).then(() => undefined);
-        setGuilds([]);
-        setSelectedGuildId(null);
-        setSelectedChannel(null);
         setMessages([]);
         setDmChannels([]);
         setVoiceStates([]);
@@ -602,8 +630,23 @@ export const App: React.FC = () => {
           error: null,
           searchQuery: "",
         });
+        if (currentId !== null) {
+          const navStore = useChannelNavStore.getState();
+          const cached = navStore.loadCachedGuilds(currentId);
+          const nextNav = navStore.getInitialNavigation(currentId, cached);
+          setGuilds(cached);
+          setSelectedGuildId(nextNav.selectedGuildId);
+          setSelectedChannel(nextNav.selectedChannel);
+          setIsFriendsTabActive(nextNav.isFriendsTabActive);
+        } else {
+          setGuilds([]);
+          setSelectedGuildId(null);
+          setSelectedChannel(null);
+          setIsFriendsTabActive(true);
+        }
       }
       lastActiveUserIdRef.current = currentId;
+      isAccountTransitionRef.current = false;
       messageDb.switchUser(currentId);
     }
   }, [currentUser?.id]);
@@ -628,14 +671,21 @@ export const App: React.FC = () => {
         )
           return;
         setGuilds(data);
-        // 验证当前选中的公会是否属于当前用户真实加入的公会，防止残留旧账号公会 ID
-        const currentSelectedGuild = data.find(
-          (g) => g.id === selectedGuildIdRef.current,
-        );
-        if (!currentSelectedGuild) {
-          if (data.length > 0) {
+        useChannelNavStore.getState().saveCachedGuilds(data, requestedUserId);
+
+        // 验证当前选中的公会
+        const currentSelectedId = selectedGuildIdRef.current;
+        const rememberedGuild = useChannelNavStore
+          .getState()
+          .getLastSelectedGuild(requestedUserId);
+
+        if (currentSelectedId === null) {
+          // 若用户显式处于好友/私信主页（或记忆为 null），坚决保持在好友主页
+          // 仅当从未有任何记忆（undefined 首次启动）且存在公会时，才默认选中第 1 个公会
+          if (rememberedGuild === undefined && data.length > 0) {
             const firstGuild = data[0];
             setSelectedGuildId(firstGuild.id);
+            setIsFriendsTabActive(false);
             const lastChannelId = useChannelNavStore
               .getState()
               .getLastVisitedChannel(firstGuild.id);
@@ -650,11 +700,48 @@ export const App: React.FC = () => {
                 .getState()
                 .recordChannelVisit(targetChannel.guildId, targetChannel.id);
             }
+            useChannelNavStore
+              .getState()
+              .recordLastSelectedGuild(firstGuild.id);
+          }
+        } else {
+          const currentSelectedGuild = data.find(
+            (g) => g.id === currentSelectedId,
+          );
+          if (currentSelectedGuild) {
+            // 当前公会仍存在，校验并更新频道对象
+            setSelectedChannel((prevChannel) => {
+              if (!prevChannel) {
+                const lastChannelId = useChannelNavStore
+                  .getState()
+                  .getLastVisitedChannel(currentSelectedGuild.id);
+                return resolveGuildChannel(
+                  currentSelectedGuild,
+                  lastChannelId,
+                  true,
+                );
+              }
+              const channelStillExists = currentSelectedGuild.channels?.some(
+                (c) => c.id === prevChannel.id,
+              );
+              if (channelStillExists) {
+                return (
+                  currentSelectedGuild.channels?.find(
+                    (c) => c.id === prevChannel.id,
+                  ) || prevChannel
+                );
+              }
+              return resolveGuildChannel(currentSelectedGuild, null, true);
+            });
           } else {
+            // 当前公会已不存在（被解散或被移出）：平滑降级至好友主页（无需弹 Toast）
             setSelectedGuildId(null);
+            setIsFriendsTabActive(true);
             setSelectedChannel(null);
+            useChannelNavStore.getState().recordLastSelectedGuild(null);
           }
         }
+
         // 调度后台预热各公会文字频道
         const candidateChannels: { id: string; type: string }[] = [];
         data.forEach((g) => {
@@ -826,6 +913,12 @@ export const App: React.FC = () => {
     const unbindReady = gatewayClient.on("READY", (data) => {
       if (data.guilds) {
         setGuilds(data.guilds);
+        const currentUserId = useAuthStore.getState().user?.id;
+        if (currentUserId) {
+          useChannelNavStore
+            .getState()
+            .saveCachedGuilds(data.guilds, currentUserId);
+        }
         const initialPresences: Record<string, any> = {};
         for (const guild of data.guilds) {
           for (const member of guild.members || []) {
@@ -4238,6 +4331,7 @@ export const App: React.FC = () => {
         onOpenAdminDashboard={() => setIsAdminModalOpen(true)}
         onSelectGuild={(id) => {
           setSelectedGuildId(id);
+          useChannelNavStore.getState().recordLastSelectedGuild(id);
           if (id === null) {
             setIsFriendsTabActive(true);
             setSelectedChannel(null);
@@ -4308,6 +4402,8 @@ export const App: React.FC = () => {
         }}
         onOpenInviteFriends={(g) => setInviteFriendsGuild(g)}
         onSelectFriends={() => {
+          setSelectedGuildId(null);
+          useChannelNavStore.getState().recordLastSelectedGuild(null);
           setIsFriendsTabActive(true);
           setSelectedChannel(null);
           if (isDrawer) {
@@ -4318,6 +4414,7 @@ export const App: React.FC = () => {
         onDMChannelCreated={(ch) => {
           setDmChannels((prev) => [ch, ...prev.filter((c) => c.id !== ch.id)]);
           setSelectedGuildId(null);
+          useChannelNavStore.getState().recordLastSelectedGuild(null);
           setIsFriendsTabActive(false);
           setSelectedChannel(ch);
         }}
@@ -4339,6 +4436,8 @@ export const App: React.FC = () => {
           setIsFriendsTabActive(false);
           setSelectedChannel(ch);
           if (ch.guildId) {
+            setSelectedGuildId(ch.guildId);
+            useChannelNavStore.getState().recordLastSelectedGuild(ch.guildId);
             useChannelNavStore.getState().recordChannelVisit(ch.guildId, ch.id);
             if (ch.type === "TEXT") {
               useChannelNavStore
@@ -4347,6 +4446,8 @@ export const App: React.FC = () => {
             }
           }
           if (ch.type === "DM" || !ch.guildId) {
+            setSelectedGuildId(null);
+            useChannelNavStore.getState().recordLastSelectedGuild(null);
             setDmChannels((prev) =>
               prev.map((dm) =>
                 dm.id === ch.id ? { ...dm, unreadCount: 0 } : dm,
