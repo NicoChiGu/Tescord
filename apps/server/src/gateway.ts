@@ -30,6 +30,7 @@ import { removeParticipantFromRoom } from "./livekit.js";
 import { p2pTopologyManager } from "./p2pTopology.js";
 import { cacheStore } from "./cache.js";
 import { permissionService } from "./services/permission.service.js";
+import { cloudflareRealtimeService } from "./services/cloudflare-realtime.service.js";
 
 interface ClientConnection {
   ws: WebSocket;
@@ -893,6 +894,57 @@ export class GatewayManager {
           )
             return;
           signalData.senderId = conn.userId;
+          if (signalData.type === "STREAM_KICK") {
+            // The user who owns the active stream is the only one allowed to
+            // remove a viewer. Never trust streamOwnerId supplied by a client.
+            if (
+              !signalData.targetId ||
+              signalData.targetId === conn.userId ||
+              signalData.streamOwnerId !== conn.userId ||
+              this.voiceStates.get(conn.userId)?.channelId !==
+                signalData.channelId ||
+              !this.voiceStates.get(conn.userId)?.streaming
+            )
+              return;
+            const cfHost = cloudflareRealtimeService
+              .getTracks(signalData.channelId)
+              .some(
+                (track) =>
+                  track.source === "screen" && track.userId === conn.userId,
+              );
+            if (cfHost) {
+              try {
+                if (
+                  !(await cloudflareRealtimeService.kickStreamViewer(
+                    signalData.channelId,
+                    conn.userId,
+                    signalData.targetId,
+                  ))
+                )
+                  return;
+                for (const event of cloudflareRealtimeService.drainViewerEvents()) {
+                  await this.broadcastChannel(event.channelId, {
+                    op: GatewayOpCode.DISPATCH,
+                    t: GatewayEvents.CF_STREAM_VIEWERS,
+                    d: event,
+                  });
+                }
+                this.sendToUser(conn.userId, {
+                  op: GatewayOpCode.DISPATCH,
+                  t: GatewayEvents.P2P_SIGNAL,
+                  d: {
+                    ...signalData,
+                    type: "STREAM_WATCH_STOP",
+                    senderId: signalData.targetId,
+                    targetId: conn.userId,
+                  },
+                });
+              } catch {
+                // Do not acknowledge a kick while the SFU still sends media.
+                return;
+              }
+            }
+          }
 
           if (signalData.targetId) {
             this.sendToUser(signalData.targetId, {

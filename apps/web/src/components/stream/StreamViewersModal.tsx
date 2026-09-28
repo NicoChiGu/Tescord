@@ -39,7 +39,7 @@ export const StreamViewersModal: React.FC<StreamViewersModalProps> = ({
         return;
       }
       const targetEl = e.target as HTMLElement | null;
-      if (targetEl?.closest?.('[data-testid="stream-viewers-badge-btn"]')) {
+      if (targetEl?.closest?.('[data-testid^="stream-viewers-badge-btn-"]')) {
         return;
       }
       onClose();
@@ -189,7 +189,7 @@ export const StreamViewersModal: React.FC<StreamViewersModalProps> = ({
         data-testid="stream-viewers-drag-handle"
         onPointerDown={handlePointerDown}
         className="flex items-center justify-between pb-2 border-b border-[#2b2d31] mb-2.5 cursor-grab active:cursor-grabbing select-none"
-        title="按住标题栏可在卡片内自由拖拽"
+        title={t("voice:hud.dragHint")}
       >
         <div className="flex items-center space-x-2">
           <GripHorizontal className="w-3.5 h-3.5 text-gray-400 opacity-70 hover:opacity-100 transition" />

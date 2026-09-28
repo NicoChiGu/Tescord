@@ -198,11 +198,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
       });
 
       if (!res.ok) {
-        throw new Error(
-          t("settings:avatarUploadFailed", {
-            defaultValue: "获取头像上传凭证失败",
-          }),
-        );
+        throw new Error(t("settings:avatarUploadFailed"));
       }
       const { uploadUrl, fileUrl, requiresAuth } = await res.json();
 
@@ -217,25 +213,14 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
       });
 
       if (!uploadRes.ok) {
-        throw new Error(
-          t("settings:avatarUploadFailed", {
-            defaultValue: "上传头像文件失败",
-          }),
-        );
+        throw new Error(t("settings:avatarUploadFailed"));
       }
 
       setAvatarUrl(fileUrl);
       setIsCropModalOpen(false);
-      toast.success(
-        t("settings:avatarUploadSuccess", {
-          defaultValue: "头像已裁剪压缩并上传",
-        }),
-      );
+      toast.success(t("settings:avatarUploadSuccess"));
     } catch (err: any) {
-      toast.error(
-        err.message ||
-          t("settings:avatarUploadFailed", { defaultValue: "头像上传失败" }),
-      );
+      toast.error(err.message || t("settings:avatarUploadFailed"));
     } finally {
       setIsUploadingAvatar(false);
     }
@@ -675,7 +660,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                         <div
                           className="relative group cursor-pointer"
                           onClick={() => fileInputRef.current?.click()}
-                          title="点击上传自定义头像"
+                          title={t("settings:changeAvatar")}
                         >
                           <Avatar
                             size="2xl"
@@ -696,7 +681,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                               e.stopPropagation();
                               handleRandomAvatar();
                             }}
-                            title="随机换一个头像"
+                            title={t("settings:randomAvatar")}
                             className="absolute -bottom-1 -right-1 p-1.5 rounded-full bg-[#5865f2] hover:bg-[#4752c4] text-white shadow-md transition-transform hover:scale-110 z-10"
                           >
                             <Dices className="w-4 h-4" />
@@ -729,9 +714,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                               ) : (
                                 <Upload className="w-3.5 h-3.5 text-blue-400" />
                               )}
-                              <span>
-                                {t("settings:changeAvatar", "更换头像")}
-                              </span>
+                              <span>{t("settings:changeAvatar")}</span>
                             </button>
                             <button
                               type="button"
@@ -740,9 +723,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                               className="px-2.5 py-1 rounded-lg bg-[#383a40] hover:bg-[#474a52] text-xs font-medium text-white flex items-center gap-1.5 transition"
                             >
                               <Dices className="w-3.5 h-3.5 text-amber-400" />
-                              <span>
-                                {t("settings:randomAvatar", "随机生成")}
-                              </span>
+                              <span>{t("settings:randomAvatar")}</span>
                             </button>
                             {Boolean(avatarUrl || user.avatarUrl) && (
                               <button
@@ -750,12 +731,10 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                                 data-testid="remove-avatar-btn"
                                 onClick={() => setAvatarUrl("")}
                                 className="px-2.5 py-1 rounded-lg bg-[#383a40] hover:bg-[#da373c]/80 text-xs font-medium text-gray-300 hover:text-white flex items-center gap-1.5 transition"
-                                title="重置为默认头像"
+                                title={t("settings:removeAvatar")}
                               >
                                 <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                                <span>
-                                  {t("settings:removeAvatar", "移除头像")}
-                                </span>
+                                <span>{t("settings:removeAvatar")}</span>
                               </button>
                             )}
                           </div>

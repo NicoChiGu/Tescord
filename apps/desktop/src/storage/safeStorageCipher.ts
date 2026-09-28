@@ -3,7 +3,11 @@ import { safeStorage } from "electron";
 export class SafeStorageCipher {
   public static isAvailable(): boolean {
     try {
-      return safeStorage.isEncryptionAvailable();
+      return (
+        safeStorage.isEncryptionAvailable() &&
+        (process.platform !== "linux" ||
+          safeStorage.getSelectedStorageBackend() !== "basic_text")
+      );
     } catch {
       return false;
     }
@@ -11,18 +15,10 @@ export class SafeStorageCipher {
 
   public static encrypt(plainText: string | null | undefined): Buffer | null {
     if (!plainText) return null;
-    try {
-      if (this.isAvailable()) {
-        return safeStorage.encryptString(plainText);
-      }
-    } catch (err) {
-      console.warn(
-        "[SafeStorageCipher] Native safeStorage encryption failed, falling back to base64 buffer:",
-        err,
-      );
+    if (!this.isAvailable()) {
+      throw new Error("Native credential encryption is unavailable");
     }
-    // 降级兼容：如果在不支持的环境，转换为 Buffer 存储
-    return Buffer.from(plainText, "utf-8");
+    return safeStorage.encryptString(plainText);
   }
 
   public static decrypt(
@@ -32,18 +28,11 @@ export class SafeStorageCipher {
     const buf = Buffer.isBuffer(cipherBuffer)
       ? cipherBuffer
       : Buffer.from(cipherBuffer);
+    if (!this.isAvailable()) return null;
     try {
-      if (this.isAvailable()) {
-        return safeStorage.decryptString(buf);
-      }
+      return safeStorage.decryptString(buf);
     } catch {
-      // safeStorage 解密失败时可能是降级存的纯文本 Buffer
-      try {
-        return buf.toString("utf-8");
-      } catch {
-        return null;
-      }
+      return null;
     }
-    return buf.toString("utf-8");
   }
 }

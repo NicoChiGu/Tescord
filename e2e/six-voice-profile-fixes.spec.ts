@@ -229,40 +229,31 @@ test.describe("六项核心体验修复专项验收 (头像裁切/布局解耦/O
     const serverButton = page
       .getByRole("button", { name: /极客音频测试服|极客/i })
       .first();
-    if (await serverButton.isVisible()) {
-      await serverButton.click();
-    }
+    await expect(serverButton).toBeVisible();
+    await serverButton.click();
 
     // 找到语音频道
     const voiceChannelRow = page
       .locator("[data-channel-id='c_voice_1']")
       .first();
-    if (await voiceChannelRow.isVisible()) {
-      await voiceChannelRow.hover();
-      const gearBtn = page.getByTestId("edit-channel-gear-c_voice_1");
-      if (await gearBtn.isVisible()) {
-        await gearBtn.click();
+    await expect(voiceChannelRow).toBeVisible();
+    await voiceChannelRow.hover();
+    const gearBtn = page.getByTestId("edit-channel-gear-c_voice_1");
+    await expect(gearBtn).toBeVisible();
+    await gearBtn.click();
 
-        const editModal = page.getByTestId("edit-channel-modal");
-        await expect(editModal).toBeVisible();
-
-        // 验证弹窗中有音频推流码率滑块
-        const bitrateLabel = page.getByText(
-          /音频推流码率|Audio Streaming Bitrate/i,
-        );
-        await expect(bitrateLabel).toBeVisible();
-
-        const bitrateSlider = page.locator(
-          "input[type='range'][min='8000'][max='128000']",
-        );
-        await expect(bitrateSlider).toBeVisible();
-
-        const closeBtn = page.getByTestId("close-edit-channel-btn");
-        if (await closeBtn.isVisible()) {
-          await closeBtn.click();
-        }
-      }
-    }
+    const editModal = page.getByTestId("edit-channel-modal");
+    await expect(editModal).toBeVisible();
+    const bitrateLabel = page.getByText(
+      /音频推流码率|Audio Streaming Bitrate/i,
+    );
+    await expect(bitrateLabel).toBeVisible();
+    const bitrateSlider = editModal.locator(
+      "input[type='range'][min='8000'][max='128000']",
+    );
+    await expect(bitrateSlider).toBeVisible();
+    await expect(bitrateSlider).toHaveValue("64000");
+    await page.getByTestId("close-edit-channel-btn").click();
   });
 
   test("需求 4：AI 降噪效果对比播放器采用现代声学电平设计并支持开始测试", async ({

@@ -1,6 +1,11 @@
-import { app, ipcMain } from "electron";
+import {
+  app,
+  ipcMain,
+  utilityProcess,
+  type IpcMainInvokeEvent,
+  type UtilityProcess,
+} from "electron";
 import path from "node:path";
-import { Worker } from "node:worker_threads";
 import {
   STORAGE_IPC_CHANNELS,
   SavedAccount,
@@ -15,7 +20,7 @@ import { SafeStorageCipher } from "./safeStorageCipher.js";
 
 export class StorageManager {
   private static instance: StorageManager | null = null;
-  private worker: Worker | null = null;
+  private worker: UtilityProcess | null = null;
   private pendingRequests = new Map<
     string,
     {
@@ -26,6 +31,11 @@ export class StorageManager {
   >();
   private requestIdCounter = 0;
   private isInitialized = false;
+  private volatileActiveTokens: StoredActiveTokens | null = null;
+  private cacheUsers = new Map<
+    number,
+    { userId: string | null; generation: number }
+  >();
 
   private constructor() {}
 
@@ -41,12 +51,16 @@ export class StorageManager {
     this.isInitialized = true;
 
     const userDataDir = app.getPath("userData");
-    // 根据是打包态还是开发态获取 storageWorker 路径
+    // 独立 UtilityProcess 隔离 SQLite 原生模块，避免原生崩溃终止主进程。
     const workerScript = path.join(__dirname, "storageWorker.js");
 
     try {
-      this.worker = new Worker(workerScript, {
-        workerData: { userDataDir },
+      this.worker = utilityProcess.fork(workerScript, [], {
+        env: {
+          ...process.env,
+          TESCORD_STORAGE_USER_DATA_DIR: userDataDir,
+        },
+        stdio: "pipe",
       });
 
       this.worker.on(
@@ -71,13 +85,25 @@ export class StorageManager {
         },
       );
 
-      this.worker.on("error", (err) => {
-        console.error("[StorageManager] Worker thread uncaught error:", err);
+      this.worker.on("error", (type, location, report) => {
+        console.error(
+          "[StorageManager] Utility process error:",
+          type,
+          location,
+          report,
+        );
       });
 
       this.worker.on("exit", (code) => {
-        console.warn(`[StorageManager] Worker thread exited with code ${code}`);
+        console.warn(
+          `[StorageManager] Storage process exited with code ${code}`,
+        );
         this.worker = null;
+        this.pendingRequests.forEach(({ reject, timer }) => {
+          clearTimeout(timer);
+          reject(new Error("[StorageManager] Storage process exited."));
+        });
+        this.pendingRequests.clear();
       });
     } catch (err) {
       console.error("[StorageManager] Failed to spawn storage worker:", err);
@@ -107,6 +133,24 @@ export class StorageManager {
     });
   }
 
+  private async sendCacheRequest<T>(
+    event: IpcMainInvokeEvent,
+    type: string,
+    payload: object = {},
+  ): Promise<T> {
+    const senderId = event.sender.id;
+    const binding = this.cacheUsers.get(senderId);
+    if (!binding) throw new Error("Storage user is not bound to this window");
+    const result = await this.sendWorkerRequest<T>(type, {
+      ...payload,
+      userId: binding.userId,
+    });
+    if (this.cacheUsers.get(senderId) !== binding) {
+      throw new Error("Storage user changed while request was in flight");
+    }
+    return result;
+  }
+
   private registerIpcHandlers(): void {
     // 1. Preferences
     ipcMain.handle(
@@ -132,6 +176,9 @@ export class StorageManager {
 
     // 2. Saved Accounts (配合 safeStorage 加解密)
     ipcMain.handle(STORAGE_IPC_CHANNELS.ACCOUNTS_GET, async () => {
+      if (!SafeStorageCipher.isAvailable()) {
+        throw new Error("Native credential encryption is unavailable");
+      }
       const rawAccounts = await this.sendWorkerRequest<any[]>("accounts-get");
       return (rawAccounts || []).map((acc) => {
         let refreshToken: string | undefined = undefined;
@@ -158,6 +205,9 @@ export class StorageManager {
     ipcMain.handle(
       STORAGE_IPC_CHANNELS.ACCOUNTS_SAVE,
       async (_event, accounts: SavedAccount[]) => {
+        if (!SafeStorageCipher.isAvailable()) {
+          throw new Error("Native credential encryption is unavailable");
+        }
         const encryptedAccounts = (accounts || []).map((acc) => ({
           id: acc.id,
           email: acc.email,
@@ -180,8 +230,14 @@ export class StorageManager {
 
     // 3. Active Tokens
     ipcMain.handle(STORAGE_IPC_CHANNELS.TOKENS_GET, async () => {
+      if (this.volatileActiveTokens) return this.volatileActiveTokens;
       const raw = await this.sendWorkerRequest<any>("tokens-get");
       if (!raw) return null;
+      if (!raw.remember) {
+        await this.sendWorkerRequest<boolean>("tokens-clear");
+        return null;
+      }
+      if (!SafeStorageCipher.isAvailable()) return null;
       const accessToken = raw.encryptedAccessToken
         ? SafeStorageCipher.decrypt(raw.encryptedAccessToken)
         : "";
@@ -207,6 +263,17 @@ export class StorageManager {
         },
       ) => {
         const { tokens, remember } = payload;
+        if (!remember) {
+          this.volatileActiveTokens = {
+            accessToken: tokens.accessToken,
+            refreshToken: tokens.refreshToken,
+            user: tokens.user,
+            remember: false,
+            updatedAt: Date.now(),
+          };
+          return this.sendWorkerRequest<boolean>("tokens-clear");
+        }
+        this.volatileActiveTokens = null;
         const encryptedAccessToken = tokens.accessToken
           ? SafeStorageCipher.encrypt(tokens.accessToken)
           : null;
@@ -223,29 +290,53 @@ export class StorageManager {
     );
 
     ipcMain.handle(STORAGE_IPC_CHANNELS.TOKENS_CLEAR, async () => {
+      this.volatileActiveTokens = null;
       return this.sendWorkerRequest<boolean>("tokens-clear");
     });
 
     // 4. User Switch
     ipcMain.handle(
       STORAGE_IPC_CHANNELS.USER_SWITCH,
-      async (_event, userId: string | null) => {
-        return this.sendWorkerRequest<boolean>("user-switch", { userId });
+      async (event, userId: string | null) => {
+        if (
+          userId !== null &&
+          (typeof userId !== "string" ||
+            !/^[A-Za-z0-9_-]{1,128}$/.test(userId) ||
+            userId === "guest")
+        ) {
+          throw new Error("Invalid storage user ID");
+        }
+        const senderId = event.sender.id;
+        const previous = this.cacheUsers.get(senderId);
+        if (!previous) {
+          event.sender.once("destroyed", () =>
+            this.cacheUsers.delete(senderId),
+          );
+        }
+        this.cacheUsers.set(senderId, {
+          userId,
+          generation: (previous?.generation ?? 0) + 1,
+        });
+        return true;
       },
     );
 
     // 5. Messages
     ipcMain.handle(
       STORAGE_IPC_CHANNELS.MESSAGES_SAVE_BATCH,
-      async (_event, payload: { channelId: string; messages: Message[] }) => {
-        return this.sendWorkerRequest<boolean>("messages-save-batch", payload);
+      async (event, payload: { channelId: string; messages: Message[] }) => {
+        return this.sendCacheRequest<boolean>(
+          event,
+          "messages-save-batch",
+          payload,
+        );
       },
     );
 
     ipcMain.handle(
       STORAGE_IPC_CHANNELS.MESSAGE_SAVE_SINGLE,
-      async (_event, message: Message) => {
-        return this.sendWorkerRequest<boolean>("message-save-single", {
+      async (event, message: Message) => {
+        return this.sendCacheRequest<boolean>(event, "message-save-single", {
           message,
         });
       },
@@ -253,8 +344,9 @@ export class StorageManager {
 
     ipcMain.handle(
       STORAGE_IPC_CHANNELS.MESSAGES_GET_LATEST,
-      async (_event, payload: { channelId: string; limit?: number }) => {
-        return this.sendWorkerRequest<Message[]>(
+      async (event, payload: { channelId: string; limit?: number }) => {
+        return this.sendCacheRequest<Message[]>(
+          event,
           "messages-get-latest",
           payload,
         );
@@ -263,32 +355,43 @@ export class StorageManager {
 
     ipcMain.handle(
       STORAGE_IPC_CHANNELS.CHANNEL_SNAPSHOT_GET,
-      async (_event, payload: { channelId: string; limit?: number }) => {
-        return this.sendWorkerRequest<any>("channel-snapshot-get", payload);
+      async (event, payload: { channelId: string; limit?: number }) => {
+        return this.sendCacheRequest<any>(
+          event,
+          "channel-snapshot-get",
+          payload,
+        );
       },
     );
 
     ipcMain.handle(
       STORAGE_IPC_CHANNELS.MESSAGE_DELETE,
-      async (_event, messageId: string) => {
-        return this.sendWorkerRequest<boolean>("message-delete", { messageId });
+      async (event, messageId: string) => {
+        return this.sendCacheRequest<boolean>(event, "message-delete", {
+          messageId,
+        });
       },
     );
 
     ipcMain.handle(
       STORAGE_IPC_CHANNELS.CHANNEL_META_SAVE,
       async (
-        _event,
+        event,
         payload: { channelId: string; meta: Partial<ChannelMetaRecord> },
       ) => {
-        return this.sendWorkerRequest<boolean>("channel-meta-save", payload);
+        return this.sendCacheRequest<boolean>(
+          event,
+          "channel-meta-save",
+          payload,
+        );
       },
     );
 
     ipcMain.handle(
       STORAGE_IPC_CHANNELS.CHANNEL_META_GET,
-      async (_event, channelId: string) => {
-        return this.sendWorkerRequest<ChannelMetaRecord | null>(
+      async (event, channelId: string) => {
+        return this.sendCacheRequest<ChannelMetaRecord | null>(
+          event,
           "channel-meta-get",
           { channelId },
         );
@@ -297,26 +400,35 @@ export class StorageManager {
 
     ipcMain.handle(
       STORAGE_IPC_CHANNELS.CHANNEL_CLEAR,
-      async (_event, channelId: string) => {
-        return this.sendWorkerRequest<boolean>("channel-clear", { channelId });
+      async (event, channelId: string) => {
+        return this.sendCacheRequest<boolean>(event, "channel-clear", {
+          channelId,
+        });
       },
     );
 
-    ipcMain.handle(STORAGE_IPC_CHANNELS.MESSAGES_CLEAR_ALL, async () => {
-      return this.sendWorkerRequest<boolean>("messages-clear-all");
+    ipcMain.handle(STORAGE_IPC_CHANNELS.MESSAGES_CLEAR_ALL, async (event) => {
+      return this.sendCacheRequest<boolean>(event, "messages-clear-all");
     });
 
     // 6. FTS5 Search
     ipcMain.handle(
       STORAGE_IPC_CHANNELS.MESSAGES_SEARCH_FTS,
-      async (_event, query: StorageSearchMessagesQuery) => {
-        return this.sendWorkerRequest<Message[]>("messages-search-fts", query);
+      async (event, query: StorageSearchMessagesQuery) => {
+        return this.sendCacheRequest<Message[]>(
+          event,
+          "messages-search-fts",
+          query,
+        );
       },
     );
 
     // 7. Stats
-    ipcMain.handle(STORAGE_IPC_CHANNELS.STATS_GET, async () => {
-      const stats = await this.sendWorkerRequest<StorageStats>("stats-get");
+    ipcMain.handle(STORAGE_IPC_CHANNELS.STATS_GET, async (event) => {
+      const stats = await this.sendCacheRequest<StorageStats>(
+        event,
+        "stats-get",
+      );
       return {
         ...stats,
         isEncryptionAvailable: SafeStorageCipher.isAvailable(),
@@ -326,7 +438,7 @@ export class StorageManager {
 
   public destroy(): void {
     if (this.worker) {
-      this.worker.terminate();
+      this.worker.kill();
       this.worker = null;
     }
     this.pendingRequests.forEach(({ reject, timer }) => {

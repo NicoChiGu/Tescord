@@ -12,6 +12,7 @@ import {
 
 export class ElectronSqliteStorageAdapter implements IStorageAdapter {
   private metaCache = new Map<string, ChannelMetaRecord>();
+  private pendingSwitch: Promise<void> = Promise.resolve();
 
   private get nativeStorage(): IStorageAdapter {
     const s = window.electronAPI?.storage;
@@ -59,19 +60,33 @@ export class ElectronSqliteStorageAdapter implements IStorageAdapter {
   }
 
   async switchUser(userId: string | null): Promise<void> {
+    if (
+      userId !== null &&
+      (typeof userId !== "string" ||
+        !/^[A-Za-z0-9_-]{1,128}$/.test(userId) ||
+        userId === "guest")
+    ) {
+      throw new Error("Invalid storage user ID");
+    }
     this.metaCache.clear();
-    await this.nativeStorage.switchUser(userId);
+    this.pendingSwitch = this.pendingSwitch
+      .catch(() => {})
+      .then(() => this.nativeStorage.switchUser(userId));
+    await this.pendingSwitch;
   }
 
   async saveMessages(channelId: string, messages: Message[]): Promise<void> {
+    await this.pendingSwitch;
     await this.nativeStorage.saveMessages(channelId, messages);
   }
 
   async saveMessage(msg: Message): Promise<void> {
+    await this.pendingSwitch;
     await this.nativeStorage.saveMessage(msg);
   }
 
   async getLatestMessages(channelId: string, limit = 100): Promise<Message[]> {
+    await this.pendingSwitch;
     return this.nativeStorage.getLatestMessages(channelId, limit);
   }
 
@@ -79,10 +94,12 @@ export class ElectronSqliteStorageAdapter implements IStorageAdapter {
     channelId: string,
     limit = 100,
   ): Promise<StorageChannelSnapshot> {
+    await this.pendingSwitch;
     return this.nativeStorage.getChannelSnapshot(channelId, limit);
   }
 
   async deleteMessage(messageId: string): Promise<void> {
+    await this.pendingSwitch;
     await this.nativeStorage.deleteMessage(messageId);
   }
 
@@ -90,6 +107,7 @@ export class ElectronSqliteStorageAdapter implements IStorageAdapter {
     channelId: string,
     meta: Partial<ChannelMetaRecord>,
   ): Promise<void> {
+    await this.pendingSwitch;
     const cached = this.metaCache.get(channelId) || {
       channelId,
       lastReadSequence: 0,
@@ -108,6 +126,7 @@ export class ElectronSqliteStorageAdapter implements IStorageAdapter {
   }
 
   async getChannelMeta(channelId: string): Promise<ChannelMetaRecord | null> {
+    await this.pendingSwitch;
     if (this.metaCache.has(channelId)) {
       return this.metaCache.get(channelId)!;
     }
@@ -119,16 +138,19 @@ export class ElectronSqliteStorageAdapter implements IStorageAdapter {
   }
 
   async clearChannel(channelId: string): Promise<void> {
+    await this.pendingSwitch;
     this.metaCache.delete(channelId);
     await this.nativeStorage.clearChannel(channelId);
   }
 
   async clearAllMessages(): Promise<void> {
+    await this.pendingSwitch;
     this.metaCache.clear();
     await this.nativeStorage.clearAllMessages();
   }
 
   async searchMessages(query: StorageSearchMessagesQuery): Promise<Message[]> {
+    await this.pendingSwitch;
     return this.nativeStorage.searchMessages(query);
   }
 

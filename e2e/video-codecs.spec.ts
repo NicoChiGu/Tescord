@@ -108,51 +108,8 @@ test.describe("视频编码格式（H.264 / AV1 / VP9 / VP8 / HEVC）与硬件�
     const settingsModal = page.getByTestId("user-settings-modal");
     await expect(settingsModal).toBeVisible();
 
-    // 4. 验证“推流编码格式与硬件加速”面板正确渲染
-    await expect(
-      page.getByText(/推流编码格式与硬件加速 \(Video Codecs\)/i),
-    ).toBeVisible();
-
-    const h264Option = page.getByTestId("codec-option-h264");
-    const av1Option = page.getByTestId("codec-option-av1");
-    const vp8Option = page.getByTestId("codec-option-vp8");
-    const vp9Option = page.getByTestId("codec-option-vp9");
-
-    await expect(h264Option).toBeVisible();
-    await expect(av1Option).toBeVisible();
-    await expect(vp8Option).toBeVisible();
-    await expect(vp9Option).toBeVisible();
-
-    // 4.1 验证默认选中的编码器为 H.264
-    await expect(h264Option).toHaveClass(/border-discord-brand/);
-
-    // 4.2 点击切换到 AV1 编码器
-    await av1Option.click();
-    await expect(av1Option).toHaveClass(/border-discord-brand/);
-
-    // 4.3 验证 VP8 双编码兜底降级开关 (Backup Codec)
-    const backupCodecCheckbox = page.getByTestId(
-      "enable-backup-codec-checkbox",
-    );
-    await expect(backupCodecCheckbox).toBeVisible();
-    await expect(backupCodecCheckbox).toBeChecked();
-
-    // 4.4 验证自定义推流码率调节与重置
-    const bitrateSlider = page.getByTestId("custom-bitrate-slider");
-    await expect(bitrateSlider).toBeVisible();
-    const bitrateLabel = page.getByTestId("current-custom-bitrate-label");
-    await expect(bitrateLabel).toContainText("跟随预设");
-
-    // 拖动/改变码率值
-    await bitrateSlider.fill("4500000");
-    await bitrateSlider.dispatchEvent("change");
-    await expect(bitrateLabel).toContainText("4500 kbps");
-
-    // 点击重置按钮恢复自适应
-    const resetBitrateBtn = page.getByTestId("reset-custom-bitrate-btn");
-    await expect(resetBitrateBtn).toBeVisible();
-    await resetBitrateBtn.click();
-    await expect(bitrateLabel).toContainText("跟随预设");
+    // 个人设置不再覆盖单次共享的编码器；此配置位于共享弹窗。
+    await expect(page.locator('[data-testid^="codec-option-"]')).toHaveCount(0);
 
     // 关闭设置弹窗
     const closeSettingsBtn = page.getByTestId("close-settings-btn");

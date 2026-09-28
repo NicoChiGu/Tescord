@@ -8,11 +8,12 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
+      "require": "./dist-cjs/index.js",
       "default": "./dist/index.js"
     }
   },
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && tsc -p tsconfig.cjs.json && node scripts/mark-cjs.mjs",
     "dev": "tsc --watch"
   },
   "devDependencies": {

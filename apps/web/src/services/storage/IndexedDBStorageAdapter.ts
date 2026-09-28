@@ -39,6 +39,14 @@ export class IndexedDBStorageAdapter implements IStorageAdapter {
   private metaCache = new Map<string, ChannelMetaRecord>();
 
   public async switchUser(userId: string | null): Promise<void> {
+    if (
+      userId !== null &&
+      (typeof userId !== "string" ||
+        !/^[A-Za-z0-9_-]{1,128}$/.test(userId) ||
+        userId === "guest")
+    ) {
+      throw new Error("Invalid storage user ID");
+    }
     this.metaCache.clear();
     if (this.currentUserId === userId && this.dbPromise) return;
     if (this.dbPromise) {

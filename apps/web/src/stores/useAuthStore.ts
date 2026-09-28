@@ -9,13 +9,24 @@ import {
 } from "@tescord/types";
 import { API_BASE } from "../config.js";
 import { cancelPendingRequests } from "../services/apiClient.js";
-import { getStorageAdapter } from "../services/storage/index.js";
+import {
+  getStorageAdapter,
+  waitForStorageMigration,
+} from "../services/storage/index.js";
 
 const MAX_SAVED_ACCOUNTS = 10;
 const SAVED_ACCOUNTS_STORAGE_KEY = "tescord_saved_accounts";
 const REFRESH_KEY = "tescord_refresh_token";
 const ACCESS_KEY = "tescord_access_token";
 let authGeneration = 0;
+let desktopAccountsCache: SavedAccount[] | null = null;
+let desktopRememberActive = false;
+let desktopAccountsWrite: Promise<void> = Promise.resolve();
+let desktopMigrationSucceeded: boolean | null = null;
+
+function isDesktopStorage(): boolean {
+  return typeof window !== "undefined" && Boolean(window.electronAPI?.storage);
+}
 
 function currentRefreshToken(): string | null {
   return (
@@ -23,8 +34,17 @@ function currentRefreshToken(): string | null {
   );
 }
 
-function storeActiveTokens(tokens: AuthTokens, remember: boolean): void {
-  if (remember) {
+async function storeActiveTokens(
+  tokens: AuthTokens,
+  remember: boolean,
+): Promise<void> {
+  if (isDesktopStorage() && desktopMigrationSucceeded !== false) {
+    desktopRememberActive = remember;
+    sessionStorage.setItem(ACCESS_KEY, tokens.accessToken);
+    sessionStorage.setItem(REFRESH_KEY, tokens.refreshToken);
+    localStorage.removeItem(ACCESS_KEY);
+    localStorage.removeItem(REFRESH_KEY);
+  } else if (remember) {
     localStorage.setItem(ACCESS_KEY, tokens.accessToken);
     sessionStorage.removeItem(ACCESS_KEY);
     localStorage.setItem(REFRESH_KEY, tokens.refreshToken);
@@ -38,28 +58,23 @@ function storeActiveTokens(tokens: AuthTokens, remember: boolean): void {
   localStorage.setItem("tescord_last_user", JSON.stringify(tokens.user));
 
   // 同步写入 StorageAdapter (在桌面端通过 safeStorage 系统级加密入 SQLite)
-  try {
-    getStorageAdapter()
-      .setActiveTokens(tokens, remember)
-      .catch((err) =>
-        console.warn("[useAuthStore] Adapter setActiveTokens warning:", err),
-      );
-  } catch {}
+  await getStorageAdapter().setActiveTokens(tokens, remember);
 }
 
-function clearActiveTokens(): void {
+async function waitForDesktopAccountSave(): Promise<void> {
+  if (isDesktopStorage() && desktopMigrationSucceeded !== false) {
+    await desktopAccountsWrite;
+  }
+}
+
+async function clearActiveTokens(): Promise<void> {
+  desktopRememberActive = false;
   localStorage.removeItem(ACCESS_KEY);
   sessionStorage.removeItem(ACCESS_KEY);
   localStorage.removeItem(REFRESH_KEY);
   sessionStorage.removeItem(REFRESH_KEY);
 
-  try {
-    getStorageAdapter()
-      .clearActiveTokens()
-      .catch((err) =>
-        console.warn("[useAuthStore] Adapter clearActiveTokens warning:", err),
-      );
-  } catch {}
+  await getStorageAdapter().clearActiveTokens();
 }
 
 function accessExpiresAt(token: string | null): number {
@@ -74,11 +89,19 @@ function accessExpiresAt(token: string | null): number {
 
 export function getStoredSavedAccounts(): SavedAccount[] {
   try {
+    if (isDesktopStorage() && desktopAccountsCache) return desktopAccountsCache;
     if (typeof localStorage === "undefined") return [];
     const raw = localStorage.getItem(SAVED_ACCOUNTS_STORAGE_KEY);
     if (raw) {
       const list = JSON.parse(raw);
-      if (Array.isArray(list) && list.length > 0) return list;
+      if (Array.isArray(list) && list.length > 0) {
+        return isDesktopStorage() && desktopMigrationSucceeded !== false
+          ? list.map((account: SavedAccount) => ({
+              ...account,
+              refreshToken: undefined,
+            }))
+          : list;
+      }
     }
     // 兼容历史遗留的单账号记忆 tescord_last_user
     const lastUserRaw = localStorage.getItem("tescord_last_user");
@@ -92,9 +115,11 @@ export function getStoredSavedAccounts(): SavedAccount[] {
         discriminator: u.discriminator,
         avatarUrl: u.avatarUrl,
         lastActiveAt: Date.now(),
-        rememberPassword: true,
+        rememberPassword: Boolean(localStorage.getItem(REFRESH_KEY)),
         refreshToken:
-          localStorage.getItem("tescord_refresh_token") || undefined,
+          isDesktopStorage() && desktopMigrationSucceeded !== false
+            ? undefined
+            : localStorage.getItem("tescord_refresh_token") || undefined,
       };
       localStorage.setItem(
         SAVED_ACCOUNTS_STORAGE_KEY,
@@ -110,18 +135,42 @@ export function getStoredSavedAccounts(): SavedAccount[] {
 
 export function persistSavedAccounts(accounts: SavedAccount[]): void {
   try {
+    const limited = accounts.slice(0, MAX_SAVED_ACCOUNTS);
+    if (isDesktopStorage() && desktopMigrationSucceeded !== false)
+      desktopAccountsCache = limited;
     if (typeof localStorage !== "undefined") {
       localStorage.setItem(
         SAVED_ACCOUNTS_STORAGE_KEY,
-        JSON.stringify(accounts.slice(0, MAX_SAVED_ACCOUNTS)),
+        JSON.stringify(
+          isDesktopStorage() && desktopMigrationSucceeded !== false
+            ? limited.map(
+                ({ refreshToken: _refreshToken, ...account }) => account,
+              )
+            : limited,
+        ),
       );
     }
     // 同步到 StorageAdapter (SQLite safeStorage)
-    getStorageAdapter()
-      .saveSavedAccounts(accounts.slice(0, MAX_SAVED_ACCOUNTS))
-      .catch((err) =>
-        console.warn("[useAuthStore] Adapter saveSavedAccounts warning:", err),
-      );
+    if (isDesktopStorage() && desktopMigrationSucceeded !== false) {
+      desktopAccountsWrite = desktopAccountsWrite
+        .catch(() => {})
+        .then(() => getStorageAdapter().saveSavedAccounts(limited))
+        .catch((err) =>
+          console.warn(
+            "[useAuthStore] Adapter saveSavedAccounts warning:",
+            err,
+          ),
+        );
+    } else {
+      getStorageAdapter()
+        .saveSavedAccounts(limited)
+        .catch((err) =>
+          console.warn(
+            "[useAuthStore] Adapter saveSavedAccounts warning:",
+            err,
+          ),
+        );
+    }
   } catch {
     // 忽略持久化异常
   }
@@ -196,7 +245,7 @@ interface AuthState {
   initAuth: () => Promise<void>;
   login: (dto: LoginDTO) => Promise<void>;
   register: (dto: RegisterDTO) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   setUser: (user: User | null) => void;
   updateProfile: (dto: UpdateProfileDTO) => Promise<void>;
   refreshAuth: () => Promise<boolean>;
@@ -204,19 +253,20 @@ interface AuthState {
   openReauthModal: (reason?: string) => void;
   closeReauthModal: () => void;
   reauth: (password: string) => Promise<void>;
-  switchAccount: () => void;
+  switchAccount: () => Promise<void>;
   removeSavedAccount: (idOrEmail: string) => void;
   loginWithSavedAccount: (account: SavedAccount) => Promise<boolean>;
 }
 
 const syncDesktopWindowMode = (mode: "auth" | "main") => {
   if (typeof window !== "undefined" && window.electronAPI) {
-    if (mode === "main") {
+    if (window.electronAPI.setWindowMode) {
+      window.electronAPI.setWindowMode(mode).catch(() => {});
+    } else if (mode === "main") {
       window.electronAPI.notifyAuthSuccess?.().catch(() => {});
     } else {
       window.electronAPI.notifyLogout?.().catch(() => {});
     }
-    window.electronAPI.setWindowMode?.(mode).catch(() => {});
   }
 };
 
@@ -299,18 +349,22 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   initAuth: async () => {
     set({ isLoading: true, error: null });
     try {
+      if (isDesktopStorage()) {
+        desktopMigrationSucceeded = await waitForStorageMigration();
+      }
       let accounts = getStoredSavedAccounts();
-      if (
-        (!accounts || accounts.length === 0) &&
-        typeof window !== "undefined" &&
-        window.electronAPI?.storage
-      ) {
+      let nativeActive: Awaited<
+        ReturnType<ReturnType<typeof getStorageAdapter>["getActiveTokens"]>
+      > = null;
+      if (isDesktopStorage() && desktopMigrationSucceeded) {
         try {
           const nativeAccounts = await getStorageAdapter().getSavedAccounts();
           if (nativeAccounts && nativeAccounts.length > 0) {
             accounts = nativeAccounts;
-            persistSavedAccounts(accounts);
           }
+          desktopAccountsCache = accounts;
+          nativeActive = await getStorageAdapter().getActiveTokens();
+          desktopRememberActive = Boolean(nativeActive?.remember);
         } catch {}
       }
       set({ savedAccounts: accounts });
@@ -318,6 +372,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       let accessToken =
         sessionStorage.getItem(ACCESS_KEY) || localStorage.getItem(ACCESS_KEY);
       let refreshToken = currentRefreshToken();
+
+      if (isDesktopStorage() && desktopMigrationSucceeded) {
+        // Migration has completed before adapter reads resolve. Remove the old
+        // renderer plaintext copies while retaining this window's session.
+        if (accessToken) sessionStorage.setItem(ACCESS_KEY, accessToken);
+        if (refreshToken) sessionStorage.setItem(REFRESH_KEY, refreshToken);
+        localStorage.removeItem(ACCESS_KEY);
+        localStorage.removeItem(REFRESH_KEY);
+        localStorage.setItem(
+          SAVED_ACCOUNTS_STORAGE_KEY,
+          JSON.stringify(
+            accounts.map(
+              ({ refreshToken: _refreshToken, ...account }) => account,
+            ),
+          ),
+        );
+      }
 
       // 如果浏览器缓存被清除，尝试从桌面端 safeStorage + SQLite 恢复活跃会话
       if (
@@ -327,11 +398,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         window.electronAPI?.storage
       ) {
         try {
-          const active = await getStorageAdapter().getActiveTokens();
+          const active = nativeActive;
           if (active && (active.accessToken || active.refreshToken)) {
             accessToken = active.accessToken;
             refreshToken = active.refreshToken;
-            storeActiveTokens(
+            await storeActiveTokens(
               {
                 accessToken: active.accessToken,
                 refreshToken: active.refreshToken,
@@ -354,13 +425,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
             if (res.ok) {
               const user: User = await res.json();
+              await getStorageAdapter().switchUser(user.id);
               localStorage.setItem("tescord_last_user", JSON.stringify(user));
-              const remember = Boolean(localStorage.getItem(REFRESH_KEY));
+              const remember =
+                isDesktopStorage() && desktopMigrationSucceeded
+                  ? desktopRememberActive
+                  : Boolean(localStorage.getItem(REFRESH_KEY));
               const updated = upsertSavedAccount(
                 user,
                 { refreshToken: refreshToken || undefined },
                 remember,
               );
+              await waitForDesktopAccountSave();
               set({
                 user,
                 lastActiveUser: user,
@@ -408,7 +484,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       // 3. 无有效令牌或免密失败，停留在未登录态并进入账号选择
       clearProactiveRefreshTimer();
       cancelPendingRequests("会话未授权或已失效");
-      if (get().refreshFailure !== "transient") clearActiveTokens();
+      if (get().refreshFailure !== "transient")
+        await clearActiveTokens().catch(() => {});
       set({
         user: null,
         accessToken: null,
@@ -421,7 +498,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     } catch {
       clearProactiveRefreshTimer();
       cancelPendingRequests("初始化认证失败");
-      clearActiveTokens();
+      await clearActiveTokens().catch(() => {});
       set({
         user: null,
         accessToken: null,
@@ -455,14 +532,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       const tokens = data as AuthTokens;
       const rememberMe = dto.rememberMe !== false;
+      await getStorageAdapter().switchUser(tokens.user.id);
       authGeneration++;
-      storeActiveTokens(tokens, rememberMe);
+      await storeActiveTokens(tokens, rememberMe);
 
       const updatedAccounts = upsertSavedAccount(
         tokens.user,
         { refreshToken: tokens.refreshToken },
         rememberMe,
       );
+      await waitForDesktopAccountSave();
 
       set({
         user: tokens.user,
@@ -498,14 +577,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
 
       const tokens = data as AuthTokens;
+      await getStorageAdapter().switchUser(tokens.user.id);
       authGeneration++;
-      storeActiveTokens(tokens, true);
+      await storeActiveTokens(tokens, true);
 
       const updatedAccounts = upsertSavedAccount(
         tokens.user,
         { refreshToken: tokens.refreshToken },
         true,
       );
+      await waitForDesktopAccountSave();
 
       set({
         user: tokens.user,
@@ -541,14 +622,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           const data = (await res.json()) as AuthTokens;
           if (generation !== authGeneration || data.user.id !== account.id)
             return false;
+          await getStorageAdapter().switchUser(data.user.id);
           authGeneration++;
-          storeActiveTokens(data, true);
+          await storeActiveTokens(data, true);
 
           const updated = upsertSavedAccount(
             data.user,
             { refreshToken: data.refreshToken },
             true,
           );
+          await waitForDesktopAccountSave();
 
           set({
             user: data.user,
@@ -644,6 +727,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             if (!identity.ok) return false;
             const user = (await identity.json()) as User;
             if (expectedUserId && user.id !== expectedUserId) return false;
+            await getStorageAdapter().switchUser(user.id);
             set({
               user,
               lastActiveUser: user,
@@ -682,8 +766,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             (expectedUserId && data.user.id !== expectedUserId)
           )
             return false;
-          const remembered = Boolean(localStorage.getItem(REFRESH_KEY));
-          storeActiveTokens(data, remembered);
+          await getStorageAdapter().switchUser(data.user.id);
+          const remembered =
+            isDesktopStorage() && desktopMigrationSucceeded
+              ? desktopRememberActive
+              : Boolean(localStorage.getItem(REFRESH_KEY));
+          await storeActiveTokens(data, remembered);
 
           const accounts = getStoredSavedAccounts();
           const updated = accounts.map((acc) => {
@@ -695,9 +783,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             ) {
               return {
                 ...acc,
-                refreshToken: acc.rememberPassword
-                  ? data.refreshToken
-                  : undefined,
+                rememberPassword: remembered,
+                refreshToken: remembered ? data.refreshToken : undefined,
                 lastActiveAt: Date.now(),
                 avatarUrl: data.user.avatarUrl ?? acc.avatarUrl,
                 displayName: data.user.displayName ?? acc.displayName,
@@ -706,7 +793,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             }
             return acc;
           });
+          if (!updated.some((account) => account.id === data.user.id)) {
+            updated.unshift({
+              id: data.user.id,
+              email: data.user.email,
+              username: data.user.username,
+              displayName: data.user.displayName,
+              discriminator: data.user.discriminator,
+              avatarUrl: data.user.avatarUrl,
+              lastActiveAt: Date.now(),
+              rememberPassword: remembered,
+              refreshToken: remembered ? data.refreshToken : undefined,
+            });
+          }
           persistSavedAccounts(updated);
+          await waitForDesktopAccountSave();
 
           set({
             user: data.user,
@@ -741,7 +842,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return activeRefreshPromise;
   },
 
-  logout: () => {
+  logout: async () => {
     authGeneration++;
     clearProactiveRefreshTimer();
     cancelPendingRequests("用户已退出登录");
@@ -775,12 +876,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ savedAccounts: updated });
     }
 
-    clearActiveTokens();
-    try {
-      getStorageAdapter()
-        .switchUser(null)
-        .catch(() => {});
-    } catch {}
+    await waitForDesktopAccountSave();
+    await clearActiveTokens();
+    await getStorageAdapter().switchUser(null);
     set({
       user: null,
       accessToken: null,
@@ -830,8 +928,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     const tokens = data as AuthTokens;
+    await getStorageAdapter().switchUser(tokens.user.id);
     authGeneration++;
-    storeActiveTokens(
+    await storeActiveTokens(
       tokens,
       getStoredSavedAccounts().some(
         (a) => a.id === tokens.user.id && a.rememberPassword,
@@ -845,6 +944,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         (a) => a.id === tokens.user.id && a.rememberPassword,
       ),
     );
+    await waitForDesktopAccountSave();
 
     set({
       user: tokens.user,
@@ -862,11 +962,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     scheduleProactiveRefresh(() => get().refreshAuth());
   },
 
-  switchAccount: () => {
+  switchAccount: async () => {
     authGeneration++;
     clearProactiveRefreshTimer();
     cancelPendingRequests("用户切换账号");
-    clearActiveTokens();
+    await clearActiveTokens();
+    await getStorageAdapter().switchUser(null);
     set({
       user: null,
       accessToken: null,

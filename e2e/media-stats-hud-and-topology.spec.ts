@@ -116,7 +116,7 @@ test.describe("媒体属性面板、传输速率与网络连接架构端到端�
     await expect(ipStackItem.locator("..").getByText("未知")).toBeVisible();
 
     // 验证实时传输速率与流量
-    const bitrateItem = page.getByText("下行/下载码率:");
+    const bitrateItem = page.getByText(/上行.*推流码率:/);
     await expect(bitrateItem).toBeVisible();
     await expect(bitrateItem.locator("..").getByText("未知")).toBeVisible();
 

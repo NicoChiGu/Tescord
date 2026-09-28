@@ -4,6 +4,7 @@ node_modules
 
 # Production Builds
 dist
+packages/types/dist-cjs/
 build
 .turbo
 

@@ -544,7 +544,57 @@ server.patch(
     }
     try {
       const body = request.body as UpdateProfileDTO;
-      const updated = await authService.updateProfile(userId, body);
+      const current = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { avatarUrl: true },
+      });
+      if (!current) {
+        return sendApiError(
+          reply,
+          401,
+          ErrorCode.AUTH_USER_NOT_FOUND,
+          "用户不存在",
+        );
+      }
+      const nextAvatar = body.avatarUrl;
+      let claimedNewAvatar = false;
+      if (
+        typeof nextAvatar === "string" &&
+        nextAvatar.includes("/public-assets/") &&
+        nextAvatar !== current.avatarUrl &&
+        !(claimedNewAvatar = storageService.claimUserAvatar(userId, nextAvatar))
+      ) {
+        return sendApiError(
+          reply,
+          403,
+          ErrorCode.FORBIDDEN,
+          "头像上传授权无效",
+        );
+      }
+      let updated;
+      try {
+        updated = await authService.updateProfile(userId, body);
+      } catch (error) {
+        if (claimedNewAvatar && nextAvatar) {
+          storageService.releaseUserAvatarClaim(userId, nextAvatar);
+        }
+        throw error;
+      }
+      if (
+        nextAvatar !== undefined &&
+        current.avatarUrl &&
+        current.avatarUrl !== updated.avatarUrl &&
+        current.avatarUrl.includes("/public-assets/")
+      ) {
+        void storageService
+          .removePublicAsset(current.avatarUrl)
+          .catch((error) =>
+            server.log.warn(
+              { error, userId },
+              "Failed to remove replaced avatar",
+            ),
+          );
+      }
 
       // 若修改了在线状态、个性签名或活动展示设置，同步更新瞬时在线表并广播专属 PRESENCE_UPDATE
       if (
@@ -4555,6 +4605,15 @@ server.post("/api/attachments/presigned-url", async (request, reply) => {
     if (!body?.fileName) {
       return reply.status(400).send({ error: "未提供 fileName" });
     }
+    const publicImageMime = (
+      {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".webp": "image/webp",
+        ".gif": "image/gif",
+      } as Record<string, string | undefined>
+    )[path.extname(body.fileName).toLowerCase()];
     if (body.purpose === "guild-icon") {
       if (
         !body.guildId ||
@@ -4566,22 +4625,22 @@ server.post("/api/attachments/presigned-url", async (request, reply) => {
       ) {
         return reply.status(403).send({ error: "缺少管理服务器权限" });
       }
-      if (
-        !/^(image\/png|image\/jpeg|image\/webp|image\/gif)$/.test(
-          body.mimeType,
-        ) ||
-        !/\.(png|jpe?g|webp|gif)$/i.test(body.fileName)
-      ) {
-        return reply.status(400).send({ error: "不支持的服务器图标格式" });
+      if (!publicImageMime || publicImageMime !== body.mimeType) {
+        return sendApiError(
+          reply,
+          400,
+          ErrorCode.FILE_TYPE_UNSUPPORTED,
+          "不支持的服务器图标格式",
+        );
       }
     } else if (body.purpose === "user-avatar") {
-      if (
-        !/^(image\/png|image\/jpeg|image\/webp|image\/gif)$/.test(
-          body.mimeType,
-        ) ||
-        !/\.(png|jpe?g|webp|gif)$/i.test(body.fileName)
-      ) {
-        return reply.status(400).send({ error: "不支持的用户头像格式" });
+      if (!publicImageMime || publicImageMime !== body.mimeType) {
+        return sendApiError(
+          reply,
+          400,
+          ErrorCode.FILE_TYPE_UNSUPPORTED,
+          "不支持的用户头像格式",
+        );
       }
     } else {
       if (body.purpose && body.purpose !== "attachment") {
@@ -4695,24 +4754,26 @@ server.put("/api/attachments/upload/:fileName", async (request, reply) => {
             PermissionFlags.MANAGE_GUILD,
           )),
         )
-      : Boolean(
-          scope.channelId &&
-          (await permissionService.hasChannelPermission(
-            userId,
-            scope.channelId,
-            PermissionFlags.VIEW_CHANNEL,
-          )) &&
-          (await permissionService.hasChannelPermission(
-            userId,
-            scope.channelId,
-            PermissionFlags.SEND_MESSAGES,
-          )) &&
-          (await permissionService.hasChannelPermission(
-            userId,
-            scope.channelId,
-            PermissionFlags.ATTACH_FILES,
-          )),
-        );
+      : scope.purpose === "user-avatar"
+        ? true
+        : Boolean(
+            scope.channelId &&
+            (await permissionService.hasChannelPermission(
+              userId,
+              scope.channelId,
+              PermissionFlags.VIEW_CHANNEL,
+            )) &&
+            (await permissionService.hasChannelPermission(
+              userId,
+              scope.channelId,
+              PermissionFlags.SEND_MESSAGES,
+            )) &&
+            (await permissionService.hasChannelPermission(
+              userId,
+              scope.channelId,
+              PermissionFlags.ATTACH_FILES,
+            )),
+          );
   if (!stillAuthorized) {
     return reply.status(403).send({ error: "上传权限已被撤销" });
   }
@@ -4739,6 +4800,17 @@ server.put("/api/attachments/upload/:fileName", async (request, reply) => {
     )
   ) {
     return reply.status(403).send({ error: "上传内容与授权不一致" });
+  }
+  if (
+    (scope.purpose === "guild-icon" || scope.purpose === "user-avatar") &&
+    !(await storageService.hasValidPublicImage(decodedFileName, buffer))
+  ) {
+    return sendApiError(
+      reply,
+      415,
+      ErrorCode.FILE_TYPE_UNSUPPORTED,
+      "图片内容与格式不符",
+    );
   }
 
   try {
@@ -4960,8 +5032,7 @@ server.get("/public-assets/:fileName", async (request, reply) => {
 
   const fileUrl = `${process.env.SERVER_BASE_URL || "http://localhost:3001"}/public-assets/${encodeURIComponent(decoded)}`;
 
-  // 公共路由只服务已绑定到公会的资源。上传中的图标由浏览器 Blob
-  // 本地预览，绝不能在绑定前进入 Cloudflare 的长期公共缓存。
+  // Public assets become cacheable only after a guild or user has bound them.
   const guild = await prisma.guild.findFirst({
     where: {
       OR: [
@@ -4977,7 +5048,24 @@ server.get("/public-assets/:fileName", async (request, reply) => {
     select: { id: true },
   });
 
-  if (!guild) {
+  const user = guild
+    ? null
+    : await prisma.user.findFirst({
+        where: {
+          OR: [
+            { avatarUrl: fileUrl },
+            {
+              avatarUrl: {
+                endsWith: `/public-assets/${encodeURIComponent(decoded)}`,
+              },
+            },
+            { avatarUrl: { endsWith: `/public-assets/${decoded}` } },
+          ],
+        },
+        select: { id: true },
+      });
+
+  if (!guild && !user) {
     return sendPublicAssetError(404, "资源不存在");
   }
 
@@ -6021,11 +6109,53 @@ server.post(
         .status(400)
         .send({ error: "Invalid subscribe request body" });
     }
+    const requestedScreenTracks = body.tracks.filter((track) => {
+      const source = cloudflareRealtimeService.getReadyTrack(
+        track.publisherSessionId!,
+        track.trackName!,
+      )?.source;
+      return source === "screen" || source === "screen-audio";
+    });
+    if (
+      requestedScreenTracks.some((track) =>
+        cloudflareRealtimeService.isStreamViewerKicked(
+          track.publisherSessionId!,
+          userId,
+        ),
+      )
+    )
+      return sendApiError(
+        reply,
+        403,
+        ErrorCode.FORBIDDEN,
+        "Stream viewing revoked",
+      );
 
     try {
       const result = await cloudflareRealtimeService.subscribeTracks(
         body as CfCallsSubscribeTrackRequest,
       );
+      if (
+        requestedScreenTracks.some((track) =>
+          cloudflareRealtimeService.isStreamViewerKicked(
+            track.publisherSessionId!,
+            userId,
+          ),
+        )
+      ) {
+        await cloudflareRealtimeService.closeTracks({
+          sessionId: session.sessionId,
+          tracks: result.tracks
+            .filter((track) => !!track.mid)
+            .map((track) => ({ mid: track.mid! })),
+        });
+        return sendApiError(
+          reply,
+          403,
+          ErrorCode.FORBIDDEN,
+          "Stream viewing revoked",
+        );
+      }
       cloudflareRealtimeService.recordSubscriptions(
         session.sessionId,
         result.tracks.map((track, index) => ({

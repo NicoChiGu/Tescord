@@ -86,6 +86,10 @@ test.describe("主播推流控制、媒体编解码统计与观众管理端到�
     await viewersBadgeBtn.click();
     const viewersModalTitle = page.getByText("当前正在观看");
     await expect(viewersModalTitle).toBeVisible({ timeout: 5000 });
+    await viewersBadgeBtn.click();
+    await expect(viewersModalTitle).not.toBeVisible();
+    await viewersBadgeBtn.click();
+    await expect(viewersModalTitle).toBeVisible();
 
     // 验证暂无观众或观众列表呈现
     const emptyNotice = page.getByText(/暂无观众观看此直播|0/);
@@ -100,9 +104,9 @@ test.describe("主播推流控制、媒体编解码统计与观众管理端到�
     await expect(viewersModalTitle).not.toBeVisible();
 
     // 6. 验证需求 2：主播能点击媒体属性按钮正常查看推流统计 (HUD)
-    const statsBtn = page.locator(
-      '[data-testid="participant-stats-btn"]',
-    ).first();
+    const statsBtn = page
+      .locator('[data-testid="participant-stats-btn"]')
+      .first();
     await expect(statsBtn).toBeAttached({ timeout: 5000 });
     await statsBtn.click({ force: true });
 
@@ -114,7 +118,7 @@ test.describe("主播推流控制、媒体编解码统计与观众管理端到�
     const localRole = page.getByText(/本地推流/);
     await expect(localRole.first()).toBeVisible();
 
-    const framesLabel = page.getByText(/Encoded Frames:|Frames/);
+    const framesLabel = page.getByText(/已编码帧数/);
     await expect(framesLabel.first()).toBeVisible();
   });
 });

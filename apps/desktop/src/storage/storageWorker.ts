@@ -15,7 +15,17 @@ interface WorkerInitData {
   userDataDir: string;
 }
 
-const { userDataDir } = (workerData || {}) as WorkerInitData;
+const { userDataDir } = {
+  ...((workerData || {}) as Partial<WorkerInitData>),
+  userDataDir:
+    ((workerData || {}) as Partial<WorkerInitData>).userDataDir ||
+    process.env.TESCORD_STORAGE_USER_DATA_DIR,
+};
+const utilityParentPort = process.parentPort;
+const sendResponse = (response: unknown): void => {
+  if (parentPort) parentPort.postMessage(response);
+  else utilityParentPort?.postMessage(response);
+};
 const MAX_MESSAGES_PER_CHANNEL = 5000;
 
 if (!userDataDir) {
@@ -71,6 +81,14 @@ let currentCacheDb: DatabaseInstance | null = null;
 let currentCacheDbPath: string | null = null;
 
 function getCacheDb(userId: string | null): DatabaseInstance {
+  if (
+    userId !== null &&
+    (typeof userId !== "string" ||
+      !/^[A-Za-z0-9_-]{1,128}$/.test(userId) ||
+      userId === "guest")
+  ) {
+    throw new Error("Invalid storage user ID");
+  }
   const effectiveId = userId || "guest";
   if (currentCacheDb && currentUserId === effectiveId) {
     return currentCacheDb;
@@ -83,7 +101,7 @@ function getCacheDb(userId: string | null): DatabaseInstance {
     currentCacheDb = null;
   }
 
-  const userDir = path.join(userDataDir, "users", effectiveId);
+  const userDir = path.join(userDataDir!, "users", effectiveId);
   if (!fs.existsSync(userDir)) {
     fs.mkdirSync(userDir, { recursive: true });
   }
@@ -186,7 +204,7 @@ function pruneChannelMessages(db: DatabaseInstance, channelId: string): void {
 }
 
 // 3. 处理主线程请求消息
-parentPort?.on("message", (req: { id: string; type: string; payload: any }) => {
+const handleRequest = (req: { id: string; type: string; payload: any }) => {
   const { id, type, payload } = req;
   try {
     let result: any = null;
@@ -295,6 +313,11 @@ parentPort?.on("message", (req: { id: string; type: string; payload: any }) => {
         break;
       }
       case "tokens-set": {
+        if (!payload.remember) {
+          appDb.prepare("DELETE FROM active_tokens WHERE id = 'current'").run();
+          result = true;
+          break;
+        }
         const stmt = appDb.prepare(`
           INSERT INTO active_tokens (id, encrypted_access_token, encrypted_refresh_token, user_json, remember, updated_at)
           VALUES ('current', ?, ?, ?, ?, ?)
@@ -335,7 +358,7 @@ parentPort?.on("message", (req: { id: string; type: string; payload: any }) => {
           messages: Message[];
         };
         if (messages && messages.length > 0) {
-          const db = getCacheDb(currentUserId);
+          const db = getCacheDb(payload.userId);
           const insertStmt = db.prepare(`
             INSERT INTO messages (
               id, channel_id, sequence, author_id, author_json, content,
@@ -390,7 +413,7 @@ parentPort?.on("message", (req: { id: string; type: string; payload: any }) => {
       case "message-save-single": {
         const msg = payload.message as Message;
         if (msg && msg.channelId) {
-          const db = getCacheDb(currentUserId);
+          const db = getCacheDb(payload.userId);
           db.prepare(
             `
             INSERT INTO messages (
@@ -437,14 +460,16 @@ parentPort?.on("message", (req: { id: string; type: string; payload: any }) => {
 
       case "messages-get-latest": {
         const { channelId, limit = 100 } = payload;
-        const db = getCacheDb(currentUserId);
+        const db = getCacheDb(payload.userId);
         const rows = db
           .prepare(
             `
-          SELECT * FROM messages
-          WHERE channel_id = ?
-          ORDER BY sequence ASC, created_at ASC
-          LIMIT ?
+          SELECT * FROM (
+            SELECT * FROM messages
+            WHERE channel_id = ?
+            ORDER BY sequence DESC, created_at DESC, id DESC
+            LIMIT ?
+          ) ORDER BY sequence ASC, created_at ASC, id ASC
         `,
           )
           .all(channelId, limit);
@@ -454,7 +479,7 @@ parentPort?.on("message", (req: { id: string; type: string; payload: any }) => {
 
       case "channel-snapshot-get": {
         const { channelId, limit = 100 } = payload;
-        const db = getCacheDb(currentUserId);
+        const db = getCacheDb(payload.userId);
 
         const rows = db
           .prepare(
@@ -497,7 +522,7 @@ parentPort?.on("message", (req: { id: string; type: string; payload: any }) => {
       }
 
       case "message-delete": {
-        const db = getCacheDb(currentUserId);
+        const db = getCacheDb(payload.userId);
         db.prepare("DELETE FROM messages WHERE id = ?").run(payload.messageId);
         result = true;
         break;
@@ -505,7 +530,7 @@ parentPort?.on("message", (req: { id: string; type: string; payload: any }) => {
 
       case "channel-meta-save": {
         const { channelId, meta } = payload;
-        const db = getCacheDb(currentUserId);
+        const db = getCacheDb(payload.userId);
         const existing =
           (db
             .prepare("SELECT * FROM channel_meta WHERE channel_id = ?")
@@ -545,7 +570,7 @@ parentPort?.on("message", (req: { id: string; type: string; payload: any }) => {
       }
 
       case "channel-meta-get": {
-        const db = getCacheDb(currentUserId);
+        const db = getCacheDb(payload.userId);
         const row = db
           .prepare("SELECT * FROM channel_meta WHERE channel_id = ?")
           .get(payload.channelId) as any;
@@ -564,7 +589,7 @@ parentPort?.on("message", (req: { id: string; type: string; payload: any }) => {
       }
 
       case "channel-clear": {
-        const db = getCacheDb(currentUserId);
+        const db = getCacheDb(payload.userId);
         db.prepare("DELETE FROM messages WHERE channel_id = ?").run(
           payload.channelId,
         );
@@ -573,7 +598,7 @@ parentPort?.on("message", (req: { id: string; type: string; payload: any }) => {
       }
 
       case "messages-clear-all": {
-        const db = getCacheDb(currentUserId);
+        const db = getCacheDb(payload.userId);
         db.prepare("DELETE FROM messages").run();
         db.prepare("DELETE FROM channel_meta").run();
         result = true;
@@ -591,7 +616,7 @@ parentPort?.on("message", (req: { id: string; type: string; payload: any }) => {
           result = [];
           break;
         }
-        const db = getCacheDb(currentUserId);
+        const db = getCacheDb(payload.userId);
 
         // 清理并转义关键词以供 FTS5 MATCH 使用
         const sanitized = keyword.replace(/['"*]/g, "").trim();
@@ -635,6 +660,7 @@ parentPort?.on("message", (req: { id: string; type: string; payload: any }) => {
 
       // --- Stats ---
       case "stats-get": {
+        const db = getCacheDb(payload.userId);
         let appDbSize = 0;
         let userDbSize = 0;
         let messageCount = 0;
@@ -646,12 +672,10 @@ parentPort?.on("message", (req: { id: string; type: string; payload: any }) => {
           if (currentCacheDbPath && fs.existsSync(currentCacheDbPath)) {
             userDbSize = fs.statSync(currentCacheDbPath).size;
           }
-          if (currentCacheDb) {
-            const countRow = currentCacheDb
-              .prepare("SELECT COUNT(*) as c FROM messages")
-              .get() as { c: number };
-            messageCount = countRow ? countRow.c : 0;
-          }
+          const countRow = db
+            .prepare("SELECT COUNT(*) as c FROM messages")
+            .get() as { c: number };
+          messageCount = countRow ? countRow.c : 0;
         } catch {}
 
         const stats: StorageStats = {
@@ -668,13 +692,16 @@ parentPort?.on("message", (req: { id: string; type: string; payload: any }) => {
         throw new Error(`[StorageWorker] Unknown request type: ${type}`);
     }
 
-    parentPort?.postMessage({ id, result, success: true });
+    sendResponse({ id, result, success: true });
   } catch (err: any) {
     console.error(`[StorageWorker] Error handling ${type}:`, err);
-    parentPort?.postMessage({
+    sendResponse({
       id,
       error: err?.message || String(err),
       success: false,
     });
   }
-});
+};
+
+if (parentPort) parentPort.on("message", handleRequest);
+else utilityParentPort?.on("message", (event) => handleRequest(event.data));

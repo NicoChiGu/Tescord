@@ -42,6 +42,7 @@ type RtcRecord = RTCStats & {
   fractionLost?: number;
   jitter?: number;
   framesDecoded?: number;
+  framesEncoded?: number;
   framesPerSecond?: number;
   frameWidth?: number;
   frameHeight?: number;
@@ -77,6 +78,7 @@ export class CloudflareRealtimeService {
 
   private localAudioStream: MediaStream | null = null;
   private localAudioSender: RTCRtpSender | null = null;
+  private audioBitrate = 64000;
   private negotiatedE2EEKey: Uint8Array | null = null;
 
   private remoteStreams = new Map<string, MediaStream>();
@@ -747,6 +749,7 @@ export class CloudflareRealtimeService {
     channelId: string,
     options?: {
       audioStream?: MediaStream;
+      audioBitrate?: number;
       iceServers?: RTCIceServer[];
     },
     retryCount = 0,
@@ -759,6 +762,7 @@ export class CloudflareRealtimeService {
     }
 
     this.currentChannelId = channelId;
+    this.audioBitrate = options?.audioBitrate || 64000;
     this.setStatus("connecting");
 
     try {
@@ -1019,6 +1023,14 @@ export class CloudflareRealtimeService {
       const sender = transceiver.sender;
       try {
         if (this.negotiatedE2EEKey) sframeManager.attachSender(sender);
+        if (source === "microphone") {
+          const parameters = sender.getParameters();
+          parameters.encodings = parameters.encodings?.length
+            ? parameters.encodings
+            : [{}];
+          parameters.encodings[0].maxBitrate = this.audioBitrate;
+          await sender.setParameters(parameters);
+        }
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         await this.waitForIceGathering(pc);
@@ -1787,7 +1799,8 @@ export class CloudflareRealtimeService {
         lost = 0,
         jitterMs = 0,
         jitterCount = 0,
-        decoded = 0;
+        decoded = 0,
+        encoded = 0;
       let audioCodec: string | undefined,
         videoCodec: string | undefined,
         videoInfo: string | undefined;
@@ -1857,7 +1870,8 @@ export class CloudflareRealtimeService {
           jitterCount++;
         }
         if (kind === "video") {
-          decoded += item.framesDecoded || 0;
+          if (isLocal) encoded += item.framesEncoded || 0;
+          else decoded += item.framesDecoded || 0;
           if (item.frameWidth && item.frameHeight)
             videoInfo = `${item.frameWidth}×${item.frameHeight}${item.framesPerSecond ? ` @ ${Math.round(item.framesPerSecond)} FPS` : ""}`;
         }
@@ -1913,7 +1927,8 @@ export class CloudflareRealtimeService {
         topology: "SFU_SERVER",
         protocol,
         bufferLength: tGlobal("voice:networkStats.adaptive"),
-        decodedFrames: videoInfo ? String(decoded) : undefined,
+        encodedFrames: isLocal && videoInfo ? String(encoded) : undefined,
+        decodedFrames: !isLocal && videoInfo ? String(decoded) : undefined,
         downloadBitrate: formatRate(downBps, received),
         uploadBitrate: formatRate(upBps, sent),
         rawDownloadBitrateBps: downBps,

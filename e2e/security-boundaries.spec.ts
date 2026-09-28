@@ -441,6 +441,132 @@ test("image preview is smaller while the original bytes remain available", async
   });
 });
 
+test("a user avatar is private until its owner binds it to the profile", async ({
+  request,
+}) => {
+  const sharp = serverRequire("sharp");
+  const image = await sharp({
+    create: { width: 8, height: 8, channels: 4, background: "#5678ab" },
+  })
+    .png()
+    .toBuffer();
+  const aliceLogin = await request.post("/api/auth/login", {
+    data: {
+      emailOrUsername: "alice@tescord.local",
+      password: "alicepassword123",
+    },
+  });
+  expect(aliceLogin.status()).toBe(200);
+  const adminLogin = await request.post("/api/auth/login", {
+    data: { emailOrUsername: "Jackey", password: "adminpassword123" },
+  });
+  expect(adminLogin.status()).toBe(200);
+  const aliceHeaders = {
+    Authorization: `Bearer ${(await aliceLogin.json()).accessToken as string}`,
+  };
+  const adminHeaders = {
+    Authorization: `Bearer ${(await adminLogin.json()).accessToken as string}`,
+  };
+  const previousProfile = await request.get("/api/auth/me", {
+    headers: aliceHeaders,
+  });
+  expect(previousProfile.status()).toBe(200);
+  const previousAvatar = (await previousProfile.json()).avatarUrl as
+    string | null;
+  const mismatchedType = await request.post("/api/attachments/presigned-url", {
+    headers: aliceHeaders,
+    data: {
+      purpose: "user-avatar",
+      fileName: "mismatch.png",
+      fileSize: image.length,
+      mimeType: "image/jpeg",
+    },
+  });
+  expect(mismatchedType.status()).toBe(400);
+  const grantResponse = await request.post("/api/attachments/presigned-url", {
+    headers: aliceHeaders,
+    data: {
+      purpose: "user-avatar",
+      fileName: `avatar-${Date.now()}.png`,
+      fileSize: image.length,
+      mimeType: "image/png",
+    },
+  });
+  expect(grantResponse.status(), await grantResponse.text()).toBe(200);
+  const grant = (await grantResponse.json()) as {
+    uploadUrl: string;
+    fileUrl: string;
+  };
+  const forgedUrl = new URL(grant.uploadUrl);
+  forgedUrl.searchParams.set("signature", "forged");
+  expect(
+    (
+      await request.put(forgedUrl.toString(), {
+        headers: { ...aliceHeaders, "Content-Type": "image/png" },
+        data: image,
+      })
+    ).status(),
+  ).toBe(403);
+  expect(
+    (
+      await request.put(grant.uploadUrl, {
+        headers: { ...adminHeaders, "Content-Type": "image/png" },
+        data: image,
+      })
+    ).status(),
+  ).toBe(403);
+  expect(
+    (
+      await request.put(grant.uploadUrl, {
+        headers: { ...aliceHeaders, "Content-Type": "image/png" },
+        data: Buffer.alloc(image.length),
+      })
+    ).status(),
+  ).toBe(415);
+  const upload = await request.put(grant.uploadUrl, {
+    headers: { ...aliceHeaders, "Content-Type": "image/png" },
+    data: image,
+  });
+  expect(upload.status(), await upload.text()).toBe(200);
+  const pending = await request.get(grant.fileUrl);
+  expect(pending.status()).toBe(404);
+  expect(pending.headers()["cache-control"]).toContain("no-store");
+  expect(
+    (
+      await request.patch("/api/users/@me", {
+        data: { avatarUrl: grant.fileUrl },
+      })
+    ).status(),
+  ).toBe(401);
+  expect(
+    (
+      await request.patch("/api/users/@me", {
+        headers: adminHeaders,
+        data: { avatarUrl: grant.fileUrl },
+      })
+    ).status(),
+  ).toBe(403);
+
+  try {
+    const bound = await request.patch("/api/users/@me", {
+      headers: aliceHeaders,
+      data: { avatarUrl: grant.fileUrl },
+    });
+    expect(bound.status(), await bound.text()).toBe(200);
+    const publicRead = await request.get(grant.fileUrl);
+    expect(publicRead.status(), await publicRead.text()).toBe(200);
+    expect(publicRead.headers()["content-type"]).toContain("image/png");
+    expect(publicRead.headers()["cache-control"]).toContain("public");
+    expect(await publicRead.body()).toEqual(image);
+  } finally {
+    const restored = await request.patch("/api/users/@me", {
+      headers: aliceHeaders,
+      data: { avatarUrl: previousAvatar },
+    });
+    expect(restored.status(), await restored.text()).toBe(200);
+  }
+});
+
 test("role managers cannot create, grant, or promote privileges they do not hold", async ({
   request,
 }) => {

@@ -47,6 +47,9 @@ export class CloudflareRealtimeService {
     >
   >();
   private readonly streamWatchers = new Map<string, Set<string>>();
+  // A host's removal applies to every media session of that viewer until this
+  // publication ends. New sessions must not bypass the removal.
+  private readonly kickedStreamViewers = new Map<string, Set<string>>();
   private readonly viewerEvents: CfStreamViewersEvent[] = [];
   private readonly maxSessionsPerUser = 4;
 
@@ -175,6 +178,63 @@ export class CloudflareRealtimeService {
       );
   }
 
+  public isStreamViewerKicked(
+    publisherSessionId: string,
+    viewerUserId: string,
+  ): boolean {
+    return (
+      this.kickedStreamViewers.get(publisherSessionId)?.has(viewerUserId) ||
+      false
+    );
+  }
+
+  public async kickStreamViewer(
+    channelId: string,
+    hostUserId: string,
+    viewerUserId: string,
+  ): Promise<boolean> {
+    const hosts = this.getTracks(channelId).filter(
+      (track) => track.source === "screen" && track.userId === hostUserId,
+    );
+    if (!hosts.length || viewerUserId === hostUserId) return false;
+    const activeHosts = hosts.filter((host) =>
+      [...this.sessions].some(
+        ([viewerSessionId, viewer]) =>
+          viewer.userId === viewerUserId &&
+          viewer.channelId === channelId &&
+          (this.streamWatchers.get(host.sessionId)?.has(viewerSessionId) ||
+            this.getStreamSubscriptionMids(viewerSessionId, host.sessionId)
+              .length > 0),
+      ),
+    );
+    if (!activeHosts.length) return false;
+    for (const host of activeHosts) {
+      const denied =
+        this.kickedStreamViewers.get(host.sessionId) || new Set<string>();
+      denied.add(viewerUserId);
+      this.kickedStreamViewers.set(host.sessionId, denied);
+      for (const [viewerSessionId, viewer] of this.sessions) {
+        if (viewer.userId !== viewerUserId || viewer.channelId !== channelId)
+          continue;
+        const mids = this.getStreamSubscriptionMids(
+          viewerSessionId,
+          host.sessionId,
+        );
+        if (mids.length) {
+          // The SFU may close some MIDs before a batch reports failure. Keep
+          // the denial in that case so a fresh subscription cannot bypass it.
+          await this.closeTracks({
+            sessionId: viewerSessionId,
+            tracks: mids.map((mid) => ({ mid })),
+          });
+          this.forgetSubscriptions(viewerSessionId, mids);
+        }
+        this.unwatchStream(viewerSessionId, host.sessionId);
+      }
+    }
+    return true;
+  }
+
   public hasConfirmedScreenSubscription(
     viewerSessionId: string,
     publisherSessionId: string,
@@ -225,6 +285,7 @@ export class CloudflareRealtimeService {
       !viewer ||
       viewer.channelId !== host.channelId ||
       viewer.userId === host.userId ||
+      this.isStreamViewerKicked(publisherSessionId, viewer.userId) ||
       !this.hasConfirmedScreenSubscription(viewerSessionId, publisherSessionId)
     )
       return null;
@@ -403,6 +464,7 @@ export class CloudflareRealtimeService {
     if (state && state.viewerCount > 0)
       this.queueViewerEvent({ ...state, viewerCount: 0 });
     this.streamWatchers.delete(publisherSessionId);
+    this.kickedStreamViewers.delete(publisherSessionId);
   }
 
   public get appId(): string {
@@ -651,6 +713,7 @@ export class CloudflareRealtimeService {
     if (req.sessionDescription) {
       payload.sessionDescription = req.sessionDescription;
     }
+    if (!payload.tracks.length) return;
 
     const response = await fetch(
       `${this.baseUrl}/apps/${this.appId}/sessions/${req.sessionId}/tracks/close`,
@@ -666,10 +729,21 @@ export class CloudflareRealtimeService {
       throw new Error(`Cloudflare close failed (${response.status})`);
     }
     const result = (await response.json()) as {
-      tracks?: Array<{ errorCode?: string }>;
+      errorCode?: string;
+      tracks?: Array<{ mid?: string; errorCode?: string }>;
     };
+    const requestedMids = new Set(payload.tracks.map((track) => track.mid));
+    const reportedMids = new Set(
+      Array.isArray(result.tracks)
+        ? result.tracks.map((track) => track.mid)
+        : [],
+    );
     if (
+      result.errorCode ||
       !Array.isArray(result.tracks) ||
+      result.tracks.length !== requestedMids.size ||
+      reportedMids.size !== requestedMids.size ||
+      [...requestedMids].some((mid) => !reportedMids.has(mid)) ||
       result.tracks.some(
         (track) => track.errorCode && track.errorCode !== "close_track_error",
       )

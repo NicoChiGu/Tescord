@@ -346,6 +346,20 @@ export class StorageService {
     return true;
   }
 
+  public releaseUserAvatarClaim(userId: string, fileUrl: string): void {
+    const key = this.getPublicAssetKey(fileUrl);
+    if (!key) return;
+    const grant = this.uploadGrants.get(key);
+    if (
+      grant?.claimed &&
+      grant.userId === userId &&
+      grant.fileUrl === fileUrl &&
+      grant.purpose === "user-avatar"
+    ) {
+      grant.claimed = false;
+    }
+  }
+
   public releasePublicAssetClaim(
     userId: string,
     guildId: string,
@@ -506,6 +520,37 @@ export class StorageService {
       grant.fileSize === size &&
       grant.mimeType === contentType,
     );
+  }
+
+  public async hasValidPublicImage(
+    fileKey: string,
+    bytes: Buffer,
+  ): Promise<boolean> {
+    const grant = this.uploadGrants.get(fileKey);
+    if (
+      !grant ||
+      (grant.purpose !== "guild-icon" && grant.purpose !== "user-avatar")
+    ) {
+      return false;
+    }
+    const expectedFormat = {
+      "image/png": "png",
+      "image/jpeg": "jpeg",
+      "image/webp": "webp",
+      "image/gif": "gif",
+    }[grant.mimeType];
+    if (!expectedFormat) return false;
+    try {
+      const metadata = await sharp(bytes, {
+        limitInputPixels: 40_000_000,
+        failOn: "error",
+      }).metadata();
+      return Boolean(
+        metadata.format === expectedFormat && metadata.width && metadata.height,
+      );
+    } catch {
+      return false;
+    }
   }
 
   public getUploadGrantScope(

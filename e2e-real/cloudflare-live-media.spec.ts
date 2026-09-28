@@ -774,7 +774,19 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   expect(videoBytes(await mediaSnapshot(pages[1]))).toBeGreaterThan(
     videoBytes(screenReceiver),
   );
-  await watchButtons[1].click();
+  if (onTarget) {
+    const bobUserId = targetResources.bobUserId;
+    expect(typeof bobUserId).toBe("string");
+    await pages[0]
+      .getByTestId(`stream-viewers-badge-btn-${adminSession.user.id}`)
+      .click();
+    await pages[0].getByTestId(`kick-viewer-btn-${bobUserId}`).click();
+    await expect(watchButtons[1]).toHaveText("观看直播", { timeout: 20_000 });
+    await watchButtons[1].click();
+    await expect(watchButtons[1]).toHaveText("观看直播", { timeout: 20_000 });
+  } else {
+    await watchButtons[1].click();
+  }
   await expect(watchButtons[1]).toHaveText("观看直播", { timeout: 20_000 });
   await expect(
     pages[0].locator('[data-testid^="stream-viewer-count-"]').first(),

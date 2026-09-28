@@ -139,3 +139,87 @@ test("cross-channel and unowned subscription MID cannot count or unsubscribe", (
     false,
   );
 });
+
+test("host kick closes every viewer screen subscription and denies new sessions", async () => {
+  const service = setup();
+  const closed: Array<{ sessionId: string; mids: string[] }> = [];
+  service.closeTracks = async ({ sessionId, tracks }) => {
+    closed.push({
+      sessionId,
+      mids: tracks.map((track) => track.mid!).filter(Boolean),
+    });
+  };
+  for (const [sessionId, mid] of [
+    [viewerSession, "3"],
+    [secondViewerSession, "4"],
+  ]) {
+    service.recordSubscriptions(sessionId, [
+      {
+        mid,
+        publisherSessionId: hostSession,
+        trackName: screenTrack,
+      },
+    ]);
+    service.confirmSubscriptions(sessionId);
+    service.watchStream(sessionId, hostSession);
+  }
+  assert.equal(
+    service.streamWatchState(viewerSession, hostSession)?.viewerCount,
+    1,
+  );
+  assert.equal(
+    await service.kickStreamViewer("voice-a", "outsider", "viewer"),
+    false,
+  );
+  assert.equal(
+    await service.kickStreamViewer("voice-a", "host", "viewer"),
+    true,
+  );
+  assert.deepEqual(closed, [
+    { sessionId: viewerSession, mids: ["3"] },
+    { sessionId: secondViewerSession, mids: ["4"] },
+  ]);
+  assert.equal(
+    service.streamWatchState(viewerSession, hostSession)?.viewerCount,
+    0,
+  );
+  assert.equal(service.isStreamViewerKicked(hostSession, "viewer"), true);
+  const newSession = "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee";
+  service.registerSession(newSession, "viewer", "voice-a", "login-viewer-new");
+  service.recordSubscriptions(newSession, [
+    {
+      mid: "5",
+      publisherSessionId: hostSession,
+      trackName: screenTrack,
+    },
+  ]);
+  service.confirmSubscriptions(newSession);
+  assert.equal(service.watchStream(newSession, hostSession), null);
+  service.removeTracks(hostSession, [screenTrack]);
+  assert.equal(service.isStreamViewerKicked(hostSession, "viewer"), false);
+});
+
+test("failed SFU close keeps the ban so a retry cannot resubscribe", async () => {
+  const service = setup();
+  service.recordSubscriptions(viewerSession, [
+    {
+      mid: "3",
+      publisherSessionId: hostSession,
+      trackName: screenTrack,
+    },
+  ]);
+  service.confirmSubscriptions(viewerSession);
+  service.watchStream(viewerSession, hostSession);
+  service.closeTracks = async () => {
+    throw new Error("SFU close failed");
+  };
+  await assert.rejects(
+    service.kickStreamViewer("voice-a", "host", "viewer"),
+    /SFU close failed/,
+  );
+  assert.equal(service.isStreamViewerKicked(hostSession, "viewer"), true);
+  assert.equal(
+    service.streamWatchState(viewerSession, hostSession)?.viewerCount,
+    1,
+  );
+});

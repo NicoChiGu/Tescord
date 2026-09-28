@@ -6,7 +6,8 @@
   "scripts": {
     "copy-assets": "node scripts/copy-assets.mjs",
     "build:native": "node scripts/build-rnnoise.mjs",
-    "build": "node ../../scripts/generate-build-config.mjs && pnpm run build:native && tsc && pnpm run copy-assets",
+    "build:sqlite": "electron-builder install-app-deps",
+    "build": "node ../../scripts/generate-build-config.mjs && pnpm run build:native && pnpm run build:sqlite && tsc && pnpm run copy-assets",
     "start": "electron .",
     "dev": "pnpm run build && electron .",
     "dist": "pnpm run build && electron-builder",
@@ -16,7 +17,7 @@
   "dependencies": {
     "@tescord/types": "workspace:*",
     "adm-zip": "^0.6.1",
-    "better-sqlite3": "^13.0.3",
+    "better-sqlite3": "^12.6.0",
     "onnxruntime-node": "1.22.0"
   },
   "devDependencies": {

@@ -18,6 +18,7 @@ concurrency:
 
 env:
   ONNXRUNTIME_NODE_INSTALL: skip
+  GITHUB_EVENT_BEFORE: ${{ github.event.before }}
 
 jobs:
   build-and-test:

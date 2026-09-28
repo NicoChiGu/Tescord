@@ -414,7 +414,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
           e.stopPropagation();
           if (hasAnyVideo && !isMe) {
             toggleFullscreen();
-          } else {
+          } else if (!isSpotlight) {
             onTogglePin();
           }
         }}
@@ -585,7 +585,9 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
               </span>
               <span className="font-mono">
-                ({viewersList ? viewersList.length : viewerCount || 0})
+                {t("voice:viewers.badgeCount", {
+                  count: viewerCount ?? viewersList?.length ?? 0,
+                })}
               </span>
             </button>
           )}
@@ -813,7 +815,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
               data-testid={`stream-viewer-count-${participant.userId}`}
               className="text-[10px] text-white/80 flex-shrink-0"
             >
-              {viewerCount} 人观看
+              {t("voice:viewers.viewerCount", { count: viewerCount })}
             </span>
           )}
           {hasAnyVideo && (screenShareInfo?.codec || stats?.videoCodec) && (
@@ -928,7 +930,8 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
             participantIdentity={participant.userId}
             isLocal={isMe}
             participantName={
-              targetDisplayName || (isMe ? "我的推流" : "视频流")
+              targetDisplayName ||
+              t(isMe ? "voice:hud.myStream" : "voice:hud.mediaStream")
             }
             onClose={handleCloseHUD}
           />
@@ -1713,14 +1716,17 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
         t: GatewayEvents.P2P_SIGNAL,
         d: payload,
       });
-      // 本地乐观更新观众列表
-      setStreamViewersMap((prev) => {
-        const next = new Map(prev);
-        const set = new Set(next.get(currentUser.id) || []);
-        set.delete(viewerUserId);
-        next.set(currentUser.id, set);
-        return next;
-      });
+      // Cloudflare viewers are removed after the server confirms that SFU
+      // subscriptions were closed. P2P has no server-side media session.
+      if (VOICE_ENGINE !== "cloudflare_realtime") {
+        setStreamViewersMap((prev) => {
+          const next = new Map(prev);
+          const set = new Set(next.get(currentUser.id) || []);
+          set.delete(viewerUserId);
+          next.set(currentUser.id, set);
+          return next;
+        });
+      }
     } catch (e) {
       console.warn("Failed to dispatch STREAM_KICK:", e);
     }
@@ -1895,17 +1901,32 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
           });
         }
       } else if (payload.type === "STREAM_KICK") {
-        if (payload.targetId === currentUser.id && payload.streamOwnerId) {
+        if (
+          payload.targetId === currentUser.id &&
+          payload.streamOwnerId &&
+          payload.senderId === payload.streamOwnerId
+        ) {
           const streamerId = payload.streamOwnerId;
-          const targetParticipant = displayParticipants.find(
-            (p) => p.userId === streamerId,
-          );
-          if (
-            targetParticipant &&
-            isWatchingStream(streamerId, targetParticipant.streamMode)
-          ) {
-            handleToggleWatching(targetParticipant);
+          if (VOICE_ENGINE === "cloudflare_realtime") {
+            const publication = getScreenPublication(streamerId);
+            if (publication)
+              void cloudflareRealtimeService.stopWatchingStream(
+                publication.sessionId,
+              );
+          } else if (watchedP2PStreamerId === streamerId) {
+            p2pStreamManager.stopAll();
+            setWatchedP2PStreamerId(null);
+          } else {
+            livekitService.setScreenWatching(streamerId, false);
+            setWatchedLiveKitUsers((previous) => {
+              const next = new Set(previous);
+              next.delete(streamerId);
+              return next;
+            });
           }
+          setWatchErrors((previous) =>
+            new Map(previous).set(streamerId, t("voice:viewers.kickedNotice")),
+          );
         }
       } else if (payload.type === "REQUEST_STREAM_VIEWERS") {
         const streamerId = payload.streamOwnerId;

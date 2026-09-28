@@ -1,17 +1,41 @@
 import { contextBridge, ipcRenderer } from "electron";
-import {
+import type {
   DesktopNotificationPayload,
   UserStatus,
   DesktopWindowMode,
   DesktopAuthSuccessPayload,
   DesktopAudioInferenceStart,
   DesktopAudioInferenceStop,
-  STORAGE_IPC_CHANNELS,
   SavedAccount,
   Message,
   ChannelMetaRecord,
   StorageSearchMessagesQuery,
 } from "@tescord/types";
+
+// The sandboxed preload can require Electron only. Keep IPC literals checked
+// against the shared protocol type without loading the ESM/CJS package here.
+const STORAGE_IPC_CHANNELS = {
+  PREF_GET: "storage:pref-get",
+  PREF_SET: "storage:pref-set",
+  PREF_REMOVE: "storage:pref-remove",
+  ACCOUNTS_GET: "storage:accounts-get",
+  ACCOUNTS_SAVE: "storage:accounts-save",
+  TOKENS_GET: "storage:tokens-get",
+  TOKENS_SET: "storage:tokens-set",
+  TOKENS_CLEAR: "storage:tokens-clear",
+  USER_SWITCH: "storage:user-switch",
+  MESSAGES_SAVE_BATCH: "storage:messages-save-batch",
+  MESSAGE_SAVE_SINGLE: "storage:message-save-single",
+  MESSAGES_GET_LATEST: "storage:messages-get-latest",
+  CHANNEL_SNAPSHOT_GET: "storage:channel-snapshot-get",
+  MESSAGE_DELETE: "storage:message-delete",
+  CHANNEL_META_SAVE: "storage:channel-meta-save",
+  CHANNEL_META_GET: "storage:channel-meta-get",
+  CHANNEL_CLEAR: "storage:channel-clear",
+  MESSAGES_CLEAR_ALL: "storage:messages-clear-all",
+  MESSAGES_SEARCH_FTS: "storage:messages-search-fts",
+  STATS_GET: "storage:stats-get",
+} satisfies typeof import("@tescord/types").STORAGE_IPC_CHANNELS;
 
 ipcRenderer.on("audio-inference-exit", (_event, data) => {
   if (typeof data?.requestId === "string")

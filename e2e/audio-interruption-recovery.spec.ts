@@ -67,7 +67,13 @@ test.describe("iOS & 移动端 Web 音频中断恢复与生命周期唤醒（方
       (window as any).cloudflareRealtimeService?.simulateInterruption(true);
     });
     await expect(banner).toBeVisible({ timeout: 5000 });
-    await banner.getByRole("button", { name: /点击恢复音频/i }).click();
+    const resumeButton = banner.getByRole("button", { name: /点击恢复音频/i });
+    const buttonBox = await resumeButton.boundingBox();
+    expect(buttonBox).not.toBeNull();
+    await page.mouse.click(
+      buttonBox!.x + buttonBox!.width / 2,
+      buttonBox!.y + buttonBox!.height / 2,
+    );
     await expect(banner).toHaveCount(0, { timeout: 5000 });
     const status = await page.evaluate(() =>
       (window as any).cloudflareRealtimeService?.getAudioPlaybackStatus(),

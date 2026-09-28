@@ -4,30 +4,41 @@ import { IndexedDBStorageAdapter } from "./IndexedDBStorageAdapter.js";
 import { StorageMigrator } from "./StorageMigrator.js";
 
 let storageAdapterInstance: IStorageAdapter | null = null;
-let migrationTriggered = false;
+let migrationResult: Promise<boolean> | null = null;
 
 export function getStorageAdapter(): IStorageAdapter {
   if (!storageAdapterInstance) {
     if (typeof window !== "undefined" && window.electronAPI?.storage) {
-      storageAdapterInstance = new ElectronSqliteStorageAdapter();
-      if (!migrationTriggered) {
-        migrationTriggered = true;
-        // 异步后台静默触发迁移，不阻塞 UI 渲染
-        setTimeout(() => {
-          StorageMigrator.runMigrationIfNeeded(storageAdapterInstance!).catch(
-            (err) =>
-              console.warn(
-                "[StorageAdapter] Silent background migration warning:",
-                err,
-              ),
+      const nativeAdapter = new ElectronSqliteStorageAdapter();
+      // 迁移使用独立实例。正常调用等迁移完成后才进入 worker，避免
+      // IndexedDB 多用户导入切换 worker 当前用户时污染正在使用的缓存。
+      migrationResult = StorageMigrator.runMigrationIfNeeded(nativeAdapter)
+        .then(() => true)
+        .catch((err) => {
+          console.warn(
+            "[StorageAdapter] Migration will retry on next start:",
+            err,
           );
-        }, 100);
-      }
+          return false;
+        });
+      storageAdapterInstance = new Proxy(nativeAdapter, {
+        get(target, property, receiver) {
+          const member = Reflect.get(target, property, receiver);
+          if (typeof member !== "function") return member;
+          return (...args: unknown[]) =>
+            migrationResult!.then(() => member.apply(target, args));
+        },
+      });
     } else {
       storageAdapterInstance = new IndexedDBStorageAdapter();
     }
   }
   return storageAdapterInstance;
+}
+
+export function waitForStorageMigration(): Promise<boolean> {
+  getStorageAdapter();
+  return migrationResult || Promise.resolve(true);
 }
 
 export * from "./IndexedDBStorageAdapter.js";

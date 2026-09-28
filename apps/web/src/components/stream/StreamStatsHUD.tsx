@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 import { StreamDetailedStats } from "@tescord/types";
 import { mediaStatsService } from "../../services/stats/MediaStatsService.js";
 import {
@@ -23,11 +24,13 @@ interface StreamStatsHUDProps {
 
 export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
   participantIdentity,
-  participantName = "媒体流",
+  participantName,
   isLocal: propIsLocal,
   onClose,
   containerRef,
 }) => {
+  const { t } = useTranslation("voice");
+  const displayName = participantName || t("hud.mediaStream");
   const [stats, setStats] = useState<StreamDetailedStats | null>(null);
   const effectiveIsLocal = propIsLocal ?? stats?.isLocal ?? false;
   const [copied, setCopied] = useState(false);
@@ -199,26 +202,31 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
 
   const handleCopy = async () => {
     if (!stats) return;
+    const unknown = t("hud.unknown");
+    const frameLabel = effectiveIsLocal
+      ? t("hud.encodedFrames")
+      : t("hud.decodedFrames");
     const text = [
-      `[Tescord Media Stats - ${participantName}]`,
-      `Topology: ${stats.topology}`,
-      `Connection Type: ${stats.connectionMode}`,
-      `Hole Punch Status: ${stats.holePunchStatus || "Connected"}`,
-      `IP Version: ${stats.ipVersion || "IPv4"}`,
-      `Mime Type: ${stats.mimeType}`,
-      `Player Core: ${stats.playerCore}`,
-      `Video Info: ${stats.videoInfo || "None"}`,
-      `Audio Info: ${stats.audioInfo}`,
-      `Encoder: ${stats.encoder}`,
-      `Stream Host: ${stats.streamHost}`,
-      `Protocol: ${stats.protocol}`,
-      `Buffer Length: ${stats.bufferLength}`,
-      `Decoded Frames: ${stats.decodedFrames}`,
-      `Download Bitrate: ${stats.downloadBitrate}`,
-      stats.uploadBitrate ? `Upload Bitrate: ${stats.uploadBitrate}` : null,
-      `RTT: ${stats.rtt}`,
-      `Packet Loss: ${stats.packetLoss}`,
-      `Jitter: ${stats.jitter}`,
+      `[${t("hud.title")} - ${displayName}]`,
+      `${t("hud.topology")}: ${stats.topology}`,
+      `${t("hud.connectionMode")}: ${stats.connectionMode}`,
+      `${t("hud.holePunchStatus")}: ${stats.holePunchStatus || unknown}`,
+      `${t("hud.ipStack")}: ${stats.ipVersion || unknown}`,
+      `${t("hud.mimeType")}: ${stats.mimeType || unknown}`,
+      `${t("hud.playerCore")}: ${stats.playerCore || unknown}`,
+      `${t("hud.videoInfo")}: ${stats.videoInfo || unknown}`,
+      `${t("hud.audioInfo")}: ${stats.audioInfo || unknown}`,
+      `${t("hud.encoder")}: ${stats.encoder || unknown}`,
+      `${t("hud.streamHost")}: ${stats.streamHost || unknown}`,
+      `${t("hud.protocol")}: ${stats.protocol || unknown}`,
+      `${t("hud.bufferJitter")}: ${stats.bufferLength || unknown} / ${stats.jitter || unknown}`,
+      `${frameLabel}: ${effectiveIsLocal ? stats.encodedFrames || unknown : stats.decodedFrames || unknown}`,
+      `${t("hud.downloadBitrate")}: ${stats.downloadBitrate || unknown}`,
+      stats.uploadBitrate
+        ? `${t("hud.uploadBitrate")}: ${stats.uploadBitrate}`
+        : null,
+      `${t("hud.rtt")}: ${stats.rtt || unknown}`,
+      `${t("hud.packetLoss")}: ${stats.packetLoss || unknown}`,
     ]
       .filter(Boolean)
       .join("\n");
@@ -267,13 +275,13 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
         data-testid="stream-stats-drag-handle"
         onPointerDown={handlePointerDown}
         className="flex items-center justify-between pb-2 border-b border-[#2b2d31] mb-2.5 cursor-grab active:cursor-grabbing select-none"
-        title="按住标题栏可在卡片内自由拖拽"
+        title={t("hud.dragHint")}
       >
         <div className="flex items-center space-x-2">
           <GripHorizontal className="w-3.5 h-3.5 text-gray-400 opacity-70 hover:opacity-100 transition" />
           <Activity className="w-4 h-4 text-discord-green animate-pulse" />
           <span className="font-bold text-white text-[13px] tracking-wide">
-            媒体属性与实时统计
+            {t("hud.title")}
           </span>
           <span className="text-[10px] bg-discord-brand/20 text-discord-brand px-1.5 py-0.2 rounded font-sans">
             HUD
@@ -287,7 +295,7 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
             type="button"
             onClick={handleManualRefresh}
             className="p-1 rounded hover:bg-[#35373c] text-gray-400 hover:text-white transition cursor-pointer"
-            title="立即刷新数据"
+            title={t("hud.refresh")}
           >
             <RefreshCw
               className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-discord-brand" : ""}`}
@@ -297,7 +305,7 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
             type="button"
             onClick={handleCopy}
             className="p-1 rounded hover:bg-[#35373c] text-gray-400 hover:text-white transition cursor-pointer"
-            title="复制全部属性与统计"
+            title={t("hud.copy")}
           >
             {copied ? (
               <Check className="w-3.5 h-3.5 text-discord-green" />
@@ -309,7 +317,7 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
             type="button"
             onClick={onClose}
             className="p-1 rounded hover:bg-discord-danger/20 hover:text-discord-danger text-gray-400 transition cursor-pointer"
-            title="关闭面板"
+            title={t("hud.close")}
           >
             <X className="w-4 h-4" />
           </button>
@@ -319,74 +327,93 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
       {/* 属性键值对表格 */}
       <div className="space-y-1.5 text-[11px] leading-relaxed max-h-[360px] overflow-y-auto pr-1">
         <div className="flex justify-between items-start gap-2">
-          <span className="text-gray-400 flex-shrink-0">目标对象:</span>
+          <span className="text-gray-400 flex-shrink-0">
+            {t("hud.target")}:
+          </span>
           <span className="text-white text-right truncate font-sans">
-            {participantName} ({effectiveIsLocal ? "本地推流" : "远端拉流"})
+            {displayName} (
+            {t(effectiveIsLocal ? "hud.localStream" : "hud.remoteStream")})
           </span>
         </div>
 
         <div className="flex justify-between items-start gap-2">
-          <span className="text-gray-400 flex-shrink-0">Mime Type:</span>
+          <span className="text-gray-400 flex-shrink-0">
+            {t("hud.mimeType")}:
+          </span>
           <span className="text-discord-brand text-right break-all">
-            {stats?.mimeType || "未知"}
+            {stats?.mimeType || t("hud.unknown")}
           </span>
         </div>
 
         <div className="flex justify-between items-start gap-2">
-          <span className="text-gray-400 flex-shrink-0">Player Core:</span>
+          <span className="text-gray-400 flex-shrink-0">
+            {t("hud.playerCore")}:
+          </span>
           <span className="text-gray-300 text-right">
-            {stats?.playerCore || "未知"}
+            {stats?.playerCore || t("hud.unknown")}
           </span>
         </div>
 
         <div className="flex justify-between items-start gap-2">
-          <span className="text-gray-400 flex-shrink-0">Video Info:</span>
+          <span className="text-gray-400 flex-shrink-0">
+            {t("hud.videoInfo")}:
+          </span>
           <span className="text-emerald-400 font-semibold text-right">
-            {stats?.videoInfo || "未知"}
+            {stats?.videoInfo || t("hud.unknown")}
           </span>
         </div>
 
         <div className="flex justify-between items-start gap-2">
-          <span className="text-gray-400 flex-shrink-0">Audio Info:</span>
+          <span className="text-gray-400 flex-shrink-0">
+            {t("hud.audioInfo")}:
+          </span>
           <span className="text-gray-300 text-right">
-            {stats?.audioInfo || "未知"}
+            {stats?.audioInfo || t("hud.unknown")}
           </span>
         </div>
 
         <div className="flex justify-between items-start gap-2">
-          <span className="text-gray-400 flex-shrink-0">Encoder:</span>
+          <span className="text-gray-400 flex-shrink-0">
+            {t("hud.encoder")}:
+          </span>
           <span className="text-gray-300 text-right truncate">
-            {stats?.encoder || "未知"}
+            {stats?.encoder || t("hud.unknown")}
           </span>
         </div>
 
         <div className="flex justify-between items-start gap-2">
-          <span className="text-gray-400 flex-shrink-0">Stream Host:</span>
+          <span className="text-gray-400 flex-shrink-0">
+            {t("hud.streamHost")}:
+          </span>
           <span className="text-amber-400 text-right truncate">
-            {stats?.streamHost || "未知"}
+            {stats?.streamHost || t("hud.unknown")}
           </span>
         </div>
 
         <div className="flex justify-between items-start gap-2">
-          <span className="text-gray-400 flex-shrink-0">网络拓扑:</span>
+          <span className="text-gray-400 flex-shrink-0">
+            {t("hud.topology")}:
+          </span>
           <span className="text-right font-semibold flex items-center gap-1 text-sky-400">
             <Network className="w-3 h-3 text-discord-brand" />
             <span>
               {stats?.topology === "SFU_SERVER"
-                ? "LiveKit SFU (服务端转发)"
+                ? t("hud.topologySfu")
                 : stats?.topology === "P2P_MESH"
-                  ? "P2P Mesh (全网状直连)"
+                  ? t("hud.topologyMesh")
                   : stats?.topology === "P2P_DIRECT"
-                    ? "P2P Direct (点对点打洞)"
+                    ? t("hud.topologyDirect")
                     : stats?.topology === "P2P_TREE_RELAY"
-                      ? "P2P Tree Relay (树状中继)"
-                      : stats?.topology || "未知"}
+                      ? t("hud.topologyRelay")
+                      : stats?.topology || t("hud.unknown")}
             </span>
           </span>
         </div>
 
         <div className="flex justify-between items-start gap-2">
-          <span className="text-gray-400 flex-shrink-0">连接架构:</span>
+          <span className="text-gray-400 flex-shrink-0">
+            {t("hud.connectionMode")}:
+          </span>
           <span
             className={`text-right font-semibold flex items-center gap-1 ${
               stats?.connectionMode.includes("P2P")
@@ -395,13 +422,15 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
             }`}
           >
             <ShieldCheck className="w-3 h-3" />
-            <span>{stats?.connectionMode || "未知"}</span>
+            <span>{stats?.connectionMode || t("hud.unknown")}</span>
           </span>
         </div>
 
         {stats?.holePunchStatus && (
           <div className="flex justify-between items-start gap-2">
-            <span className="text-gray-400 flex-shrink-0">打洞状态:</span>
+            <span className="text-gray-400 flex-shrink-0">
+              {t("hud.holePunchStatus")}:
+            </span>
             <span
               className={`text-right font-semibold ${
                 stats.holePunchStatus.includes("重试")
@@ -417,7 +446,9 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
         )}
 
         <div className="flex justify-between items-start gap-2">
-          <span className="text-gray-400 flex-shrink-0">IP 协议栈:</span>
+          <span className="text-gray-400 flex-shrink-0">
+            {t("hud.ipStack")}:
+          </span>
           <span
             className={`text-right font-semibold flex items-center gap-1 ${
               stats?.ipVersion === "IPv6" ? "text-purple-400" : "text-blue-400"
@@ -426,58 +457,69 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
             <Globe className="w-3 h-3" />
             <span>
               {stats?.ipVersion === "IPv6"
-                ? "IPv6 (双栈优先)"
+                ? t("hud.ipv6")
                 : stats?.ipVersion === "IPv4"
-                  ? "IPv4 (单栈)"
-                  : "未知"}
+                  ? t("hud.ipv4")
+                  : t("hud.unknown")}
             </span>
           </span>
         </div>
 
         <div className="flex justify-between items-start gap-2">
-          <span className="text-gray-400 flex-shrink-0">传输协议:</span>
-          <span className="text-gray-300 text-right">
-            {stats?.protocol || "未知"}
+          <span className="text-gray-400 flex-shrink-0">
+            {t("hud.protocol")}:
           </span>
-        </div>
-
-        <div className="flex justify-between items-start gap-2">
-          <span className="text-gray-400 flex-shrink-0">Buffer / Jitter:</span>
           <span className="text-gray-300 text-right">
-            {stats?.bufferLength || "未知"} / {stats?.jitter || "未知"}
+            {stats?.protocol || t("hud.unknown")}
           </span>
         </div>
 
         <div className="flex justify-between items-start gap-2">
           <span className="text-gray-400 flex-shrink-0">
-            {effectiveIsLocal ? "Encoded Frames:" : "Decoded Frames:"}
+            {t("hud.bufferJitter")}:
           </span>
           <span className="text-gray-300 text-right">
-            {stats?.decodedFrames || "N/A"}
+            {stats?.bufferLength || t("hud.unknown")} /{" "}
+            {stats?.jitter || t("hud.unknown")}
+          </span>
+        </div>
+
+        <div className="flex justify-between items-start gap-2">
+          <span className="text-gray-400 flex-shrink-0">
+            {t(effectiveIsLocal ? "hud.encodedFrames" : "hud.decodedFrames")}:
+          </span>
+          <span className="text-gray-300 text-right">
+            {(effectiveIsLocal
+              ? stats?.encodedFrames || stats?.decodedFrames
+              : stats?.decodedFrames) || t("hud.notAvailable")}
           </span>
         </div>
 
         {effectiveIsLocal ? (
           <div className="flex justify-between items-start gap-2">
-            <span className="text-gray-400 flex-shrink-0">推流发送码率:</span>
+            <span className="text-gray-400 flex-shrink-0">
+              {t("hud.uploadBitrate")}:
+            </span>
             <span className="text-indigo-400 font-semibold text-right">
-              {stats?.uploadBitrate || stats?.downloadBitrate || "未知"}
+              {stats?.uploadBitrate ||
+                stats?.downloadBitrate ||
+                t("hud.unknown")}
             </span>
           </div>
         ) : (
           <>
             <div className="flex justify-between items-start gap-2">
               <span className="text-gray-400 flex-shrink-0">
-                下行/下载码率:
+                {t("hud.downloadBitrate")}:
               </span>
               <span className="text-discord-brand font-semibold text-right">
-                {stats?.downloadBitrate || "未知"}
+                {stats?.downloadBitrate || t("hud.unknown")}
               </span>
             </div>
             {stats?.uploadBitrate && (
               <div className="flex justify-between items-start gap-2">
                 <span className="text-gray-400 flex-shrink-0">
-                  上行/推流码率:
+                  {t("hud.uploadBitrate")}:
                 </span>
                 <span className="text-indigo-400 font-semibold text-right">
                   {stats.uploadBitrate}
@@ -488,14 +530,16 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
         )}
 
         <div className="flex justify-between items-start gap-2">
-          <span className="text-gray-400 flex-shrink-0">物理 RTT / 延迟:</span>
+          <span className="text-gray-400 flex-shrink-0">{t("hud.rtt")}:</span>
           <span className="text-gray-300 text-right">
-            {stats?.rtt || "N/A"}
+            {stats?.rtt || t("hud.notAvailable")}
           </span>
         </div>
 
         <div className="flex justify-between items-start gap-2">
-          <span className="text-gray-400 flex-shrink-0">丢包率 (Loss):</span>
+          <span className="text-gray-400 flex-shrink-0">
+            {t("hud.packetLoss")}:
+          </span>
           <span
             className={`text-right font-semibold ${
               stats?.packetLoss && parseFloat(stats.packetLoss) > 5
@@ -503,7 +547,7 @@ export const StreamStatsHUD: React.FC<StreamStatsHUDProps> = ({
                 : "text-discord-green"
             }`}
           >
-            {stats?.packetLoss || "未知"}
+            {stats?.packetLoss || t("hud.unknown")}
           </span>
         </div>
       </div>

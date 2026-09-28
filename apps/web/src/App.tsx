@@ -285,6 +285,8 @@ export const App: React.FC = () => {
       if (VOICE_ENGINE === "cloudflare_realtime") {
         await cloudflareRealtimeService.connect(channelId, {
           audioStream: stream,
+          audioBitrate:
+            channel?.bitrate || audioEngine.config.audioBitrate || 64000,
         });
         if (activeVoiceChannelIdRef.current !== channelId)
           throw new Error("频道已切换");
@@ -2219,6 +2221,12 @@ export const App: React.FC = () => {
               throw new Error("Microphone unavailable after reconnect");
             await cloudflareRealtimeService.connect(channelId, {
               audioStream: stream,
+              audioBitrate:
+                guildsRef.current
+                  .flatMap((guild) => guild.channels)
+                  .find((channel) => channel.id === channelId)?.bitrate ||
+                audioEngine.config.audioBitrate ||
+                64000,
             });
           })
           .catch(() => {
@@ -3085,6 +3093,7 @@ export const App: React.FC = () => {
           channel.id,
           {
             audioStream: processedStream,
+            audioBitrate: bitrate,
           },
         );
         if (!isCurrentVoiceOp()) {
@@ -3519,6 +3528,7 @@ export const App: React.FC = () => {
         );
         const cfSessionId = await cloudflareRealtimeService.connect(channelId, {
           audioStream: processedStream,
+          audioBitrate: bitrate,
         });
         joinSuccess = Boolean(cfSessionId);
         if (joinSuccess) livekitService.setConnectionStatus("connected");

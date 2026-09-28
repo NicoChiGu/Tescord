@@ -175,36 +175,15 @@ test.describe("直播屏幕分享与摄像头画面融合（画中画自由切�
       page.locator('[data-testid^="voice-sidebar-muted-"]').first(),
     ).toBeVisible();
 
-    // 4.1 验证直播全屏播放功能：全屏按钮呈现、点击切换、双击全屏与快捷键全屏
+    // 主播本人的卡片可聚焦，观众卡片才提供全屏播放。
     const fullscreenBtn = page.getByTestId("fullscreen-btn-usr_default_admin");
-    await expect(fullscreenBtn).toBeVisible({ timeout: 5000 });
-    await expect(fullscreenBtn).toHaveAttribute("title", "全屏播放 (F)");
-
-    // 点击全屏按钮进入全屏
-    await fullscreenBtn.click();
-    await expect(fullscreenBtn).toHaveAttribute("title", "退出全屏 (Esc / F)", {
-      timeout: 5000,
-    });
-    await expect(videoTile).toHaveClass(/!fixed/);
-
-    // 再次点击全屏按钮退出全屏
-    await fullscreenBtn.click();
-    await expect(fullscreenBtn).toHaveAttribute("title", "全屏播放 (F)", {
-      timeout: 5000,
-    });
-    await expect(videoTile).not.toHaveClass(/!fixed/);
-
-    // 验证双击视频卡片切换全屏
+    await expect(fullscreenBtn).toHaveCount(0);
     await videoTile.dblclick();
-    await expect(fullscreenBtn).toHaveAttribute("title", "退出全屏 (Esc / F)", {
-      timeout: 5000,
-    });
-
-    // 验证按键 F 退出全屏
-    await page.keyboard.press("f");
-    await expect(fullscreenBtn).toHaveAttribute("title", "全屏播放 (F)", {
-      timeout: 5000,
-    });
+    const exitFocusBtn = page.getByTestId("stage-unpin-btn");
+    await expect(exitFocusBtn).toBeVisible({ timeout: 5000 });
+    await expect(videoTile).not.toHaveClass(/!fixed/);
+    await exitFocusBtn.click();
+    await expect(exitFocusBtn).toHaveCount(0);
 
     // 5. 在直播中开启摄像头 -> 验证摄像头自动以画中画叠加到右下角
     const centerCameraBtn = page.getByTestId("voice-toggle-camera-btn");

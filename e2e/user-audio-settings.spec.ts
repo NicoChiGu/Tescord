@@ -99,8 +99,8 @@ test.describe("个人设置中心与全新“音频”菜单交互验收", () =>
     await expect(advancedToggleBtn).toBeVisible();
     await advancedToggleBtn.click();
 
-    // 展开后应能看到 Opus 码率和四轨录音实验室
-    await expect(page.getByText(/Opus 音频推流码率/i)).toBeVisible();
+    // 频道码率在频道设置中配置，个人高级面板保留四轨录音实验室。
+    await expect(page.getByText(/Opus 音频推流码率/i)).toHaveCount(0);
     await expect(page.getByText(/AI 降噪前后效果四轨录音/i)).toBeVisible();
 
     // 5. 验证导航栏无缝切换至【个人资料】

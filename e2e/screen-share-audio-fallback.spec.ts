@@ -157,7 +157,7 @@ test.describe("屏幕分享伴音异常与自动优雅降级 (NotReadableError A
     const globalToast = page.locator('[data-testid="global-toast"]');
     await expect(globalToast).toBeVisible({ timeout: 5000 });
     await expect(globalToast).toContainText("系统伴音未能启动");
-    await expect(globalToast).toContainText("已自动降级为纯画面直播");
+    await expect(globalToast).toContainText("已自动降级为纯画面推流");
 
     // (2) 验证 getDisplayMedia 被连续调用了两次：
     // 第一次带有 audio 约束（抛错），第二次自动降级为 audio: false 成功
