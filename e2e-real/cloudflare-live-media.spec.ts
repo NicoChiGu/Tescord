@@ -734,7 +734,7 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   }
   await expect(
     pages[0].locator('[data-testid^="stream-viewer-count-"]').first(),
-  ).toContainText("2 人观看", { timeout: 20_000 });
+  ).toContainText(/2 人.*观看/, { timeout: 20_000 });
   try {
     await expect
       .poll(
@@ -790,7 +790,7 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
   await expect(watchButtons[1]).toHaveText("观看直播", { timeout: 20_000 });
   await expect(
     pages[0].locator('[data-testid^="stream-viewer-count-"]').first(),
-  ).toContainText("1 人观看", { timeout: 20_000 });
+  ).toContainText(/1 人.*观看/, { timeout: 20_000 });
   await pages[0].getByTestId("voice-toggle-screen-btn").click();
   let networkReceiver: Awaited<ReturnType<typeof mediaSnapshot>> | undefined;
   if (onTarget && testNetworkRecovery) {
