@@ -1912,6 +1912,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
             if (publication)
               void cloudflareRealtimeService.stopWatchingStream(
                 publication.sessionId,
+                true,
               );
           } else if (watchedP2PStreamerId === streamerId) {
             p2pStreamManager.stopAll();

@@ -1543,6 +1543,7 @@ export class CloudflareRealtimeService {
 
   private async releaseScreenSubscriptions(
     publisherSessionId: string,
+    serverAlreadyClosed = false,
   ): Promise<void> {
     const publications = [...this.currentPublications.values()].filter(
       (publication) =>
@@ -1557,7 +1558,12 @@ export class CloudflareRealtimeService {
         ),
       )
       .filter((mid): mid is string => !!mid);
-    if (mids.length && this.sessionId && this.currentChannelId) {
+    if (
+      !serverAlreadyClosed &&
+      mids.length &&
+      this.sessionId &&
+      this.currentChannelId
+    ) {
       const response = await apiFetch(
         `${API_BASE}/api/cloudflare-realtime/tracks/unsubscribe`,
         {
@@ -1591,7 +1597,10 @@ export class CloudflareRealtimeService {
     }
   }
 
-  public async stopWatchingStream(publisherSessionId: string): Promise<void> {
+  public async stopWatchingStream(
+    publisherSessionId: string,
+    serverAlreadyClosed = false,
+  ): Promise<void> {
     await this.pendingWatches.get(publisherSessionId)?.catch(() => undefined);
     if (!this.sessionId || !this.currentChannelId) return;
     const publication = [...this.currentPublications.values()].find(
@@ -1601,20 +1610,22 @@ export class CloudflareRealtimeService {
     this.watchingSessions.delete(publisherSessionId);
     const previous = this.watchStates.get(publisherSessionId);
     if (previous) this.setWatchState({ ...previous, watching: false });
-    const response = await apiFetch(
-      `${API_BASE}/api/cloudflare-realtime/streams/unwatch`,
-      {
-        method: "POST",
-        headers: this.authHeaders,
-        body: JSON.stringify({
-          channelId: this.currentChannelId,
-          sessionId: this.sessionId,
-          publisherSessionId,
-        }),
-      },
-    ).catch(() => null);
+    const response = serverAlreadyClosed
+      ? null
+      : await apiFetch(`${API_BASE}/api/cloudflare-realtime/streams/unwatch`, {
+          method: "POST",
+          headers: this.authHeaders,
+          body: JSON.stringify({
+            channelId: this.currentChannelId,
+            sessionId: this.sessionId,
+            publisherSessionId,
+          }),
+        }).catch(() => null);
     try {
-      await this.releaseScreenSubscriptions(publisherSessionId);
+      await this.releaseScreenSubscriptions(
+        publisherSessionId,
+        serverAlreadyClosed,
+      );
     } finally {
       if (response?.ok)
         this.setWatchState((await response.json()) as CfStreamWatchState);

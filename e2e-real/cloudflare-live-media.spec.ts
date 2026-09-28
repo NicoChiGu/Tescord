@@ -828,6 +828,16 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     }
     await watchButtons[1].click();
     await expect(watchButtons[1]).toHaveText("观看直播", { timeout: 20_000 });
+    await expect
+      .poll(
+        () =>
+          diagnostics[2].filter(
+            (event) =>
+              event.event === "/api/cloudflare-realtime/streams/watch" &&
+              event.status === 403,
+          ).length,
+      )
+      .toBe(1);
   } else {
     await watchButtons[1].click();
   }
@@ -969,7 +979,17 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
       fullPage: true,
     });
   }
-  expect(activeConsoleErrors, JSON.stringify(diagnostics)).toEqual([]);
+  const expectedDeniedResource =
+    "browser 2: Failed to load resource: the server responded with a status of 403 ()";
+  if (onTarget) {
+    expect(
+      activeConsoleErrors.filter((error) => error === expectedDeniedResource),
+    ).toHaveLength(1);
+  }
+  expect(
+    activeConsoleErrors.filter((error) => error !== expectedDeniedResource),
+    JSON.stringify(diagnostics),
+  ).toEqual([]);
   tearingDown = true;
   for (const page of pages) {
     const shareModal = page.locator(".fixed.inset-0.z-50").filter({
