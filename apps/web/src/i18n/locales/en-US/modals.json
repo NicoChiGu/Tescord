@@ -238,5 +238,37 @@
     "description": "Drag to pan the preview, use slider to zoom in or out.",
     "confirmBtn": "Confirm & Upload",
     "previewAlt": "Icon crop preview"
+  },
+  "whatsNew": {
+    "title": "What's New in Tescord",
+    "subtitle": "Discover the latest features, performance improvements, and bug fixes",
+    "versionBadge": "Version v{{version}}",
+    "releasedOn": "Released on {{date}}",
+    "categories": {
+      "features": "New Features",
+      "improvements": "Improvements",
+      "fixes": "Bug Fixes"
+    },
+    "actions": {
+      "gotIt": "Sounds Good",
+      "restartNow": "Restart to Apply",
+      "later": "Later",
+      "viewFullReleases": "View full release notes on GitHub"
+    },
+    "emptyNotice": "No changelog entries available for this version.",
+    "items": {
+      "v0_2_0_livekit_title": "Multi-Engine Low-Latency Real-Time Voice & Video",
+      "v0_2_0_livekit_desc": "Seamlessly integrates LiveKit and Cloudflare Realtime for crystal-clear multi-user voice calls and HD screen sharing.",
+      "v0_2_0_rnnoise_title": "RNNoise Neural Network Real-Time Noise Suppression",
+      "v0_2_0_rnnoise_desc": "Runs deep neural networks in an isolated AudioWorklet thread to eliminate keyboard clicks and fan noises with zero perceptible latency.",
+      "v0_2_0_i18n_title": "Seamless 5-Locale Hot-Switching",
+      "v0_2_0_i18n_desc": "Fully localized across Simplified Chinese, Traditional Chinese (TW/HK), English, and Japanese with zero hardcoded strings.",
+      "v0_2_0_updater_title": "Dual-Track Delta Hot Updates with gh-proxy Acceleration",
+      "v0_2_0_updater_desc": "Decoupled web bundle and native shell updates with multi-tier proxy fallback directly connecting to GitHub Releases.",
+      "v0_2_0_perf_title": "Virtual Message List & Local SQLite Optimizations",
+      "v0_2_0_perf_desc": "Sub-millisecond loading of massive chat message histories and full-text search with significantly reduced RAM and CPU usage.",
+      "v0_2_0_fix_audio_title": "Audio Device Switching & Channel Reset Fixes",
+      "v0_2_0_fix_audio_desc": "Improved device plug-and-play handling across multi-soundcard setups, eliminating audio mixing anomalies and resource leaks."
+    }
   }
 }

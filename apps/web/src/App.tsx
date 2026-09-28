@@ -67,6 +67,8 @@ import { MaintenanceAdminBanner } from "./components/maintenance/MaintenanceAdmi
 import { FriendsDashboard } from "./components/friends/FriendsDashboard.js";
 import { useFriendStore } from "./stores/useFriendStore.js";
 import { UpdateNotificationBanner } from "./components/updater/UpdateNotificationBanner.js";
+import { WhatsNewModal } from "./components/modals/WhatsNewModal.js";
+import { useWhatsNewAutoPopup } from "./hooks/useWhatsNewAutoPopup.js";
 import { useMaintenanceStore } from "./stores/useMaintenanceStore.js";
 import { useChannelNavStore } from "./stores/useChannelNavStore.js";
 import {
@@ -110,6 +112,9 @@ export const App: React.FC = () => {
     isLoading,
     initAuth,
   } = useAuthStore();
+
+  // 版本更新公告自动弹窗与全局事件监听
+  useWhatsNewAutoPopup(isAuthenticated, isLoading);
 
   const isMaintenance = useMaintenanceStore((s) => s.isMaintenance);
 
@@ -5131,6 +5136,9 @@ export const App: React.FC = () => {
 
       {/* 18. 桌面端后台更新就绪悬浮通知 */}
       <UpdateNotificationBanner />
+
+      {/* 18.1 版本更新公告模态框 (What's New) */}
+      <WhatsNewModal />
 
       {/* 19. 全局通用决策与安全验证模态框 */}
       <GlobalDialogContainer />

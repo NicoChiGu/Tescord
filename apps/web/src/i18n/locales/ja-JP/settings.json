@@ -226,7 +226,8 @@
     "checkError": "更新確認中にエラーが発生しました",
     "applyFailed": "差分更新の適用に失敗しました",
     "downloadDeltaFailed": "差分更新のダウンロードに失敗しました",
-    "invalidProxy": "無効なプロキシURLです"
+    "invalidProxy": "無効なプロキシURLです",
+    "viewChangelog": "このバージョンの新機能とお知らせ"
   },
   "securityAndPasskeysTab": "セキュリティとパスキー",
   "securityAndPasskeysTitle": "アカウントセキュリティとパスキー",

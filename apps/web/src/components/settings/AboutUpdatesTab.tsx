@@ -11,15 +11,19 @@ import {
   GitBranch,
   Sliders,
   ExternalLink,
+  Sparkles,
 } from "lucide-react";
 import {
   UpdateCheckResult,
   UpdateProgress,
   UpdaterConfig,
 } from "@tescord/types";
+import { useWhatsNewStore } from "../../stores/useWhatsNewStore.js";
+import { CURRENT_APP_VERSION } from "../../data/changelogs.js";
 
 export const AboutUpdatesTab: React.FC = () => {
   const { t } = useTranslation(["settings", "common"]);
+  const openWhatsNew = useWhatsNewStore((s) => s.openWhatsNew);
   const [config, setConfig] = useState<UpdaterConfig | null>(null);
   const [isChecking, setIsChecking] = useState<boolean>(false);
   const [checkResult, setCheckResult] = useState<UpdateCheckResult | null>(
@@ -155,11 +159,29 @@ export const AboutUpdatesTab: React.FC = () => {
             )}
           </p>
         </div>
-        <div className="rounded-xl bg-[#2b2d31] p-5 border border-white/5 text-gray-300 text-xs">
-          {t(
-            "settings:updates.webDesktopTip",
-            "您可通过下载并安装 Tescord 桌面客户端享受 Discord 拟态无边框窗口、独立进程音频低延迟优化与自动静默增量更新体验。",
-          )}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 rounded-xl bg-[#2b2d31] p-5 border border-white/5 text-gray-300 text-xs">
+          <span>
+            {t(
+              "settings:updates.webDesktopTip",
+              "您可通过下载并安装 Tescord 桌面客户端享受 Discord 拟态无边框窗口、独立进程音频低延迟优化与自动静默增量更新体验。",
+            )}
+          </span>
+          <button
+            type="button"
+            data-testid="web-view-changelog-btn"
+            onClick={() =>
+              openWhatsNew({
+                version: CURRENT_APP_VERSION,
+                mode: "view",
+              })
+            }
+            className="shrink-0 flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-[#5865f2] hover:bg-[#4752c4] text-white transition-all shadow-md cursor-pointer"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>
+              {t("settings:updates.viewChangelog", "查看更新公告")}
+            </span>
+          </button>
         </div>
       </div>
     );
@@ -202,21 +224,40 @@ export const AboutUpdatesTab: React.FC = () => {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={handleCheckForUpdates}
-            disabled={isChecking || isDownloading}
-            className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold bg-[#5865f2] hover:bg-[#4752c4] disabled:opacity-50 text-white transition-all shadow-md cursor-pointer self-start sm:self-auto"
-          >
-            <RefreshCw
-              className={`w-3.5 h-3.5 ${isChecking ? "animate-spin" : ""}`}
-            />
-            <span>
-              {isChecking
-                ? t("settings:updates.checking", "正在检测更新...")
-                : t("settings:updates.checkUpdates", "检查更新")}
-            </span>
-          </button>
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <button
+              type="button"
+              data-testid="desktop-view-changelog-btn"
+              onClick={() =>
+                openWhatsNew({
+                  version: config?.currentWebVersion || CURRENT_APP_VERSION,
+                  mode: "view",
+                })
+              }
+              className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-all shadow-sm cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-[#5865f2]" />
+              <span>
+                {t("settings:updates.viewChangelog", "查看更新公告")}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleCheckForUpdates}
+              disabled={isChecking || isDownloading}
+              className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-xs font-bold bg-[#5865f2] hover:bg-[#4752c4] disabled:opacity-50 text-white transition-all shadow-md cursor-pointer"
+            >
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${isChecking ? "animate-spin" : ""}`}
+              />
+              <span>
+                {isChecking
+                  ? t("settings:updates.checking", "正在检测更新...")
+                  : t("settings:updates.checkUpdates", "检查更新")}
+              </span>
+            </button>
+          </div>
         </div>
 
         {/* 仓库绑定状态与构建信息 */}

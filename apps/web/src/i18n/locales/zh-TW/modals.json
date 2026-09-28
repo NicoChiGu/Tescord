@@ -238,5 +238,37 @@
     "description": "拖曳以平移取景位置，滑動滑桿調整縮放大小。",
     "confirmBtn": "確認並上傳",
     "previewAlt": "圖示裁剪預覽"
+  },
+  "whatsNew": {
+    "title": "更新公告與新功能",
+    "subtitle": "探索 Tescord 的最新特性、效能提升與改進",
+    "versionBadge": "版本 v{{version}}",
+    "releasedOn": "發布於 {{date}}",
+    "categories": {
+      "features": "新增功能",
+      "improvements": "體驗優化",
+      "fixes": "問題修復"
+    },
+    "actions": {
+      "gotIt": "我知道了",
+      "restartNow": "立即重啟並套用更新",
+      "later": "稍後",
+      "viewFullReleases": "在 GitHub 查看完整發行日誌"
+    },
+    "emptyNotice": "目前版本暫無可展示的更新說明條目。",
+    "items": {
+      "v0_2_0_livekit_title": "多引擎低延遲音視訊閘道",
+      "v0_2_0_livekit_desc": "無縫整合 LiveKit 與 Cloudflare Realtime，支援高品質低延遲多人語音連線與高畫質螢幕分享。",
+      "v0_2_0_rnnoise_title": "RNNoise 神經網路即時降噪",
+      "v0_2_0_rnnoise_desc": "基於 AudioWorklet 隔離執行緒驅動深度神經網路，在毫秒級無損消除鍵盤敲擊聲與風扇雜音。",
+      "v0_2_0_i18n_title": "全域 5 種語言無感熱切換",
+      "v0_2_0_i18n_desc": "全站嚴格對齊簡體中文、繁體中文（台灣/香港）、英語及日本語，零硬編碼文案。",
+      "v0_2_0_updater_title": "雙軌增量熱更新與 gh-proxy 加速",
+      "v0_2_0_updater_desc": "支援前端與宿主殼解耦更新，配合三級代理階梯加速直連 GitHub Releases。",
+      "v0_2_0_perf_title": "虛擬長列表與本地 SQLite 效能調優",
+      "v0_2_0_perf_desc": "海量聊天訊息毫秒級載入與極速全文檢索，顯著降低記憶體與 CPU 負載。",
+      "v0_2_0_fix_audio_title": "修復裝置切換與聲道重置異常",
+      "v0_2_0_fix_audio_desc": "優化多音效卡環境下的裝置拔插響應，杜絕音效卡混音與資源洩漏問題。"
+    }
   }
 }

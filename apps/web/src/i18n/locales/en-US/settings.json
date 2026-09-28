@@ -227,7 +227,8 @@
     "checkError": "Failed to check for updates",
     "applyFailed": "Failed to apply delta update",
     "downloadDeltaFailed": "Failed to download delta update",
-    "invalidProxy": "Invalid proxy URL"
+    "invalidProxy": "Invalid proxy URL",
+    "viewChangelog": "What's New in this version"
   },
   "securityAndPasskeysTab": "Security & Passkeys",
   "securityAndPasskeysTitle": "Account Security & Passkeys",

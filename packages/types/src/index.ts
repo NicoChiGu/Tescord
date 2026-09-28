@@ -3620,3 +3620,35 @@ export const STORAGE_IPC_CHANNELS = {
 
 export type StorageIpcChannel =
   (typeof STORAGE_IPC_CHANNELS)[keyof typeof STORAGE_IPC_CHANNELS];
+
+// ==========================================
+// 更新公告与发布日志 (What's New / Changelogs)
+// ==========================================
+
+export type ChangelogCategory = "features" | "improvements" | "fixes";
+
+export interface ChangelogItem {
+  id: string;
+  category: ChangelogCategory;
+  titleKey?: string; // i18n 翻译键名
+  rawTitle?: string; // 兜底或直接渲染标题
+  descriptionKey?: string; // i18n 翻译键名
+  rawDescription?: string; // 兜底或直接渲染描述
+}
+
+export interface VersionChangelog {
+  version: string; // 如 "0.2.0"
+  releaseDate: string; // ISO 日期或格式化日期如 "2026-09-29"
+  items: ChangelogItem[];
+  bannerGradient?: string;
+  releaseUrl?: string;
+}
+
+export type WhatsNewModalMode = "view" | "ready_to_restart";
+
+export interface WhatsNewModalOptions {
+  version?: string;
+  mode?: WhatsNewModalMode;
+  changelogOverride?: string;
+  onRestartApply?: () => void | Promise<void>;
+}

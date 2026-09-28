@@ -142,6 +142,7 @@
     "readyDesc": "免安裝增量更新已在背景下載完畢，點擊重啟即可秒級載入新特性！",
     "restartNow": "立即重啟",
     "nextTime": "下次啟動生效",
-    "dismiss": "關閉提醒"
+    "dismiss": "關閉提醒",
+    "viewDetails": "查看更新內容"
   }
 }

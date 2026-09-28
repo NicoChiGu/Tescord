@@ -227,7 +227,8 @@
     "checkError": "更新检查遇到异常",
     "applyFailed": "增量更新应用失败",
     "downloadDeltaFailed": "下载增量更新失败",
-    "invalidProxy": "代理地址无效"
+    "invalidProxy": "代理地址无效",
+    "viewChangelog": "查看更新公告"
   },
   "securityAndPasskeysTab": "账号安全与通行密钥",
   "securityAndPasskeysTitle": "账号安全与通行密钥",

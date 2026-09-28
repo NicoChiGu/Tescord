@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Sparkles, RotateCw, X } from "lucide-react";
+import { useWhatsNewStore } from "../../stores/useWhatsNewStore.js";
 
 export const UpdateNotificationBanner: React.FC = () => {
   const { t } = useTranslation(["common"]);
   const [readyVersion, setReadyVersion] = useState<string | null>(null);
   const [isDismissed, setIsDismissed] = useState<boolean>(false);
+  const openWhatsNew = useWhatsNewStore((s) => s.openWhatsNew);
 
   useEffect(() => {
     if (!window.electronAPI?.updater) return;
@@ -28,6 +30,14 @@ export const UpdateNotificationBanner: React.FC = () => {
     await window.electronAPI?.updater?.restartToApply();
   };
 
+  const handleViewDetails = () => {
+    openWhatsNew({
+      version: readyVersion,
+      mode: "ready_to_restart",
+      onRestartApply: handleRestart,
+    });
+  };
+
   return (
     <div className="fixed bottom-5 right-5 z-50 animate-bounce-in max-w-sm rounded-2xl bg-[#2b2d31]/95 backdrop-blur-md border border-[#5865f2]/40 shadow-2xl p-4 text-white">
       <div className="flex items-start gap-3">
@@ -44,7 +54,7 @@ export const UpdateNotificationBanner: React.FC = () => {
           <div className="text-[11px] text-gray-300 mt-1 leading-relaxed">
             {t("common:updater.readyDesc")}
           </div>
-          <div className="flex items-center gap-2 mt-3">
+          <div className="flex flex-wrap items-center gap-2 mt-3">
             <button
               type="button"
               onClick={handleRestart}
@@ -52,6 +62,14 @@ export const UpdateNotificationBanner: React.FC = () => {
             >
               <RotateCw className="w-3.5 h-3.5" />
               <span>{t("common:updater.restartNow")}</span>
+            </button>
+            <button
+              type="button"
+              data-testid="banner-view-changelog-btn"
+              onClick={handleViewDetails}
+              className="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+            >
+              <span>{t("common:updater.viewDetails", "查看更新内容")}</span>
             </button>
             <button
               type="button"

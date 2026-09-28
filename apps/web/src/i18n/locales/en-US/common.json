@@ -142,6 +142,7 @@
     "readyDesc": "The portable delta update has finished downloading in the background. Click restart to apply new features instantly!",
     "restartNow": "Restart Now",
     "nextTime": "Apply on next launch",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "viewDetails": "View Details"
   }
 }

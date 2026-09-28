@@ -218,11 +218,18 @@ if (typeof window !== "undefined") {
   window.electronAPI?.syncLocale?.(initialLang);
 }
 
-/**
- * 切换系统语言全局辅助方法
- */
 export async function changeLocale(locale: SupportedLocale): Promise<void> {
   await i18n.changeLanguage(locale);
+}
+
+if (typeof window !== "undefined") {
+  (window as any).i18n = i18n;
+  (window as any).changeLocale = changeLocale;
+  window.addEventListener("tescord:switch-locale", (e: any) => {
+    if (e.detail?.locale) {
+      changeLocale(e.detail.locale);
+    }
+  });
 }
 
 /**

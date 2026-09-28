@@ -143,6 +143,7 @@
     "readyDesc": "免安装增量更新已在后台下载完毕，点击重启即可秒级载入新特性！",
     "restartNow": "立即重启",
     "nextTime": "下次启动生效",
-    "dismiss": "关闭提醒"
+    "dismiss": "关闭提醒",
+    "viewDetails": "查看更新内容"
   }
 }
