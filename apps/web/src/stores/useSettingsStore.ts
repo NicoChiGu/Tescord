@@ -7,7 +7,9 @@ import {
   SupportedLocale,
   VoiceTransmissionMode,
   ChannelMuteConfig,
+  GuildNotificationSettings,
   isChannelMuted as checkIsChannelMuted,
+  isGuildMuted as checkIsGuildMuted,
 } from "@tescord/types";
 import { API_BASE } from "../config.js";
 import { useAuthStore } from "./useAuthStore.js";
@@ -21,6 +23,8 @@ interface SettingsState extends UserSettingsDTO {
   userNotes: Record<string, string>;
   pinnedDMs: string[];
   mutedUsers: Record<string, number>;
+  mutedGuilds: Record<string, ChannelMuteConfig>;
+  guildNotificationSettings: Record<string, GuildNotificationSettings>;
 
   // Actions
   setAudioConfig: (partial: Partial<AudioProcessingConfig>) => void;
@@ -33,6 +37,14 @@ interface SettingsState extends UserSettingsDTO {
   setChannelMute: (channelId: string, durationMs: number | null) => void;
   unmuteChannel: (channelId: string) => void;
   isChannelMuted: (channelId: string) => boolean;
+  setGuildMute: (guildId: string, durationMs: number | null) => void;
+  unmuteGuild: (guildId: string) => void;
+  isGuildMuted: (guildId: string) => boolean;
+  setGuildNotificationSettings: (
+    guildId: string,
+    settings: Partial<GuildNotificationSettings>,
+  ) => void;
+  getGuildNotificationSettings: (guildId: string) => GuildNotificationSettings;
   setGuildPositions: (positions: string[]) => void;
   pinDM: (channelId: string) => void;
   unpinDM: (channelId: string) => void;
@@ -70,6 +82,13 @@ const DEFAULT_VIDEO_CONFIG: VideoSettingsConfig = {
   enableBackupCodec: true,
 };
 
+export const DEFAULT_GUILD_NOTIFICATION_SETTINGS: GuildNotificationSettings =
+  Object.freeze({
+    mode: "ALL",
+    suppressEveryone: false,
+    suppressRoles: false,
+  });
+
 let syncTimer: any = null;
 
 export const useSettingsStore = create<SettingsState>()(
@@ -82,6 +101,8 @@ export const useSettingsStore = create<SettingsState>()(
       language: (i18n.language as SupportedLocale) || "zh-CN",
       voiceTransmissionMode: "sfu",
       mutedChannels: {},
+      mutedGuilds: {},
+      guildNotificationSettings: {},
       guildPositions: [],
       userNotes: {},
       pinnedDMs: [],
@@ -189,6 +210,59 @@ export const useSettingsStore = create<SettingsState>()(
       isChannelMuted: (channelId) => {
         const config = get().mutedChannels?.[channelId];
         return checkIsChannelMuted(config);
+      },
+
+      setGuildMute: (guildId, durationMs) => {
+        const mutedUntil = durationMs ? Date.now() + durationMs : null;
+        set((state) => ({
+          mutedGuilds: {
+            ...(state.mutedGuilds || {}),
+            [guildId]: {
+              muted: true,
+              mutedUntil,
+            },
+          },
+        }));
+        get().syncToCloud();
+      },
+
+      unmuteGuild: (guildId) => {
+        set((state) => {
+          const updated = { ...(state.mutedGuilds || {}) };
+          delete updated[guildId];
+          return { mutedGuilds: updated };
+        });
+        get().syncToCloud();
+      },
+
+      isGuildMuted: (guildId) => {
+        const config = get().mutedGuilds?.[guildId];
+        return checkIsGuildMuted(config);
+      },
+
+      setGuildNotificationSettings: (guildId, partial) => {
+        set((state) => {
+          const current =
+            state.guildNotificationSettings?.[guildId] ||
+            DEFAULT_GUILD_NOTIFICATION_SETTINGS;
+          return {
+            guildNotificationSettings: {
+              ...(state.guildNotificationSettings || {}),
+              [guildId]: {
+                ...current,
+                ...partial,
+              },
+            },
+          };
+        });
+        get().syncToCloud();
+      },
+
+      getGuildNotificationSettings: (guildId) => {
+        return (
+          get().guildNotificationSettings?.[guildId] ||
+          DEFAULT_GUILD_NOTIFICATION_SETTINGS
+        );
       },
 
       setGuildPositions: (positions: string[]) => {
@@ -302,6 +376,14 @@ export const useSettingsStore = create<SettingsState>()(
                   ...state.mutedChannels,
                   ...(cloudSettings.mutedChannels || {}),
                 },
+                mutedGuilds: {
+                  ...state.mutedGuilds,
+                  ...(cloudSettings.mutedGuilds || {}),
+                },
+                guildNotificationSettings: {
+                  ...state.guildNotificationSettings,
+                  ...(cloudSettings.guildNotificationSettings || {}),
+                },
                 guildPositions: Array.isArray(cloudSettings.guildPositions)
                   ? cloudSettings.guildPositions
                   : state.guildPositions,
@@ -365,6 +447,8 @@ export const useSettingsStore = create<SettingsState>()(
             language: state.language,
             voiceTransmissionMode: state.voiceTransmissionMode,
             mutedChannels: state.mutedChannels,
+            mutedGuilds: state.mutedGuilds,
+            guildNotificationSettings: state.guildNotificationSettings,
             guildPositions: state.guildPositions,
             userNotes: state.userNotes,
             pinnedDMs: state.pinnedDMs,

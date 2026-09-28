@@ -4,6 +4,7 @@ import { Guild } from "@tescord/types";
 import { MessageSquare, Plus, Compass, ShieldAlert } from "lucide-react";
 import { resolveServerUrl } from "../config.js";
 import { ServerContextMenu } from "./context-menu/ServerContextMenu.js";
+import { ServerListContextMenu } from "./context-menu/ServerListContextMenu.js";
 import {
   DndContext,
   closestCenter,
@@ -233,7 +234,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
   };
 
   return (
-    <aside className="w-[72px] h-full bg-discord-sidebar flex flex-col items-center py-3 space-y-2 select-none z-20 shrink-0">
+    <ServerListContextMenu
+      onCreateGuild={onOpenCreateGuild}
+      onJoinGuild={onOpenJoinGuild}
+    >
+      <aside
+        data-testid="servers-sidebar"
+        className="w-[72px] h-full bg-discord-sidebar flex flex-col items-center py-3 space-y-2 select-none z-20 shrink-0"
+      >
       {/* 私信 / 首页 */}
       <div className="relative shrink-0 flex items-center justify-center w-full">
         <button
@@ -358,5 +366,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
       </div>
     </aside>
+    </ServerListContextMenu>
   );
 };

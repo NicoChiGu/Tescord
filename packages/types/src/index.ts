@@ -1109,6 +1109,65 @@ export function isChannelMuted(config?: ChannelMuteConfig | null): boolean {
   return Date.now() < config.mutedUntil;
 }
 
+// 服务器通知设定模式
+export type GuildNotificationMode = "ALL" | "MENTIONS" | "NOTHING";
+
+// 服务器通知设定项
+export interface GuildNotificationSettings {
+  mode: GuildNotificationMode;
+  suppressEveryone?: boolean;
+  suppressRoles?: boolean;
+}
+
+// 服务器静音预设时长选项与常量
+export const GUILD_MUTE_DURATION_OPTIONS: MuteDurationOption[] = [
+  {
+    label: "15 分钟",
+    durationMs: 15 * 60 * 1000,
+    i18nKey: "contextMenu:channel.mute15m",
+  },
+  {
+    label: "1 小时",
+    durationMs: 60 * 60 * 1000,
+    i18nKey: "contextMenu:channel.mute1h",
+  },
+  {
+    label: "3 小时",
+    durationMs: 3 * 60 * 60 * 1000,
+    i18nKey: "contextMenu:channel.mute3h",
+  },
+  {
+    label: "8 小时",
+    durationMs: 8 * 60 * 60 * 1000,
+    i18nKey: "contextMenu:channel.mute8h",
+  },
+  {
+    label: "24 小时",
+    durationMs: 24 * 60 * 60 * 1000,
+    i18nKey: "contextMenu:channel.mute24h",
+  },
+  {
+    label: "直到重新开启",
+    durationMs: null,
+    i18nKey: "contextMenu:channel.muteUntilTurnedOn",
+  },
+];
+
+/**
+ * 判定服务器配置当前是否处于有效静音状态（毫秒级判断）
+ */
+export function isGuildMuted(config?: ChannelMuteConfig | null): boolean {
+  if (!config || !config.muted) return false;
+  if (
+    config.mutedUntil === null ||
+    config.mutedUntil === undefined ||
+    config.mutedUntil === -1
+  ) {
+    return true;
+  }
+  return Date.now() < config.mutedUntil;
+}
+
 // 用户全量偏好设置 DTO (支持本地 Zustand Persist 持久化与后端云端漫游)
 export interface UserSettingsDTO {
   audio: AudioProcessingConfig;
@@ -1118,6 +1177,8 @@ export interface UserSettingsDTO {
   language?: SupportedLocale; // 用户界面多语言首选项
   voiceTransmissionMode?: VoiceTransmissionMode; // 纯语音偏好模式 (默认 sfu)
   mutedChannels?: Record<string, ChannelMuteConfig>; // 频道静音配置项字典 (key 为 channelId)
+  mutedGuilds?: Record<string, ChannelMuteConfig>; // 服务器静音配置字典 (key 为 guildId)
+  guildNotificationSettings?: Record<string, GuildNotificationSettings>; // 服务器通知设定字典 (key 为 guildId)
   guildPositions?: string[]; // 用户个人服务器排序偏好列表 (guildId 顺序)
   userNotes?: Record<string, string>; // 针对特定目标用户的私有备注字典 (targetUserId -> note)
   pinnedDMs?: string[]; // 置顶的私信会话 ID 列表

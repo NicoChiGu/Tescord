@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { Message, Guild } from "@tescord/types";
 import { usePermissions } from "../../hooks/usePermissions.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
@@ -30,10 +31,18 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
   onTogglePin,
   onAddReaction,
 }) => {
+  const { t } = useTranslation(["contextMenu", "chat", "common"]);
   const { user: currentUser } = useAuthStore();
   const { canManageMessages } = usePermissions(guild);
   const [copiedText, setCopiedText] = useState(false);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      setIsConfirmingDelete(false);
+    }
+  }, [isOpen]);
 
   if (!isOpen || !message) return null;
 
@@ -56,6 +65,15 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
 
   const handleReactionClick = (emoji: string) => {
     onAddReaction?.(message.id, emoji);
+    onClose();
+  };
+
+  const handleDeleteClick = () => {
+    if (!isConfirmingDelete) {
+      setIsConfirmingDelete(true);
+      return;
+    }
+    onDelete?.(message.id);
     onClose();
   };
 
@@ -102,7 +120,7 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
             <button
               onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
               className="w-10 h-10 flex items-center justify-center text-discord-textMuted hover:text-white hover:bg-[#35373c] rounded-lg transition"
-              title="更多表情"
+              title={t("contextMenu:moreReactions", "更多表情")}
             >
               <Smile className="w-5 h-5" />
             </button>
@@ -128,7 +146,9 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
               className="w-full flex items-center space-x-3 px-4 py-3.5 text-discord-textNormal hover:bg-[#35373c] active:bg-discord-brand active:text-white transition"
             >
               <Reply className="w-5 h-5 text-discord-textMuted" />
-              <span className="text-sm font-medium">引用回复</span>
+              <span className="text-sm font-medium">
+                {t("contextMenu:quoteReply", "引用回复")}
+              </span>
             </button>
           )}
 
@@ -141,7 +161,9 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
               className="w-full flex items-center space-x-3 px-4 py-3.5 text-discord-textNormal hover:bg-[#35373c] active:bg-discord-brand active:text-white transition"
             >
               <Edit2 className="w-5 h-5 text-discord-textMuted" />
-              <span className="text-sm font-medium">编辑消息</span>
+              <span className="text-sm font-medium">
+                {t("contextMenu:editMessage", "编辑消息")}
+              </span>
             </button>
           )}
 
@@ -161,7 +183,9 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
                 }`}
               />
               <span className="text-sm font-medium">
-                {message.isPinned ? "取消置顶" : "置顶该消息"}
+                {message.isPinned
+                  ? t("contextMenu:unpinMessage", "取消置顶")
+                  : t("contextMenu:pinMessage", "置顶该消息")}
               </span>
             </button>
           )}
@@ -176,20 +200,27 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
               <Copy className="w-5 h-5 text-discord-textMuted" />
             )}
             <span className="text-sm font-medium">
-              {copiedText ? "已复制到剪贴板" : "复制文字内容"}
+              {copiedText
+                ? t("common:copied", "已复制到剪贴板")
+                : t("contextMenu:copyText", "复制文字内容")}
             </span>
           </button>
 
           {canDelete && onDelete && (
             <button
-              onClick={() => {
-                onDelete(message.id);
-                onClose();
-              }}
-              className="w-full flex items-center space-x-3 px-4 py-3.5 text-discord-danger hover:bg-discord-danger/10 active:bg-discord-danger active:text-white transition"
+              onClick={handleDeleteClick}
+              className={`w-full flex items-center space-x-3 px-4 py-3.5 transition ${
+                isConfirmingDelete
+                  ? "bg-discord-danger text-white font-semibold"
+                  : "text-discord-danger hover:bg-discord-danger/10 active:bg-discord-danger active:text-white"
+              }`}
             >
               <Trash2 className="w-5 h-5" />
-              <span className="text-sm font-medium">删除 / 撤回此消息</span>
+              <span className="text-sm font-medium">
+                {isConfirmingDelete
+                  ? t("contextMenu:confirmDelete", "确认删除?")
+                  : t("contextMenu:deleteOrRecall", "删除 / 撤回此消息")}
+              </span>
             </button>
           )}
         </div>

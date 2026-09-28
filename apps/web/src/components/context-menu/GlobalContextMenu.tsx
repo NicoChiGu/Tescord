@@ -7,9 +7,8 @@ import {
 } from "../../stores/useContextMenuStore.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { usePermissions } from "../../hooks/usePermissions.js";
-import { livekitService } from "../../services/livekit.js";
-import { cloudflareRealtimeService } from "../../services/cloudflare_realtime/index.js";
-import { VOICE_ENGINE } from "../../config.js";
+import { useFriendStore } from "../../stores/useFriendStore.js";
+import { toast } from "../../stores/useToastStore.js";
 import {
   Reply,
   Pin,
@@ -20,9 +19,11 @@ import {
   User as UserIcon,
   MessageSquare,
   AtSign,
-  Volume2,
   ShieldAlert,
   UserX,
+  Phone,
+  UserPlus,
+  UserMinus,
 } from "lucide-react";
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🚀", "🎉"];
@@ -153,6 +154,7 @@ const MessageMenuItems: React.FC<MessageMenuItemsProps> = ({
 
   const isAuthor = currentUser?.id === message.authorId;
   const canDelete = isAuthor || canManageMessages;
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
   const handleCopyText = async () => {
     try {
@@ -304,14 +306,26 @@ const MessageMenuItems: React.FC<MessageMenuItemsProps> = ({
           <div
             role="menuitem"
             onClick={() => {
-              onDelete(message.id);
-              onClose();
+              if (!isConfirmingDelete) {
+                setIsConfirmingDelete(true);
+              } else {
+                onDelete(message.id);
+                onClose();
+              }
             }}
-            className="flex cursor-pointer select-none items-center rounded px-2 py-1.5 text-rose-400 hover:bg-rose-600 hover:text-white transition-colors"
+            className={`flex cursor-pointer select-none items-center rounded px-2 py-1.5 transition-colors ${
+              isConfirmingDelete
+                ? "bg-rose-600 text-white font-semibold"
+                : "text-rose-400 hover:bg-rose-600 hover:text-white"
+            }`}
           >
             <div className="flex items-center space-x-2">
               <Trash2 className="w-4 h-4" />
-              <span>{t("contextMenu:deleteMessage")}</span>
+              <span>
+                {isConfirmingDelete
+                  ? t("contextMenu:confirmDelete", "确认删除?")
+                  : t("contextMenu:deleteMessage")}
+              </span>
             </div>
           </div>
         </>
@@ -342,24 +356,47 @@ const UserMenuItems: React.FC<UserMenuItemsProps> = ({
     guild,
     onOpenProfile,
     onSendMessage,
+    onStartCall,
     onMention,
     onKickMember,
     onBanMember,
   } = data;
   const { canKickMembers, canBanMembers } = usePermissions(guild);
+  const { relationships, sendFriendRequest, removeRelationship } =
+    useFriendStore();
 
   const isMe = currentUser?.id === targetUser.id;
-  const [volume, setVolume] = useState<number>(() => {
-    if (!isMe) {
-      return (
-        (VOICE_ENGINE === "cloudflare_realtime"
-          ? cloudflareRealtimeService
-          : livekitService
-        ).getParticipantVolume(targetUser.id) ?? 100
-      );
+  const isFriend = relationships.some(
+    (r) => r.targetUserId === targetUser.id && r.type === "FRIEND",
+  );
+  const [isConfirmingRemoveFriend, setIsConfirmingRemoveFriend] =
+    useState(false);
+
+  const handleAddFriend = async () => {
+    try {
+      await sendFriendRequest(targetUser.username);
+      toast.success(t("contextMenu:addFriendSuccess", "已发送好友申请"));
+      onClose();
+    } catch (err: any) {
+      toast.error(err?.message || "发送好友申请失败");
+      onClose();
     }
-    return 100;
-  });
+  };
+
+  const handleRemoveFriend = async () => {
+    if (!isConfirmingRemoveFriend) {
+      setIsConfirmingRemoveFriend(true);
+      return;
+    }
+    try {
+      await removeRelationship(targetUser.id);
+      toast.info(t("contextMenu:removeFriend", "已移除好友"));
+      onClose();
+    } catch (err: any) {
+      toast.error(err?.message || "移除好友失败");
+      onClose();
+    }
+  };
 
   const handleCopyId = async () => {
     try {
@@ -373,12 +410,6 @@ const UserMenuItems: React.FC<UserMenuItemsProps> = ({
       console.error("Failed to copy user id:", e);
       onClose();
     }
-  };
-
-  const handleVolumeChange = (newVol: number) => {
-    setVolume(newVol);
-    livekitService.setParticipantVolume(targetUser.id, newVol);
-    cloudflareRealtimeService.setParticipantVolume(targetUser.id, newVol);
   };
 
   return (
@@ -403,6 +434,7 @@ const UserMenuItems: React.FC<UserMenuItemsProps> = ({
         </div>
       )}
 
+      {/* 传送消息 (发起私信) */}
       {!isMe && onSendMessage && (
         <div
           role="menuitem"
@@ -414,10 +446,61 @@ const UserMenuItems: React.FC<UserMenuItemsProps> = ({
         >
           <div className="flex items-center space-x-2">
             <MessageSquare className="w-4 h-4 text-discord-textMuted" />
-            <span>{t("contextMenu:sendMessage")}</span>
+            <span>{t("contextMenu:sendMessage", "传送消息")}</span>
           </div>
         </div>
       )}
+
+      {/* 开始通话 */}
+      {!isMe && onStartCall && (
+        <div
+          role="menuitem"
+          onClick={() => {
+            onStartCall(targetUser.id);
+            onClose();
+          }}
+          className="flex cursor-pointer select-none items-center rounded px-2 py-1.5 hover:bg-discord-brand hover:text-white transition-colors"
+        >
+          <div className="flex items-center space-x-2">
+            <Phone className="w-4 h-4 text-discord-textMuted" />
+            <span>{t("contextMenu:startCall", "开始通话")}</span>
+          </div>
+        </div>
+      )}
+
+      {/* 好友管理：新增好友 / 移除好友（双确认） */}
+      {!isMe &&
+        (isFriend ? (
+          <div
+            role="menuitem"
+            onClick={handleRemoveFriend}
+            className={`flex cursor-pointer select-none items-center rounded px-2 py-1.5 transition-colors ${
+              isConfirmingRemoveFriend
+                ? "bg-rose-600 text-white font-semibold"
+                : "text-rose-400 hover:bg-rose-600 hover:text-white"
+            }`}
+          >
+            <div className="flex items-center space-x-2">
+              <UserMinus className="w-4 h-4" />
+              <span>
+                {isConfirmingRemoveFriend
+                  ? t("contextMenu:confirmDelete", "确认移除?")
+                  : t("contextMenu:removeFriend", "移除好友")}
+              </span>
+            </div>
+          </div>
+        ) : (
+          <div
+            role="menuitem"
+            onClick={handleAddFriend}
+            className="flex cursor-pointer select-none items-center rounded px-2 py-1.5 hover:bg-discord-brand hover:text-white transition-colors"
+          >
+            <div className="flex items-center space-x-2">
+              <UserPlus className="w-4 h-4 text-discord-textMuted" />
+              <span>{t("contextMenu:addFriend", "新增好友")}</span>
+            </div>
+          </div>
+        ))}
 
       {onMention && (
         <div
@@ -432,27 +515,6 @@ const UserMenuItems: React.FC<UserMenuItemsProps> = ({
             <AtSign className="w-4 h-4 text-discord-textMuted" />
             <span>{t("contextMenu:mentionUser")}</span>
           </div>
-        </div>
-      )}
-
-      {/* 用户音量调节滑块 */}
-      {!isMe && (
-        <div className="px-2 py-1.5">
-          <div className="flex items-center justify-between text-[11px] text-discord-textMuted mb-1">
-            <span className="flex items-center space-x-1">
-              <Volume2 className="w-3.5 h-3.5" />
-              <span>{t("contextMenu:userVolume")}</span>
-            </span>
-            <span>{volume}%</span>
-          </div>
-          <input
-            type="range"
-            min="0"
-            max="200"
-            value={volume}
-            onChange={(e) => handleVolumeChange(Number(e.target.value))}
-            className="w-full h-1 bg-[#4e5058] rounded-lg appearance-none cursor-pointer accent-discord-brand"
-          />
         </div>
       )}
 

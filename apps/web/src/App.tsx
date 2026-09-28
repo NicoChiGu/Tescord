@@ -4553,6 +4553,7 @@ export const App: React.FC = () => {
             }
             onStartCall={handleStartCall}
             onStartDM={handleStartDM}
+            onStartDMCall={handleStartCallFromFriend}
             callEncryption={
               activeDMCall?.channelId === selectedChannel.id
                 ? callEncryption
@@ -4596,6 +4597,7 @@ export const App: React.FC = () => {
                 currentUser={currentUser}
                 onSendMessage={handleSendMessage}
                 onStartDM={handleStartDM}
+                onStartCall={handleStartCallFromFriend}
                 onOpenUserSettings={() => handleOpenUserSettings("profile")}
                 onMention={(username) => {
                   window.dispatchEvent(
@@ -4658,6 +4660,7 @@ export const App: React.FC = () => {
                   currentUser={currentUser}
                   onSendMessage={handleSendMessage}
                   onStartDM={handleStartDM}
+                  onStartCall={handleStartCallFromFriend}
                   onOpenUserSettings={() => handleOpenUserSettings("profile")}
                   onMention={(username) => {
                     window.dispatchEvent(

@@ -40,6 +40,7 @@ import {
   Video,
   PhoneOff,
   UploadCloud,
+  MoreHorizontal,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -94,6 +95,7 @@ interface ChatAreaProps {
   onToggleMobileMemberList?: () => void;
   onStartCall?: (channelId: string, hasVideo: boolean) => void;
   onStartDM?: (userId: string) => void;
+  onStartDMCall?: (targetUserId: string) => void;
   callEncryption?: {
     status: "idle" | "negotiating" | "tofu" | "trusted" | "failed";
     fingerprint?: string;
@@ -124,6 +126,10 @@ interface ChatMessageItemProps {
   onMentionUser?: (username: string) => void;
   onOpenProfile?: (author: Message["author"], rect: DOMRect) => void;
   onOpenProfileByName?: (username: string, rect: DOMRect) => void;
+  onStartDM?: (userId: string) => void;
+  onStartDMCall?: (targetUserId: string) => void;
+  selectedMessageId?: string | null;
+  onSelectMessage?: (messageId: string | null) => void;
   isHighlighted?: boolean;
   onJumpToMessage?: (messageId: string) => void;
 }
@@ -154,6 +160,10 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
   onMentionUser,
   onOpenProfile,
   onOpenProfileByName,
+  onStartDM,
+  onStartDMCall,
+  selectedMessageId,
+  onSelectMessage,
   isHighlighted,
   onJumpToMessage,
 }) => {
@@ -206,8 +216,33 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
       .trim();
   }, [resolvedContent, inviteCodes]);
 
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const resetDeleteConfirm = () => {
+    if (deleteTimerRef.current) {
+      clearTimeout(deleteTimerRef.current);
+      deleteTimerRef.current = null;
+    }
+    setIsConfirmingDelete(false);
+  };
+
+  const handleDeleteClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isConfirmingDelete) {
+      setIsConfirmingDelete(true);
+      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+      deleteTimerRef.current = setTimeout(resetDeleteConfirm, 3000);
+    } else {
+      resetDeleteConfirm();
+      onDeleteMessage?.(msg.id);
+    }
+  };
+
+  const isSelectedOnMobile = isMobile && selectedMessageId === msg.id;
+
   const longPressProps = useLongPress(() => {
-    if (isTouchDevice) {
+    if (isTouchDevice && !isMobile) {
       onOpenMobileActions(msg);
     }
   });
@@ -233,6 +268,8 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
       targetUser: msg.author,
       guild,
       onMention: onMentionUser,
+      onSendMessage: onStartDM ? (uid) => onStartDM(uid) : undefined,
+      onStartCall: onStartDMCall ? (uid) => onStartDMCall(uid) : undefined,
       onOpenProfile: () => {
         onOpenProfile?.(
           msg.author,
@@ -246,7 +283,18 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
     <div
       id={`message-${msg.id}`}
       data-message-id={msg.id}
-      {...longPressProps}
+      data-message-item={msg.id}
+      {...(isMobile ? {} : longPressProps)}
+      onClick={(e) => {
+        if (!isMobile) return;
+        if (
+          (e.target as HTMLElement).closest(
+            "a, button, img, [role='button'], input, textarea",
+          )
+        )
+          return;
+        onSelectMessage?.(isSelectedOnMobile ? null : msg.id);
+      }}
       onContextMenu={handleContextMenu}
       className={`relative flex flex-col group -mx-2 sm:-mx-4 px-2 sm:px-4 py-1.5 rounded transition ${
         isHighlighted ? "animate-message-highlight" : ""
@@ -255,7 +303,9 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
           ? "bg-discord-brand/5 border-l-2 border-yellow-500/80"
           : isHighlighted
             ? ""
-            : "hover:bg-[#2e3035]"
+            : isSelectedOnMobile
+              ? "bg-[#2e3035]/60 ring-1 ring-discord-brand/40"
+              : "hover:bg-[#2e3035]"
       }`}
     >
       {/* 引用回复提示条 */}
@@ -413,12 +463,17 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
         </div>
       </div>
 
-      {/* 桌面端悬浮操作菜单条 (右上角浮出快捷工具栏) */}
       {/* 桌面端悬浮操作菜单条 (右上角浮出快捷工具栏，鼠标悬停时展示) */}
-      <div className="absolute right-4 -top-3 hidden md:group-hover:flex items-center bg-[#313338] border border-[#2b2d31] rounded-md shadow-md overflow-hidden z-10">
+      <div
+        data-testid="message-floating-bar"
+        className={`absolute right-4 -top-3 ${
+          isEmojiPickerOpen ? "flex" : "hidden md:group-hover:flex"
+        } items-center bg-[#313338] border border-[#2b2d31] rounded-md shadow-md z-20`}
+      >
         {/* Emoji 表情快捷气泡 */}
         <div className="relative">
           <button
+            data-testid="btn-add-reaction"
             onClick={() => onToggleEmojiPicker(msg.id)}
             className="p-1.5 hover:bg-discord-hover text-discord-textMuted hover:text-discord-textHeader transition"
             title="添加表情反应"
@@ -454,28 +509,49 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
           <Pin className="w-4 h-4" />
         </button>
 
+        {/* 撤回/删除消息：首次点击变为 ICON+确认删除，带滚动进出动画，3秒自动回退 */}
         {(isMe ||
           currentUser.username === "admin" ||
           currentUser.username === "Jackey") && (
           <button
-            onClick={() => onDeleteMessage?.(msg.id)}
-            className="p-1.5 hover:bg-red-500/20 text-discord-textMuted hover:text-red-400 transition"
+            data-testid="btn-delete-message"
+            onClick={handleDeleteClick}
+            onMouseLeave={resetDeleteConfirm}
+            className={`flex items-center p-1.5 rounded transition-all duration-200 overflow-hidden ${
+              isConfirmingDelete
+                ? "bg-red-500/20 text-red-400 px-2"
+                : "hover:bg-red-500/20 text-discord-textMuted hover:text-red-400"
+            }`}
             title="撤回/删除消息"
           >
-            <Trash2 className="w-4 h-4" />
+            <Trash2 className="w-4 h-4 shrink-0" />
+            <span
+              className={`whitespace-nowrap text-xs font-semibold overflow-hidden transition-all duration-300 ease-out ${
+                isConfirmingDelete
+                  ? "max-w-[70px] ml-1 opacity-100 translate-x-0"
+                  : "max-w-0 ml-0 opacity-0 translate-x-2 pointer-events-none"
+              }`}
+            >
+              确认删除?
+            </span>
           </button>
         )}
       </div>
 
-      {/* 移动端与平板触控专属：轻触快捷操作按钮 (在手机与平板均可直接点按唤出) */}
-      <button
-        type="button"
-        onClick={() => onOpenMobileActions(msg)}
-        className="lg:hidden absolute right-2 top-2 p-1.5 text-discord-textMuted/50 hover:text-white rounded-lg active:bg-[#35373c] transition"
-        title="快捷操作面板"
-      >
-        <Smile className="w-4 h-4" />
-      </button>
+      {/* 移动端专属：单击激活选中态后，在右上角显现【...】按钮 */}
+      {isMobile && isSelectedOnMobile && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenMobileActions(msg);
+          }}
+          className="lg:hidden absolute right-2 top-2 p-1.5 bg-[#313338] text-white border border-[#3f4147] rounded-md shadow-md active:bg-[#35373c] transition z-10 animate-fade-in"
+          title="更多"
+        >
+          <MoreHorizontal className="w-4 h-4" />
+        </button>
+      )}
     </div>
   );
 };
@@ -539,6 +615,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   onToggleMobileMemberList,
   onStartCall,
   onStartDM,
+  onStartDMCall,
   callEncryption,
   onMarkChannelAsRead,
   onReloadLatestMessages,
@@ -552,6 +629,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   const isCompact = !isDesktop;
   const [mobileActionMessage, setMobileActionMessage] =
     useState<Message | null>(null);
+  const [selectedMobileMsgId, setSelectedMobileMsgId] = useState<string | null>(
+    null,
+  );
   const [inputText, setInputText] = useState<string>(
     () => channelDraftMap.get(channel.id) || "",
   );
@@ -564,6 +644,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     setReplyingTo(null);
     setPendingAttachments([]);
     setSearchQuery("");
+    setSelectedMobileMsgId(null);
   }, [channel.id]);
   const { togglePopout } = useUserProfilePopoutStore();
   const { userNotes } = useSettingsStore();
@@ -2260,6 +2341,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                       isMobile={isMobile}
                       isTablet={isTablet}
                       isTouch={isTouch}
+                      selectedMessageId={selectedMobileMsgId}
+                      onSelectMessage={setSelectedMobileMsgId}
+                      onStartDM={onStartDM}
+                      onStartDMCall={onStartDMCall}
                       isEmojiPickerOpen={activeEmojiPickerMsgId === msg.id}
                       onToggleEmojiPicker={handleToggleEmojiPicker}
                       onCloseEmojiPicker={handleCloseEmojiPicker}

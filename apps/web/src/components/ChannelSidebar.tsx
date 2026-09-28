@@ -163,6 +163,7 @@ interface SortableChannelItemProps {
   onOpenSettings: () => void;
   onKickMember?: (userId: string, username: string) => void;
   onBanMember?: (userId: string, username: string) => void;
+  onCancelDrag?: () => void;
 }
 
 const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
@@ -189,11 +190,75 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
   onOpenSettings,
   onKickMember,
   onBanMember,
+  onCancelDrag,
 }) => {
   const isSelected = selectedChannelId === channel.id;
   const isConnected = activeVoiceChannelId === channel.id;
   const isVoice = channel.type === "VOICE";
   const isChannelMuted = useSettingsStore((s) => s.isChannelMuted(channel.id));
+
+  // 触屏长按 1.5 秒且位移不超过 8px 时呼出菜单并锁定拖拽
+  const touchStartPosRef = React.useRef<{ x: number; y: number } | null>(null);
+  const touchTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isDragLocked, setIsDragLocked] = React.useState(false);
+  const itemContainerRef = React.useRef<HTMLDivElement | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
+
+    if (touchTimerRef.current) clearTimeout(touchTimerRef.current);
+    touchTimerRef.current = setTimeout(() => {
+      if (touchStartPosRef.current) {
+        setIsDragLocked(true);
+        onCancelDrag?.();
+        if (typeof navigator !== "undefined" && navigator.vibrate) {
+          navigator.vibrate(40);
+        }
+        const elem = itemContainerRef.current;
+        if (elem) {
+          const evt = new MouseEvent("contextmenu", {
+            bubbles: true,
+            cancelable: true,
+            view: window,
+            clientX: touchStartPosRef.current.x,
+            clientY: touchStartPosRef.current.y,
+            button: 2,
+          });
+          elem.dispatchEvent(evt);
+        }
+      }
+    }, 1500);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartPosRef.current || e.touches.length !== 1) return;
+    const touch = e.touches[0];
+    const dist = Math.hypot(
+      touch.clientX - touchStartPosRef.current.x,
+      touch.clientY - touchStartPosRef.current.y,
+    );
+    if (dist > 8) {
+      if (touchTimerRef.current) {
+        clearTimeout(touchTimerRef.current);
+        touchTimerRef.current = null;
+      }
+    }
+  };
+
+  const handleTouchEndOrCancel = () => {
+    if (touchTimerRef.current) {
+      clearTimeout(touchTimerRef.current);
+      touchTimerRef.current = null;
+    }
+    touchStartPosRef.current = null;
+    if (isDragLocked) {
+      setTimeout(() => {
+        setIsDragLocked(false);
+      }, 100);
+    }
+  };
 
   const {
     attributes: { role: _role, tabIndex: _tabIndex, ...sortableAttributes },
@@ -205,7 +270,7 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
   } = useSortable({
     id: `chn_${channel.id}`,
     data: { type: "channel", channel },
-    disabled: !canManageChannels,
+    disabled: !canManageChannels || isDragLocked,
   });
 
   const style: React.CSSProperties = {
@@ -216,7 +281,18 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="space-y-[2px]">
+    <div
+      ref={(el) => {
+        setNodeRef(el);
+        itemContainerRef.current = el;
+      }}
+      style={style}
+      className="space-y-[2px]"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEndOrCancel}
+      onTouchCancel={handleTouchEndOrCancel}
+    >
       <ChannelContextMenu
         channel={channel}
         guild={guild}
@@ -227,8 +303,8 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
         onMarkAsRead={onMarkChannelAsRead}
       >
         <div
-          {...(canManageChannels ? sortableAttributes : {})}
-          {...(canManageChannels ? listeners : {})}
+          {...(canManageChannels && !isDragLocked ? sortableAttributes : {})}
+          {...(canManageChannels && !isDragLocked ? listeners : {})}
           data-channel-id={channel.id}
           className="relative group w-full flex items-center"
         >
@@ -687,8 +763,8 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
     }),
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 200,
-        tolerance: 5,
+        delay: 250,
+        tolerance: 8,
       },
     }),
   );
@@ -1081,6 +1157,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                       onOpenSettings={onOpenSettings}
                       onKickMember={onKickMember}
                       onBanMember={onBanMember}
+                      onCancelDrag={handleDragCancel}
                     />
                   ))}
                 </div>
@@ -1152,6 +1229,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                                 onOpenSettings={onOpenSettings}
                                 onKickMember={onKickMember}
                                 onBanMember={onBanMember}
+                                onCancelDrag={handleDragCancel}
                               />
                             ))}
                           </div>

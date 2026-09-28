@@ -7,8 +7,23 @@ import {
   ContextMenuItem,
   ContextMenuSeparator,
   ContextMenuTrigger,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
+  ContextMenuCheckboxItem,
+  ContextMenuRadioGroup,
+  ContextMenuRadioItem,
 } from "../ui/context-menu.js";
 import { usePermissions } from "../../hooks/usePermissions.js";
+import {
+  useSettingsStore,
+  DEFAULT_GUILD_NOTIFICATION_SETTINGS,
+} from "../../stores/useSettingsStore.js";
+import {
+  GUILD_MUTE_DURATION_OPTIONS,
+  GuildNotificationMode,
+  isGuildMuted as checkIsGuildMuted,
+} from "@tescord/types";
 import {
   CheckCircle2,
   UserPlus,
@@ -18,6 +33,8 @@ import {
   LogOut,
   Copy,
   Check,
+  Bell,
+  BellOff,
 } from "lucide-react";
 import { API_BASE } from "../../config.js";
 
@@ -45,6 +62,17 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
     usePermissions(guild);
   const [copiedId, setCopiedId] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
+
+  const muteConfig = useSettingsStore((s) => s.mutedGuilds?.[guild.id]);
+  const isMuted = checkIsGuildMuted(muteConfig);
+  const setGuildMute = useSettingsStore((s) => s.setGuildMute);
+  const unmuteGuild = useSettingsStore((s) => s.unmuteGuild);
+  const notifSettings =
+    useSettingsStore((s) => s.guildNotificationSettings?.[guild.id]) ||
+    DEFAULT_GUILD_NOTIFICATION_SETTINGS;
+  const setGuildNotificationSettings = useSettingsStore(
+    (s) => s.setGuildNotificationSettings,
+  );
 
   const handleCopyId = async () => {
     try {
@@ -88,6 +116,94 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
             <span>{t("contextMenu:channel.markAsRead")}</span>
           </div>
         </ContextMenuItem>
+
+        <ContextMenuSeparator />
+
+        {/* 将服务器静音 */}
+        {isMuted ? (
+          <ContextMenuItem
+            onClick={() => unmuteGuild(guild.id)}
+            className="hover:bg-discord-brand"
+          >
+            <div className="flex items-center space-x-2">
+              <BellOff className="w-4 h-4 text-discord-textMuted" />
+              <span>{t("contextMenu:server.unmuteServer")}</span>
+            </div>
+          </ContextMenuItem>
+        ) : (
+          <ContextMenuSub>
+            <ContextMenuSubTrigger>
+              <div className="flex items-center space-x-2">
+                <Bell className="w-4 h-4 text-discord-textMuted" />
+                <span>{t("contextMenu:server.muteServer")}</span>
+              </div>
+            </ContextMenuSubTrigger>
+            <ContextMenuSubContent className="w-48">
+              {GUILD_MUTE_DURATION_OPTIONS.map((opt) => (
+                <ContextMenuItem
+                  key={opt.label}
+                  onClick={() => setGuildMute(guild.id, opt.durationMs)}
+                >
+                  <span>{t(opt.i18nKey as any, opt.label)}</span>
+                </ContextMenuItem>
+              ))}
+            </ContextMenuSubContent>
+          </ContextMenuSub>
+        )}
+
+        {/* 通知设定 */}
+        <ContextMenuSub>
+          <ContextMenuSubTrigger>
+            <div className="flex items-center space-x-2">
+              <Bell className="w-4 h-4 text-discord-textMuted" />
+              <span>{t("contextMenu:server.notificationSettings")}</span>
+            </div>
+          </ContextMenuSubTrigger>
+          <ContextMenuSubContent className="w-56">
+            <ContextMenuRadioGroup
+              value={notifSettings.mode || "ALL"}
+              onValueChange={(val) =>
+                setGuildNotificationSettings(guild.id, {
+                  mode: val as GuildNotificationMode,
+                })
+              }
+            >
+              <ContextMenuRadioItem value="ALL">
+                <span>{t("contextMenu:server.notifModeAll")}</span>
+              </ContextMenuRadioItem>
+              <ContextMenuRadioItem value="MENTIONS">
+                <span>{t("contextMenu:server.notifModeMentions")}</span>
+              </ContextMenuRadioItem>
+              <ContextMenuRadioItem value="NOTHING">
+                <span>{t("contextMenu:server.notifModeNothing")}</span>
+              </ContextMenuRadioItem>
+            </ContextMenuRadioGroup>
+
+            <ContextMenuSeparator />
+
+            <ContextMenuCheckboxItem
+              checked={!!notifSettings.suppressEveryone}
+              onCheckedChange={(checked) =>
+                setGuildNotificationSettings(guild.id, {
+                  suppressEveryone: checked,
+                })
+              }
+            >
+              <span>{t("contextMenu:server.suppressEveryone")}</span>
+            </ContextMenuCheckboxItem>
+
+            <ContextMenuCheckboxItem
+              checked={!!notifSettings.suppressRoles}
+              onCheckedChange={(checked) =>
+                setGuildNotificationSettings(guild.id, {
+                  suppressRoles: checked,
+                })
+              }
+            >
+              <span>{t("contextMenu:server.suppressRoles")}</span>
+            </ContextMenuCheckboxItem>
+          </ContextMenuSubContent>
+        </ContextMenuSub>
 
         {(canManageGuild || canManageChannels) && <ContextMenuSeparator />}
 

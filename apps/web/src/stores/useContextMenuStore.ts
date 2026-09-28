@@ -27,6 +27,7 @@ export interface UserMenuData {
   onMention?: (username: string) => void;
   onOpenProfile?: (userId: string) => void;
   onSendMessage?: (userId: string) => void;
+  onStartCall?: (userId: string) => void;
   onShowStats?: () => void;
   onOpenUserSettings?: () => void;
   onOpenAudioSettings?: () => void;

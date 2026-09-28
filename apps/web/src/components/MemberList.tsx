@@ -15,6 +15,7 @@ interface MemberListProps {
   onMention?: (username: string) => void;
   onSendMessage?: (content: string) => void;
   onStartDM?: (userId: string) => void;
+  onStartCall?: (userId: string) => void;
   onOpenUserSettings?: () => void;
   onKickMember?: (userId: string, username: string) => void;
   onBanMember?: (userId: string, username: string) => void;
@@ -51,6 +52,7 @@ export const MemberList: React.FC<MemberListProps> = ({
   onMention,
   onSendMessage,
   onStartDM,
+  onStartCall,
   onOpenUserSettings,
   onKickMember,
   onBanMember,
@@ -251,6 +253,7 @@ export const MemberList: React.FC<MemberListProps> = ({
                 guild={guild}
                 onMention={onMention}
                 onSendMessage={onStartDM ? (uid) => onStartDM(uid) : undefined}
+                onStartCall={onStartCall ? (uid) => onStartCall(uid) : undefined}
                 onKickMember={onKickMember}
                 onBanMember={onBanMember}
               >
