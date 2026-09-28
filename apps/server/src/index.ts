@@ -10,6 +10,7 @@ import { createHmac, randomBytes } from "crypto";
 import { config } from "dotenv";
 import { prisma, seedInitialData } from "./db.js";
 import { AuthFailure, AuthService } from "./services/auth.service.js";
+import { WebAuthnError, WebAuthnService } from "./services/webauthn.service.js";
 import { RelationshipService } from "./services/relationship.service.js";
 import { gatewayManager } from "./gateway.js";
 import { cacheStore } from "./cache.js";
@@ -35,6 +36,10 @@ import type {
 
 import {
   CreateRegistrationInviteDTO,
+  WebAuthnVerifyRegisterDTO,
+  WebAuthnVerifyLoginDTO,
+  UpdatePasskeyDTO,
+  DeletePasskeyDTO,
   GatewayOpCode,
   GatewayEvents,
   LoginDTO,
@@ -231,6 +236,7 @@ await server.register(websocket);
 
 // 6. 注册鉴权服务与好友服务
 const authService = new AuthService(server);
+const webauthnService = new WebAuthnService(authService);
 const relationshipService = new RelationshipService(server, authService);
 
 // 辅助函数：从请求提取用户 ID
@@ -303,6 +309,8 @@ const publicApiPaths = new Set([
   "/api/auth/logout",
   "/api/auth/registration-status",
   "/api/auth/check-email",
+  "/api/auth/webauthn/login-options",
+  "/api/auth/webauthn/login-verify",
   "/api/discovery/guilds",
   "/api/livekit/webhook",
 ]);
@@ -530,6 +538,145 @@ server.get(
         .send({ error: "用户不存在或会话已失效", code: "USER_NOT_FOUND" });
     }
     return authService.formatUser(user);
+  },
+);
+
+// ==========================================
+// WebAuthn / 通行密钥 (Passkey) API
+// ==========================================
+
+// 1. 获取通行密钥注册配置 (需登录)
+server.get(
+  "/api/auth/webauthn/register-options",
+  { preValidation: [(server as any).authenticate] },
+  async (request: any, reply) => {
+    try {
+      const userId = request.user?.sub;
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        return reply.status(401).send({ error: "用户不存在", code: ErrorCode.AUTH_USER_NOT_FOUND });
+      }
+      return await webauthnService.generateRegisterOptions(user, request);
+    } catch (err: any) {
+      if (err instanceof WebAuthnError) {
+        return reply.status(err.statusCode).send({ error: err.message, code: err.code });
+      }
+      request.log.error({ err }, "webauthn register-options failed");
+      return reply.status(500).send({ error: "生成注册凭据配置失败", code: ErrorCode.INTERNAL_ERROR });
+    }
+  },
+);
+
+// 2. 验证通行密钥注册响应并落库 (需登录)
+server.post(
+  "/api/auth/webauthn/register-verify",
+  { preValidation: [(server as any).authenticate] },
+  async (request: any, reply) => {
+    try {
+      const userId = request.user?.sub;
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (!user) {
+        return reply.status(401).send({ error: "用户不存在", code: ErrorCode.AUTH_USER_NOT_FOUND });
+      }
+      const body = (request.body || {}) as WebAuthnVerifyRegisterDTO;
+      const passkey = await webauthnService.verifyRegisterResponse(user, body, request);
+      return passkey;
+    } catch (err: any) {
+      if (err instanceof WebAuthnError) {
+        return reply.status(err.statusCode).send({ error: err.message, code: err.code });
+      }
+      request.log.error({ err }, "webauthn register-verify failed");
+      return reply.status(400).send({ error: err.message || "注册通行密钥失败", code: ErrorCode.WEBAUTHN_VERIFICATION_FAILED });
+    }
+  },
+);
+
+// 3. 获取通行密钥登录挑战 (公开)
+server.post("/api/auth/webauthn/login-options", async (request, reply) => {
+  try {
+    const body = (request.body || {}) as { emailOrUsername?: string; email?: string };
+    const emailOrUsername = body.emailOrUsername || body.email;
+    return await webauthnService.generateLoginOptions(request, emailOrUsername);
+  } catch (err: any) {
+    if (err instanceof WebAuthnError) {
+      return reply.status(err.statusCode).send({ error: err.message, code: err.code });
+    }
+    request.log.error({ err }, "webauthn login-options failed");
+    return reply.status(500).send({ error: "生成登录凭据配置失败", code: ErrorCode.INTERNAL_ERROR });
+  }
+});
+
+// 4. 验证通行密钥登录响应并签发令牌 (公开)
+server.post("/api/auth/webauthn/login-verify", async (request, reply) => {
+  try {
+    const body = (request.body || {}) as WebAuthnVerifyLoginDTO;
+    const result = await webauthnService.verifyLoginResponse(body, request);
+    return {
+      ...result,
+      token: result.accessToken,
+    };
+  } catch (err: any) {
+    if (err instanceof WebAuthnError) {
+      return reply.status(err.statusCode).send({ error: err.message, code: err.code });
+    }
+    request.log.error({ err }, "webauthn login-verify failed");
+    return reply.status(400).send({ error: err.message || "通行密钥登录失败", code: ErrorCode.WEBAUTHN_VERIFICATION_FAILED });
+  }
+});
+
+// 5. 获取当前用户已绑定的通行密钥列表 (需登录)
+server.get(
+  "/api/auth/webauthn/credentials",
+  { preValidation: [(server as any).authenticate] },
+  async (request: any, reply) => {
+    try {
+      const userId = request.user?.sub;
+      return await webauthnService.listPasskeys(userId);
+    } catch (err: any) {
+      request.log.error({ err }, "list passkeys failed");
+      return reply.status(500).send({ error: "获取通行密钥列表失败", code: ErrorCode.INTERNAL_ERROR });
+    }
+  },
+);
+
+// 6. 重命名通行密钥 (需登录)
+server.patch(
+  "/api/auth/webauthn/credentials/:id",
+  { preValidation: [(server as any).authenticate] },
+  async (request: any, reply) => {
+    try {
+      const userId = request.user?.sub;
+      const { id } = request.params as { id: string };
+      const body = (request.body || {}) as UpdatePasskeyDTO;
+      return await webauthnService.renamePasskey(userId, id, body.name);
+    } catch (err: any) {
+      if (err instanceof WebAuthnError) {
+        return reply.status(err.statusCode).send({ error: err.message, code: err.code });
+      }
+      request.log.error({ err }, "rename passkey failed");
+      return reply.status(500).send({ error: "重命名通行密钥失败", code: ErrorCode.INTERNAL_ERROR });
+    }
+  },
+);
+
+// 7. 解绑通行密钥 (需登录，校验密码)
+server.delete(
+  "/api/auth/webauthn/credentials/:id",
+  { preValidation: [(server as any).authenticate] },
+  async (request: any, reply) => {
+    try {
+      const userId = request.user?.sub;
+      const { id } = request.params as { id: string };
+      const body = (request.body || {}) as DeletePasskeyDTO;
+      await webauthnService.deletePasskey(userId, id, body.password);
+      return { success: true };
+    } catch (err: any) {
+      if (err instanceof WebAuthnError) {
+        return reply.status(err.statusCode).send({ error: err.message, code: err.code });
+      }
+      request.log.error({ err }, "delete passkey failed");
+      return reply.status(500).send({ error: "解绑通行密钥失败", code: ErrorCode.INTERNAL_ERROR });
+    }
   },
 );
 

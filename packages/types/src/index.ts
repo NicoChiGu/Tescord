@@ -118,6 +118,45 @@ export interface RefreshTokenDTO {
   refreshToken: string;
 }
 
+// WebAuthn / Passkey 通行密钥认证契约
+export interface PasskeyInfo {
+  id: string;
+  name: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  aaguid?: string | null;
+  transports?: string[] | null;
+}
+
+export interface WebAuthnRegisterOptionsResponse {
+  options: any; // PublicKeyCredentialCreationOptionsJSON
+  challengeId: string;
+}
+
+export interface WebAuthnVerifyRegisterDTO {
+  challengeId: string;
+  response: any; // RegistrationResponseJSON
+  name?: string;
+}
+
+export interface WebAuthnLoginOptionsResponse {
+  options: any; // PublicKeyCredentialRequestOptionsJSON
+  challengeId: string;
+}
+
+export interface WebAuthnVerifyLoginDTO {
+  challengeId: string;
+  response: any; // AuthenticationResponseJSON
+}
+
+export interface UpdatePasskeyDTO {
+  name: string;
+}
+
+export interface DeletePasskeyDTO {
+  password?: string;
+}
+
 export interface UpdateProfileDTO {
   username?: string;
   displayName?: string | null;
@@ -3012,6 +3051,13 @@ export enum ErrorCode {
   AUTH_PASSWORD_TOO_WEAK = "AUTH_PASSWORD_TOO_WEAK",
   AUTH_ACCOUNT_DISABLED = "AUTH_ACCOUNT_DISABLED",
   AUTH_REAUTH_REQUIRED = "AUTH_REAUTH_REQUIRED",
+
+  // WebAuthn / 通行密钥 (Passkey)
+  WEBAUTHN_NOT_SUPPORTED = "WEBAUTHN_NOT_SUPPORTED",
+  WEBAUTHN_CHALLENGE_EXPIRED = "WEBAUTHN_CHALLENGE_EXPIRED",
+  WEBAUTHN_VERIFICATION_FAILED = "WEBAUTHN_VERIFICATION_FAILED",
+  WEBAUTHN_CREDENTIAL_EXISTS = "WEBAUTHN_CREDENTIAL_EXISTS",
+  WEBAUTHN_CREDENTIAL_NOT_FOUND = "WEBAUTHN_CREDENTIAL_NOT_FOUND",
 
   // 服务器 (Guild)
   GUILD_NOT_FOUND = "GUILD_NOT_FOUND",

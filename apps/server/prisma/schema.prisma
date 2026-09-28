@@ -41,6 +41,7 @@ model User {
   auditLogs     AuditLog[]
   dmRecipients  ChannelRecipient[]
   deviceKeys    DeviceKey[]
+  passkeys      Passkey[]
   platformAuditLogs PlatformAuditLog[] @relation("PlatformAuditActor")
   createdRegistrationInvites RegistrationInvite[] @relation("CreatedRegistrationInvites")
   registeredWithInviteCode   String?
@@ -56,6 +57,23 @@ model RefreshToken {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model Passkey {
+  id           String    @id @default(cuid())
+  userId       String
+  name         String
+  credentialId String    @unique
+  publicKey    String
+  counter      BigInt    @default(0)
+  transports   String?
+  aaguid       String?
+  createdAt    DateTime  @default(now())
+  lastUsedAt   DateTime?
+
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }

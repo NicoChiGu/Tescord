@@ -5,7 +5,6 @@
   "UNAUTHORIZED": "認証セッションの有効期限が切れているか無効です。再度ログインしてください。",
   "FORBIDDEN": "権限がありません。この操作を実行できません。",
   "RATE_LIMITED": "操作が頻繁すぎます。しばらく時間をおいてから再度お試しください。",
-
   "AUTH_INVALID_CREDENTIALS": "ユーザー名/メールアドレスまたはパスワードが正しくありません。",
   "AUTH_TOKEN_EXPIRED": "セッショントークンが無効です。再度ログインしてください。",
   "AUTH_USER_NOT_FOUND": "ユーザーアカウントが見つかりませんでした。",
@@ -13,7 +12,6 @@
   "AUTH_PASSWORD_TOO_WEAK": "パスワードが弱すぎます。より強力なパスワードを設定してください。",
   "AUTH_ACCOUNT_DISABLED": "このアカウントは停止または無効化されています。",
   "AUTH_REAUTH_REQUIRED": "セキュリティ保護のため、現在のパスワードを入力して再認証を行ってください。",
-
   "GUILD_NOT_FOUND": "指定されたサーバーが見つかりませんでした。",
   "GUILD_NAME_REQUIRED": "サーバー名を入力してください。",
   "GUILD_PERMISSION_DENIED": "このサーバーを管理する権限がありません。",
@@ -24,26 +22,26 @@
   "GUILD_ROLE_NOT_FOUND": "指定された役職が見つかりませんでした。",
   "GUILD_ROLE_CANNOT_DELETE_DEFAULT": "システムのデフォルト役職 @everyone を削除することはできません。",
   "GUILD_ROLE_HIERARCHY_TOO_LOW": "あなたの役職階層が低いため、この操作を実行できません。",
-
   "CHANNEL_NOT_FOUND": "指定されたチャンネルが見つかりませんでした。",
   "CHANNEL_NAME_REQUIRED": "チャンネル名を入力してください。",
   "CATEGORY_NOT_FOUND": "指定されたカテゴリーが見つかりませんでした。",
   "CATEGORY_NAME_REQUIRED": "カテゴリー名を入力してください。",
-
   "MESSAGE_NOT_FOUND": "メッセージが見つからないか、既に削除されています。",
   "MESSAGE_EMPTY": "空のメッセージは送信できません。",
   "MESSAGE_TOO_LARGE": "メッセージの内容または暗号化エンベロープがサイズ制限を超えています。",
   "FILE_TOO_LARGE": "ファイルサイズがサーバーの上限を超えています。",
   "FILE_TYPE_UNSUPPORTED": "サポートされていないファイル形式です。",
   "UPLOAD_FAILED": "ファイルのアップロードに失敗しました。ネットワークを確認して再試行してください。",
-
   "VOICE_ROOM_FULL": "このボイスチャンネルは定員に達しています。",
   "VOICE_JOIN_FAILED": "ボイスチャンネルへの参加に失敗しました。接続と権限をご確認ください。",
   "VOICE_PERMISSION_DENIED": "ボイスチャンネルへの接続または発言権限がありません。",
-
   "ADMIN_REQUIRED": "この操作にはシステム管理者権限が必要です。",
   "ADMIN_CANNOT_BAN_SELF": "現在ログイン中の管理者アカウント自身を停止・BANすることはできません。",
-
   "NETWORK_ERROR": "ネットワーク接続エラーが発生しました。接続状況をご確認ください。",
-  "UNKNOWN_ERROR": "不明なエラーが発生しました。もう一度お試しください。"
+  "UNKNOWN_ERROR": "不明なエラーが発生しました。もう一度お試しください。",
+  "WEBAUTHN_NOT_SUPPORTED": "お使いのブラウザまたは環境は WebAuthn パスキーに対応していません",
+  "WEBAUTHN_CHALLENGE_EXPIRED": "パスキー認証チャレンジの有効期限が切れました。もう一度お試しください。",
+  "WEBAUTHN_VERIFICATION_FAILED": "パスキー署名の検証に失敗しました。登録済みの正しいデバイスを使用していることを確認してください。",
+  "WEBAUTHN_CREDENTIAL_EXISTS": "このパスキーは既にアカウントに登録されています。",
+  "WEBAUTHN_CREDENTIAL_NOT_FOUND": "このパスキーに一致するアカウントが見つかりません。先にセキュリティ設定で登録してください。"
 }

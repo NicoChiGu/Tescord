@@ -5,7 +5,6 @@
   "UNAUTHORIZED": "Session expired or invalid. Please sign in again.",
   "FORBIDDEN": "Permission denied. You do not have permission to perform this action.",
   "RATE_LIMITED": "You are performing actions too quickly. Please slow down.",
-
   "AUTH_INVALID_CREDENTIALS": "Invalid username/email or password.",
   "AUTH_TOKEN_EXPIRED": "Session token expired. Please log in again.",
   "AUTH_USER_NOT_FOUND": "User account not found.",
@@ -13,7 +12,6 @@
   "AUTH_PASSWORD_TOO_WEAK": "Password is too weak. Please use a stronger password.",
   "AUTH_ACCOUNT_DISABLED": "This account has been disabled or suspended.",
   "AUTH_REAUTH_REQUIRED": "For your security, please enter your current password to continue.",
-
   "GUILD_NOT_FOUND": "Server not found.",
   "GUILD_NAME_REQUIRED": "Server name cannot be empty.",
   "GUILD_PERMISSION_DENIED": "Missing permissions to manage this server.",
@@ -24,26 +22,26 @@
   "GUILD_ROLE_NOT_FOUND": "Role not found.",
   "GUILD_ROLE_CANNOT_DELETE_DEFAULT": "Cannot delete the default @everyone role.",
   "GUILD_ROLE_HIERARCHY_TOO_LOW": "Your highest role is lower than or equal to this role.",
-
   "CHANNEL_NOT_FOUND": "Channel not found.",
   "CHANNEL_NAME_REQUIRED": "Channel name cannot be empty.",
   "CATEGORY_NOT_FOUND": "Category not found.",
   "CATEGORY_NAME_REQUIRED": "Category name cannot be empty.",
-
   "MESSAGE_NOT_FOUND": "Message not found or already deleted.",
   "MESSAGE_EMPTY": "Cannot send an empty message.",
   "MESSAGE_TOO_LARGE": "Message content or encrypted envelope exceeds the maximum size limit.",
   "FILE_TOO_LARGE": "File size exceeds the maximum allowed upload limit.",
   "FILE_TYPE_UNSUPPORTED": "Unsupported file format.",
   "UPLOAD_FAILED": "File upload failed. Please check your network and try again.",
-
   "VOICE_ROOM_FULL": "This voice channel is full.",
   "VOICE_JOIN_FAILED": "Failed to join voice channel. Please check your permissions and connection.",
   "VOICE_PERMISSION_DENIED": "Missing permissions to connect or speak in this channel.",
-
   "ADMIN_REQUIRED": "Super administrator privileges are required.",
   "ADMIN_CANNOT_BAN_SELF": "You cannot suspend or ban your own administrator account.",
-
   "NETWORK_ERROR": "Network connection error. Please check your network settings.",
-  "UNKNOWN_ERROR": "An unknown error occurred. Please try again."
+  "UNKNOWN_ERROR": "An unknown error occurred. Please try again.",
+  "WEBAUTHN_NOT_SUPPORTED": "WebAuthn passkeys are not supported by this browser or environment",
+  "WEBAUTHN_CHALLENGE_EXPIRED": "Passkey authentication challenge has expired. Please try again.",
+  "WEBAUTHN_VERIFICATION_FAILED": "Passkey signature verification failed. Please ensure you are using the correct registered device.",
+  "WEBAUTHN_CREDENTIAL_EXISTS": "This passkey is already linked to your account.",
+  "WEBAUTHN_CREDENTIAL_NOT_FOUND": "No account found matching this passkey. Please bind it in security settings first."
 }

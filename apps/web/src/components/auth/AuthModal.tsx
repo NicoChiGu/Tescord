@@ -10,6 +10,7 @@ import {
   ChevronDown,
   KeyRound,
   Edit3,
+  Fingerprint,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -22,6 +23,7 @@ import { API_BASE } from "../../config.js";
 import { AuthBackground } from "./AuthBackground.js";
 import { AccountPicker } from "./AccountPicker.js";
 import { SavedAccount } from "@tescord/types";
+import { isWebAuthnSupported } from "../../utils/webauthn.js";
 
 type AuthPhase = "ACCOUNT_PICKER" | "EMAIL" | "PASSWORD" | "REGISTER";
 
@@ -30,6 +32,7 @@ const EMAIL_REGEX = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 export const AuthModal: React.FC = () => {
   const {
     login,
+    loginWithPasskey,
     register,
     savedAccounts,
     removeSavedAccount,
@@ -81,6 +84,29 @@ export const AuthModal: React.FC = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLangMenuOpen, setIsLangMenuOpen] = useState(false);
+  const isPasskeySupported = isWebAuthnSupported();
+  const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
+
+  const handlePasskeyLogin = async () => {
+    setIsPasskeyLoading(true);
+    setFieldErrors({});
+    try {
+      const targetIdentifier =
+        phase === "PASSWORD" ? selectedAccount?.email || email : undefined;
+      await loginWithPasskey(targetIdentifier);
+    } catch (err: any) {
+      if (err.name !== "NotAllowedError") {
+        setFieldErrors((prev) => ({
+          ...prev,
+          general:
+            err.message ||
+            t("auth:passkeyLoginFailed", { defaultValue: "通行密钥验证失败" }),
+        }));
+      }
+    } finally {
+      setIsPasskeyLoading(false);
+    }
+  };
 
   // 当账号列表被清空且当前处于 ACCOUNT_PICKER 阶段时，自动回退到常规邮箱输入
   useEffect(() => {
@@ -541,7 +567,9 @@ export const AuthModal: React.FC = () => {
             onSelectAccount={handleSelectAccount}
             onUseAnotherAccount={handleUseAnotherAccount}
             onRemoveAccount={removeSavedAccount}
-            isLoading={isSubmitting}
+            onPasskeyLogin={handlePasskeyLogin}
+            isPasskeySupported={isPasskeySupported}
+            isLoading={isSubmitting || isPasskeyLoading}
           />
         ) : (
           <>
@@ -940,6 +968,37 @@ export const AuthModal: React.FC = () => {
                   </div>
                 )}
               </button>
+
+              {/* WebAuthn / Passkey 显式登录入口 */}
+              {isPasskeySupported && phase !== "REGISTER" && (
+                <div className="mt-3.5">
+                  <div className="relative flex py-2 items-center">
+                    <div className="flex-grow border-t border-white/10" />
+                    <span className="flex-shrink mx-3 text-[11px] font-semibold tracking-wider text-gray-500 uppercase">
+                      {t("common:or", { defaultValue: "或者" })}
+                    </span>
+                    <div className="flex-grow border-t border-white/10" />
+                  </div>
+                  <button
+                    type="button"
+                    data-testid="auth-passkey-login-btn"
+                    disabled={isSubmitting || isPasskeyLoading}
+                    onClick={handlePasskeyLogin}
+                    className="w-full flex items-center justify-center gap-2.5 rounded-lg bg-[#2b2d31] hover:bg-[#35373c] border border-white/10 active:scale-[0.98] py-2.5 text-sm font-medium text-white transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed shadow-sm hover:shadow-md"
+                  >
+                    {isPasskeyLoading ? (
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      <Fingerprint className="w-4 h-4 text-[#5865f2]" />
+                    )}
+                    <span>
+                      {t("auth:loginWithPasskey", {
+                        defaultValue: "使用通行密钥登录",
+                      })}
+                    </span>
+                  </button>
+                </div>
+              )}
             </form>
 
             {/* 底部导航提示 */}

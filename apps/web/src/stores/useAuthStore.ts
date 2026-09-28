@@ -13,6 +13,8 @@ import {
   getStorageAdapter,
   waitForStorageMigration,
 } from "../services/storage/index.js";
+import { startAuthentication } from "@simplewebauthn/browser";
+import { isWebAuthnSupported } from "../utils/webauthn.js";
 
 const MAX_SAVED_ACCOUNTS = 10;
 const SAVED_ACCOUNTS_STORAGE_KEY = "tescord_saved_accounts";
@@ -244,6 +246,7 @@ interface AuthState {
 
   initAuth: () => Promise<void>;
   login: (dto: LoginDTO) => Promise<void>;
+  loginWithPasskey: (emailOrUsername?: string) => Promise<void>;
   register: (dto: RegisterDTO) => Promise<void>;
   logout: () => Promise<void>;
   setUser: (user: User | null) => void;
@@ -558,6 +561,84 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       scheduleProactiveRefresh(() => get().refreshAuth());
     } catch (err: any) {
       set({ error: err.message });
+      throw err;
+    }
+  },
+
+  loginWithPasskey: async (emailOrUsername?: string) => {
+    set({ error: null });
+    if (!isWebAuthnSupported()) {
+      const err = new Error("当前环境或浏览器不支持通行密钥登录");
+      set({ error: err.message });
+      throw err;
+    }
+
+    try {
+      // 1. 获取登录挑战选项
+      const optionsRes = await fetch(`${API_BASE}/api/auth/webauthn/login-options`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ emailOrUsername }),
+      });
+
+      const optionsData = await optionsRes.json();
+      if (!optionsRes.ok) {
+        throw new Error(optionsData.error || "获取通行密钥配置失败");
+      }
+
+      const { options, challengeId } = optionsData;
+
+      // 2. 拉起原生系统认证器 (Touch ID / Windows Hello / 安全密钥)
+      const authResponse = await startAuthentication({ optionsJSON: options });
+
+      // 3. 将认证凭据发送至服务端核验
+      const verifyRes = await fetch(`${API_BASE}/api/auth/webauthn/login-verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          challengeId,
+          response: authResponse,
+        }),
+      });
+
+      const data = await verifyRes.json();
+      if (!verifyRes.ok) {
+        throw new Error(data.error || "通行密钥验证失败");
+      }
+
+      // 4. 写入会话状态与双令牌
+      const tokens = data as AuthTokens;
+      const rememberMe = true;
+      await getStorageAdapter().switchUser(tokens.user.id);
+      authGeneration++;
+      await storeActiveTokens(tokens, rememberMe);
+
+      const updatedAccounts = upsertSavedAccount(
+        tokens.user,
+        { refreshToken: tokens.refreshToken },
+        rememberMe,
+      );
+      await waitForDesktopAccountSave();
+
+      set({
+        user: tokens.user,
+        lastActiveUser: tokens.user,
+        accessToken: tokens.accessToken,
+        token: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        isAuthenticated: true,
+        isLoading: false,
+        savedAccounts: updatedAccounts,
+        error: null,
+      });
+      syncDesktopWindowMode("main");
+      scheduleProactiveRefresh(() => get().refreshAuth());
+    } catch (err: any) {
+      if (err.name === "NotAllowedError") {
+        set({ error: "已取消通行密钥验证" });
+      } else {
+        set({ error: err.message || "通行密钥登录失败" });
+      }
       throw err;
     }
   },

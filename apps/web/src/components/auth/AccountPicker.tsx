@@ -1,6 +1,6 @@
 import React from "react";
 import { SavedAccount } from "@tescord/types";
-import { X, UserPlus, KeyRound, ArrowRight } from "lucide-react";
+import { X, UserPlus, KeyRound, ArrowRight, Fingerprint } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 interface AccountPickerProps {
@@ -8,6 +8,8 @@ interface AccountPickerProps {
   onSelectAccount: (account: SavedAccount) => void;
   onUseAnotherAccount: () => void;
   onRemoveAccount: (idOrEmail: string) => void;
+  onPasskeyLogin?: () => void;
+  isPasskeySupported?: boolean;
   isLoading?: boolean;
 }
 
@@ -16,6 +18,8 @@ export const AccountPicker: React.FC<AccountPickerProps> = ({
   onSelectAccount,
   onUseAnotherAccount,
   onRemoveAccount,
+  onPasskeyLogin,
+  isPasskeySupported = false,
   isLoading = false,
 }) => {
   const { t } = useTranslation(["auth", "common"]);
@@ -142,7 +146,7 @@ export const AccountPicker: React.FC<AccountPickerProps> = ({
           data-testid="use-other-account-btn"
           onClick={onUseAnotherAccount}
           disabled={isLoading}
-          className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 rounded-md bg-[#4e5058]/30 hover:bg-[#4e5058]/50 text-white font-medium text-sm transition focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
+          className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 rounded-md bg-[#4e5058]/30 hover:bg-[#4e5058]/50 text-white font-medium text-sm transition focus:outline-none focus:ring-2 focus:ring-[#5865f2] cursor-pointer"
         >
           <UserPlus className="w-4 h-4 text-discord-textMuted" />
           <span>
@@ -151,6 +155,23 @@ export const AccountPicker: React.FC<AccountPickerProps> = ({
             })}
           </span>
         </button>
+
+        {isPasskeySupported && onPasskeyLogin && (
+          <button
+            type="button"
+            data-testid="account-picker-passkey-btn"
+            onClick={onPasskeyLogin}
+            disabled={isLoading}
+            className="w-full flex items-center justify-center space-x-2 py-2.5 px-4 rounded-md bg-[#2b2d31] hover:bg-[#35373c] border border-white/10 text-white font-medium text-sm transition focus:outline-none focus:ring-2 focus:ring-[#5865f2] cursor-pointer shadow-sm"
+          >
+            <Fingerprint className="w-4 h-4 text-[#5865f2]" />
+            <span>
+              {t("auth:loginWithPasskey", {
+                defaultValue: "使用通行密钥登录",
+              })}
+            </span>
+          </button>
+        )}
       </div>
     </div>
   );

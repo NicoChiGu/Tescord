@@ -5,7 +5,6 @@
   "UNAUTHORIZED": "身分驗證已過期或無效，請重新登入",
   "FORBIDDEN": "權限不足，無法執行該操作",
   "RATE_LIMITED": "操作過於頻繁，請稍後再試",
-
   "AUTH_INVALID_CREDENTIALS": "使用者名稱/電子郵件或密碼錯誤",
   "AUTH_TOKEN_EXPIRED": "登入憑證已失效，請重新登入",
   "AUTH_USER_NOT_FOUND": "未找到該使用者帳號",
@@ -13,7 +12,6 @@
   "AUTH_PASSWORD_TOO_WEAK": "密碼強度不足，請使用更複雜的密碼",
   "AUTH_ACCOUNT_DISABLED": "該帳號已被停用或封禁",
   "AUTH_REAUTH_REQUIRED": "為確保安全，請輸入目前密碼進行安全重新驗證",
-
   "GUILD_NOT_FOUND": "未找到指定的伺服器",
   "GUILD_NAME_REQUIRED": "伺服器名稱不能為空",
   "GUILD_PERMISSION_DENIED": "缺少管理目前伺服器的權限",
@@ -24,26 +22,26 @@
   "GUILD_ROLE_NOT_FOUND": "未找到指定的身分組",
   "GUILD_ROLE_CANNOT_DELETE_DEFAULT": "無法刪除系統預設的 @everyone 身分組",
   "GUILD_ROLE_HIERARCHY_TOO_LOW": "您的身分組階層低於目標身分組，無法進行此操作",
-
   "CHANNEL_NOT_FOUND": "未找到指定的頻道",
   "CHANNEL_NAME_REQUIRED": "頻道名稱不能為空",
   "CATEGORY_NOT_FOUND": "未找到指定的分組分類",
   "CATEGORY_NAME_REQUIRED": "分類名稱不能為空",
-
   "MESSAGE_NOT_FOUND": "訊息未找到或已被刪除",
   "MESSAGE_EMPTY": "無法發送空白訊息",
   "MESSAGE_TOO_LARGE": "訊息內容或加密封包超出最大長度限制",
   "FILE_TOO_LARGE": "檔案大小超出伺服器允許的最大限制",
   "FILE_TYPE_UNSUPPORTED": "不支援該檔案格式上傳",
   "UPLOAD_FAILED": "檔案上傳失敗，請檢查網路後重試",
-
   "VOICE_ROOM_FULL": "該語音頻道人數已達上限",
   "VOICE_JOIN_FAILED": "加入語音頻道失敗，請檢查媒體連線與權限",
   "VOICE_PERMISSION_DENIED": "缺少進入或在語音頻道發言的權限",
-
   "ADMIN_REQUIRED": "需要超級管理員權限方可執行此操作",
   "ADMIN_CANNOT_BAN_SELF": "無法封禁或停用目前登入的管理員帳號",
-
   "NETWORK_ERROR": "網路連線異常，請檢查您的網路設定",
-  "UNKNOWN_ERROR": "發生未知錯誤，請重試"
+  "UNKNOWN_ERROR": "發生未知錯誤，請重試",
+  "WEBAUTHN_NOT_SUPPORTED": "當前環境或瀏覽器不支援 WebAuthn 通行密鑰",
+  "WEBAUTHN_CHALLENGE_EXPIRED": "通行密鑰驗證挑戰已過期，請重新嘗試",
+  "WEBAUTHN_VERIFICATION_FAILED": "通行密鑰簽名驗證失敗，請確保使用已綁定的正確裝置",
+  "WEBAUTHN_CREDENTIAL_EXISTS": "該通行密鑰已在此帳號綁定，無需重複新增",
+  "WEBAUTHN_CREDENTIAL_NOT_FOUND": "未找到與此通行密鑰匹配的帳號，請先在安全設置中綁定"
 }

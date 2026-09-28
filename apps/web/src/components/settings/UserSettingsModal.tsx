@@ -26,17 +26,24 @@ import {
   Upload,
   Trash2,
   Loader2,
+  Fingerprint,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { AudioSettingsTab } from "./AudioSettingsTab.js";
 import { LanguageSettingsTab } from "./LanguageSettingsTab.js";
 import { AboutUpdatesTab } from "./AboutUpdatesTab.js";
+import { SecuritySettingsTab } from "./SecuritySettingsTab.js";
 import { ProfileCardPreview } from "../profile/ProfileCardPreview.js";
 import { ImageCropModal } from "../modals/ImageCropModal.js";
 import { Avatar } from "../ui/Avatar.js";
 import { API_BASE, resolveServerUrl } from "../../config.js";
 
-export type UserSettingsTabType = "profile" | "audio" | "language" | "updates";
+export type UserSettingsTabType =
+  | "profile"
+  | "security"
+  | "audio"
+  | "language"
+  | "updates";
 
 interface UserSettingsModalProps {
   isOpen: boolean;
@@ -508,6 +515,21 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                 <span>{t("settings:profileTab", "个人资料与展示卡")}</span>
               </button>
 
+              {/* 账号安全与通行密钥 */}
+              <button
+                type="button"
+                data-testid="tab-security-btn"
+                onClick={() => selectTab("security")}
+                className={`w-full flex items-center gap-2.5 px-3 py-3 md:px-2.5 md:py-2 rounded-lg text-sm md:text-xs font-semibold transition-colors text-left ${
+                  activeTab === "security"
+                    ? "bg-[#5865f2] md:bg-white/10 text-white"
+                    : "text-gray-300 md:text-gray-400 bg-[#1e1f22]/80 md:bg-transparent hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                <Fingerprint className="w-3.5 h-3.5 md:w-4 md:h-4 text-white md:text-[#5865f2]" />
+                <span>{t("settings:securityAndPasskeysTab", "账号安全与通行密钥")}</span>
+              </button>
+
               {/* 桌面端分组标题 2 */}
               <div className="hidden md:block pt-2 text-[11px] font-bold uppercase tracking-wider text-gray-400 px-2 py-1">
                 {t("settings:appSettings")}
@@ -633,11 +655,13 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
             <span className="text-sm font-semibold text-white truncate">
               {activeTab === "profile"
                 ? t("settings:profileTab", "个人资料与展示卡")
-                : activeTab === "audio"
-                  ? t("settings:voiceAndVideo")
-                  : activeTab === "language"
-                    ? t("settings:language")
-                    : t("settings:updatesTab", "版本与更新")}
+                : activeTab === "security"
+                  ? t("settings:securityAndPasskeysTab", "账号安全与通行密钥")
+                  : activeTab === "audio"
+                    ? t("settings:voiceAndVideo")
+                    : activeTab === "language"
+                      ? t("settings:language")
+                      : t("settings:updatesTab", "版本与更新")}
             </span>
           </div>
           {/* 桌面端内容与独立工具列的水平容器 */}
@@ -1214,6 +1238,8 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                   )}
                 </div>
               )}
+
+              {activeTab === "security" && <SecuritySettingsTab />}
 
               {activeTab === "audio" && (
                 <AudioSettingsTab
