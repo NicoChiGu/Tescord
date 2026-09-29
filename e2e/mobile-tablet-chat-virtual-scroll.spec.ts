@@ -49,6 +49,10 @@ test.describe("移动端与平板设备文字频道动态加载与视口优化�
       '[data-testid="virtual-message-list-container"]',
     );
     await expect(container).toBeVisible({ timeout: 15000 });
+    const latestMessage = container.locator(
+      '[data-message-id="msg_perf_mobile_50"]',
+    );
+    await expect(latestMessage).toBeVisible({ timeout: 15000 });
 
     // 统计当前 DOM 树中实际挂载的消息卡片节点数
     const renderedItems = container.locator("[data-message-id]");
@@ -59,10 +63,10 @@ test.describe("移动端与平板设备文字频道动态加载与视口优化�
     expect(count).toBeGreaterThan(0);
     expect(count).toBeLessThanOrEqual(14);
 
-    // 移动端先选中消息，再显示该消息的快捷操作入口。
-    const firstItem = renderedItems.first();
-    await firstItem.click();
-    const actionBtn = firstItem.locator('button[title="更多"]');
+    // 固定已加载的最新消息，避免初次进入频道时自动滚动让 first() 改指其他行。
+    // 点击正文避开头像/作者等会打开个人资料的子元素。
+    await latestMessage.locator(".selectable-text").click();
+    const actionBtn = latestMessage.locator('button[title="更多"]');
     await expect(actionBtn).toBeVisible();
   });
 
