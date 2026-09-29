@@ -195,7 +195,7 @@ test("real Electron keeps remembered credentials in native storage", async ({}, 
   }
 });
 
-test("cache IPC stays scoped to each Electron window", async ({}, testInfo) => {
+test("cache IPC rejects untrusted windows and isolates users", async ({}, testInfo) => {
   test.setTimeout(90_000);
   const userData = testInfo.outputPath("scope-user-data");
   await mkdir(userData, { recursive: true });
@@ -212,119 +212,109 @@ test("cache IPC stays scoped to each Electron window", async ({}, testInfo) => {
     timeout: 45_000,
   });
   try {
-    await app.firstWindow();
+    const trusted = await app.firstWindow();
+    await expect(trusted.getByTestId("auth-email-input")).toBeVisible({
+      timeout: 30_000,
+    });
     await app.evaluate(
       async ({ BrowserWindow }, preloadPath) => {
-        for (const name of ["a", "b", "unbound"]) {
-          const win = new BrowserWindow({
-            show: false,
-            webPreferences: {
-              preload: preloadPath,
-              nodeIntegration: false,
-              contextIsolation: true,
-              sandbox: true,
-            },
-          });
-          await win.loadURL(`data:text/html,<title>scope-${name}</title>`);
-        }
+        const win = new BrowserWindow({
+          show: false,
+          webPreferences: {
+            preload: preloadPath,
+            nodeIntegration: false,
+            contextIsolation: true,
+            sandbox: true,
+          },
+        });
+        await win.loadURL("data:text/html,<title>scope-untrusted</title>");
       },
       resolve(desktopRoot, "dist/preload.js"),
     );
     await expect
       .poll(async () => (await app.windows()).length)
-      .toBeGreaterThanOrEqual(4);
-    const pages = await app.windows();
-    const byTitle = async (name: string) => {
-      for (const page of pages)
-        if ((await page.title()) === `scope-${name}`) return page;
-      throw new Error(`Missing scope window ${name}`);
-    };
-    const a = await byTitle("a");
-    const b = await byTitle("b");
-    const unbound = await byTitle("unbound");
+      .toBeGreaterThanOrEqual(2);
+    // Playwright pages are resolved asynchronously; select by title explicitly.
+    let foreignWindow;
+    for (const page of await app.windows()) {
+      if ((await page.title()) === "scope-untrusted") foreignWindow = page;
+    }
+    expect(foreignWindow).toBeDefined();
     await expect
       .poll(() =>
-        a.evaluate(() => Boolean((window as any).electronAPI?.storage)),
+        foreignWindow!.evaluate(() =>
+          Boolean((window as any).electronAPI?.storage),
+        ),
       )
       .toBe(true);
-    await expect
-      .poll(() =>
-        b.evaluate(() => Boolean((window as any).electronAPI?.storage)),
-      )
-      .toBe(true);
-
-    const unboundRejected = await unbound.evaluate(async () => {
-      try {
-        await (window as any).electronAPI.storage.getLatestMessages("shared");
-        return false;
-      } catch (error) {
-        return String(error).includes("not bound");
-      }
-    });
-    expect(unboundRejected).toBe(true);
-
-    await Promise.all([
-      a.evaluate(() =>
-        (window as any).electronAPI.storage.switchUser("scope_a"),
-      ),
-      b.evaluate(() =>
-        (window as any).electronAPI.storage.switchUser("scope_b"),
-      ),
-    ]);
-    await Promise.all([
-      a.evaluate(() =>
-        (window as any).electronAPI.storage.saveMessages("shared", [
-          {
-            id: "message-a",
-            channelId: "shared",
-            sequence: 1,
-            authorId: "scope_a",
-            content: "A",
-            createdAt: new Date().toISOString(),
-          },
-        ]),
-      ),
-      b.evaluate(() =>
-        (window as any).electronAPI.storage.saveMessages("shared", [
-          {
-            id: "message-b",
-            channelId: "shared",
-            sequence: 2,
-            authorId: "scope_b",
-            content: "B",
-            createdAt: new Date().toISOString(),
-          },
-        ]),
-      ),
-    ]);
-    const [aMessages, bMessages] = await Promise.all([
-      a.evaluate(async () =>
-        (
-          await (window as any).electronAPI.storage.getLatestMessages("shared")
-        ).map((message: any) => message.content),
-      ),
-      b.evaluate(async () =>
-        (
-          await (window as any).electronAPI.storage.getLatestMessages("shared")
-        ).map((message: any) => message.content),
-      ),
-    ]);
-    expect(aMessages).toEqual(["A"]);
-    expect(bMessages).toEqual(["B"]);
-
-    const invalidKeepsBinding = await a.evaluate(async () => {
+    const foreignRejected = await foreignWindow!.evaluate(async () => {
       const storage = (window as any).electronAPI.storage;
+      const attempts = await Promise.allSettled([
+        storage.getLatestMessages("shared"),
+        storage.switchUser("scope_a"),
+      ]);
+      return attempts.map(
+        (result) =>
+          result.status === "rejected" &&
+          String(result.reason).includes("Untrusted IPC sender"),
+      );
+    });
+    expect(foreignRejected).toEqual([true, true]);
+
+    const cacheContents = await trusted.evaluate(async () => {
+      const storage = (window as any).electronAPI.storage;
+      const contents = async () =>
+        (await storage.getLatestMessages("shared")).map(
+          (message: any) => message.content,
+        );
+      await storage.switchUser("scope_a");
+      await storage.saveMessages("shared", [
+        {
+          id: "message-a",
+          channelId: "shared",
+          sequence: 1,
+          authorId: "scope_a",
+          content: "A",
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      const aFirst = await contents();
+      await storage.switchUser("scope_b");
+      const bBefore = await contents();
+      await storage.saveMessages("shared", [
+        {
+          id: "message-b",
+          channelId: "shared",
+          sequence: 2,
+          authorId: "scope_b",
+          content: "B",
+          createdAt: new Date().toISOString(),
+        },
+      ]);
+      const bAfter = await contents();
+      await storage.switchUser("scope_a");
+      const aAgain = await contents();
       const invalid = await storage.switchUser("../scope_b").then(
         () => false,
         () => true,
       );
-      const messages = await storage.getLatestMessages("shared");
       return {
+        aFirst,
+        bBefore,
+        bAfter,
+        aAgain,
         invalid,
-        contents: messages.map((message: any) => message.content),
+        afterInvalid: await contents(),
       };
     });
-    expect(invalidKeepsBinding).toEqual({ invalid: true, contents: ["A"] });
+    expect(cacheContents).toEqual({
+      aFirst: ["A"],
+      bBefore: [],
+      bAfter: ["B"],
+      aAgain: ["A"],
+      invalid: true,
+      afterInvalid: ["A"],
+    });
   } finally {
     await app.close();
   }
