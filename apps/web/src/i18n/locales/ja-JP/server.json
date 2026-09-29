@@ -60,6 +60,7 @@
     "defaultColor": "デフォルト（無色）",
     "dangerousBadge": "危険",
     "cannotAssignHigherRole": "このロールの階層権限は、あなたが持つ最上位ロール以上です",
+    "noRolesFound": "一致する役職が見つかりません",
     "deleteRole": "役職を削除",
     "deleteConfirmTitle": "役職の削除",
     "deleteConfirmDesc": "本当に役職「{{name}}」を削除しますか？この操作は取り消せません。",

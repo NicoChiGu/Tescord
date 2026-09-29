@@ -60,6 +60,7 @@
     "defaultColor": "Default (No Color)",
     "dangerousBadge": "Dangerous",
     "cannotAssignHigherRole": "This role's hierarchy position is higher than or equal to your highest role",
+    "noRolesFound": "No matching roles found",
     "deleteRole": "Delete Role",
     "deleteConfirmTitle": "Delete Role",
     "deleteConfirmDesc": "Are you sure you want to delete role \"{{name}}\"? This cannot be undone.",

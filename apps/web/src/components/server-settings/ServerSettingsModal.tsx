@@ -394,21 +394,27 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
         onClick={(e) => e.stopPropagation()}
         className="relative flex flex-col md:flex-row w-full h-[100dvh] min-h-0 sm:h-[88vh] sm:max-h-[850px] sm:max-w-4xl md:max-w-5xl bg-[#313338] text-white sm:rounded-2xl shadow-2xl overflow-hidden border border-transparent sm:border-[#3f4147] animate-in zoom-in-95 duration-150"
       >
+        {/* 移动端右上角统一关闭按钮 (依照用户个人设置设计) */}
+        <div className="md:hidden absolute top-2.5 right-3 flex items-center z-50">
+          <button
+            type="button"
+            data-testid="close-server-settings-mobile-btn"
+            onClick={onClose}
+            aria-label={t("server:serverSettingsClose", {
+              defaultValue: "关闭服务器设置",
+            })}
+            className="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center text-gray-300 hover:text-white bg-[#1e1f22]/90 transition-all cursor-pointer shadow-md"
+            title={`${t("common:close")} (ESC)`}
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
         {/* 左侧：分类导航栏 */}
         <div
           data-testid="server-settings-menu"
           className={`${mobileView === "detail" ? "hidden md:flex" : "flex"} w-full md:w-60 flex-1 md:flex-none min-h-0 bg-[#2b2d31] p-5 md:p-6 flex-col justify-between select-none border-r border-[#1f2023] overflow-y-auto overscroll-contain`}
         >
-          <button
-            type="button"
-            onClick={onClose}
-            className="md:hidden absolute right-3 top-3 p-2 rounded-lg text-gray-300 hover:text-white hover:bg-white/10"
-            aria-label={t("server:serverSettingsClose", {
-              defaultValue: "关闭服务器设置",
-            })}
-          >
-            <X className="w-5 h-5" />
-          </button>
           <div className="space-y-6">
             <div className="px-2 pr-12 md:pr-2">
               <h3 className="text-sm font-bold text-white truncate">
@@ -547,25 +553,15 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
               )}
             </span>
           </div>
-          {/* 移动端右上角固定关闭按钮 */}
-          <div className="md:hidden absolute top-2.5 right-3 flex items-center z-40">
-            <button
-              data-testid="close-server-settings-btn"
-              onClick={onClose}
-              className="w-8 h-8 rounded-full border border-white/20 hover:border-white flex items-center justify-center text-gray-300 hover:text-white bg-[#1e1f22]/90 transition-all cursor-pointer shadow-md"
-              title={`${t("common:close")} (ESC)`}
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
           {/* 桌面端内容与独立工具列的水平容器 */}
           <div className="flex-1 min-h-0 relative flex flex-col overflow-hidden">
             {/* 桌面端 Discord 经典右侧独立工具列 (悬浮在右上侧，内容右侧，位于滚动条左侧) */}
             <div className="hidden md:flex flex-col items-center absolute top-8 right-6 z-30 select-none pointer-events-auto">
               <button
+                type="button"
                 data-testid="close-server-settings-btn"
                 onClick={onClose}
+                aria-label={t("common:close", { defaultValue: "关闭" })}
                 className="w-9 h-9 rounded-full border-2 border-white/20 hover:border-white flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/10 transition-all cursor-pointer shadow-lg bg-[#313338]/60 backdrop-blur-sm"
                 title={`${t("common:close")} (ESC)`}
               >
@@ -578,7 +574,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
 
             {/* 内容画布容器 */}
             {activeTab === "roles" ? (
-              <div className="flex-1 min-h-0 h-full overflow-hidden flex flex-col pr-16">
+              <div className="flex-1 min-h-0 h-full overflow-hidden flex flex-col pr-0 md:pr-16">
                 <RolesTab
                   guild={guild}
                   roles={roles}
@@ -588,7 +584,7 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                 />
               </div>
             ) : (
-              <div className="flex-1 min-w-0 min-h-0 overflow-y-auto overscroll-contain px-4 md:px-10 py-5 md:py-10 pr-16 md:pr-20 pb-[max(1.25rem,env(safe-area-inset-bottom))] custom-scrollbar">
+              <div className="flex-1 min-w-0 min-h-0 overflow-y-auto overscroll-contain px-4 md:px-10 py-5 md:py-10 pr-4 md:pr-20 pb-[max(1.25rem,env(safe-area-inset-bottom))] custom-scrollbar">
                 {activeTab === "overview" && (
                   <OverviewTab
                     guild={guild}

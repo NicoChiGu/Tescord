@@ -60,6 +60,7 @@
     "defaultColor": "默认无色",
     "dangerousBadge": "高危",
     "cannotAssignHigherRole": "该身份组的层级权重高于或等同于您拥有的最高身份组",
+    "noRolesFound": "未找到匹配的身份组",
     "deleteRole": "删除身份组",
     "deleteConfirmTitle": "删除身份组",
     "deleteConfirmDesc": "确定要删除身份组 \"{{name}}\" 吗？此操作无法撤销。",
