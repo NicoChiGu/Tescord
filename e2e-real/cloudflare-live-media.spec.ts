@@ -272,6 +272,7 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     await context.addInitScript(
       ({ accessToken, forceRelay, blockP2P, measureVideoLatency }) => {
         localStorage.setItem("tescord_access_token", accessToken);
+        localStorage.setItem("tescord_last_seen_changelog_version", "0.2.0");
         const nativeEnumerate = navigator.mediaDevices.enumerateDevices.bind(
           navigator.mediaDevices,
         );

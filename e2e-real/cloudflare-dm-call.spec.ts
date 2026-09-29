@@ -191,6 +191,7 @@ test("public DM call negotiates E2EE and exchanges audio after Cloudflare SFU fa
     });
     await context.addInitScript((token) => {
       localStorage.setItem("tescord_access_token", token);
+      localStorage.setItem("tescord_last_seen_changelog_version", "0.2.0");
       const NativePC = window.RTCPeerConnection;
       window.__dmAcceptancePcs = [];
       window.__dmEncodedHooks = { send: 0, receive: 0 };
@@ -314,7 +315,10 @@ test("public DM call negotiates E2EE and exchanges audio after Cloudflare SFU fa
   await expect(pages[1].getByTestId("accept-call-btn")).toBeVisible({
     timeout: 15_000,
   });
-  await expect(pages[1].getByText(/E2EE/)).toBeVisible({ timeout: 15_000 });
+  await expect(pages[1].getByTestId("dm-call-encryption-status")).toContainText(
+    "E2EE",
+    { timeout: 15_000 },
+  );
   await pages[1].getByTestId("accept-call-btn").click();
   await pages[1].waitForTimeout(1500);
   console.log(
