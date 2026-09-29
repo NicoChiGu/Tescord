@@ -52,7 +52,7 @@ setup(
           { name: "tescord_e2e_refresh_token", value: body.refreshToken },
           {
             name: "tescord_last_seen_changelog_version",
-            value: "0.2.0",
+            value: "0.3.0",
           },
           {
             name: "tescord_e2e_normal_access_token",

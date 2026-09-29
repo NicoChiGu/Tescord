@@ -678,6 +678,8 @@ export const App: React.FC = () => {
         ]).then(() => undefined);
         setMessages([]);
         setDmChannels([]);
+        setChannelUnreadMap({});
+        setGuildUnreadMap({});
         setVoiceStates([]);
         setActiveVoiceChannelId(null);
         setActiveDMCall(null);
@@ -740,19 +742,18 @@ export const App: React.FC = () => {
         )
           return;
         setGuilds(data);
-        setChannelUnreadMap((prev) => {
-          const next = { ...prev };
+        setChannelUnreadMap(() => {
+          const next: ChannelUnreadMap = {};
           for (const g of data) {
             for (const ch of g.channels || []) {
               if (ch.type === "TEXT") {
                 const unreadCount = ch.unreadCount || 0;
-                const existing = next[ch.id];
                 next[ch.id] = {
                   channelId: ch.id,
                   guildId: g.id,
-                  hasUnread: existing ? existing.hasUnread : unreadCount > 0,
-                  unreadCount: existing ? existing.unreadCount : unreadCount,
-                  mentionCount: existing ? existing.mentionCount : 0,
+                  hasUnread: unreadCount > 0,
+                  unreadCount,
+                  mentionCount: 0,
                   lastReadSequence: ch.lastReadSequence || 0,
                 };
               }
@@ -760,6 +761,18 @@ export const App: React.FC = () => {
           }
           return next;
         });
+        setGuildUnreadMap(
+          Object.fromEntries(
+            data
+              .filter((guild) =>
+                guild.channels?.some(
+                  (channel) =>
+                    channel.type === "TEXT" && (channel.unreadCount || 0) > 0,
+                ),
+              )
+              .map((guild) => [guild.id, { hasUnread: true, mentionCount: 0 }]),
+          ),
+        );
         useChannelNavStore.getState().saveCachedGuilds(data, requestedUserId);
 
         // 验证当前选中的公会

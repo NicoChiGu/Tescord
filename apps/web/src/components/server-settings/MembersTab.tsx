@@ -49,6 +49,10 @@ export const MembersTab: React.FC<MembersTabProps> = ({
   } | null>(null);
   const [roleSearch, setRoleSearch] = useState("");
   const rolePickerRef = useRef<HTMLDivElement>(null);
+  const pendingRoleUpdatesRef = useRef(new Set<string>());
+  const [pendingRoleMemberIds, setPendingRoleMemberIds] = useState<string[]>(
+    [],
+  );
   const [editingNicknameUserId, setEditingNicknameUserId] = useState<
     string | null
   >(null);
@@ -140,6 +144,9 @@ export const MembersTab: React.FC<MembersTabProps> = ({
     member: GuildMember,
     roleId: string,
   ) => {
+    if (pendingRoleUpdatesRef.current.has(member.userId)) return;
+    pendingRoleUpdatesRef.current.add(member.userId);
+    setPendingRoleMemberIds(Array.from(pendingRoleUpdatesRef.current));
     const currentRoleIds = parseRoleIds(member.roleIds);
     const isAssigned = currentRoleIds.includes(roleId);
     const newRoleIds = isAssigned
@@ -156,6 +163,9 @@ export const MembersTab: React.FC<MembersTabProps> = ({
             defaultValue: "分配角色失败",
           }),
       );
+    } finally {
+      pendingRoleUpdatesRef.current.delete(member.userId);
+      setPendingRoleMemberIds(Array.from(pendingRoleUpdatesRef.current));
     }
   };
 
@@ -424,7 +434,10 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                   key={r.id}
                   type="button"
                   data-testid={`role-option-${r.id}`}
-                  disabled={!canAssignThisRole}
+                  disabled={
+                    !canAssignThisRole ||
+                    pendingRoleMemberIds.includes(member.userId)
+                  }
                   onClick={async () => {
                     await handleToggleMemberRole(member, r.id);
                   }}
@@ -614,6 +627,7 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                       (isOwner || actorHighestPos > r.position) && (
                         <button
                           type="button"
+                          disabled={pendingRoleMemberIds.includes(m.userId)}
                           onClick={() => handleToggleMemberRole(m, r.id)}
                           className="text-gray-400 hover:text-rose-400 transition-colors ml-0.5 text-xs font-bold leading-none cursor-pointer"
                           title={t("common:remove", { defaultValue: "移除" })}

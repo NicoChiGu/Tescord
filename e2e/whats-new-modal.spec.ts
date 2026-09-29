@@ -36,11 +36,11 @@ test.describe("版本更新公告模态框 (What's New Modal) 自动化验收", 
     const versionBadge = page.locator(
       '[data-testid="whats-new-version-badge"]',
     );
-    await expect(versionBadge).toHaveText("v0.2.0");
+    await expect(versionBadge).toHaveText("v0.3.0");
 
     // 验证分类条目包含“新增功能”
     await expect(modal).toContainText("新增功能");
-    await expect(modal).toContainText("多引擎低延迟音视频网关");
+    await expect(modal).toContainText("频道未读状态同步");
 
     // 点击“我知道了”关闭弹窗
     const gotItBtn = page.locator('[data-testid="whats-new-got-it-btn"]');
@@ -51,7 +51,7 @@ test.describe("版本更新公告模态框 (What's New Modal) 自动化验收", 
     const savedVersion = await page.evaluate(() => {
       return localStorage.getItem("tescord_last_seen_changelog_version");
     });
-    expect(savedVersion).toBe("0.2.0");
+    expect(savedVersion).toBe("0.3.0");
 
     // 设置 sessionStorage 标记并在刷新后验证不会再次弹出
     await page.evaluate(() => {
@@ -67,7 +67,7 @@ test.describe("版本更新公告模态框 (What's New Modal) 自动化验收", 
   }) => {
     // 预先标记当前版本已读，避免自弹窗干扰
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_last_seen_changelog_version", "0.2.0");
+      localStorage.setItem("tescord_last_seen_changelog_version", "0.3.0");
     });
 
     await page.goto("/");
@@ -101,7 +101,7 @@ test.describe("版本更新公告模态框 (What's New Modal) 自动化验收", 
     await expect(modal).toBeVisible();
     await expect(
       page.locator('[data-testid="whats-new-version-badge"]'),
-    ).toHaveText("v0.2.0");
+    ).toHaveText("v0.3.0");
 
     // 5. 点击“我知道了”关闭弹窗
     const gotItBtn = page.locator('[data-testid="whats-new-got-it-btn"]');
@@ -174,7 +174,7 @@ test.describe("版本更新公告模态框 (What's New Modal) 自动化验收", 
       };
 
       // 预设版本已读
-      localStorage.setItem("tescord_last_seen_changelog_version", "0.2.0");
+      localStorage.setItem("tescord_last_seen_changelog_version", "0.3.0");
 
       // 延时模拟后台增量更新下载就绪广播
       setTimeout(() => {
@@ -217,7 +217,7 @@ test.describe("版本更新公告模态框 (What's New Modal) 自动化验收", 
 
   test("4. 5 种官方语言即时热切换无破损与文案对称性", async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem("tescord_last_seen_changelog_version", "0.2.0");
+      localStorage.setItem("tescord_last_seen_changelog_version", "0.3.0");
     });
 
     await page.goto("/");

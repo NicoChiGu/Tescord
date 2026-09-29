@@ -4553,20 +4553,12 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
     }
   } else {
     if (targetChannel.guildId) {
-      await prisma.channelReadState.upsert({
-        where: { userId_channelId: { userId: author.id, channelId } },
-        create: {
-          userId: author.id,
-          channelId,
-          guildId: targetChannel.guildId,
-          lastReadSequence: messagePayload.sequence,
-          lastReadAt: new Date(),
-        },
-        update: {
-          lastReadSequence: messagePayload.sequence,
-          lastReadAt: new Date(),
-        },
-      });
+      await advanceChannelReadState(
+        author.id,
+        channelId,
+        targetChannel.guildId,
+        messagePayload.sequence ?? 0,
+      );
     }
     gatewayManager.broadcast({
       op: GatewayOpCode.DISPATCH,
@@ -7317,6 +7309,41 @@ server.delete(
   },
 );
 
+// A delayed acknowledgement must never move the cursor behind a newer read.
+async function advanceChannelReadState(
+  userId: string,
+  channelId: string,
+  guildId: string,
+  sequence: number,
+): Promise<number> {
+  const where = { userId_channelId: { userId, channelId } };
+  const advance = () =>
+    prisma.channelReadState.updateMany({
+      where: { userId, channelId, lastReadSequence: { lt: sequence } },
+      data: { lastReadSequence: sequence, lastReadAt: new Date() },
+    });
+  await advance();
+  let state = await prisma.channelReadState.findUnique({ where });
+  if (!state) {
+    try {
+      state = await prisma.channelReadState.create({
+        data: {
+          userId,
+          channelId,
+          guildId,
+          lastReadSequence: sequence,
+          lastReadAt: new Date(),
+        },
+      });
+    } catch (error: any) {
+      if (error?.code !== "P2002") throw error;
+      await advance();
+      state = await prisma.channelReadState.findUniqueOrThrow({ where });
+    }
+  }
+  return state.lastReadSequence;
+}
+
 // 标记频道已读 (支持私信与公会文字频道)
 server.post(
   "/api/channels/:channelId/read",
@@ -7337,17 +7364,30 @@ server.post(
       },
     });
     if (!channel) {
-      return reply.status(404).send({ error: "频道不存在" });
+      return sendApiError(
+        reply,
+        404,
+        ErrorCode.CHANNEL_NOT_FOUND,
+        "CHANNEL_NOT_FOUND",
+      );
+    }
+
+    const requestedSequence = body.lastReadSequence ?? body.sequence;
+    if (
+      requestedSequence !== undefined &&
+      (!Number.isSafeInteger(requestedSequence) || requestedSequence < 0)
+    ) {
+      return sendApiError(
+        reply,
+        400,
+        ErrorCode.INVALID_PARAMS,
+        "INVALID_PARAMS",
+      );
     }
 
     if (channel.type === "DM" || channel.type === "GROUP_DM") {
       try {
-        const targetSeq =
-          body.lastReadSequence !== undefined
-            ? body.lastReadSequence
-            : body.sequence !== undefined
-              ? body.sequence
-              : channel.nextMessageSequence;
+        const targetSeq = requestedSequence ?? channel.nextMessageSequence;
         const lastReadSequence = await dmService.markAsRead(
           userId,
           channelId,
@@ -7355,49 +7395,42 @@ server.post(
         );
         return { channelId, lastReadSequence };
       } catch (error: any) {
-        return reply
-          .status(403)
-          .send({ error: error.message || "无法标记已读" });
+        return sendApiError(reply, 403, ErrorCode.FORBIDDEN, "FORBIDDEN");
       }
     }
 
     if (channel.type === "TEXT" && channel.guildId) {
-      const membership = await prisma.guildMember.findUnique({
-        where: { guildId_userId: { guildId: channel.guildId, userId } },
-      });
-      if (!membership) {
-        return reply.status(403).send({ error: "您不是该服务器成员" });
-      }
-      const rawSeq =
-        body.lastReadSequence !== undefined
-          ? body.lastReadSequence
-          : body.sequence !== undefined
-            ? body.sequence
-            : channel.nextMessageSequence;
-      const boundedSequence = Math.max(
-        0,
-        Math.min(Number(rawSeq) || 0, channel.nextMessageSequence),
-      );
-
-      await prisma.channelReadState.upsert({
-        where: { userId_channelId: { userId, channelId } },
-        create: {
+      const canRead =
+        (await permissionService.hasChannelPermission(
           userId,
           channelId,
-          guildId: channel.guildId,
-          lastReadSequence: boundedSequence,
-          lastReadAt: new Date(),
-        },
-        update: {
-          lastReadSequence: boundedSequence,
-          lastReadAt: new Date(),
-        },
-      });
+          PermissionFlags.VIEW_CHANNEL,
+        )) &&
+        (await permissionService.hasChannelPermission(
+          userId,
+          channelId,
+          PermissionFlags.READ_MESSAGE_HISTORY,
+        ));
+      if (!canRead) {
+        return sendApiError(reply, 403, ErrorCode.FORBIDDEN, "FORBIDDEN");
+      }
+      const rawSeq = requestedSequence ?? channel.nextMessageSequence;
+      const boundedSequence = Math.max(
+        0,
+        Math.min(rawSeq, channel.nextMessageSequence),
+      );
 
-      return { channelId, lastReadSequence: boundedSequence };
+      const lastReadSequence = await advanceChannelReadState(
+        userId,
+        channelId,
+        channel.guildId,
+        boundedSequence,
+      );
+
+      return { channelId, lastReadSequence };
     }
 
-    return reply.status(400).send({ error: "该类型频道不支持标记已读" });
+    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "INVALID_PARAMS");
   },
 );
 
@@ -7414,7 +7447,7 @@ server.post(
       where: { guildId_userId: { guildId, userId } },
     });
     if (!membership) {
-      return reply.status(403).send({ error: "您不是该服务器成员" });
+      return sendApiError(reply, 403, ErrorCode.FORBIDDEN, "FORBIDDEN");
     }
 
     const textChannels = await prisma.channel.findMany({
@@ -7422,33 +7455,39 @@ server.post(
       select: { id: true, nextMessageSequence: true },
     });
 
-    const now = new Date();
-    await prisma.$transaction(
-      textChannels.map((c) =>
-        prisma.channelReadState.upsert({
-          where: { userId_channelId: { userId, channelId: c.id } },
-          create: {
-            userId,
-            channelId: c.id,
-            guildId,
-            lastReadSequence: c.nextMessageSequence,
-            lastReadAt: now,
-          },
-          update: {
-            lastReadSequence: c.nextMessageSequence,
-            lastReadAt: now,
-          },
-        }),
-      ),
+    const readableChannels = [];
+    for (const channel of textChannels) {
+      if (
+        (await permissionService.hasChannelPermission(
+          userId,
+          channel.id,
+          PermissionFlags.VIEW_CHANNEL,
+        )) &&
+        (await permissionService.hasChannelPermission(
+          userId,
+          channel.id,
+          PermissionFlags.READ_MESSAGE_HISTORY,
+        ))
+      ) {
+        readableChannels.push(channel);
+      }
+    }
+    const updatedChannels = await Promise.all(
+      readableChannels.map(async (channel) => ({
+        channelId: channel.id,
+        lastReadSequence: await advanceChannelReadState(
+          userId,
+          channel.id,
+          guildId,
+          channel.nextMessageSequence,
+        ),
+      })),
     );
 
     return {
       success: true,
       guildId,
-      updatedChannels: textChannels.map((c) => ({
-        channelId: c.id,
-        lastReadSequence: c.nextMessageSequence,
-      })),
+      updatedChannels,
     };
   },
 );

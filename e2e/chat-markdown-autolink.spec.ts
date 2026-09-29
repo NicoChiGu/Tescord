@@ -139,6 +139,14 @@ test.describe("聊天文本 URL 链接识别与括号/标点截断修复端到�
       });
     });
 
+    await page.route("**/api/channels/**/read", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ channelId: "c_general", lastReadSequence: 5 }),
+      });
+    });
+
     // Mock 频道历史消息
     await page.route("**/api/channels/**/messages*", (route) => {
       const url = route.request().url();

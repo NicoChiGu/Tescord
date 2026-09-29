@@ -1,8 +1,33 @@
 import { VersionChangelog } from "@tescord/types";
 
-export const CURRENT_APP_VERSION = "0.2.0";
+export const CURRENT_APP_VERSION = "0.3.0";
 
 export const BUILTIN_CHANGELOGS: VersionChangelog[] = [
+  {
+    version: "0.3.0",
+    releaseDate: "2026-09-29",
+    releaseUrl: "https://github.com/labsphaela/Tescord/releases/tag/0.3.0",
+    items: [
+      {
+        id: "channel-unread",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_0_unread_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_0_unread_desc",
+      },
+      {
+        id: "appearance",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_0_appearance_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_0_appearance_desc",
+      },
+      {
+        id: "server-settings",
+        category: "improvements",
+        titleKey: "modals:whatsNew.items.v0_3_0_roles_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_0_roles_desc",
+      },
+    ],
+  },
   {
     version: "0.2.0",
     releaseDate: "2026-09-29",

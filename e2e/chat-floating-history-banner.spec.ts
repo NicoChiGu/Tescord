@@ -90,6 +90,14 @@ test.describe("消息视口顶部悬浮历史横幅与上下边缘渐变模糊�
       });
     });
 
+    await page.route("**/api/channels/**/read", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ channelId: "c_general", lastReadSequence: 25 }),
+      });
+    });
+
     await page.route("**/api/channels/**/messages*", (route) => {
       const url = route.request().url();
       const match = url.match(/\/api\/channels\/([^/]+)\/messages/);

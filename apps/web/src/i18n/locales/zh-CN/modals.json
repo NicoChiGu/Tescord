@@ -258,6 +258,12 @@
     },
     "emptyNotice": "当前版本暂无可展示的更新说明条目。",
     "items": {
+      "v0_3_0_unread_title": "频道未读状态同步",
+      "v0_3_0_unread_desc": "文字频道显示未读指示条，支持频道与服务器标记已读，并同步多端进度。",
+      "v0_3_0_appearance_title": "外观与聊天排版设置",
+      "v0_3_0_appearance_desc": "可调整聊天字体、消息密度和界面缩放。",
+      "v0_3_0_roles_title": "服务器成员管理优化",
+      "v0_3_0_roles_desc": "优化成员列表与角色选择布局，防止连续角色操作互相覆盖。",
       "v0_2_0_livekit_title": "多引擎低延迟音视频网关",
       "v0_2_0_livekit_desc": "无缝集成 LiveKit 与 Cloudflare Realtime，支持高质量低延迟多人连麦与高清屏幕共享。",
       "v0_2_0_rnnoise_title": "RNNoise 神经网络实时降噪",
