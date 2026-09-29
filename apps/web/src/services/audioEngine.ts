@@ -1159,7 +1159,27 @@ export class AudioEngine {
         errors.dfn3 = String(error);
       }
       checkCancelled();
-      for (const output of outputs) output.recorder.start();
+      await Promise.all(
+        outputs.map(
+          (output) =>
+            new Promise<void>((resolve, reject) => {
+              output.recorder.addEventListener("start", () => resolve(), {
+                once: true,
+              });
+              output.recorder.addEventListener(
+                "error",
+                (event) =>
+                  reject(
+                    (event as Event & { error?: Error }).error ?? new Error(),
+                  ),
+                { once: true },
+              );
+              output.recorder.start(250);
+            }),
+        ),
+      );
+      // Let all four encoders receive live graph frames before replay begins.
+      await new Promise((resolve) => setTimeout(resolve, 100));
       playback.start();
       const playbackMs = Math.ceil(recordedPcm.duration * 1000) + 600;
       for (let elapsed = 0; elapsed < playbackMs; elapsed += 100) {

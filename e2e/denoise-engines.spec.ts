@@ -316,7 +316,10 @@ test("一次录音重放为四轨真实引擎试听", async ({ page }) => {
       ],
     };
   });
-  expect(result.sizes.every((size) => size > 0)).toBe(true);
+  expect(
+    result.sizes.every((size) => size > 0),
+    JSON.stringify(result),
+  ).toBe(true);
   expect(result.errors).toEqual([undefined, undefined, undefined]);
   expect(errors).toEqual([]);
 });
