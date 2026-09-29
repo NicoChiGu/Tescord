@@ -1,6 +1,7 @@
 {
   "name": "tescord-monorepo",
   "private": true,
+  "license": "MIT",
   "scripts": {
     "dev": "turbo run dev",
     "dev:server": "pnpm --filter @tescord/server dev",

@@ -540,19 +540,21 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
       {/* 桌面端悬浮操作菜单条 (右上角浮出快捷工具栏，鼠标悬停时展示) */}
       <div
         data-testid="message-floating-bar"
-        className={`absolute right-4 -top-3 ${
-          isEmojiPickerOpen ? "flex" : "hidden md:group-hover:flex"
-        } items-center bg-[#313338] border border-[#2b2d31] rounded-md shadow-md z-20`}
+        className={`absolute right-4 -top-3 items-center bg-[#313338] border border-[#2b2d31] rounded-md shadow-md z-20 transition-all duration-150 ease-out transform ${
+          isEmojiPickerOpen
+            ? "flex opacity-100 scale-100 translate-y-0 pointer-events-auto"
+            : "hidden md:flex md:opacity-0 md:scale-95 md:translate-y-1 md:pointer-events-none md:group-hover:opacity-100 md:group-hover:scale-100 md:group-hover:translate-y-0 md:group-hover:pointer-events-auto"
+        }`}
       >
         {/* Emoji 表情快捷气泡 */}
         <div className="relative">
           <button
             data-testid="btn-add-reaction"
             onClick={() => onToggleEmojiPicker(msg.id)}
-            className="p-1.5 hover:bg-discord-hover text-discord-textMuted hover:text-discord-textHeader transition"
+            className="group/btn p-1.5 hover:bg-discord-hover text-discord-textMuted hover:text-discord-textHeader transition active:scale-90"
             title="添加表情反应"
           >
-            <Smile className="w-4 h-4" />
+            <Smile className="w-4 h-4 transition-transform duration-150 group-hover/btn:scale-110" />
           </button>
           <EmojiPickerPopover
             isOpen={isEmojiPickerOpen}
@@ -564,23 +566,23 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
         {/* 引用回复按钮 */}
         <button
           onClick={() => setReplyingTo(msg)}
-          className="p-1.5 hover:bg-discord-hover text-discord-textMuted hover:text-discord-textHeader transition"
+          className="group/btn p-1.5 hover:bg-discord-hover text-discord-textMuted hover:text-discord-textHeader transition active:scale-90"
           title="引用回复"
         >
-          <Reply className="w-4 h-4" />
+          <Reply className="w-4 h-4 transition-transform duration-150 group-hover/btn:-translate-x-0.5" />
         </button>
 
         {/* 置顶/取消置顶按钮 */}
         <button
           onClick={() => onTogglePin?.(msg.id)}
-          className={`p-1.5 hover:bg-discord-hover transition ${
+          className={`group/btn p-1.5 hover:bg-discord-hover transition active:scale-90 ${
             msg.isPinned
               ? "text-yellow-400 hover:text-yellow-300"
               : "text-discord-textMuted hover:text-discord-textHeader"
           }`}
           title={msg.isPinned ? "取消置顶" : "置顶消息"}
         >
-          <Pin className="w-4 h-4" />
+          <Pin className="w-4 h-4 transition-transform duration-150 group-hover/btn:-rotate-12" />
         </button>
 
         {/* 撤回/删除消息：首次点击变为 ICON+确认删除，带滚动进出动画，3秒自动回退 */}
@@ -591,14 +593,14 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
             data-testid="btn-delete-message"
             onClick={handleDeleteClick}
             onMouseLeave={resetDeleteConfirm}
-            className={`flex items-center p-1.5 rounded transition-all duration-200 overflow-hidden ${
+            className={`flex items-center p-1.5 rounded transition-all duration-200 active:scale-90 overflow-hidden ${
               isConfirmingDelete
                 ? "bg-red-500/20 text-red-400 px-2"
                 : "hover:bg-red-500/20 text-discord-textMuted hover:text-red-400"
             }`}
             title="撤回/删除消息"
           >
-            <Trash2 className="w-4 h-4 shrink-0" />
+            <Trash2 className="w-4 h-4 shrink-0 transition-transform duration-150" />
             <span
               className={`whitespace-nowrap text-xs font-semibold overflow-hidden transition-all duration-300 ease-out ${
                 isConfirmingDelete
@@ -2133,30 +2135,30 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               <button
                 type="button"
                 onClick={() => onStartCall?.(channel.id, false)}
-                className="hover:text-discord-textHeader transition p-1.5 rounded hover:bg-[#35373c] text-discord-textMuted"
+                className="hover:text-discord-textHeader transition-all duration-150 p-1.5 rounded hover:bg-[#35373c] text-discord-textMuted active:scale-95"
                 title={t("chat:dm.startVoiceCall", {
                   defaultValue: "发起语音呼叫",
                 })}
                 data-testid="dm-start-voice-call-btn"
               >
-                <Phone className="w-5 h-5" />
+                <Phone className="w-5 h-5 transition-transform duration-150" />
               </button>
               <button
                 type="button"
                 onClick={() => onStartCall?.(channel.id, true)}
-                className="hover:text-discord-textHeader transition p-1.5 rounded hover:bg-[#35373c] text-discord-textMuted"
+                className="hover:text-discord-textHeader transition-all duration-150 p-1.5 rounded hover:bg-[#35373c] text-discord-textMuted active:scale-95"
                 title={t("chat:dm.startVideoCall", {
                   defaultValue: "发起视频呼叫",
                 })}
                 data-testid="dm-start-video-call-btn"
               >
-                <Video className="w-5 h-5" />
+                <Video className="w-5 h-5 transition-transform duration-150" />
               </button>
             </div>
           )}
 
-          <button className="hidden sm:block hover:text-discord-textHeader transition">
-            <Bell className="w-5 h-5" />
+          <button className="hidden sm:block hover:text-discord-textHeader transition-all duration-150 p-1 rounded hover:bg-[#35373c] text-discord-textMuted active:scale-95 group/bell">
+            <Bell className="w-5 h-5 transition-transform duration-150 group-hover/bell:rotate-12" />
           </button>
           <div className="relative flex items-center">
             <input
@@ -2170,7 +2172,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               <button
                 type="button"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center text-discord-textMuted hover:text-white transition"
+                className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center text-discord-textMuted hover:text-white transition active:scale-90"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -2182,7 +2184,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           <button
             type="button"
             onClick={() => setIsPinnedPopoverOpen((prev) => !prev)}
-            className={`relative p-1 rounded hover:bg-[#35373c] transition ${
+            className={`relative p-1 rounded hover:bg-[#35373c] transition-all duration-150 active:scale-95 ${
               isPinnedPopoverOpen || pinnedMessages.length > 0
                 ? "text-discord-textHeader"
                 : "text-discord-textMuted hover:text-discord-textHeader"
@@ -2190,7 +2192,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             title={`已固定的消息 (${pinnedMessages.length})`}
           >
             <Pin
-              className={`w-5 h-5 rotate-45 transition ${
+              className={`w-5 h-5 rotate-45 transition-transform duration-150 ${
                 pinnedMessages.length > 0
                   ? "text-amber-400 fill-amber-400/20"
                   : ""
@@ -2212,10 +2214,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   onToggleMemberList();
                 }
               }}
-              className={`hover:text-discord-textHeader transition p-1 rounded hover:bg-[#35373c] ${showMemberList ? "text-discord-textHeader" : ""}`}
+              className={`hover:text-discord-textHeader transition-all duration-150 p-1 rounded hover:bg-[#35373c] active:scale-95 ${showMemberList ? "text-discord-textHeader" : "text-discord-textMuted"}`}
               title="成员列表"
             >
-              <Users className="w-5 h-5" />
+              <Users className="w-5 h-5 transition-transform duration-150" />
             </button>
           )}
         </div>
@@ -2652,13 +2654,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             type="button"
             disabled={isUploading}
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center justify-center text-discord-textMuted hover:text-discord-textHeader transition disabled:opacity-50 shrink-0"
+            className="flex items-center justify-center text-discord-textMuted hover:text-discord-textHeader transition disabled:opacity-50 shrink-0 active:scale-90"
             title={t("chat:uploadFile")}
           >
             {isUploading ? (
               <Loader2 className="w-5 h-5 animate-spin text-discord-brand" />
             ) : (
-              <Paperclip className="w-5 h-5" />
+              <Paperclip className="w-5 h-5 transition-transform duration-150 hover:scale-110" />
             )}
           </button>
 
@@ -2685,10 +2687,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             <button
               type="button"
               onClick={() => setIsInputEmojiOpen(!isInputEmojiOpen)}
-              className="flex items-center justify-center text-discord-textMuted hover:text-discord-textHeader transition shrink-0"
+              className="flex items-center justify-center text-discord-textMuted hover:text-discord-textHeader transition shrink-0 active:scale-90"
               title={t("chat:selectEmoji")}
             >
-              <Smile className="w-5 h-5" />
+              <Smile className="w-5 h-5 transition-transform duration-150 hover:scale-110" />
             </button>
             <EmojiPickerPopover
               isOpen={isInputEmojiOpen}
@@ -2702,13 +2704,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           <button
             type="submit"
             disabled={!inputText.trim() && pendingAttachments.length === 0}
-            className={`w-7 h-7 flex items-center justify-center rounded-full transition shrink-0 ${
+            className={`w-7 h-7 flex items-center justify-center rounded-full transition-all duration-200 shrink-0 transform active:scale-90 ${
               inputText.trim() || pendingAttachments.length > 0
-                ? "bg-discord-brand text-white hover:bg-discord-brandHover"
-                : "text-discord-textMuted opacity-40 cursor-not-allowed"
+                ? "bg-discord-brand text-white hover:bg-discord-brandHover scale-100 opacity-100 shadow-sm"
+                : "text-discord-textMuted opacity-40 scale-90 cursor-not-allowed"
             }`}
           >
-            <Send className="w-4 h-4 ml-0.5" />
+            <Send className="w-4 h-4 ml-0.5 transition-transform duration-150" />
           </button>
         </form>
 

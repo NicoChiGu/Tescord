@@ -1,6 +1,7 @@
 {
   "name": "@tescord/types",
   "version": "0.3.0",
+  "license": "MIT",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

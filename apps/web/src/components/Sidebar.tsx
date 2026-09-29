@@ -103,14 +103,14 @@ const SortableServerItem: React.FC<SortableServerItemProps> = ({
           {...sortableAttributes}
           {...listeners}
           onClick={() => onSelectGuild(guild.id)}
-          className={`group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] transition-all duration-200 overflow-visible shrink-0 touch-none select-none ${
+          className={`group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] transition-all duration-200 ease-out overflow-visible shrink-0 touch-none select-none active:scale-95 ${
             isSelected ? "!rounded-[16px]" : ""
           }`}
           title={guild.name}
           aria-label={guild.name}
         >
           <span
-            className={`absolute left-0 w-1 bg-white rounded-r-full transition-all duration-200 ${
+            className={`absolute left-0 w-1 bg-white rounded-r-full transition-all duration-200 ease-out ${
               isSelected
                 ? "h-10"
                 : hasUnread
@@ -118,7 +118,7 @@ const SortableServerItem: React.FC<SortableServerItemProps> = ({
                   : "h-0 group-hover:h-5"
             }`}
           />
-          <div className="w-12 h-12 rounded-[24px] group-hover:rounded-[16px] overflow-hidden transition-all duration-200 flex items-center justify-center">
+          <div className="w-12 h-12 rounded-[24px] group-hover:rounded-[16px] overflow-hidden transition-all duration-200 ease-out flex items-center justify-center">
             {guild.iconUrl ? (
               <img
                 src={resolveServerUrl(guild.iconUrl)}
@@ -352,21 +352,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex flex-col items-center space-y-2 shrink-0 pt-1">
           {/* 添加服务器 */}
           <button
-            className="group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-discord-channelList text-discord-green hover:bg-discord-green hover:text-white transition-all duration-200 shrink-0"
+            className="group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-discord-channelList text-discord-green hover:bg-discord-green hover:text-white transition-all duration-200 active:scale-95 shrink-0"
             title={t("common:sidebar.addServer", "添加服务器")}
             onClick={onOpenCreateGuild}
           >
-            <Plus className="w-6 h-6" />
+            <Plus className="w-6 h-6 transition-transform duration-200 ease-out group-hover:rotate-90" />
           </button>
 
           {/* 加入公共社区 / 探索中心 */}
           <button
             data-testid="open-discovery-btn"
-            className="group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-discord-channelList text-discord-green hover:bg-discord-green hover:text-white transition-all duration-200 shrink-0"
+            className="group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] bg-discord-channelList text-discord-green hover:bg-discord-green hover:text-white transition-all duration-200 active:scale-95 shrink-0"
             title={t("common:sidebar.explore", "探索公开服务器")}
             onClick={onOpenJoinGuild}
           >
-            <Compass className="w-6 h-6" />
+            <Compass className="w-6 h-6 transition-transform duration-300 ease-out group-hover:rotate-45" />
           </button>
         </div>
       </aside>

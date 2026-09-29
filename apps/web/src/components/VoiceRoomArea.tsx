@@ -2521,7 +2521,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                       }
                     : undefined
                 }
-                className={`p-2.5 sm:p-3 pr-1.5 sm:pr-2 rounded-l-full transition cursor-pointer flex items-center justify-center ${
+                className={`p-2.5 sm:p-3 pr-1.5 sm:pr-2 rounded-l-full transition-all duration-150 active:scale-95 cursor-pointer flex items-center justify-center ${
                   isPTTMode
                     ? isPTTPressed
                       ? "hover:bg-discord-green/90"
@@ -2540,14 +2540,14 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
               >
                 {isPTTMode ? (
                   isPTTPressed ? (
-                    <Mic className="w-5 h-5 text-white" />
+                    <Mic className="w-5 h-5 text-white transition-transform duration-150" />
                   ) : (
-                    <MicOff className="w-5 h-5" />
+                    <MicOff className="w-5 h-5 transition-transform duration-150" />
                   )
                 ) : isMuted ? (
-                  <MicOff className="w-5 h-5" />
+                  <MicOff className="w-5 h-5 transition-transform duration-150" />
                 ) : (
-                  <Mic className="w-5 h-5" />
+                  <Mic className="w-5 h-5 transition-transform duration-150" />
                 )}
               </button>
 
@@ -2633,7 +2633,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                 type="button"
                 onClick={onToggleVideo}
                 data-testid="voice-toggle-camera-btn"
-                className={`p-2.5 sm:p-3 pr-1.5 sm:pr-2 rounded-l-full transition cursor-pointer flex items-center justify-center ${
+                className={`p-2.5 sm:p-3 pr-1.5 sm:pr-2 rounded-l-full transition-all duration-150 active:scale-95 cursor-pointer flex items-center justify-center ${
                   isVideoEnabled
                     ? "hover:bg-discord-green/90"
                     : "hover:bg-discord-hover text-discord-textNormal"
@@ -2641,9 +2641,9 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                 title={isVideoEnabled ? "关闭摄像头" : "打开摄像头"}
               >
                 {isVideoEnabled ? (
-                  <Video className="w-5 h-5" />
+                  <Video className="w-5 h-5 transition-transform duration-150" />
                 ) : (
-                  <VideoOff className="w-5 h-5" />
+                  <VideoOff className="w-5 h-5 transition-transform duration-150" />
                 )}
               </button>
 
@@ -2756,14 +2756,14 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                       onToggleScreenShare();
                     }
                   }}
-                  className={`p-2.5 sm:p-3.5 rounded-full transition shadow-lg ${
+                  className={`p-2.5 sm:p-3.5 rounded-full transition-all duration-150 active:scale-95 shadow-lg ${
                     isScreenActive
                       ? "bg-discord-brand text-white hover:bg-discord-brand-hover ring-4 ring-discord-brand/30"
                       : "bg-[#2b2d31] text-discord-textNormal hover:bg-discord-hover"
                   }`}
                   title={isScreenActive ? "停止共享" : "屏幕共享"}
                 >
-                  <ScreenShare className="w-5 h-5" />
+                  <ScreenShare className="w-5 h-5 transition-transform duration-150" />
                 </button>
               );
             })()}
@@ -2773,7 +2773,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
               <button
                 data-testid="voice-sparkles-btn"
                 onClick={() => setIsNoiseMenuOpen((prev) => !prev)}
-                className={`p-2.5 sm:p-3.5 rounded-full transition shadow-lg flex items-center space-x-1.5 ${
+                className={`p-2.5 sm:p-3.5 rounded-full transition-all duration-150 active:scale-95 shadow-lg flex items-center space-x-1.5 ${
                   isNoiseSuppressionEnabled
                     ? noiseSuppressionMode === "dfn3"
                       ? "bg-purple-500/30 text-purple-300 border border-purple-500 ring-1 ring-purple-500/40 hover:bg-purple-500/40"
@@ -2792,7 +2792,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                         : "AI 降噪已关闭"
                 }
               >
-                <Sparkles className="w-5 h-5" />
+                <Sparkles className="w-5 h-5 transition-transform duration-150" />
               </button>
 
               {isNoiseMenuOpen && (
@@ -2921,10 +2921,10 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
             {/* 挂断退出 */}
             <button
               onClick={onLeave}
-              className="p-2.5 sm:p-3.5 rounded-full bg-discord-danger text-white hover:bg-discord-danger/90 transition shadow-lg"
+              className="group p-2.5 sm:p-3.5 rounded-full bg-discord-danger text-white hover:bg-discord-danger/90 hover:shadow-red-500/25 hover:shadow-xl transition-all duration-150 active:scale-90 shadow-lg"
               title={t("voice:mediaTooltips.disconnect")}
             >
-              <PhoneOff className="w-5 h-5" />
+              <PhoneOff className="w-5 h-5 transition-transform duration-150 group-hover:scale-110" />
             </button>
           </>
         )}

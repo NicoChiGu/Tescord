@@ -30,7 +30,6 @@ import {
   VideoOff,
   Loader2,
   ChevronDown,
-  ChevronRight,
   FolderPlus,
   BellOff,
 } from "lucide-react";
@@ -433,10 +432,10 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
                   e.stopPropagation();
                   onEditChannel(channel);
                 }}
-                className="pointer-events-auto opacity-0 group-hover:opacity-100 hover:text-white text-discord-textMuted p-0.5 rounded transition"
+                className="group/cog pointer-events-auto opacity-0 group-hover:opacity-100 hover:text-white text-discord-textMuted p-0.5 rounded transition-all duration-150 active:scale-90"
                 title={t("contextMenu:channel.editChannel")}
               >
-                <Settings className="w-3.5 h-3.5" />
+                <Settings className="w-3.5 h-3.5 transition-transform duration-200 ease-out group-hover/cog:rotate-45" />
               </button>
             )}
           </div>
@@ -1235,50 +1234,56 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                       onEditCategory={onEditCategory}
                       onDeleteCategory={onDeleteCategory}
                     >
-                      {!isCollapsed && (
-                        <SortableContext
-                          items={categoryChannels.map((c) => `chn_${c.id}`)}
-                          strategy={verticalListSortingStrategy}
-                        >
-                          <div
-                            className="space-y-[2px] mt-0.5"
-                            data-testid={`category-channels-${category.id}`}
+                      <div
+                        className={`discord-accordion ${
+                          isCollapsed ? "collapsed" : ""
+                        }`}
+                      >
+                        <div className="overflow-hidden">
+                          <SortableContext
+                            items={categoryChannels.map((c) => `chn_${c.id}`)}
+                            strategy={verticalListSortingStrategy}
                           >
-                            {categoryChannels.map((channel) => (
-                              <SortableChannelItem
-                                key={channel.id}
-                                channel={channel}
-                                guild={guild}
-                                selectedChannelId={selectedChannelId}
-                                activeVoiceChannelId={activeVoiceChannelId}
-                                participants={getChannelParticipants(
-                                  channel.id,
-                                )}
-                                canManageChannels={canManageChannels}
-                                currentUser={currentUser}
-                                isSpeaking={isSpeaking}
-                                activeSpeakers={activeSpeakers}
-                                peerLatencies={peerLatencies}
-                                t={t}
-                                unreadInfo={channelUnreadMap?.[channel.id]}
-                                onSelectChannel={onSelectChannel}
-                                onJoinVoiceChannel={onJoinVoiceChannel}
-                                onEditChannel={onEditChannel}
-                                onDeleteChannel={onDeleteChannel}
-                                onMarkChannelAsRead={onMarkChannelAsRead}
-                                onMention={onMention}
-                                onOpenUserProfile={onOpenUserProfile}
-                                onSendMessage={onSendMessage}
-                                onOpenUserSettings={onOpenUserSettings}
-                                onOpenSettings={onOpenSettings}
-                                onKickMember={onKickMember}
-                                onBanMember={onBanMember}
-                                onCancelDrag={handleDragCancel}
-                              />
-                            ))}
-                          </div>
-                        </SortableContext>
-                      )}
+                            <div
+                              className="space-y-[2px] mt-0.5"
+                              data-testid={`category-channels-${category.id}`}
+                            >
+                              {categoryChannels.map((channel) => (
+                                <SortableChannelItem
+                                  key={channel.id}
+                                  channel={channel}
+                                  guild={guild}
+                                  selectedChannelId={selectedChannelId}
+                                  activeVoiceChannelId={activeVoiceChannelId}
+                                  participants={getChannelParticipants(
+                                    channel.id,
+                                  )}
+                                  canManageChannels={canManageChannels}
+                                  currentUser={currentUser}
+                                  isSpeaking={isSpeaking}
+                                  activeSpeakers={activeSpeakers}
+                                  peerLatencies={peerLatencies}
+                                  t={t}
+                                  unreadInfo={channelUnreadMap?.[channel.id]}
+                                  onSelectChannel={onSelectChannel}
+                                  onJoinVoiceChannel={onJoinVoiceChannel}
+                                  onEditChannel={onEditChannel}
+                                  onDeleteChannel={onDeleteChannel}
+                                  onMarkChannelAsRead={onMarkChannelAsRead}
+                                  onMention={onMention}
+                                  onOpenUserProfile={onOpenUserProfile}
+                                  onSendMessage={onSendMessage}
+                                  onOpenUserSettings={onOpenUserSettings}
+                                  onOpenSettings={onOpenSettings}
+                                  onKickMember={onKickMember}
+                                  onBanMember={onBanMember}
+                                  onCancelDrag={handleDragCancel}
+                                />
+                              ))}
+                            </div>
+                          </SortableContext>
+                        </div>
+                      </div>
                     </SortableCategorySection>
                   );
                 })}
@@ -1660,40 +1665,47 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
         {/* 麦克风/耳机/设置控制按钮 */}
         <div className="flex items-center space-x-0.5 text-discord-textMuted">
           <button
+            data-testid="user-bar-mic-btn"
             onClick={onToggleMute}
-            className={`p-1.5 rounded hover:bg-discord-hover transition ${
+            className={`p-1.5 rounded hover:bg-discord-hover transition-all duration-150 active:scale-90 ${
               isMuted
-                ? "text-discord-danger hover:text-discord-danger"
+                ? "text-discord-danger hover:text-discord-danger bg-discord-danger/10 hover:bg-discord-danger/20"
                 : "hover:text-discord-textNormal"
             }`}
             title={isMuted ? t("voice:unmuteMic") : t("voice:muteMic")}
           >
             {isMuted ? (
-              <MicOff className="w-4 h-4" />
+              <MicOff className="w-4 h-4 transition-transform duration-150 scale-100" />
             ) : (
-              <Mic className="w-4 h-4" />
+              <Mic className="w-4 h-4 transition-transform duration-150 scale-100" />
             )}
           </button>
           <button
+            data-testid="user-bar-deafen-btn"
             onClick={onToggleDeafen}
-            className={`p-1.5 rounded hover:bg-discord-hover transition ${
+            className={`p-1.5 rounded hover:bg-discord-hover transition-all duration-150 active:scale-90 relative ${
               isDeafened
-                ? "text-discord-danger hover:text-discord-danger"
+                ? "text-discord-danger hover:text-discord-danger bg-discord-danger/10 hover:bg-discord-danger/20"
                 : "hover:text-discord-textNormal"
             }`}
             title={isDeafened ? t("voice:undeafen") : t("voice:deafen")}
           >
-            <Headphones className="w-4 h-4" />
+            <div className="relative flex items-center justify-center">
+              <Headphones className="w-4 h-4 transition-transform duration-150" />
+              {isDeafened && (
+                <span className="absolute w-5 h-0.5 bg-discord-danger rotate-45 transform origin-center rounded-full shadow-sm animate-in fade-in zoom-in-75 duration-150" />
+              )}
+            </div>
           </button>
           <button
             type="button"
             data-testid="user-settings-gear-btn"
             data-action="open-user-settings"
             onClick={onOpenSettings}
-            className="p-1.5 rounded hover:bg-discord-hover hover:text-discord-textNormal transition cursor-pointer"
+            className="group/gear p-1.5 rounded hover:bg-discord-hover hover:text-discord-textNormal transition-all duration-150 active:scale-90 cursor-pointer"
             title={t("voice:deviceSettings")}
           >
-            <Settings className="w-4 h-4" />
+            <Settings className="w-4 h-4 transition-transform duration-300 ease-out group-hover/gear:rotate-45" />
           </button>
         </div>
       </div>
@@ -1777,11 +1789,11 @@ const SortableCategorySection: React.FC<SortableCategorySectionProps> = ({
             onClick={onToggleCollapse}
             className="flex items-center space-x-1 min-w-0 flex-1 cursor-pointer"
           >
-            {isCollapsed ? (
-              <ChevronRight className="w-3.5 h-3.5 flex-shrink-0 transition-transform" />
-            ) : (
-              <ChevronDown className="w-3.5 h-3.5 flex-shrink-0 transition-transform" />
-            )}
+            <ChevronDown
+              className={`w-3.5 h-3.5 flex-shrink-0 transition-transform duration-200 ease-out ${
+                isCollapsed ? "-rotate-90" : "rotate-0"
+              }`}
+            />
             <span className="truncate">{category.name}</span>
           </div>
           {canManageChannels && onOpenCreateChannel && (
@@ -1792,13 +1804,13 @@ const SortableCategorySection: React.FC<SortableCategorySectionProps> = ({
                 e.stopPropagation();
                 onOpenCreateChannel();
               }}
-              className="p-0.5 opacity-70 hover:opacity-100 hover:text-discord-textHeader transition text-discord-textMuted"
+              className="group/plus p-0.5 opacity-70 hover:opacity-100 hover:text-discord-textHeader transition text-discord-textMuted active:scale-90"
               title={t("contextMenu:server.createChannel")}
               aria-label={t("voice:createChannelInCategory", {
                 name: category.name,
               })}
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3.5 h-3.5 transition-transform duration-200 ease-out group-hover/plus:rotate-90" />
             </button>
           )}
         </div>

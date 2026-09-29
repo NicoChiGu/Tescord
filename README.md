@@ -451,5 +451,5 @@ pnpm test:updater
 
 ## 📜 开源协议 (License)
 
-本项目基于 **MIT License** 开源。
+本项目基于 [MIT License](LICENSE) 协议开源。详细条款与免责声明请参阅仓库根目录下的 [LICENSE](LICENSE) 文件。
 欢迎查阅代码、提交 Issue 与参与 Pull Request 协作，共同构建极致、自由、安全的本地私有化实时通讯新标杆！
