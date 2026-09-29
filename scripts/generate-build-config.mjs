@@ -9,6 +9,7 @@ import path from "node:path";
 import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createPublicKey } from "node:crypto";
+import { resolveServerConfig } from "./resolve-server-config.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -26,7 +27,10 @@ function loadEnvFile(envPath) {
     if (eqIdx > 0) {
       const key = trimmed.slice(0, eqIdx).trim();
       let val = trimmed.slice(eqIdx + 1).trim();
-      if ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'"))) {
+      if (
+        (val.startsWith('"') && val.endsWith('"')) ||
+        (val.startsWith("'") && val.endsWith("'"))
+      ) {
         val = val.slice(1, -1);
       }
       env[key] = val;
@@ -45,7 +49,9 @@ function detectGitRemoteRepo() {
     if (!output) return null;
 
     // 支持 https://github.com/owner/repo.git 或 git@github.com:owner/repo.git
-    const match = output.match(/github\.com[/:]([\w.-]+)\/([\w.-]+?)(\.git)?$/i);
+    const match = output.match(
+      /github\.com[/:]([\w.-]+)\/([\w.-]+?)(\.git)?$/i,
+    );
     if (match && match[1] && match[2]) {
       return `${match[1]}/${match[2]}`;
     }
@@ -57,7 +63,10 @@ function detectGitRemoteRepo() {
 
 function resolveRepo() {
   // 1. 优先读取标准环境变量 (GitHub Actions 会自动注入 GITHUB_REPOSITORY)
-  if (process.env.GITHUB_REPOSITORY && process.env.GITHUB_REPOSITORY.includes("/")) {
+  if (
+    process.env.GITHUB_REPOSITORY &&
+    process.env.GITHUB_REPOSITORY.includes("/")
+  ) {
     return process.env.GITHUB_REPOSITORY.trim();
   }
 
@@ -66,7 +75,10 @@ function resolveRepo() {
   if (localEnv.GITHUB_REPOSITORY && localEnv.GITHUB_REPOSITORY.includes("/")) {
     return localEnv.GITHUB_REPOSITORY.trim();
   }
-  if (localEnv.VITE_GITHUB_REPOSITORY && localEnv.VITE_GITHUB_REPOSITORY.includes("/")) {
+  if (
+    localEnv.VITE_GITHUB_REPOSITORY &&
+    localEnv.VITE_GITHUB_REPOSITORY.includes("/")
+  ) {
     return localEnv.VITE_GITHUB_REPOSITORY.trim();
   }
 
@@ -80,6 +92,16 @@ function resolveRepo() {
 }
 
 function main() {
+  const serverConfig = resolveServerConfig();
+  if (serverConfig.serverUrl) {
+    console.log(
+      `[BuildConfig] 🎯 固化服务器地址: ${serverConfig.serverUrl} | 网关: ${serverConfig.gatewayUrl} (来源: ${serverConfig.source})`,
+    );
+  } else {
+    console.log(
+      `[BuildConfig] ℹ️ 未指定自定义服务器地址，将默认连接本地开发/自宿主服务 (http://localhost:3001)`,
+    );
+  }
   const repoString = resolveRepo();
   let isUpdaterEnabled = false;
   let repoOwner = "";
@@ -89,8 +111,15 @@ function main() {
   let validPublicKey = false;
   if (publicKey) {
     try {
-      validPublicKey = createPublicKey({ key: Buffer.from(publicKey, "base64"), format: "der", type: "spki" }).asymmetricKeyType === "ed25519";
-    } catch { validPublicKey = false; }
+      validPublicKey =
+        createPublicKey({
+          key: Buffer.from(publicKey, "base64"),
+          format: "der",
+          type: "spki",
+        }).asymmetricKeyType === "ed25519";
+    } catch {
+      validPublicKey = false;
+    }
   }
 
   if (repoString && repoString.includes("/")) {
@@ -100,13 +129,15 @@ function main() {
       repoOwner = owner.trim();
       repoName = name.replace(/\.git$/i, "").trim();
       repoFullName = `${repoOwner}/${repoName}`;
-      console.log(`[BuildConfig] GitHub 仓库: "${repoFullName}"；更新签名公钥${validPublicKey ? "有效，更新已启用" : "缺失或无效，更新已禁用"}。`);
+      console.log(
+        `[BuildConfig] GitHub 仓库: "${repoFullName}"；更新签名公钥${validPublicKey ? "有效，更新已启用" : "缺失或无效，更新已禁用"}。`,
+      );
     }
   }
 
   if (!repoFullName) {
     console.log(
-      `⚠️ [BuildConfig] 未检测到有效的 GitHub 仓库信息 (未设置 GITHUB_REPOSITORY 且无有效 GitHub remote)，自动更新服务将不生效 (IS_UPDATER_ENABLED = false)。`
+      `⚠️ [BuildConfig] 未检测到有效的 GitHub 仓库信息 (未设置 GITHUB_REPOSITORY 且无有效 GitHub remote)，自动更新服务将不生效 (IS_UPDATER_ENABLED = false)。`,
     );
   }
 
@@ -118,6 +149,14 @@ function main() {
  * 编译期写死在客户端内部的固化配置
  */
 export const BUILD_CONFIG = {
+  /** 编译期固化的服务器 API 地址 (若未指定则为空字符串，客户端默认连接 localhost:3001) */
+  DEFAULT_SERVER_URL: ${JSON.stringify(serverConfig.serverUrl || "")},
+  /** 编译期固化的 WebSocket Gateway 地址 */
+  DEFAULT_GATEWAY_URL: ${JSON.stringify(serverConfig.gatewayUrl || "")},
+  /** 编译期固化的 LiveKit SFU 媒体服务地址 */
+  DEFAULT_LIVEKIT_URL: ${JSON.stringify(serverConfig.livekitUrl || "")},
+  /** 固化服务器配置来源 */
+  SERVER_CONFIG_SOURCE: ${JSON.stringify(serverConfig.source)},
   /** 是否启用了更新检测服务 (build 时未检测到仓库信息则为 false，此时不进行更新检测) */
   IS_UPDATER_ENABLED: ${isUpdaterEnabled},
   /** GitHub 仓库拥有者 (Owner) */

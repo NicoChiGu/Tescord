@@ -1,0 +1,8 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "TescordDesktopBuildConfig",
+  "description": "Tescord Electron 桌面客户端编译期固化配置模板。可复制为 desktop.config.json 用于定制打包的目标服务端。",
+  "serverUrl": "https://tescord.example.com",
+  "gatewayUrl": "wss://tescord.example.com/gateway",
+  "livekitUrl": "wss://livekit.example.com"
+}

@@ -30,6 +30,8 @@ docker/backups/
 docker/**/datas/
 docker/.env.tunnel
 release-keys/
+desktop.config.json
+apps/desktop/desktop.config.json
 
 # Database & Storage
 *.db

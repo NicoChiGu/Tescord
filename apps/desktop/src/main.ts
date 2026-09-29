@@ -1794,6 +1794,9 @@ function startBackgroundUpdateChecker(): void {
 }
 
 app.whenReady().then(async () => {
+  console.log(
+    `[App] 目标服务器配置: ${BUILD_CONFIG.DEFAULT_SERVER_URL || "http://localhost:3001"} | 网关: ${BUILD_CONFIG.DEFAULT_GATEWAY_URL || "ws://localhost:3001/gateway"} (来源: ${BUILD_CONFIG.SERVER_CONFIG_SOURCE})`,
+  );
   StorageManager.getInstance().setSenderValidator(isTrustedIpcSender);
   StorageManager.getInstance().initialize();
   await startApplicationWithSplash();

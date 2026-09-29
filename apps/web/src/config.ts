@@ -22,7 +22,12 @@ export const GATEWAY_URL =
  */
 export function resolveServerUrl(url: string | undefined | null): string {
   if (!url) return "";
-  if (isFileProtocol) return url;
+  if (isFileProtocol) {
+    if (url.startsWith("/")) {
+      return `${API_BASE}${url}`;
+    }
+    return url;
+  }
 
   // 如果是本地开发后端地址 (localhost:3001 或 127.0.0.1:3001)，转为相对路径走 Vite 代理
   const localBackendRegex =
