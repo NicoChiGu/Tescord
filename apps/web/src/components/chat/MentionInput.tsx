@@ -11,10 +11,7 @@ import {
   MentionAutocomplete,
   MentionCandidate,
 } from "./MentionAutocomplete.js";
-import {
-  FloatingFormatToolbar,
-  FormatType,
-} from "./FloatingFormatToolbar.js";
+import { FloatingFormatToolbar, FormatType } from "./FloatingFormatToolbar.js";
 import { getUserDisplayName } from "../../utils/userDisplay.js";
 
 export interface MentionInputHandle {
@@ -65,7 +62,10 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
 
     // 富文本悬浮菜单状态
     const [selectedRange, setSelectedRange] = useState<Range | null>(null);
-    const [toolbarPos, setToolbarPos] = useState<{ top: number; left: number } | null>(null);
+    const [toolbarPos, setToolbarPos] = useState<{
+      top: number;
+      left: number;
+    } | null>(null);
     const [showToolbar, setShowToolbar] = useState(false);
     const [isMobileDevice, setIsMobileDevice] = useState(false);
     const isCtrlAPressedRef = useRef(false);
@@ -311,7 +311,10 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
         const gap = 8;
 
         let left = rect.left + rect.width / 2 - toolbarWidth / 2;
-        left = Math.max(12, Math.min(left, window.innerWidth - toolbarWidth - 12));
+        left = Math.max(
+          12,
+          Math.min(left, window.innerWidth - toolbarWidth - 12),
+        );
 
         let top = rect.top - toolbarHeight - gap;
         if (top < 10) {
@@ -721,7 +724,7 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
         {isEmpty && (
           <span
             data-testid="chat-input-placeholder"
-            className="absolute left-0 top-1/2 -translate-y-1/2 text-sm text-discord-textMuted pointer-events-none select-none truncate"
+            className="absolute left-0 top-1/2 -translate-y-1/2 text-[length:var(--chat-font-size,16px)] text-discord-textMuted pointer-events-none select-none truncate"
           >
             {placeholder}
           </span>
@@ -746,7 +749,7 @@ export const MentionInput = forwardRef<MentionInputHandle, MentionInputProps>(
             // 延时关闭菜单，确保鼠标点击候选项能触发
             setTimeout(() => setIsMenuOpen(false), 200);
           }}
-          className="w-full bg-transparent text-sm text-discord-textHeader focus:outline-none leading-normal min-h-[20px] max-h-32 overflow-y-auto break-words select-text custom-scrollbar py-0.5"
+          className="w-full bg-transparent text-[length:var(--chat-font-size,16px)] text-discord-textHeader focus:outline-none leading-normal min-h-[20px] max-h-32 overflow-y-auto break-words select-text custom-scrollbar py-0.5"
           style={{ wordBreak: "break-word" }}
         />
       </div>

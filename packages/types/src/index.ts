@@ -1274,6 +1274,8 @@ export function isGuildMuted(config?: ChannelMuteConfig | null): boolean {
   return Date.now() < config.mutedUntil;
 }
 
+export type MessageDisplayMode = "cozy" | "compact";
+
 // 用户全量偏好设置 DTO (支持本地 Zustand Persist 持久化与后端云端漫游)
 export interface UserSettingsDTO {
   audio: AudioProcessingConfig;
@@ -1289,6 +1291,8 @@ export interface UserSettingsDTO {
   userNotes?: Record<string, string>; // 针对特定目标用户的私有备注字典 (targetUserId -> note)
   pinnedDMs?: string[]; // 置顶的私信会话 ID 列表
   mutedUsers?: Record<string, number>; // 针对特定用户的私信静音截止时间戳字典 (targetUserId -> timestamp, -1 代表永久)
+  chatFontSize?: number; // 聊天字体大小 (12 - 20, 默认 16)
+  messageDisplayMode?: MessageDisplayMode; // 消息展示模式 ('cozy' 舒适 / 'compact' 紧凑, 默认 'cozy')
 }
 
 export interface UpdateUserNoteDTO {

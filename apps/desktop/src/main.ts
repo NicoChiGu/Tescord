@@ -305,7 +305,54 @@ function savePersistedLocale(locale: SupportedLocale): void {
   } catch {}
 }
 
+function loadPersistedZoomFactor(): number {
+  try {
+    const p = getDesktopSettingsPath();
+    if (p && fs.existsSync(p)) {
+      const data = JSON.parse(fs.readFileSync(p, "utf-8"));
+      const factor = Number(data.zoomFactor);
+      if (!Number.isNaN(factor) && factor >= 0.5 && factor <= 2.5) {
+        return factor;
+      }
+    }
+  } catch {}
+  return 1.0;
+}
+
+function savePersistedZoomFactor(zoomFactor: number): void {
+  try {
+    const p = getDesktopSettingsPath();
+    if (p) {
+      let existing: any = {};
+      if (fs.existsSync(p)) {
+        try {
+          existing = JSON.parse(fs.readFileSync(p, "utf-8"));
+        } catch {}
+      }
+      fs.writeFileSync(
+        p,
+        JSON.stringify({ ...existing, zoomFactor }, null, 2),
+        "utf-8",
+      );
+    }
+  } catch (err) {
+    console.warn("[Desktop] 保存缩放比例失败:", err);
+  }
+}
+
 let currentLocale: SupportedLocale = loadPersistedLocale();
+let currentZoomFactor: number = loadPersistedZoomFactor();
+
+function applyZoomFactor(factor: number): number {
+  const clamped = Math.min(2.0, Math.max(0.7, Number(factor.toFixed(2))));
+  currentZoomFactor = clamped;
+  savePersistedZoomFactor(clamped);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.setZoomFactor(clamped);
+    mainWindow.webContents.send("zoom-factor-changed", clamped);
+  }
+  return clamped;
+}
 
 let currentWindowMode: DesktopWindowMode = loadHasAuthSession()
   ? "main"
@@ -536,6 +583,36 @@ function setupWindowHandlers(win: BrowserWindow, _isAuth: boolean) {
     event.preventDefault();
     if (isSafeExternalUrl(targetUrl)) void shell.openExternal(targetUrl);
   });
+
+  if (!_isAuth) {
+    win.webContents.on("dom-ready", () => {
+      if (!win.isDestroyed()) {
+        win.webContents.setZoomFactor(currentZoomFactor);
+      }
+    });
+
+    win.webContents.on("before-input-event", (event, input) => {
+      if (input.type !== "keyDown") return;
+      const isCtrlOrCmd =
+        process.platform === "darwin" ? input.meta : input.control;
+      if (!isCtrlOrCmd) return;
+
+      if (
+        input.key === "=" ||
+        input.key === "+" ||
+        input.code === "NumpadAdd"
+      ) {
+        event.preventDefault();
+        applyZoomFactor(currentZoomFactor + 0.1);
+      } else if (input.key === "-" || input.code === "NumpadSubtract") {
+        event.preventDefault();
+        applyZoomFactor(currentZoomFactor - 0.1);
+      } else if (input.key === "0" || input.code === "Numpad0") {
+        event.preventDefault();
+        applyZoomFactor(1.0);
+      }
+    });
+  }
 }
 
 const probe = (url: string): Promise<boolean> => {
@@ -1365,6 +1442,17 @@ ipcMain.handle("window-get-mode", (event) => {
   if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
   const senderWin = BrowserWindow.fromWebContents(event.sender);
   return senderWin === authWindow ? "auth" : "main";
+});
+
+// 8. 窗口与界面缩放控制
+ipcMain.handle("zoom-get-factor", (event) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+  return currentZoomFactor;
+});
+
+ipcMain.handle("zoom-set-factor", (event, factor: number) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+  return applyZoomFactor(typeof factor === "number" ? factor : 1.0);
 });
 
 // 原生网络穿透与 UPnP 自动打洞

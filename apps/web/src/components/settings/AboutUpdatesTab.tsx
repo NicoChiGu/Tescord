@@ -178,9 +178,7 @@ export const AboutUpdatesTab: React.FC = () => {
             className="shrink-0 flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-[#5865f2] hover:bg-[#4752c4] text-white transition-all shadow-md cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>
-              {t("settings:updates.viewChangelog", "查看更新公告")}
-            </span>
+            <span>{t("settings:updates.viewChangelog", "查看更新公告")}</span>
           </button>
         </div>
       </div>
@@ -237,9 +235,7 @@ export const AboutUpdatesTab: React.FC = () => {
               className="flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold bg-white/10 hover:bg-white/20 text-white transition-all shadow-sm cursor-pointer"
             >
               <Sparkles className="w-3.5 h-3.5 text-[#5865f2]" />
-              <span>
-                {t("settings:updates.viewChangelog", "查看更新公告")}
-              </span>
+              <span>{t("settings:updates.viewChangelog", "查看更新公告")}</span>
             </button>
 
             <button

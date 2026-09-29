@@ -237,9 +237,15 @@ export const DMCallStage: React.FC<DMCallStageProps> = ({
                 ? "bg-rose-500/20 text-rose-400 hover:bg-rose-500/30"
                 : "text-zinc-300 hover:bg-[#35373c]"
             }`}
-            title={isMuted ? t("voice:unmute", "取消静音") : t("voice:mute", "静音")}
+            title={
+              isMuted ? t("voice:unmute", "取消静音") : t("voice:mute", "静音")
+            }
           >
-            {isMuted ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+            {isMuted ? (
+              <MicOff className="w-4 h-4" />
+            ) : (
+              <Mic className="w-4 h-4" />
+            )}
           </button>
 
           {/* 展开舞台 */}
@@ -250,7 +256,9 @@ export const DMCallStage: React.FC<DMCallStageProps> = ({
             title={t("voice:dmCall.expandStage", "展开通话舞台")}
           >
             <ChevronDown className="w-4 h-4" />
-            <span className="hidden md:inline">{t("voice:dmCall.expand", "展开")}</span>
+            <span className="hidden md:inline">
+              {t("voice:dmCall.expand", "展开")}
+            </span>
           </button>
 
           {/* 红色挂断按钮 */}
@@ -317,7 +325,9 @@ export const DMCallStage: React.FC<DMCallStageProps> = ({
           {encryption && (
             <div className="mt-2 flex items-center space-x-1.5 text-xs text-discord-green bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>{t("chat:dm.incomingCall.e2eeTrusted", "端到端加密连接协商中")}</span>
+              <span>
+                {t("chat:dm.incomingCall.e2eeTrusted", "端到端加密连接协商中")}
+              </span>
             </div>
           )}
 
@@ -330,9 +340,17 @@ export const DMCallStage: React.FC<DMCallStageProps> = ({
                   ? "bg-rose-500/20 text-rose-400 hover:bg-rose-500/30"
                   : "bg-[#2b2d31] text-zinc-300 hover:bg-[#35373c]"
               }`}
-              title={isMuted ? t("voice:unmute", "开启麦克风") : t("voice:mute", "静音")}
+              title={
+                isMuted
+                  ? t("voice:unmute", "开启麦克风")
+                  : t("voice:mute", "静音")
+              }
             >
-              {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+              {isMuted ? (
+                <MicOff className="w-5 h-5" />
+              ) : (
+                <Mic className="w-5 h-5" />
+              )}
             </button>
 
             <button
@@ -342,9 +360,17 @@ export const DMCallStage: React.FC<DMCallStageProps> = ({
                   ? "bg-discord-brand text-white"
                   : "bg-[#2b2d31] text-zinc-300 hover:bg-[#35373c]"
               }`}
-              title={isVideoEnabled ? t("voice:disableVideo", "关闭摄像头") : t("voice:enableVideo", "开启摄像头")}
+              title={
+                isVideoEnabled
+                  ? t("voice:disableVideo", "关闭摄像头")
+                  : t("voice:enableVideo", "开启摄像头")
+              }
             >
-              {isVideoEnabled ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
+              {isVideoEnabled ? (
+                <Video className="w-5 h-5" />
+              ) : (
+                <VideoOff className="w-5 h-5" />
+              )}
             </button>
 
             {/* 大尺寸红色取消呼叫按钮 */}
@@ -373,7 +399,9 @@ export const DMCallStage: React.FC<DMCallStageProps> = ({
         <p className="text-white text-base font-semibold">
           {t("voice:connecting", "正在建立加密音视频通道...")}
         </p>
-        <p className="text-xs text-zinc-400 mt-1">WebRTC P2P Direct / LiveKit SFU</p>
+        <p className="text-xs text-zinc-400 mt-1">
+          WebRTC P2P Direct / LiveKit SFU
+        </p>
         <button
           onClick={onHangup}
           className="mt-6 px-5 py-2 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium transition"
@@ -398,7 +426,9 @@ export const DMCallStage: React.FC<DMCallStageProps> = ({
       <div className="absolute top-3 left-4 right-4 z-20 flex items-center justify-between pointer-events-none">
         <div className="pointer-events-auto flex items-center space-x-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 text-xs">
           <Wifi className="w-3.5 h-3.5 text-emerald-400" />
-          <span className="text-zinc-200 font-medium font-mono">{callDuration}</span>
+          <span className="text-zinc-200 font-medium font-mono">
+            {callDuration}
+          </span>
           <span className="text-zinc-500">|</span>
           <span className="text-emerald-400 font-medium">RTC Connected</span>
         </div>
@@ -408,10 +438,16 @@ export const DMCallStage: React.FC<DMCallStageProps> = ({
           {(remoteVideoTrack || localVideoTrack) && (
             <button
               onClick={() =>
-                setVideoFitMode(videoFitMode === "contain" ? "cover" : "contain")
+                setVideoFitMode(
+                  videoFitMode === "contain" ? "cover" : "contain",
+                )
               }
               className="bg-black/60 backdrop-blur-md px-2.5 py-1.5 rounded-lg border border-white/10 text-xs text-zinc-300 hover:text-white transition"
-              title={videoFitMode === "contain" ? "切换为充满卡片 (Cover)" : "切换为适应窗口 (Contain)"}
+              title={
+                videoFitMode === "contain"
+                  ? "切换为充满卡片 (Cover)"
+                  : "切换为适应窗口 (Contain)"
+              }
             >
               {videoFitMode === "contain" ? "Fit" : "Fill"}
             </button>
@@ -421,9 +457,17 @@ export const DMCallStage: React.FC<DMCallStageProps> = ({
           <button
             onClick={toggleFullscreen}
             className="p-1.5 bg-black/60 backdrop-blur-md rounded-lg border border-white/10 text-zinc-300 hover:text-white transition"
-            title={isFullscreen ? t("voice:exitFullscreen", "退出全屏") : t("voice:fullscreen", "全屏")}
+            title={
+              isFullscreen
+                ? t("voice:exitFullscreen", "退出全屏")
+                : t("voice:fullscreen", "全屏")
+            }
           >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            {isFullscreen ? (
+              <Minimize2 className="w-4 h-4" />
+            ) : (
+              <Maximize2 className="w-4 h-4" />
+            )}
           </button>
 
           {/* 折叠舞台 */}
@@ -515,7 +559,9 @@ export const DMCallStage: React.FC<DMCallStageProps> = ({
                   autoPlay
                   playsInline
                   className={`w-full h-full ${
-                    videoFitMode === "contain" ? "object-contain" : "object-cover"
+                    videoFitMode === "contain"
+                      ? "object-contain"
+                      : "object-cover"
                   }`}
                 />
               ) : (
@@ -575,7 +621,9 @@ export const DMCallStage: React.FC<DMCallStageProps> = ({
                         min="0"
                         max="200"
                         value={remoteVolume}
-                        onChange={(e) => setRemoteVolume(Number(e.target.value))}
+                        onChange={(e) =>
+                          setRemoteVolume(Number(e.target.value))
+                        }
                         className="w-full accent-discord-brand cursor-pointer"
                       />
                     </div>
@@ -599,7 +647,9 @@ export const DMCallStage: React.FC<DMCallStageProps> = ({
                   playsInline
                   muted
                   className={`w-full h-full -scale-x-100 ${
-                    videoFitMode === "contain" ? "object-contain" : "object-cover"
+                    videoFitMode === "contain"
+                      ? "object-contain"
+                      : "object-cover"
                   }`}
                 />
               ) : (
@@ -631,7 +681,9 @@ export const DMCallStage: React.FC<DMCallStageProps> = ({
                   {currentUser.username} (你)
                 </span>
                 {isMuted && <MicOff className="w-3.5 h-3.5 text-rose-400" />}
-                {isDeafened && <VolumeX className="w-3.5 h-3.5 text-rose-400" />}
+                {isDeafened && (
+                  <VolumeX className="w-3.5 h-3.5 text-rose-400" />
+                )}
               </div>
             </div>
           </div>
@@ -649,10 +701,18 @@ export const DMCallStage: React.FC<DMCallStageProps> = ({
                 ? "bg-rose-500/20 text-rose-400 hover:bg-rose-500/30"
                 : "bg-[#2b2d31] text-zinc-200 hover:bg-[#35373c]"
             }`}
-            title={isMuted ? t("voice:unmute", "开启麦克风 (Ctrl+Shift+M)") : t("voice:mute", "静音麦克风 (Ctrl+Shift+M)")}
+            title={
+              isMuted
+                ? t("voice:unmute", "开启麦克风 (Ctrl+Shift+M)")
+                : t("voice:mute", "静音麦克风 (Ctrl+Shift+M)")
+            }
             data-testid="dm-mute-btn"
           >
-            {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            {isMuted ? (
+              <MicOff className="w-5 h-5" />
+            ) : (
+              <Mic className="w-5 h-5" />
+            )}
           </button>
 
           {/* 声音闭音 */}
@@ -663,10 +723,18 @@ export const DMCallStage: React.FC<DMCallStageProps> = ({
                 ? "bg-rose-500/20 text-rose-400 hover:bg-rose-500/30"
                 : "bg-[#2b2d31] text-zinc-200 hover:bg-[#35373c]"
             }`}
-            title={isDeafened ? t("voice:undeafen", "取消静音耳机 (Ctrl+Shift+D)") : t("voice:deafen", "静音耳机 (Ctrl+Shift+D)")}
+            title={
+              isDeafened
+                ? t("voice:undeafen", "取消静音耳机 (Ctrl+Shift+D)")
+                : t("voice:deafen", "静音耳机 (Ctrl+Shift+D)")
+            }
             data-testid="dm-deafen-btn"
           >
-            {isDeafened ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+            {isDeafened ? (
+              <VolumeX className="w-5 h-5" />
+            ) : (
+              <Volume2 className="w-5 h-5" />
+            )}
           </button>
 
           {/* 摄像头开关 */}
@@ -677,10 +745,18 @@ export const DMCallStage: React.FC<DMCallStageProps> = ({
                 ? "bg-discord-brand text-white shadow-lg shadow-discord-brand/30"
                 : "bg-[#2b2d31] text-zinc-200 hover:bg-[#35373c]"
             }`}
-            title={isVideoEnabled ? t("voice:disableVideo", "关闭摄像头") : t("voice:enableVideo", "开启摄像头")}
+            title={
+              isVideoEnabled
+                ? t("voice:disableVideo", "关闭摄像头")
+                : t("voice:enableVideo", "开启摄像头")
+            }
             data-testid="dm-camera-btn"
           >
-            {isVideoEnabled ? <Video className="w-5 h-5" /> : <VideoOff className="w-5 h-5" />}
+            {isVideoEnabled ? (
+              <Video className="w-5 h-5" />
+            ) : (
+              <VideoOff className="w-5 h-5" />
+            )}
           </button>
 
           {/* 屏幕共享 */}
@@ -691,7 +767,11 @@ export const DMCallStage: React.FC<DMCallStageProps> = ({
                 ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/30"
                 : "bg-[#2b2d31] text-zinc-200 hover:bg-[#35373c]"
             }`}
-            title={isScreenSharing ? t("voice:stopShare", "停止屏幕共享") : t("voice:shareScreen", "共享你的屏幕")}
+            title={
+              isScreenSharing
+                ? t("voice:stopShare", "停止屏幕共享")
+                : t("voice:shareScreen", "共享你的屏幕")
+            }
             data-testid="dm-screenshare-btn"
           >
             {isScreenSharing ? (

@@ -575,11 +575,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     try {
       // 1. 获取登录挑战选项
-      const optionsRes = await fetch(`${API_BASE}/api/auth/webauthn/login-options`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ emailOrUsername }),
-      });
+      const optionsRes = await fetch(
+        `${API_BASE}/api/auth/webauthn/login-options`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ emailOrUsername }),
+        },
+      );
 
       const optionsData = await optionsRes.json();
       if (!optionsRes.ok) {
@@ -592,14 +595,17 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const authResponse = await startAuthentication({ optionsJSON: options });
 
       // 3. 将认证凭据发送至服务端核验
-      const verifyRes = await fetch(`${API_BASE}/api/auth/webauthn/login-verify`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          challengeId,
-          response: authResponse,
-        }),
-      });
+      const verifyRes = await fetch(
+        `${API_BASE}/api/auth/webauthn/login-verify`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            challengeId,
+            response: authResponse,
+          }),
+        },
+      );
 
       const data = await verifyRes.json();
       if (!verifyRes.ok) {

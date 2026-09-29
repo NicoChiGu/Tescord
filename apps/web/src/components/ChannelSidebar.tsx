@@ -208,7 +208,9 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
 
   // 触屏长按 1.5 秒且位移不超过 8px 时呼出菜单并锁定拖拽
   const touchStartPosRef = React.useRef<{ x: number; y: number } | null>(null);
-  const touchTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const touchTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
   const [isDragLocked, setIsDragLocked] = React.useState(false);
   const itemContainerRef = React.useRef<HTMLDivElement | null>(null);
 
@@ -375,7 +377,9 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
                 <div className="relative mr-1.5 flex-shrink-0">
                   <Hash
                     className={`w-4 h-4 ${
-                      isSelected || showPill ? "text-white" : "text-discord-textMuted"
+                      isSelected || showPill
+                        ? "text-white"
+                        : "text-discord-textMuted"
                     }`}
                   />
                   <Lock className="w-2.5 h-2.5 text-discord-green absolute -top-0.5 -right-1" />
@@ -383,7 +387,9 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
               ) : (
                 <Hash
                   className={`w-4 h-4 mr-1.5 flex-shrink-0 ${
-                    isSelected || showPill ? "text-white" : "text-discord-textMuted"
+                    isSelected || showPill
+                      ? "text-white"
+                      : "text-discord-textMuted"
                   }`}
                 />
               )}

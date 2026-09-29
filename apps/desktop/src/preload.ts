@@ -161,6 +161,18 @@ contextBridge.exposeInMainWorld("electronAPI", {
     };
   },
 
+  // 界面缩放控制
+  getZoomFactor: () => ipcRenderer.invoke("zoom-get-factor"),
+  setZoomFactor: (factor: number) =>
+    ipcRenderer.invoke("zoom-set-factor", factor),
+  onZoomFactorChange: (callback: (factor: number) => void) => {
+    const handler = (_e: any, factor: number) => callback(factor);
+    ipcRenderer.on("zoom-factor-changed", handler);
+    return () => {
+      ipcRenderer.removeListener("zoom-factor-changed", handler);
+    };
+  },
+
   // 显卡与硬件加速能力探测
   getGPUInfo: () => ipcRenderer.invoke("get-gpu-info"),
 

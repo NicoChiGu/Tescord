@@ -7,12 +7,14 @@ export interface MarkdownRendererProps {
   content: string;
   onMentionClick?: (username: string, rect: DOMRect) => void;
   currentUsername?: string;
+  className?: string;
 }
 
 const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
   content,
   onMentionClick,
   currentUsername,
+  className = "",
 }) => {
   const renderedContent = useMemo(() => {
     return parseFastMarkdown(content, {
@@ -22,7 +24,9 @@ const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
   }, [content, onMentionClick, currentUsername]);
 
   return (
-    <div className="text-[14px] leading-[1.375rem] text-discord-textNormal break-words font-normal">
+    <div
+      className={`text-[length:var(--chat-font-size,16px)] leading-[var(--chat-line-height,1.375rem)] text-discord-textNormal break-words font-normal ${className}`}
+    >
       {renderedContent}
     </div>
   );

@@ -47,6 +47,9 @@ interface ElectronAPI {
   onWindowModeChange?: (
     callback: (mode: import("@tescord/types").DesktopWindowMode) => void,
   ) => () => void;
+  getZoomFactor?: () => Promise<number>;
+  setZoomFactor?: (factor: number) => Promise<number>;
+  onZoomFactorChange?: (callback: (factor: number) => void) => () => void;
   getGPUInfo?: () => Promise<{
     isIntel: boolean;
     isNvidia: boolean;

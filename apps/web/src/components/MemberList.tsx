@@ -253,7 +253,9 @@ export const MemberList: React.FC<MemberListProps> = ({
                 guild={guild}
                 onMention={onMention}
                 onSendMessage={onStartDM ? (uid) => onStartDM(uid) : undefined}
-                onStartCall={onStartCall ? (uid) => onStartCall(uid) : undefined}
+                onStartCall={
+                  onStartCall ? (uid) => onStartCall(uid) : undefined
+                }
                 onKickMember={onKickMember}
                 onBanMember={onBanMember}
               >

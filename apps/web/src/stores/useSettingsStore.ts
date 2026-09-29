@@ -8,6 +8,7 @@ import {
   VoiceTransmissionMode,
   ChannelMuteConfig,
   GuildNotificationSettings,
+  MessageDisplayMode,
   isChannelMuted as checkIsChannelMuted,
   isGuildMuted as checkIsGuildMuted,
 } from "@tescord/types";
@@ -15,6 +16,29 @@ import { API_BASE } from "../config.js";
 import { useAuthStore } from "./useAuthStore.js";
 import i18n from "../i18n/index.js";
 import { getStorageAdapter } from "../services/storage/index.js";
+
+export function applyChatFontSize(fontSize: number): void {
+  if (typeof document === "undefined") return;
+  const size = Math.max(12, Math.min(24, fontSize || 16));
+  const lineHeightRem = (size * 1.375) / 16;
+  document.documentElement.style.setProperty("--chat-font-size", `${size}px`);
+  document.documentElement.style.setProperty(
+    "--chat-line-height",
+    `${lineHeightRem.toFixed(3)}rem`,
+  );
+}
+
+export function applyZoomFactor(factor: number): void {
+  const clamped = Math.min(
+    2.0,
+    Math.max(0.7, Number((factor || 1.0).toFixed(2))),
+  );
+  if (typeof window !== "undefined" && window.electronAPI?.setZoomFactor) {
+    window.electronAPI.setZoomFactor(clamped).catch(() => {});
+  } else if (typeof document !== "undefined") {
+    (document.documentElement.style as any).zoom = clamped.toString();
+  }
+}
 
 interface SettingsState extends UserSettingsDTO {
   isCloudSyncing: boolean;
@@ -25,6 +49,7 @@ interface SettingsState extends UserSettingsDTO {
   mutedUsers: Record<string, number>;
   mutedGuilds: Record<string, ChannelMuteConfig>;
   guildNotificationSettings: Record<string, GuildNotificationSettings>;
+  zoomFactor: number; // 本地设备界面缩放比例 (0.7 - 2.0, 默认 1.0)
 
   // Actions
   setAudioConfig: (partial: Partial<AudioProcessingConfig>) => void;
@@ -34,6 +59,9 @@ interface SettingsState extends UserSettingsDTO {
   setUserNote: (targetUserId: string, note: string) => void;
   setLanguage: (lang: SupportedLocale) => void;
   setVoiceTransmissionMode: (mode: VoiceTransmissionMode) => void;
+  setChatFontSize: (size: number) => void;
+  setMessageDisplayMode: (mode: MessageDisplayMode) => void;
+  setZoomFactor: (zoom: number) => void;
   setChannelMute: (channelId: string, durationMs: number | null) => void;
   unmuteChannel: (channelId: string) => void;
   isChannelMuted: (channelId: string) => boolean;
@@ -107,6 +135,9 @@ export const useSettingsStore = create<SettingsState>()(
       userNotes: {},
       pinnedDMs: [],
       mutedUsers: {},
+      chatFontSize: 16,
+      messageDisplayMode: "cozy",
+      zoomFactor: 1.0,
       isCloudSyncing: false,
       lastCloudSyncedAt: null,
 
@@ -182,6 +213,24 @@ export const useSettingsStore = create<SettingsState>()(
       setVoiceTransmissionMode: (mode) => {
         set({ voiceTransmissionMode: mode });
         get().syncToCloud();
+      },
+
+      setChatFontSize: (size) => {
+        const clamped = Math.max(12, Math.min(24, size || 16));
+        set({ chatFontSize: clamped });
+        applyChatFontSize(clamped);
+        get().syncToCloud();
+      },
+
+      setMessageDisplayMode: (mode) => {
+        set({ messageDisplayMode: mode });
+        get().syncToCloud();
+      },
+
+      setZoomFactor: (zoom) => {
+        const clamped = Math.min(2.0, Math.max(0.7, Number(zoom.toFixed(2))));
+        set({ zoomFactor: clamped });
+        applyZoomFactor(clamped);
       },
 
       setChannelMute: (channelId, durationMs) => {
@@ -398,9 +447,19 @@ export const useSettingsStore = create<SettingsState>()(
                   ...state.mutedUsers,
                   ...(cloudSettings.mutedUsers || {}),
                 },
+                chatFontSize:
+                  typeof cloudSettings.chatFontSize === "number"
+                    ? cloudSettings.chatFontSize
+                    : state.chatFontSize,
+                messageDisplayMode:
+                  cloudSettings.messageDisplayMode || state.messageDisplayMode,
                 lastCloudSyncedAt: Date.now(),
               };
             });
+
+            if (typeof cloudSettings.chatFontSize === "number") {
+              applyChatFontSize(cloudSettings.chatFontSize);
+            }
 
             // 如果云端语言和当前不同，优先尊重本地显式持久化的 tescord_locale 偏好
             const localLocale =
@@ -453,6 +512,8 @@ export const useSettingsStore = create<SettingsState>()(
             userNotes: state.userNotes,
             pinnedDMs: state.pinnedDMs,
             mutedUsers: state.mutedUsers,
+            chatFontSize: state.chatFontSize,
+            messageDisplayMode: state.messageDisplayMode,
           };
 
           try {
@@ -507,10 +568,15 @@ export const useSettingsStore = create<SettingsState>()(
         language: state.language,
         voiceTransmissionMode: state.voiceTransmissionMode,
         mutedChannels: state.mutedChannels,
+        mutedGuilds: state.mutedGuilds,
+        guildNotificationSettings: state.guildNotificationSettings,
         guildPositions: state.guildPositions,
         userNotes: state.userNotes,
         pinnedDMs: state.pinnedDMs,
         mutedUsers: state.mutedUsers,
+        chatFontSize: state.chatFontSize,
+        messageDisplayMode: state.messageDisplayMode,
+        zoomFactor: state.zoomFactor,
       }),
     },
   ),
@@ -518,4 +584,26 @@ export const useSettingsStore = create<SettingsState>()(
 
 if (typeof window !== "undefined") {
   (window as any).useSettingsStore = useSettingsStore;
+
+  // 监听桌面端快捷键驱动的缩放变化并同步 store
+  if (window.electronAPI?.onZoomFactorChange) {
+    window.electronAPI.onZoomFactorChange((factor: number) => {
+      useSettingsStore.setState({ zoomFactor: factor });
+    });
+    window.electronAPI
+      .getZoomFactor?.()
+      .then((factor) => {
+        if (typeof factor === "number") {
+          useSettingsStore.setState({ zoomFactor: factor });
+        }
+      })
+      .catch(() => {});
+  }
+
+  // 初始化应用已持久化的字号与缩放比例
+  try {
+    const initial = useSettingsStore.getState();
+    applyChatFontSize(initial.chatFontSize || 16);
+    applyZoomFactor(initial.zoomFactor || 1.0);
+  } catch {}
 }

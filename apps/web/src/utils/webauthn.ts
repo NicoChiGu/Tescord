@@ -8,7 +8,7 @@ export function isWebAuthnSupported(): boolean {
   if (window.location.protocol === "file:") return false;
   return Boolean(
     window.PublicKeyCredential &&
-      typeof window.PublicKeyCredential === "function",
+    typeof window.PublicKeyCredential === "function",
   );
 }
 

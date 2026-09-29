@@ -536,9 +536,12 @@ export const MembersTab: React.FC<MembersTabProps> = ({
                             type="text"
                             value={tempNickname}
                             onChange={(e) => setTempNickname(e.target.value)}
-                            placeholder={t("server:members.nicknamePlaceholder", {
-                              defaultValue: "输入服务器昵称",
-                            })}
+                            placeholder={t(
+                              "server:members.nicknamePlaceholder",
+                              {
+                                defaultValue: "输入服务器昵称",
+                              },
+                            )}
                             className="bg-[#1e1f22] border border-white/10 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-[#5865f2] w-28"
                             autoFocus
                           />

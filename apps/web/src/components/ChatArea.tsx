@@ -169,6 +169,9 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
   onJumpToMessage,
 }) => {
   const { t } = useTranslation(["chat", "voice", "common"]);
+  const messageDisplayMode =
+    useSettingsStore((s) => s.messageDisplayMode) || "cozy";
+  const isCompact = messageDisplayMode === "compact";
   const isMe = msg.authorId === currentUser.id;
   const isTouchDevice = isMobile || isTablet || isTouch;
   const member = guild?.members?.find((m) => m.userId === msg.author.id);
@@ -298,7 +301,9 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
         onSelectMessage?.(isSelectedOnMobile ? null : msg.id);
       }}
       onContextMenu={handleContextMenu}
-      className={`relative flex flex-col group -mx-2 sm:-mx-4 px-2 sm:px-4 py-1.5 rounded transition ${
+      className={`relative flex flex-col group -mx-2 sm:-mx-4 px-2 sm:px-4 ${
+        isCompact ? "py-0.5" : "py-1.5"
+      } rounded transition ${
         isHighlighted ? "animate-message-highlight" : ""
       } ${
         msg.isPinned
@@ -320,7 +325,9 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
             }
           }}
           title="点击跳转至被引用的原文"
-          className="flex items-center space-x-2 text-xs text-discord-textMuted mb-1 ml-10 pl-2 border-l-2 border-[#4e5058] cursor-pointer hover:opacity-100 hover:text-discord-textNormal transition-all duration-150 group/reply"
+          className={`flex items-center space-x-2 text-xs text-discord-textMuted mb-1 ${
+            isCompact ? "ml-4" : "ml-10"
+          } pl-2 border-l-2 border-[#4e5058] cursor-pointer hover:opacity-100 hover:text-discord-textNormal transition-all duration-150 group/reply`}
         >
           <Reply className="w-3 h-3 text-discord-textMuted group-hover/reply:text-discord-brand transform rotate-180 transition-colors" />
           <span className="font-semibold text-discord-brand group-hover/reply:underline">
@@ -332,31 +339,46 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
         </div>
       )}
 
-      <div className="flex space-x-3 items-start">
-        <img
-          src={
-            (msg.author.avatarUrl && resolveServerUrl(msg.author.avatarUrl)) ||
-            `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(msg.author.username || "user")}`
-          }
-          alt={authorName}
-          width={40}
-          height={40}
-          loading="lazy"
-          decoding="async"
-          data-profile-trigger={`chat-${msg.author.id}`}
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).src =
-              `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(msg.author.username || "user")}`;
-          }}
-          onContextMenu={handleAuthorContextMenu}
-          onClick={(e) =>
-            onOpenProfile?.(msg.author, e.currentTarget.getBoundingClientRect())
-          }
-          className="w-10 h-10 rounded-full object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition mt-0.5"
-        />
+      <div
+        className={
+          isCompact ? "flex flex-col ml-1" : "flex space-x-3 items-start"
+        }
+      >
+        {!isCompact && (
+          <img
+            src={
+              (msg.author.avatarUrl &&
+                resolveServerUrl(msg.author.avatarUrl)) ||
+              `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(msg.author.username || "user")}`
+            }
+            alt={authorName}
+            width={40}
+            height={40}
+            loading="lazy"
+            decoding="async"
+            data-profile-trigger={`chat-${msg.author.id}`}
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).src =
+                `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(msg.author.username || "user")}`;
+            }}
+            onContextMenu={handleAuthorContextMenu}
+            onClick={(e) =>
+              onOpenProfile?.(
+                msg.author,
+                e.currentTarget.getBoundingClientRect(),
+              )
+            }
+            className="w-10 h-10 rounded-full object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition mt-0.5"
+          />
+        )}
         <div className="flex-1 overflow-hidden">
           {/* 用户信息与时间栏 */}
           <div className="flex items-center space-x-2">
+            {isCompact && (
+              <span className="text-[11px] text-discord-textMuted select-none mr-0.5 flex-shrink-0">
+                [{formattedTime}]
+              </span>
+            )}
             <span
               data-profile-trigger={`chat-${msg.author.id}`}
               onContextMenu={handleAuthorContextMenu}
@@ -375,9 +397,11 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
                 我
               </span>
             )}
-            <span className="text-[11px] text-discord-textMuted">
-              {formattedTime}
-            </span>
+            {!isCompact && (
+              <span className="text-[11px] text-discord-textMuted">
+                {formattedTime}
+              </span>
+            )}
             {msg.isPinned && (
               <span
                 className="flex items-center space-x-0.5 text-[10px] text-yellow-500 bg-yellow-500/10 px-1 rounded border border-yellow-500/30"
@@ -398,7 +422,8 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
               >
                 <div
                   className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                    displayContent.includes(":missed") || displayContent.includes(":declined")
+                    displayContent.includes(":missed") ||
+                    displayContent.includes(":declined")
                       ? "bg-rose-500/20 text-rose-400"
                       : "bg-emerald-500/20 text-emerald-400"
                   }`}
@@ -424,12 +449,13 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
                   <span className="text-[11px] text-zinc-400">
                     {displayContent.includes(":ended:")
                       ? t("chat:dm.callHistory.duration", {
-                          duration: displayContent
+                          duration:
+                            displayContent
+                              .split(":ended:")[1]
+                              ?.replace("]", "") || "",
+                          defaultValue: `通话时长 ${displayContent
                             .split(":ended:")[1]
-                            ?.replace("]", "") || "",
-                          defaultValue: `通话时长 ${
-                            displayContent.split(":ended:")[1]?.replace("]", "")
-                          }`,
+                            ?.replace("]", "")}`,
                         })
                       : t("chat:dm.callHistory.noAnswer", "未建立通话连接")}
                   </span>
@@ -1026,15 +1052,22 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     return displayedMessages.length <= 40 ? 40 : 8;
   }, [isMobile, isTablet, displayedMessages.length]);
 
+  const messageDisplayMode =
+    useSettingsStore((s) => s.messageDisplayMode) || "cozy";
+
   // 基于 @tanstack/react-virtual 的动态高度虚拟视口计算
   // 必须显式指定 getItemKey 绑定真实消息 ID，彻底杜绝数据变化时高度缓存错位导致的卡片重叠 (Overlap)
   const rowVirtualizer = useVirtualizer({
     count: displayedMessages.length,
     getScrollElement: () => scrollContainerRef.current,
     getItemKey: (index) => displayedMessages[index]?.id ?? index,
-    estimateSize: () => 80,
+    estimateSize: () => (messageDisplayMode === "compact" ? 36 : 80),
     overscan: dynamicOverscan,
   });
+
+  useEffect(() => {
+    rowVirtualizer.measure();
+  }, [messageDisplayMode, rowVirtualizer]);
 
   // 接管滚轮平滑阻尼动效 (Discord 风格，在移动端与触屏平板上禁用以交还原生 GPU 硬件加速平滑滚动)
   useMomentumScroll(scrollContainerRef, {
@@ -2101,7 +2134,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 type="button"
                 onClick={() => onStartCall?.(channel.id, false)}
                 className="hover:text-discord-textHeader transition p-1.5 rounded hover:bg-[#35373c] text-discord-textMuted"
-                title={t("chat:dm.startVoiceCall", { defaultValue: "发起语音呼叫" })}
+                title={t("chat:dm.startVoiceCall", {
+                  defaultValue: "发起语音呼叫",
+                })}
                 data-testid="dm-start-voice-call-btn"
               >
                 <Phone className="w-5 h-5" />
@@ -2110,7 +2145,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 type="button"
                 onClick={() => onStartCall?.(channel.id, true)}
                 className="hover:text-discord-textHeader transition p-1.5 rounded hover:bg-[#35373c] text-discord-textMuted"
-                title={t("chat:dm.startVideoCall", { defaultValue: "发起视频呼叫" })}
+                title={t("chat:dm.startVideoCall", {
+                  defaultValue: "发起视频呼叫",
+                })}
                 data-testid="dm-start-video-call-btn"
               >
                 <Video className="w-5 h-5" />

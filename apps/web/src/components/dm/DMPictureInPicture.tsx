@@ -25,9 +25,16 @@ export const DMPictureInPicture: React.FC<DMPictureInPictureProps> = ({
   callDuration,
 }) => {
   const { t } = useTranslation(["voice", "common"]);
-  const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(
+    null,
+  );
   const isDraggingRef = useRef(false);
-  const dragStartRef = useRef<{ startX: number; startY: number; posX: number; posY: number }>({
+  const dragStartRef = useRef<{
+    startX: number;
+    startY: number;
+    posX: number;
+    posY: number;
+  }>({
     startX: 0,
     startY: 0,
     posX: 0,
@@ -76,8 +83,14 @@ export const DMPictureInPicture: React.FC<DMPictureInPictureProps> = ({
     if (!isDraggingRef.current) return;
     const dx = e.clientX - dragStartRef.current.startX;
     const dy = e.clientY - dragStartRef.current.startY;
-    const nextX = Math.max(16, Math.min(window.innerWidth - 256, dragStartRef.current.posX + dx));
-    const nextY = Math.max(16, Math.min(window.innerHeight - 170, dragStartRef.current.posY + dy));
+    const nextX = Math.max(
+      16,
+      Math.min(window.innerWidth - 256, dragStartRef.current.posX + dx),
+    );
+    const nextY = Math.max(
+      16,
+      Math.min(window.innerHeight - 170, dragStartRef.current.posY + dy),
+    );
     setPosition({ x: nextX, y: nextY });
   };
 
@@ -170,9 +183,15 @@ export const DMPictureInPicture: React.FC<DMPictureInPictureProps> = ({
                 ? "bg-rose-500/30 text-rose-400"
                 : "bg-black/60 text-zinc-300 hover:bg-black/80"
             }`}
-            title={isMuted ? t("voice:unmute", "取消静音") : t("voice:mute", "静音")}
+            title={
+              isMuted ? t("voice:unmute", "取消静音") : t("voice:mute", "静音")
+            }
           >
-            {isMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+            {isMuted ? (
+              <MicOff className="w-3.5 h-3.5" />
+            ) : (
+              <Mic className="w-3.5 h-3.5" />
+            )}
           </button>
 
           <button

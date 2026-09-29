@@ -243,7 +243,7 @@ class SoundEffectManager {
             ctx,
             [
               { freq: 587.33, duration: 0.07, type: "sine", gain: 0.16 }, // D5
-              { freq: 440.0, duration: 0.07, type: "sine", gain: 0.14 },  // A4
+              { freq: 440.0, duration: 0.07, type: "sine", gain: 0.14 }, // A4
               { freq: 329.63, duration: 0.12, type: "sine", gain: 0.12 }, // E4
             ],
             0.03,
@@ -267,7 +267,10 @@ class SoundEffectManager {
   private loopIntervalTimer: ReturnType<typeof setInterval> | null = null;
   private currentLoopEffect: "CALL_RINGING" | "CALL_CALLING" | null = null;
 
-  private playLoopStep(ctx: AudioContext, effect: "CALL_RINGING" | "CALL_CALLING") {
+  private playLoopStep(
+    ctx: AudioContext,
+    effect: "CALL_RINGING" | "CALL_CALLING",
+  ) {
     if (effect === "CALL_CALLING") {
       // 呼出回铃音：经典优雅的 440Hz + 480Hz 双音和弦，节奏 1.2s 响，1.8s 停
       const now = ctx.currentTime + 0.01;
@@ -282,7 +285,7 @@ class SoundEffectManager {
           { freq: 783.99, duration: 0.12, type: "sine", gain: 0.18 }, // G5
           { freq: 659.25, duration: 0.09, type: "sine", gain: 0.15 }, // E5
           { freq: 783.99, duration: 0.09, type: "sine", gain: 0.18 }, // G5
-          { freq: 1046.5, duration: 0.18, type: "sine", gain: 0.2 },  // C6
+          { freq: 1046.5, duration: 0.18, type: "sine", gain: 0.2 }, // C6
         ],
         0.02,
       );

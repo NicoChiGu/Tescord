@@ -1,6 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { User } from "@tescord/types";
-import { Phone, PhoneOff, ShieldCheck, Video, BellOff, Bell } from "lucide-react";
+import {
+  Phone,
+  PhoneOff,
+  ShieldCheck,
+  Video,
+  BellOff,
+  Bell,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { soundManager } from "../../services/soundManager.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
@@ -164,8 +171,12 @@ export const IncomingCallModal: React.FC<IncomingCallModalProps> = ({
             }`}
             title={
               isRingtoneMuted
-                ? t("chat:dm.incomingCall.unmuteRingtone", { defaultValue: "恢复铃声" })
-                : t("chat:dm.incomingCall.muteRingtone", { defaultValue: "静音铃声" })
+                ? t("chat:dm.incomingCall.unmuteRingtone", {
+                    defaultValue: "恢复铃声",
+                  })
+                : t("chat:dm.incomingCall.muteRingtone", {
+                    defaultValue: "静音铃声",
+                  })
             }
             data-testid="mute-ringtone-btn"
           >

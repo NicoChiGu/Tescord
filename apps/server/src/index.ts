@@ -1229,7 +1229,10 @@ server.get("/api/guilds", async (request, reply) => {
       })),
       channels: g.channels.map((c: any) => {
         const lastReadSeq = c.readStates?.[0]?.lastReadSequence ?? 0;
-        const unreadCount = Math.max(0, (c.nextMessageSequence || 0) - lastReadSeq);
+        const unreadCount = Math.max(
+          0,
+          (c.nextMessageSequence || 0) - lastReadSeq,
+        );
         return {
           id: c.id,
           guildId: c.guildId,
@@ -7326,7 +7329,12 @@ server.post(
 
     const channel = await prisma.channel.findUnique({
       where: { id: channelId },
-      select: { id: true, type: true, guildId: true, nextMessageSequence: true },
+      select: {
+        id: true,
+        type: true,
+        guildId: true,
+        nextMessageSequence: true,
+      },
     });
     if (!channel) {
       return reply.status(404).send({ error: "频道不存在" });
@@ -7347,7 +7355,9 @@ server.post(
         );
         return { channelId, lastReadSequence };
       } catch (error: any) {
-        return reply.status(403).send({ error: error.message || "无法标记已读" });
+        return reply
+          .status(403)
+          .send({ error: error.message || "无法标记已读" });
       }
     }
 

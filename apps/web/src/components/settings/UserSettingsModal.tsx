@@ -33,17 +33,14 @@ import { AudioSettingsTab } from "./AudioSettingsTab.js";
 import { LanguageSettingsTab } from "./LanguageSettingsTab.js";
 import { AboutUpdatesTab } from "./AboutUpdatesTab.js";
 import { SecuritySettingsTab } from "./SecuritySettingsTab.js";
+import { AppearanceSettingsTab } from "./AppearanceSettingsTab.js";
 import { ProfileCardPreview } from "../profile/ProfileCardPreview.js";
 import { ImageCropModal } from "../modals/ImageCropModal.js";
 import { Avatar } from "../ui/Avatar.js";
 import { API_BASE, resolveServerUrl } from "../../config.js";
 
 export type UserSettingsTabType =
-  | "profile"
-  | "security"
-  | "audio"
-  | "language"
-  | "updates";
+  "profile" | "security" | "appearance" | "audio" | "language" | "updates";
 
 interface UserSettingsModalProps {
   isOpen: boolean;
@@ -164,7 +161,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   // 自定义头像上传与裁切状态
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
-  const [previewAvatarBlobUrl, setPreviewAvatarBlobUrl] = useState<string | null>(null);
+  const [previewAvatarBlobUrl, setPreviewAvatarBlobUrl] = useState<
+    string | null
+  >(null);
   const [isCropModalOpen, setIsCropModalOpen] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
 
@@ -527,13 +526,30 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                 }`}
               >
                 <Fingerprint className="w-3.5 h-3.5 md:w-4 md:h-4 text-white md:text-[#5865f2]" />
-                <span>{t("settings:securityAndPasskeysTab", "账号安全与通行密钥")}</span>
+                <span>
+                  {t("settings:securityAndPasskeysTab", "账号安全与通行密钥")}
+                </span>
               </button>
 
               {/* 桌面端分组标题 2 */}
               <div className="hidden md:block pt-2 text-[11px] font-bold uppercase tracking-wider text-gray-400 px-2 py-1">
                 {t("settings:appSettings")}
               </div>
+
+              {/* 外观与排版 */}
+              <button
+                type="button"
+                data-testid="tab-appearance-btn"
+                onClick={() => selectTab("appearance")}
+                className={`w-full flex items-center gap-2.5 px-3 py-3 md:px-2.5 md:py-2 rounded-lg text-sm md:text-xs font-semibold transition-colors text-left ${
+                  activeTab === "appearance"
+                    ? "bg-[#5865f2] md:bg-white/10 text-white shadow-sm md:shadow-none"
+                    : "text-gray-300 md:text-gray-400 bg-[#1e1f22]/80 md:bg-transparent hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                <Monitor className="w-3.5 h-3.5 md:w-4 md:h-4 text-white md:text-discord-brand" />
+                <span>{t("settings:appearanceTab", "外观与排版")}</span>
+              </button>
 
               {/* 语音与视频 */}
               <button
@@ -822,7 +838,10 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
 
                         <div className="space-y-1.5 pt-2 border-t border-white/5">
                           <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">
-                            {t("settings:userIdentifier", "用户识别码 (Unique Identifier)")}
+                            {t(
+                              "settings:userIdentifier",
+                              "用户识别码 (Unique Identifier)",
+                            )}
                           </label>
                           <div className="group relative flex items-center bg-[#1e1f22] hover:bg-[#1a1b1e] rounded-xl border border-white/10 focus-within:border-[#5865f2] focus-within:ring-2 focus-within:ring-[#5865f2]/40 transition-all duration-150 px-3.5 py-2.5">
                             <span className="text-[#949ba4] text-sm font-semibold select-none mr-1">
@@ -838,23 +857,39 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                               }
                               data-testid="profile-username-prefix-input"
                               className="flex-1 min-w-0 bg-transparent text-white text-base sm:text-sm font-medium focus:outline-none placeholder-gray-500 pr-2 selection:bg-[#5865f2]/30"
-                              placeholder={t("settings:usernamePlaceholder", "用户名")}
+                              placeholder={t(
+                                "settings:usernamePlaceholder",
+                                "用户名",
+                              )}
                             />
                             <div className="flex items-center shrink-0 select-none pl-2.5 border-l border-white/10">
                               <span
                                 className="font-mono text-xs sm:text-sm tracking-tight text-[#949ba4] group-hover:text-gray-300 transition-colors cursor-not-allowed"
-                                title={t("settings:userTagTooltip", "数字鉴别码终身唯一绑定，不可修改")}
+                                title={t(
+                                  "settings:userTagTooltip",
+                                  "数字鉴别码终身唯一绑定，不可修改",
+                                )}
                               >
                                 #{userTag}
                               </span>
                             </div>
                           </div>
                           <p className="text-[11px] text-gray-400 flex items-center flex-wrap gap-1 mt-1">
-                            <span>{t("settings:userIdentifierHint", "识别码前缀可自由定制；后面的 5 位数字标签")}</span>
+                            <span>
+                              {t(
+                                "settings:userIdentifierHint",
+                                "识别码前缀可自由定制；后面的 5 位数字标签",
+                              )}
+                            </span>
                             <span className="font-mono text-zinc-300">
                               #{userTag}
                             </span>
-                            <span>{t("settings:userIdentifierImmutable", "为终身唯一绑定不可更改。")}</span>
+                            <span>
+                              {t(
+                                "settings:userIdentifierImmutable",
+                                "为终身唯一绑定不可更改。",
+                              )}
+                            </span>
                           </p>
                         </div>
                       </div>
@@ -1240,6 +1275,8 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
               )}
 
               {activeTab === "security" && <SecuritySettingsTab />}
+
+              {activeTab === "appearance" && <AppearanceSettingsTab />}
 
               {activeTab === "audio" && (
                 <AudioSettingsTab

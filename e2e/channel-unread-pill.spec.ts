@@ -201,9 +201,7 @@ test.describe("文字频道左侧未读白色指示条 (Discord 风格) 交互�
     await expect(pill).toHaveCount(0);
   });
 
-  test("验证通过右键菜单‘标记为已读’可直接核销未读白色条", async ({
-    page,
-  }) => {
+  test("验证通过右键菜单‘标记为已读’可直接核销未读白色条", async ({ page }) => {
     await page.goto("/");
 
     const guildIcon = page.getByRole("button", { name: "未读测试公会" });

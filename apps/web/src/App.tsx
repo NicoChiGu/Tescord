@@ -518,7 +518,9 @@ export const App: React.FC = () => {
   const [guildUnreadMap, setGuildUnreadMap] = useState<
     Record<string, { hasUnread: boolean; mentionCount: number }>
   >({});
-  const [channelUnreadMap, setChannelUnreadMap] = useState<ChannelUnreadMap>({});
+  const [channelUnreadMap, setChannelUnreadMap] = useState<ChannelUnreadMap>(
+    {},
+  );
   const channelUnreadMapRef = useRef<ChannelUnreadMap>(channelUnreadMap);
   channelUnreadMapRef.current = channelUnreadMap;
 
@@ -4753,7 +4755,8 @@ export const App: React.FC = () => {
               if (targetChannel && targetChannel.type === "TEXT") {
                 setChannelUnreadMap((prev) => {
                   const cur = prev[targetChannel.id];
-                  if (!cur || (!cur.hasUnread && cur.mentionCount === 0)) return prev;
+                  if (!cur || (!cur.hasUnread && cur.mentionCount === 0))
+                    return prev;
                   return {
                     ...prev,
                     [targetChannel.id]: {
@@ -4858,7 +4861,8 @@ export const App: React.FC = () => {
                 .recordTextChannelVisit(ch.guildId, ch.id);
               setChannelUnreadMap((prev) => {
                 const cur = prev[ch.id];
-                if (!cur || (!cur.hasUnread && cur.mentionCount === 0)) return prev;
+                if (!cur || (!cur.hasUnread && cur.mentionCount === 0))
+                  return prev;
                 return {
                   ...prev,
                   [ch.id]: {
@@ -4871,7 +4875,9 @@ export const App: React.FC = () => {
               });
               markChannelReadOnServer(ch.id);
               if (ch.guildId) {
-                const otherUnread = Object.values(channelUnreadMapRef.current).some(
+                const otherUnread = Object.values(
+                  channelUnreadMapRef.current,
+                ).some(
                   (item) =>
                     item.guildId === ch.guildId &&
                     item.channelId !== ch.id &&

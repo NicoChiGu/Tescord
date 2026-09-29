@@ -50,9 +50,7 @@ test.describe("服务器设置：ESC/滚动条、移动端UI边距与成员列�
     expect(bounds!.width).toBeGreaterThanOrEqual(386);
 
     // 验证移动端顶部统一关闭按钮 (依照用户个人设置设计)
-    const mobileCloseBtn = page.getByTestId(
-      "close-server-settings-mobile-btn",
-    );
+    const mobileCloseBtn = page.getByTestId("close-server-settings-mobile-btn");
     await expect(mobileCloseBtn).toBeVisible();
     await mobileCloseBtn.click();
     await expect(detail).not.toBeVisible();
@@ -80,9 +78,7 @@ test.describe("服务器设置：ESC/滚动条、移动端UI边距与成员列�
     await expect(serverHeader).toBeVisible();
     await serverHeader.click({ button: "right" });
 
-    const serverSettingsMenuItem = page.getByTestId(
-      "server-menu-settings-btn",
-    );
+    const serverSettingsMenuItem = page.getByTestId("server-menu-settings-btn");
     await expect(serverSettingsMenuItem).toBeVisible();
     await serverSettingsMenuItem.click();
 
@@ -103,14 +99,8 @@ test.describe("服务器设置：ESC/滚动条、移动端UI边距与成员列�
 
     // 验证成员行布局对齐：第一列固定宽，第二列角色列左边界在同一垂直线上
     if (memberCount >= 2) {
-      const firstRowCol = memberRows
-        .nth(0)
-        .locator("> div")
-        .nth(1);
-      const secondRowCol = memberRows
-        .nth(1)
-        .locator("> div")
-        .nth(1);
+      const firstRowCol = memberRows.nth(0).locator("> div").nth(1);
+      const secondRowCol = memberRows.nth(1).locator("> div").nth(1);
 
       const box1 = await firstRowCol.boundingBox();
       const box2 = await secondRowCol.boundingBox();
