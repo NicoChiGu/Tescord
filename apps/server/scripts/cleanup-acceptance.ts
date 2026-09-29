@@ -10,6 +10,7 @@ interface AcceptanceResources {
   registrationInviteCode?: string;
   channelIds?: string[];
   guildInviteCodes?: string[];
+  dmChannelId?: string;
 }
 
 async function main(): Promise<void> {
@@ -133,10 +134,68 @@ async function main(): Promise<void> {
       throw new Error("Test guild invite ownership check failed");
   }
 
+  const dmId = resources.dmChannelId;
+  const dmUserIds = [resources.aliceUserId, resources.bobUserId];
+  if (dmId) {
+    if (dmUserIds.some((id) => !id) || dmUserIds[0] === dmUserIds[1])
+      throw new Error("Both exact DM test user IDs are required");
+    const dm = await prisma.channel.findUnique({
+      where: { id: dmId },
+      select: {
+        id: true,
+        type: true,
+        name: true,
+        guildId: true,
+        dmKey: true,
+        recipients: { select: { userId: true } },
+      },
+    });
+    const expectedRecipients = [resources.aliceUserId!, resources.bobUserId!];
+    if (
+      !dm ||
+      dm.type !== "DM" ||
+      dm.name !== "direct-message" ||
+      dm.guildId !== null ||
+      dm.dmKey !== [...expectedRecipients].sort().join(":") ||
+      dm.recipients.length !== 2 ||
+      new Set(dm.recipients.map((recipient) => recipient.userId)).size !== 2 ||
+      dm.recipients.some(
+        (recipient) => !expectedRecipients.includes(recipient.userId),
+      )
+    )
+      throw new Error("Test DM identity and recipient check failed");
+    const unrelatedDmMessages = await prisma.message.count({
+      where: { channelId: dmId, authorId: { notIn: expectedRecipients } },
+    });
+    if (unrelatedDmMessages)
+      throw new Error("Test DM has messages from an unrelated user");
+  }
+
+  const mediaKeyEnvelopes = await prisma.mediaKeyEnvelope.findMany({
+    where: {
+      OR: [
+        { senderId: { in: ids } },
+        { recipientId: { in: ids } },
+        ...(dmId ? [{ channelId: dmId }] : []),
+      ],
+    },
+    select: { id: true, channelId: true, senderId: true, recipientId: true },
+  });
+  if (
+    mediaKeyEnvelopes.some(
+      (item) =>
+        item.channelId !== dmId ||
+        !dmUserIds.includes(item.senderId) ||
+        !dmUserIds.includes(item.recipientId),
+    )
+  )
+    throw new Error("Test accounts have media keys outside the exact DM");
+
   const [
     memberships,
     ownedGuilds,
     createdInvites,
+    createdGuildInvites,
     externalMessages,
     dmRecipients,
   ] = await Promise.all([
@@ -152,13 +211,21 @@ async function main(): Promise<void> {
       where: { createdById: { in: ids } },
       select: { code: true },
     }),
+    prisma.invite.findMany({
+      where: { inviterId: { in: ids } },
+      select: { code: true, guildId: true },
+    }),
     prisma.message.count({
       where: {
         authorId: { in: ids },
+        channelId: { not: dmId || "__none__" },
         channel: { guildId: { not: resources.guildId || "__none__" } },
       },
     }),
-    prisma.channelRecipient.count({ where: { userId: { in: ids } } }),
+    prisma.channelRecipient.findMany({
+      where: { userId: { in: ids } },
+      select: { channelId: true },
+    }),
   ]);
   if (
     memberships.some((item) => item.guildId !== resources.guildId) ||
@@ -166,14 +233,24 @@ async function main(): Promise<void> {
     createdInvites.some(
       (item) => item.code !== resources.registrationInviteCode,
     ) ||
+    createdGuildInvites.some(
+      (item) =>
+        item.guildId !== resources.guildId ||
+        !resources.guildInviteCodes?.includes(item.code),
+    ) ||
     externalMessages ||
-    dmRecipients
+    dmRecipients.some((recipient) => recipient.channelId !== dmId) ||
+    (dmId && dmRecipients.length !== 2)
   )
     throw new Error(
       "Test account has resources outside the exact test guild; cleanup refused",
     );
 
   await prisma.$transaction(async (tx) => {
+    if (dmId) {
+      await tx.mediaKeyEnvelope.deleteMany({ where: { channelId: dmId } });
+      await tx.channel.delete({ where: { id: dmId } });
+    }
     if (resources.guildId)
       await tx.guild.delete({ where: { id: resources.guildId } });
     if (resources.registrationInviteCode)
@@ -193,6 +270,9 @@ async function main(): Promise<void> {
     remainingInvite,
     remainingChannels,
     remainingGuildInvites,
+    remainingDm,
+    remainingDmRecipients,
+    remainingMediaKeys,
   ] = await Promise.all([
     prisma.user.count({ where: { id: { in: ids } } }),
     resources.guildId
@@ -211,13 +291,27 @@ async function main(): Promise<void> {
           where: { code: { in: resources.guildInviteCodes } },
         })
       : 0,
+    dmId ? prisma.channel.count({ where: { id: dmId } }) : 0,
+    prisma.channelRecipient.count({ where: { userId: { in: ids } } }),
+    prisma.mediaKeyEnvelope.count({
+      where: {
+        OR: [
+          { senderId: { in: ids } },
+          { recipientId: { in: ids } },
+          ...(dmId ? [{ channelId: dmId }] : []),
+        ],
+      },
+    }),
   ]);
   if (
     remainingUsers ||
     remainingGuild ||
     remainingInvite ||
     remainingChannels ||
-    remainingGuildInvites
+    remainingGuildInvites ||
+    remainingDm ||
+    remainingDmRecipients ||
+    remainingMediaKeys
   )
     throw new Error("Cleanup verification found remaining test resources");
   process.stdout.write(
@@ -231,6 +325,9 @@ async function main(): Promise<void> {
       remainingInvite,
       remainingChannels,
       remainingGuildInvites,
+      remainingDm,
+      remainingDmRecipients,
+      remainingMediaKeys,
     }) + "\n",
   );
 }

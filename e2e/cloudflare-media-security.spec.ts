@@ -149,3 +149,35 @@ test("Cloudflare media endpoints reject anonymous and forged channel/session ope
   );
   expect(forgedUnsubscribe.status()).toBe(403);
 });
+
+test("DM participants cannot open Cloudflare media before an answered call", async ({
+  request,
+}) => {
+  const login = await request.post("/api/auth/login", {
+    data: { emailOrUsername: "Jackey", password: "adminpassword123" },
+  });
+  expect(login.ok(), await login.text()).toBeTruthy();
+  const { accessToken } = (await login.json()) as { accessToken: string };
+  const headers = { Authorization: `Bearer ${accessToken}` };
+  const dm = await request.post("/api/users/@me/channels", {
+    headers,
+    data: { recipientId: "usr_test_alice" },
+  });
+  expect(dm.ok(), await dm.text()).toBeTruthy();
+  const { id: channelId } = (await dm.json()) as { id: string };
+
+  for (const body of [
+    { channelId },
+    {
+      channelId,
+      callId: "forged-call-id",
+      gatewaySessionId: "forged-gateway-session",
+    },
+  ]) {
+    const response = await request.post(
+      "/api/cloudflare-realtime/session/new",
+      { headers, data: body },
+    );
+    expect(response.status(), await response.text()).toBe(403);
+  }
+});

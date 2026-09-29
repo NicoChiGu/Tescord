@@ -12,6 +12,7 @@
     "submit": "立即创建",
     "submitting": "创建中...",
     "failed": "创建服务器失败",
+    "iconUploadFailed": "服务器已创建，但图标上传失败。请在服务器设置中重试。",
     "defaultName": "{{username}} 的私密小窝",
     "defaultFallbackName": "我的极客服务器"
   },

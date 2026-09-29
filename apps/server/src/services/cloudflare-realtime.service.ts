@@ -29,6 +29,8 @@ export class CloudflareRealtimeService {
       userId: string;
       channelId: string;
       loginSessionId: string;
+      callId?: string;
+      gatewaySessionId?: string;
       createdAt: number;
       lastSeenAt: number;
     }
@@ -64,6 +66,8 @@ export class CloudflareRealtimeService {
     userId: string,
     channelId: string,
     loginSessionId: string,
+    callId?: string,
+    gatewaySessionId?: string,
   ): void {
     const now = Date.now();
     for (const [id, session] of this.sessions) {
@@ -78,6 +82,8 @@ export class CloudflareRealtimeService {
       userId,
       channelId,
       loginSessionId,
+      callId,
+      gatewaySessionId,
       createdAt: now,
       lastSeenAt: now,
     });
@@ -344,6 +350,17 @@ export class CloudflareRealtimeService {
     } finally {
       this.removeSession(sessionId);
     }
+  }
+
+  public async revokeCallSessions(callId: string): Promise<void> {
+    const sessionIds = [...this.sessions.entries()]
+      .filter(([, session]) => session.callId === callId)
+      .map(([sessionId]) => sessionId);
+    const results = await Promise.allSettled(
+      sessionIds.map((sessionId) => this.revokeSession(sessionId)),
+    );
+    const failed = results.find((result) => result.status === "rejected");
+    if (failed?.status === "rejected") throw failed.reason;
   }
 
   public ownsSession(

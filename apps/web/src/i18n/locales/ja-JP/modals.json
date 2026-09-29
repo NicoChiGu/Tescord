@@ -12,6 +12,7 @@
     "submit": "サーバーを作成",
     "submitting": "作成中...",
     "failed": "サーバーの作成に失敗しました",
+    "iconUploadFailed": "サーバーは作成されましたが、アイコンのアップロードに失敗しました。サーバー設定から再試行してください。",
     "defaultName": "{{username}} のサーバー",
     "defaultFallbackName": "マイサーバー"
   },

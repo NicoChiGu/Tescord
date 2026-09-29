@@ -26,9 +26,7 @@ test.describe("Tescord Web 端到端冒烟与核心交互验收", () => {
     });
     await expect(loginHeading).toBeVisible({ timeout: 10000 });
 
-    const continueButton = page.getByRole("button", {
-      name: /继\s*续|登\s*录/i,
-    });
+    const continueButton = page.getByTestId("auth-submit-btn");
     await expect(continueButton).toBeVisible();
 
     // 验证邮箱输入表单正常挂载

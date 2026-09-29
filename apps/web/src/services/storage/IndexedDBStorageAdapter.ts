@@ -37,6 +37,7 @@ export class IndexedDBStorageAdapter implements IStorageAdapter {
   private currentUserId: string | null = null;
   private dbPromise: Promise<IDBPDatabase<TescordDB>> | null = null;
   private metaCache = new Map<string, ChannelMetaRecord>();
+  private userGeneration = 0;
 
   public async switchUser(userId: string | null): Promise<void> {
     if (
@@ -47,16 +48,20 @@ export class IndexedDBStorageAdapter implements IStorageAdapter {
     ) {
       throw new Error("Invalid storage user ID");
     }
-    this.metaCache.clear();
     if (this.currentUserId === userId && this.dbPromise) return;
-    if (this.dbPromise) {
+    this.metaCache.clear();
+    const oldDbPromise = this.dbPromise;
+    // Invalidate the old connection before awaiting it so an account switch
+    // cannot issue a new request against the previous user's database.
+    this.currentUserId = userId;
+    this.dbPromise = null;
+    this.userGeneration += 1;
+    if (oldDbPromise) {
       try {
-        const db = await this.dbPromise;
+        const db = await oldDbPromise;
         db.close();
       } catch {}
-      this.dbPromise = null;
     }
-    this.currentUserId = userId;
   }
 
   private async getDB(): Promise<IDBPDatabase<TescordDB>> {
@@ -244,8 +249,12 @@ export class IndexedDBStorageAdapter implements IStorageAdapter {
     channelId: string,
     limit = 100,
   ): Promise<StorageChannelSnapshot> {
+    const requestedGeneration = this.userGeneration;
     try {
       const db = await this.getDB();
+      if (requestedGeneration !== this.userGeneration) {
+        throw new DOMException("Storage account changed", "AbortError");
+      }
       const tx = db.transaction(["messages", "channel_meta"], "readonly");
       const msgStore = tx.objectStore("messages");
       const metaStore = tx.objectStore("channel_meta");
@@ -273,10 +282,20 @@ export class IndexedDBStorageAdapter implements IStorageAdapter {
         },
       };
     } catch (err) {
-      console.error(
-        "[IndexedDBStorageAdapter] getChannelSnapshot failed:",
-        err,
-      );
+      const closingDuringSwitch = requestedGeneration !== this.userGeneration;
+      const closingDuringNavigation =
+        err instanceof DOMException &&
+        err.name === "InvalidStateError" &&
+        /database connection is closing/i.test(err.message);
+      if (closingDuringNavigation && !closingDuringSwitch) {
+        this.dbPromise = null;
+      }
+      if (!closingDuringSwitch && !closingDuringNavigation) {
+        console.error(
+          "[IndexedDBStorageAdapter] getChannelSnapshot failed:",
+          err,
+        );
+      }
       return {
         messages: [],
         meta: {

@@ -12,6 +12,7 @@
     "submit": "Create Server",
     "submitting": "Creating...",
     "failed": "Failed to create server",
+    "iconUploadFailed": "Server created, but the icon upload failed. Try again in Server Settings.",
     "defaultName": "{{username}}'s Server",
     "defaultFallbackName": "My Server"
   },

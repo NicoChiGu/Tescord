@@ -90,6 +90,16 @@ test.describe("消息引用跳转原文与高亮交互端到端验收 (Discord-P
         localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token",
       );
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
+      localStorage.setItem(
+        "tescord_last_user",
+        JSON.stringify({ id: "e2e_tester_user", username: "tester_pro" }),
+      );
+      // The fixture owns guild/channel state; a real Gateway READY may replace it.
+      (window as any).WebSocket = class MockWebSocket extends EventTarget {
+        readyState = 3;
+        close() {}
+        send() {}
+      };
     });
 
     // Mock 登录用户详情
@@ -98,7 +108,7 @@ test.describe("消息引用跳转原文与高亮交互端到端验收 (Discord-P
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "usr_default_admin",
+          id: "e2e_tester_user",
           username: "tester_pro",
           displayName: "专业测试员",
           email: "tester@tescord.local",
@@ -176,14 +186,14 @@ test.describe("消息引用跳转原文与高亮交互端到端验收 (Discord-P
 
     await page.goto("/");
 
-    // 1. 进入首个服务器并等待进入 general 频道
-    const serverBtn = page
-      .getByRole("button", { name: /Tescord 极客研发部|极客/i })
-      .first();
-    await expect(serverBtn).toBeVisible({ timeout: 10000 });
-    await serverBtn.click();
-
     const generalChannel = page.getByRole("button", { name: "general" });
+    if (!(await generalChannel.isVisible())) {
+      const serverBtn = page
+        .getByRole("button", { name: /Tescord 极客研发部|极客/i })
+        .first();
+      await expect(serverBtn).toBeVisible({ timeout: 10000 });
+      await serverBtn.click();
+    }
     await expect(generalChannel).toBeVisible({ timeout: 5000 });
     await generalChannel.click();
 

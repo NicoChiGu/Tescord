@@ -282,7 +282,9 @@ test.describe("用户身份解耦、图1样式还原与好友系统 (Friends & I
     // 2.3 验证显示昵称与不可更改数字标签徽章
     const displayNameInput = page.getByTestId("profile-display-name-input");
     await expect(displayNameInput).toBeVisible();
-    await expect(page.getByTitle("数字标签终身唯一绑定不可修改")).toBeVisible();
+    await expect(
+      modal.getByTitle("数字鉴别码终身唯一绑定，不可修改"),
+    ).toBeVisible();
 
     // 2.4 在设置中输入新的显示昵称
     await displayNameInput.fill("TERATA_PRO");

@@ -285,26 +285,38 @@ test.describe("VoiceMesh 对端离开防重试与单人待命防降级验收测�
     await page.goto("/");
     await page.waitForFunction(() => Boolean((window as any).voiceMeshManager));
 
-    const leaveSignals = await page.evaluate(async () => {
+    const result = await page.evaluate(async () => {
       const mesh = (window as any).voiceMeshManager;
       mesh.setContext("usr_mesh_tester_a");
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      await mesh.startVoiceMesh(
-        "dm_voice",
-        "",
-        stream,
-        ["usr_mesh_tester_b"],
-        "call_1",
-      );
+      let rejectedUnencryptedCall = false;
+      try {
+        await mesh.startVoiceMesh(
+          "dm_voice",
+          "",
+          stream,
+          ["usr_mesh_tester_b"],
+          "call_1",
+        );
+      } catch (error) {
+        rejectedUnencryptedCall =
+          error instanceof Error && error.message.includes("E2EE 密钥未就绪");
+      }
+
+      // 信令序列化与密钥协商彼此独立。在此只建立非私信的本地测试状态，
+      // 再设置 callId 验证离开消息的定向路由；真实私信媒体由 E2EE 用例验收。
+      await mesh.startVoiceMesh("dm_voice", "", stream, ["usr_mesh_tester_b"]);
+      mesh.activeCallId = "call_1";
       const sent: Array<{ callId?: string; targetId?: string; type: string }> =
         [];
       mesh.sendSignal = (signal: (typeof sent)[number]) => sent.push(signal);
       mesh.broadcastLeaveSignal();
       mesh.stopAll();
-      return sent;
+      return { rejectedUnencryptedCall, sent };
     });
 
-    expect(leaveSignals).toEqual([
+    expect(result.rejectedUnencryptedCall).toBe(true);
+    expect(result.sent).toEqual([
       expect.objectContaining({
         callId: "call_1",
         targetId: "usr_mesh_tester_b",

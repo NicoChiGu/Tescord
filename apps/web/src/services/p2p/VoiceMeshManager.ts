@@ -274,6 +274,10 @@ export class VoiceMeshManager {
   ): Promise<void> {
     this.stopAll();
 
+    if (callId && !sframeManager.getStats().enabled) {
+      throw new Error("E2EE 密钥未就绪，禁止建立私信音视频连接");
+    }
+
     this.activeChannelId = channelId;
     this.activeGuildId = guildId;
     this.activeCallId = callId || null;
@@ -614,8 +618,8 @@ export class VoiceMeshManager {
           clearTimeout(joinTimer);
           this.memberJoinTimers.delete(senderId);
         }
-        const pc = this.getOrCreatePeerConnection(senderId);
         try {
+          const pc = this.getOrCreatePeerConnection(senderId);
           await pc.setRemoteDescription(new RTCSessionDescription(sdp));
           // 排空已缓冲的 ICE
           await this.flushPendingCandidates(senderId, pc);
@@ -742,38 +746,60 @@ export class VoiceMeshManager {
     let pc = this.peerConnections.get(peerId);
     if (pc) return pc;
 
+    const e2eeEnabled = sframeManager.getStats().enabled;
+    if (this.activeCallId && !e2eeEnabled) {
+      throw new Error("E2EE 密钥未就绪，禁止建立私信音视频连接");
+    }
+
     pc = new RTCPeerConnection({
       iceServers: this.currentIceServers,
       iceTransportPolicy: "all",
       bundlePolicy: "max-bundle",
-      ...(sframeManager.getStats().enabled
-        ? { encodedInsertableStreams: true }
-        : {}),
+      ...(e2eeEnabled ? { encodedInsertableStreams: true } : {}),
     } as RTCConfiguration);
     this.setPeerReport(peerId, {
       rtt: 0,
       connectionType: "P2P",
       status: "connecting",
     });
+    const encryptedVideoReceivers = new WeakSet<RTCRtpReceiver>();
 
-    // 绑定本地音频轨道
-    if (this.localAudioTrack) {
-      const sender = pc.addTrack(this.localAudioTrack);
-      if (sframeManager.getStats().enabled) sframeManager.attachSender(sender);
-    }
-
-    // 预置双向视频 Transceiver，实现统一 PeerConnection 热插拔
     try {
+      // 加密管线必须在 SDP 协商和摄像头轨道热插拔之前完成挂载。
+      if (this.localAudioTrack) {
+        const sender = pc.addTrack(this.localAudioTrack);
+        if (e2eeEnabled) sframeManager.attachSender(sender);
+      }
+
+      // 预置双向视频 Transceiver，实现统一 PeerConnection 热插拔。
       const videoTransceiver = pc.addTransceiver("video", {
         direction: "sendrecv",
       });
+      if (e2eeEnabled) {
+        sframeManager.attachSender(videoTransceiver.sender);
+        sframeManager.attachReceiver(videoTransceiver.receiver);
+        encryptedVideoReceivers.add(videoTransceiver.receiver);
+      }
       if (videoTransceiver.sender) {
         this.videoSenders.set(peerId, videoTransceiver.sender);
         if (this.localVideoTrack) {
-          void videoTransceiver.sender.replaceTrack(this.localVideoTrack);
+          void videoTransceiver.sender
+            .replaceTrack(this.localVideoTrack)
+            .catch((err) => {
+              console.error(
+                `[VoiceMesh] 初始视频轨道绑定失败 (${peerId}):`,
+                err,
+              );
+              this.closePeer(peerId);
+            });
         }
       }
     } catch (err) {
+      this.videoSenders.delete(peerId);
+      if (e2eeEnabled) {
+        pc.close();
+        throw err;
+      }
       console.warn(`[VoiceMesh] 预置视频 Transceiver 异常 (${peerId}):`, err);
     }
 
@@ -794,12 +820,32 @@ export class VoiceMeshManager {
 
     // 监听远端音视频流
     pc.ontrack = (event) => {
+      if (this.activeCallId && !sframeManager.getStats().enabled) {
+        this.closePeer(peerId);
+        return;
+      }
       if (event.track.kind === "audio") {
-        if (sframeManager.getStats().enabled)
-          sframeManager.attachReceiver(event.receiver);
+        try {
+          if (e2eeEnabled) sframeManager.attachReceiver(event.receiver);
+        } catch (err) {
+          console.error(`[VoiceMesh] 音频解密管线挂载失败 (${peerId}):`, err);
+          this.closePeer(peerId);
+          return;
+        }
         const remoteStream = event.streams[0] || new MediaStream([event.track]);
         this.attachRemoteAudio(peerId, remoteStream);
       } else if (event.track.kind === "video") {
+        // 远端可能协商额外的视频 receiver；每个都必须先挂载解密管线。
+        if (e2eeEnabled && !encryptedVideoReceivers.has(event.receiver)) {
+          try {
+            sframeManager.attachReceiver(event.receiver);
+            encryptedVideoReceivers.add(event.receiver);
+          } catch (err) {
+            console.error(`[VoiceMesh] 视频解密管线挂载失败 (${peerId}):`, err);
+            this.closePeer(peerId);
+            return;
+          }
+        }
         console.log(`[VoiceMesh] 收到节点 ${peerId} 的远端摄像头视频轨道`);
         this.remoteCameraTracks.set(peerId, event.track);
         this.notifyCameraTracksChange();

@@ -18,6 +18,8 @@ import {
   PresenceUpdateEvent,
   DevicePublicKey,
   MediaKeyEnvelopePayload,
+  DMCallEndedPayload,
+  ClientCallState,
 } from "@tescord/types";
 import { TitleBar } from "./components/TitleBar.js";
 import { GatewayConnectionBanner } from "./components/GatewayConnectionBanner.js";
@@ -107,6 +109,13 @@ import { deviceKeyService } from "./services/deviceKeys.js";
 import { messageDb } from "./services/messageDb.js";
 import { preheatManager } from "./services/preheatManager.js";
 
+type DMCallHistorySnapshot = {
+  channelId: string;
+  callState: ClientCallState;
+  callStartTime: number | null;
+  isCaller: boolean;
+};
+
 export const App: React.FC = () => {
   const { t } = useTranslation(["common", "server", "modals", "contextMenu"]);
   const {
@@ -115,9 +124,6 @@ export const App: React.FC = () => {
     isLoading,
     initAuth,
   } = useAuthStore();
-
-  // 版本更新公告自动弹窗与全局事件监听
-  useWhatsNewAutoPopup(isAuthenticated, isLoading);
 
   const isMaintenance = useMaintenanceStore((s) => s.isMaintenance);
 
@@ -278,6 +284,27 @@ export const App: React.FC = () => {
       : null;
   const selectedChannelRef = useRef<Channel | null>(null);
   selectedChannelRef.current = selectedChannel;
+  const pendingDMCallHistoryRef = useRef(
+    new Map<string, DMCallHistorySnapshot>(),
+  );
+  const recordedDMCallIdsRef = useRef(new Set<string>());
+  useEffect(() => {
+    pendingDMCallHistoryRef.current.clear();
+    recordedDMCallIdsRef.current.clear();
+  }, [currentUser?.id]);
+  const rememberDMCallHistory = (
+    callId: string | null,
+    channelId: string | null,
+  ) => {
+    if (!callId || !channelId) return;
+    const call = useDMCallStore.getState();
+    pendingDMCallHistoryRef.current.set(callId, {
+      channelId,
+      callState: call.callState,
+      callStartTime: call.callStartTime,
+      isCaller: call.isCaller,
+    });
+  };
   const sfuFallbackInProgressRef = useRef(false);
   const connectSfuFallbackRef = useRef<
     (channelId: string, callId?: string | null) => Promise<boolean>
@@ -326,6 +353,9 @@ export const App: React.FC = () => {
           audioStream: stream,
           audioBitrate:
             channel?.bitrate || audioEngine.config.audioBitrate || 64000,
+          ...(callId
+            ? { callId, gatewaySessionId: gatewayClient.getSessionId() }
+            : {}),
         });
         if (activeVoiceChannelIdRef.current !== channelId)
           throw new Error("频道已切换");
@@ -404,6 +434,8 @@ export const App: React.FC = () => {
 
   // 模态框显隐状态
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
+  // 用户已开始设置操作时，本次登录不再自动叠加更新公告。
+  useWhatsNewAutoPopup(isAuthenticated, isLoading, isUserSettingsOpen);
   const [userSettingsInitialTab, setUserSettingsInitialTab] = useState<
     "profile" | "audio"
   >("profile");
@@ -656,7 +688,7 @@ export const App: React.FC = () => {
   }, [currentUser?.id]);
 
   // 拉取公会列表
-  const refreshGuilds = () => {
+  const refreshGuilds = (selectedGuildOverride?: string | null) => {
     const auth = useAuthStore.getState();
     const token = auth.token;
     const requestedUserId = auth.user?.id;
@@ -674,11 +706,19 @@ export const App: React.FC = () => {
           latestAuth.token !== token
         )
           return;
+        if (
+          selectedGuildOverride !== undefined &&
+          selectedGuildIdRef.current !== selectedGuildOverride
+        )
+          return;
         setGuilds(data);
         useChannelNavStore.getState().saveCachedGuilds(data, requestedUserId);
 
         // 验证当前选中的公会
-        const currentSelectedId = selectedGuildIdRef.current;
+        const currentSelectedId =
+          selectedGuildOverride === undefined
+            ? selectedGuildIdRef.current
+            : selectedGuildOverride;
         const rememberedGuild = useChannelNavStore
           .getState()
           .getLastSelectedGuild(requestedUserId);
@@ -1899,10 +1939,6 @@ export const App: React.FC = () => {
       soundManager.stopLoop();
       soundManager.play("CALL_DISCONNECT");
       showGlobalToast("对方已挂断或拒绝了通话", "warning");
-      const currChId = activeDMCallRef.current?.channelId || useDMCallStore.getState().channelId;
-      if (currChId) {
-        handleSendDMCallHistoryMessage(currChId, "[CALL_EVENT:declined]");
-      }
       useDMCallStore.getState().reset();
       activeDMCallRef.current = null;
       setActiveDMCall(null);
@@ -2009,20 +2045,63 @@ export const App: React.FC = () => {
 
     const unbindCallEnd = gatewayClient.on(
       GatewayEvents.CALL_END,
-      (data: { channelId: string; reason?: string }) => {
+      (data: DMCallEndedPayload) => {
+        if (recordedDMCallIdsRef.current.has(data.callId)) return;
+        const currentDMStore = useDMCallStore.getState();
+        const pending = pendingDMCallHistoryRef.current.get(data.callId);
+        if (
+          currentDMStore.callId !== data.callId &&
+          activeDMCallRef.current?.callId !== data.callId &&
+          !pending
+        )
+          return;
+        recordedDMCallIdsRef.current.add(data.callId);
+        if (recordedDMCallIdsRef.current.size > 256) {
+          const oldestCallId = recordedDMCallIdsRef.current
+            .values()
+            .next().value;
+          if (oldestCallId) recordedDMCallIdsRef.current.delete(oldestCallId);
+        }
+        pendingDMCallHistoryRef.current.delete(data.callId);
         soundManager.stopLoop();
         soundManager.play("CALL_DISCONNECT");
-        const currentDMStore = useDMCallStore.getState();
-        const callChId = data.channelId || currentDMStore.channelId || activeDMCallRef.current?.channelId;
-        if (callChId) {
-          if (currentDMStore.callState === "connected" && currentDMStore.callStartTime) {
-            const elapsedSeconds = Math.floor((Date.now() - currentDMStore.callStartTime) / 1000);
-            const mins = Math.floor(elapsedSeconds / 60).toString().padStart(2, "0");
-            const secs = (elapsedSeconds % 60).toString().padStart(2, "0");
-            handleSendDMCallHistoryMessage(callChId, `[CALL_EVENT:ended:${mins}:${secs}]`);
-          } else if (currentDMStore.callState === "outgoing_calling") {
+        const callChId =
+          data.channelId ||
+          pending?.channelId ||
+          currentDMStore.channelId ||
+          activeDMCallRef.current?.channelId;
+        const callState = pending?.callState || currentDMStore.callState;
+        const callStartTime =
+          pending?.callStartTime || currentDMStore.callStartTime;
+        const isCaller = pending?.isCaller ?? currentDMStore.isCaller;
+        const shouldRecord =
+          data.reason === "timeout"
+            ? isCaller
+            : data.reason === "disconnected"
+              ? data.endedBy !== currentUser?.id
+              : data.endedBy === currentUser?.id;
+        if (callChId && shouldRecord) {
+          if (data.reason === "rejected") {
+            handleSendDMCallHistoryMessage(callChId, "[CALL_EVENT:declined]");
+          } else if (data.reason === "canceled") {
             handleSendDMCallHistoryMessage(callChId, "[CALL_EVENT:canceled]");
-          } else if (currentDMStore.callState === "incoming_ringing") {
+          } else if (data.reason === "timeout") {
+            handleSendDMCallHistoryMessage(callChId, "[CALL_EVENT:missed]");
+          } else if (callState === "connected" && callStartTime) {
+            const elapsedSeconds = Math.floor(
+              (Date.now() - callStartTime) / 1000,
+            );
+            const mins = Math.floor(elapsedSeconds / 60)
+              .toString()
+              .padStart(2, "0");
+            const secs = (elapsedSeconds % 60).toString().padStart(2, "0");
+            handleSendDMCallHistoryMessage(
+              callChId,
+              `[CALL_EVENT:ended:${mins}:${secs}]`,
+            );
+          } else if (isCaller) {
+            handleSendDMCallHistoryMessage(callChId, "[CALL_EVENT:canceled]");
+          } else {
             handleSendDMCallHistoryMessage(callChId, "[CALL_EVENT:missed]");
           }
         }
@@ -2366,14 +2445,32 @@ export const App: React.FC = () => {
             const stream = audioEngine.getStream();
             if (!stream)
               throw new Error("Microphone unavailable after reconnect");
+            if (activeVoiceChannelIdRef.current !== channelId)
+              throw new Error("Voice channel changed during reconnect");
+            const guildChannel = guildsRef.current
+              .flatMap((guild) => guild.channels)
+              .find((channel) => channel.id === channelId);
+            const dmCallId = guildChannel
+              ? null
+              : activeDMCallRef.current?.channelId === channelId
+                ? activeDMCallRef.current.callId
+                : useDMCallStore.getState().channelId === channelId
+                  ? useDMCallStore.getState().callId
+                  : null;
+            if (!guildChannel && !dmCallId)
+              throw new Error("DM call ended during reconnect");
             await cloudflareRealtimeService.connect(channelId, {
               audioStream: stream,
               audioBitrate:
-                guildsRef.current
-                  .flatMap((guild) => guild.channels)
-                  .find((channel) => channel.id === channelId)?.bitrate ||
+                guildChannel?.bitrate ||
                 audioEngine.config.audioBitrate ||
                 64000,
+              ...(dmCallId
+                ? {
+                    callId: dmCallId,
+                    gatewaySessionId: gatewayClient.getSessionId(),
+                  }
+                : {}),
             });
           })
           .catch(() => {
@@ -3448,13 +3545,12 @@ export const App: React.FC = () => {
     const currentDMStore = useDMCallStore.getState();
     if (currentDMStore.callState !== "idle") {
       soundManager.play("CALL_DISCONNECT");
-      const callChId = currentDMStore.channelId || activeDMCallRef.current?.channelId;
-      if (callChId && currentDMStore.callState === "connected" && currentDMStore.callStartTime) {
-        const elapsedSeconds = Math.floor((Date.now() - currentDMStore.callStartTime) / 1000);
-        const mins = Math.floor(elapsedSeconds / 60).toString().padStart(2, "0");
-        const secs = (elapsedSeconds % 60).toString().padStart(2, "0");
-        handleSendDMCallHistoryMessage(callChId, `[CALL_EVENT:ended:${mins}:${secs}]`);
-      }
+      const callChId =
+        currentDMStore.channelId || activeDMCallRef.current?.channelId;
+      rememberDMCallHistory(
+        currentDMStore.callId || activeDMCallRef.current?.callId || null,
+        callChId || null,
+      );
       useDMCallStore.getState().reset();
     } else {
       soundManager.play("VOICE_LEAVE");
@@ -3720,6 +3816,8 @@ export const App: React.FC = () => {
         const cfSessionId = await cloudflareRealtimeService.connect(channelId, {
           audioStream: processedStream,
           audioBitrate: bitrate,
+          callId,
+          gatewaySessionId: gatewayClient.getSessionId(),
         });
         joinSuccess = Boolean(cfSessionId);
         if (joinSuccess) livekitService.setConnectionStatus("connected");
@@ -3838,6 +3936,7 @@ export const App: React.FC = () => {
     const channelId = dmStore.channelId || activeDMCallRef.current?.channelId;
     if (channelId) {
       if (callId) {
+        rememberDMCallHistory(callId, channelId);
         gatewayClient.send({
           op: GatewayOpCode.DISPATCH,
           t: GatewayEvents.CALL_END,
@@ -3848,7 +3947,6 @@ export const App: React.FC = () => {
           },
         });
       }
-      handleSendDMCallHistoryMessage(channelId, "[CALL_EVENT:canceled]");
     }
     useDMCallStore.getState().reset();
     activeDMCallRef.current = null;
@@ -3945,6 +4043,7 @@ export const App: React.FC = () => {
     soundManager.play("CALL_DISCONNECT");
     const call = incomingCall;
     setIncomingCall(null);
+    rememberDMCallHistory(call.callId, call.channelId);
     gatewayClient.send({
       op: GatewayOpCode.DISPATCH,
       t: GatewayEvents.CALL_REJECT,
@@ -3952,10 +4051,10 @@ export const App: React.FC = () => {
         callId: call.callId,
       },
     });
-    if (call.channelId) {
-      handleSendDMCallHistoryMessage(call.channelId, "[CALL_EVENT:declined]");
-    }
     useDMCallStore.getState().reset();
+    activeDMCallRef.current = null;
+    setActiveDMCall(null);
+    setCallEncryption({ status: "idle" });
   };
 
   // 切换静音
@@ -4514,6 +4613,9 @@ export const App: React.FC = () => {
                   .recordChannelVisit(targetChannel.guildId, targetChannel.id);
               }
             }
+            // Guild metadata may have changed while another guild was open.
+            // Reconcile the remembered channel against the current server list.
+            refreshGuilds(id);
           }
           if (isDrawer) {
             setIsMobileDrawerOpen(false);
@@ -4699,15 +4801,16 @@ export const App: React.FC = () => {
         noiseSuppressionMode={noiseSuppressionMode}
         onToggleNoiseSuppression={handleToggleNoiseSuppression}
         isSpeakingLocal={isSpeaking}
-        isSpeakingRemote={activeSpeakers.includes(dmCallStoreState.targetUser.id)}
+        isSpeakingRemote={activeSpeakers.includes(
+          dmCallStoreState.targetUser.id,
+        )}
         localVideoTrack={livekitService.localCameraTrack}
         remoteVideoTrack={
           livekitService.cameraTracksMap.get(dmCallStoreState.targetUser.id) ||
           p2pStreamManager.getRemoteStream()
         }
         screenShareTrack={
-          activeScreenShare?.track ||
-          p2pStreamManager.getRemoteStream()
+          activeScreenShare?.track || p2pStreamManager.getRemoteStream()
         }
         encryption={callEncryption}
       />

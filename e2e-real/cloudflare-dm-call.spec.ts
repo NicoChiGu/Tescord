@@ -1,6 +1,6 @@
 import { test, expect, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 declare global {
@@ -48,24 +48,78 @@ test("public DM call negotiates E2EE and exchanges audio after Cloudflare SFU fa
   request,
 }) => {
   test.setTimeout(180_000);
+  const marker = process.env.TESCORD_ACCEPTANCE_MARKER || "";
+  if (!/^[a-f0-9]{10}$/.test(marker))
+    throw new Error(
+      "TESCORD_ACCEPTANCE_MARKER must be ten lowercase hex characters",
+    );
+  const adminUsername =
+    process.env.TESCORD_ACCEPTANCE_ADMIN_USERNAME ||
+    `AcceptanceAdmin_${marker}`;
+  if (adminUsername !== `AcceptanceAdmin_${marker}`)
+    throw new Error(
+      "Acceptance admin username does not match the cleanup marker",
+    );
+  const directory = resolve("test-results/cloudflare-target");
+  const resourcesPath = resolve(directory, "resources.json");
+  await mkdir(directory, { recursive: true });
+  let previousResources: Record<string, string> = {};
+  try {
+    previousResources = JSON.parse(
+      await readFile(resourcesPath, "utf8"),
+    ) as Record<string, string>;
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error && error.code === "ENOENT"))
+      throw error;
+  }
+  if (
+    !previousResources ||
+    Array.isArray(previousResources) ||
+    typeof previousResources !== "object" ||
+    Object.keys(previousResources).some(
+      (key) => key !== "marker" && key !== "adminUserId",
+    ) ||
+    (previousResources.marker !== undefined &&
+      previousResources.marker !== marker) ||
+    (previousResources.adminUserId !== undefined &&
+      typeof previousResources.adminUserId !== "string")
+  )
+    throw new Error("Acceptance resource manifest contains another test run");
+  const resources: Record<string, string | string[]> = {
+    ...previousResources,
+    marker,
+  };
+  const saveResources = async () => {
+    const temporaryPath = `${resourcesPath}.${process.pid}.tmp`;
+    await writeFile(temporaryPath, JSON.stringify(resources, null, 2));
+    await rename(temporaryPath, resourcesPath);
+  };
   const admin = await request.post("/api/auth/login", {
     data: {
-      emailOrUsername:
-        process.env.TESCORD_ACCEPTANCE_ADMIN_USERNAME || "AcceptanceRelay",
+      emailOrUsername: adminUsername,
       password: process.env.TESCORD_ACCEPTANCE_ADMIN_PASSWORD,
     },
   });
   expect(admin.ok()).toBeTruthy();
-  const adminToken = (await admin.json()).accessToken as string;
-  const marker = randomBytes(5).toString("hex");
+  const adminSession = (await admin.json()) as {
+    accessToken: string;
+    user: { id: string };
+  };
+  const adminToken = adminSession.accessToken;
+  if (resources.adminUserId && resources.adminUserId !== adminSession.user.id)
+    throw new Error("Acceptance manifest admin ID does not match login");
+  resources.adminUserId = adminSession.user.id;
+  await saveResources();
   const registration = await request.post("/api/admin/registration-invites", {
     headers: { Authorization: `Bearer ${adminToken}` },
-    data: { note: `DM media ${marker}`, maxUses: 2 },
+    data: { note: `Cloudflare acceptance ${marker}`, maxUses: 2 },
   });
   expect(registration.ok()).toBeTruthy();
   const inviteCode = (await registration.json()).code as string;
+  resources.registrationInviteCode = inviteCode;
+  await saveResources();
   const users = [] as Array<{ id: string; token: string }>;
-  for (const label of ["caller", "callee"]) {
+  for (const label of ["alice", "bob"]) {
     const result = await request.post("/api/auth/register", {
       data: {
         username: `${label}_${marker}`,
@@ -77,13 +131,28 @@ test("public DM call negotiates E2EE and exchanges audio after Cloudflare SFU fa
     expect(result.ok()).toBeTruthy();
     const data = await result.json();
     users.push({ id: data.user.id, token: data.accessToken });
+    resources[`${label}UserId`] = data.user.id;
+    await saveResources();
   }
   const guild = await request.post("/api/guilds", {
     headers: { Authorization: `Bearer ${adminToken}` },
-    data: { name: `DM media ${marker}` },
+    data: { name: `Cloudflare acceptance ${marker}` },
   });
   expect(guild.ok()).toBeTruthy();
   const guildId = (await guild.json()).id as string;
+  resources.guildId = guildId;
+  await saveResources();
+  const channelsResponse = await request.get(
+    `/api/guilds/${guildId}/channels`,
+    {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    },
+  );
+  expect(channelsResponse.ok()).toBeTruthy();
+  resources.channelIds = (
+    (await channelsResponse.json()) as Array<{ id: string }>
+  ).map((channel) => channel.id);
+  await saveResources();
   for (const user of users) {
     const invitation = await request.post(`/api/guilds/${guildId}/invites`, {
       headers: { Authorization: `Bearer ${adminToken}` },
@@ -91,6 +160,11 @@ test("public DM call negotiates E2EE and exchanges audio after Cloudflare SFU fa
     });
     expect(invitation.ok()).toBeTruthy();
     const code = (await invitation.json()).code as string;
+    resources.guildInviteCodes = [
+      ...((resources.guildInviteCodes as string[] | undefined) || []),
+      code,
+    ];
+    await saveResources();
     const joined = await request.post(`/api/invites/${code}/join`, {
       headers: { Authorization: `Bearer ${user.token}` },
     });
@@ -102,6 +176,8 @@ test("public DM call negotiates E2EE and exchanges audio after Cloudflare SFU fa
   });
   expect(dm.ok()).toBeTruthy();
   const dmId = (await dm.json()).id as string;
+  resources.dmChannelId = dmId;
+  await saveResources();
 
   const pages: Page[] = [];
   const diagnostics: Array<
@@ -218,7 +294,10 @@ test("public DM call negotiates E2EE and exchanges audio after Cloudflare SFU fa
       timeout: 20_000,
     });
     await expect(
-      page.getByRole("button", { name: `DM media ${marker}`, exact: true }),
+      page.getByRole("button", {
+        name: `Cloudflare acceptance ${marker}`,
+        exact: true,
+      }),
     ).toBeVisible({ timeout: 15_000 });
     await page.waitForTimeout(1200);
     await page.getByRole("button", { name: "私信与主页" }).click();

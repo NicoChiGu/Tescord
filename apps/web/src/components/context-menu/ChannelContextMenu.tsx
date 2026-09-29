@@ -151,16 +151,41 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
         )}
 
         {isMuted ? (
-          <ContextMenuItem
-            data-testid="channel-context-menu-unmute"
-            onClick={() => unmuteChannel(channel.id)}
-            className="hover:bg-discord-brand"
-          >
-            <div className="flex items-center space-x-2">
-              <Bell className="w-4 h-4 text-discord-green" />
-              <span>{t("contextMenu:channel.unmuteChannel")}</span>
-            </div>
-          </ContextMenuItem>
+          <>
+            <ContextMenuItem
+              data-testid="channel-context-menu-unmute"
+              onClick={() => unmuteChannel(channel.id)}
+              className="hover:bg-discord-brand"
+            >
+              <div className="flex items-center space-x-2">
+                <Bell className="w-4 h-4 text-discord-green" />
+                <span>{t("contextMenu:channel.unmuteChannel")}</span>
+              </div>
+            </ContextMenuItem>
+            <ContextMenuSub>
+              <ContextMenuSubTrigger
+                data-testid="channel-context-menu-change-mute-trigger"
+                className="hover:bg-discord-brand"
+              >
+                <div className="flex items-center space-x-2">
+                  <BellOff className="w-4 h-4 text-discord-textMuted" />
+                  <span>{t("contextMenu:channel.muteChannel")}</span>
+                </div>
+              </ContextMenuSubTrigger>
+              <ContextMenuSubContent className="w-44">
+                {CHANNEL_MUTE_DURATION_OPTIONS.map((opt) => (
+                  <ContextMenuItem
+                    key={opt.label}
+                    data-testid={`mute-duration-option-${opt.label}`}
+                    onClick={() => setChannelMute(channel.id, opt.durationMs)}
+                    className="hover:bg-discord-brand text-xs"
+                  >
+                    <span>{opt.i18nKey ? t(opt.i18nKey) : opt.label}</span>
+                  </ContextMenuItem>
+                ))}
+              </ContextMenuSubContent>
+            </ContextMenuSub>
+          </>
         ) : (
           <ContextMenuSub>
             <ContextMenuSubTrigger

@@ -48,7 +48,7 @@ test.describe("清库401自愈、Discord风格邀请落地页与Modal大窗口ES
     await expect(loader).not.toBeVisible({ timeout: 10000 });
 
     // 验证安全回退至登录/注册界面 (AuthModal)
-    const loginBtn = page.getByRole("button", { name: /登\s*录/i });
+    const loginBtn = page.getByTestId("use-other-account-btn");
     await expect(loginBtn).toBeVisible({ timeout: 5000 });
 
     // 验证本地无效活跃 token 已被清空自愈

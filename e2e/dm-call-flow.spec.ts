@@ -15,7 +15,8 @@ test.describe("私信语音/视频通话全生命周期 (DM Call Flow) E2E 验�
       );
       localStorage.setItem(
         "tescord_refresh_token",
-        localStorage.getItem("tescord_e2e_refresh_token") || "mock_refresh_token",
+        localStorage.getItem("tescord_e2e_refresh_token") ||
+          "mock_refresh_token",
       );
     });
 
@@ -298,6 +299,81 @@ test.describe("私信语音/视频通话全生命周期 (DM Call Flow) E2E 验�
     await expect(acceptBtn).not.toBeVisible({ timeout: 5000 });
   });
 
+  test("拒接原因由 CALL_END 决定且一通电话只写一条共享记录", async ({
+    page,
+  }) => {
+    const historyPosts: string[] = [];
+    await page.route(
+      "**/api/channels/channel_dm_bob/messages",
+      async (route) => {
+        if (route.request().method() !== "POST") {
+          await route.fallback();
+          return;
+        }
+        historyPosts.push(
+          JSON.parse(route.request().postData() || "{}")?.content,
+        );
+        await route.fulfill({
+          status: 201,
+          contentType: "application/json",
+          body: "{}",
+        });
+      },
+    );
+    await page.goto("/");
+    await expect(
+      page.locator("[data-testid='dm-item-channel_dm_bob']"),
+    ).toBeVisible();
+
+    // 呼叫方收到拒接时不能按本地 outgoing_calling 状态写成取消，也不应重复写入共享频道。
+    await page.evaluate(() => {
+      const store = (window as any).__dmCallStore.getState();
+      store.startOutgoing({
+        channelId: "channel_dm_bob",
+        targetUser: { id: "usr_mock_bob", username: "Bob#12345" },
+        hasVideo: false,
+        callId: "call_rejected_by_bob",
+      });
+      (window as any).__gatewayClient.emit("CALL_END", {
+        callId: "call_rejected_by_bob",
+        channelId: "channel_dm_bob",
+        endedBy: "usr_mock_bob",
+        reason: "rejected",
+      });
+    });
+    await expect
+      .poll(() =>
+        page.evaluate(() => (window as any).__dmCallStore.getState().callState),
+      )
+      .toBe("idle");
+    expect(historyPosts).toEqual([]);
+
+    // 被叫点击拒接后只等待网关的权威原因，重复的结束事件也不能产生第二条记录。
+    await page.evaluate(() => {
+      (window as any).__gatewayClient.emit("CALL_OFFER", {
+        callId: "call_rejected_locally",
+        channelId: "channel_dm_bob",
+        caller: { id: "usr_mock_bob", username: "Bob#12345" },
+        hasVideo: false,
+      });
+    });
+    const rejectBtn = page.locator("[data-testid='reject-call-btn']");
+    await expect(rejectBtn).toBeVisible();
+    await rejectBtn.click();
+    expect(historyPosts).toEqual([]);
+    await page.evaluate(() => {
+      const event = {
+        callId: "call_rejected_locally",
+        channelId: "channel_dm_bob",
+        endedBy: "usr_mock_terata",
+        reason: "rejected",
+      };
+      (window as any).__gatewayClient.emit("CALL_END", event);
+      (window as any).__gatewayClient.emit("CALL_END", event);
+    });
+    await expect.poll(() => historyPosts).toEqual(["[CALL_EVENT:declined]"]);
+  });
+
   test("4. 验证已连接通话舞台 (Connected Call Stage)、折叠/展开与挂断流程", async ({
     page,
   }) => {
@@ -335,8 +411,12 @@ test.describe("私信语音/视频通话全生命周期 (DM Call Flow) E2E 验�
     await expect(page.locator("[data-testid='dm-mute-btn']")).toBeVisible();
     await expect(page.locator("[data-testid='dm-deafen-btn']")).toBeVisible();
     await expect(page.locator("[data-testid='dm-camera-btn']")).toBeVisible();
-    await expect(page.locator("[data-testid='dm-screenshare-btn']")).toBeVisible();
-    const disconnectBtn = page.locator("[data-testid='dm-disconnect-call-btn']");
+    await expect(
+      page.locator("[data-testid='dm-screenshare-btn']"),
+    ).toBeVisible();
+    const disconnectBtn = page.locator(
+      "[data-testid='dm-disconnect-call-btn']",
+    );
     await expect(disconnectBtn).toBeVisible();
 
     // 测试舞台折叠：点击折叠按钮

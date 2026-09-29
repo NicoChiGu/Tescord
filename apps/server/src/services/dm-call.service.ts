@@ -29,6 +29,17 @@ export class DMCallService {
       (item) => item.userId !== userId,
     )?.user;
     if (!callee || callee.isBanned) throw new Error("对方账号当前不可用");
+    const blocked = await prisma.relationship.findFirst({
+      where: {
+        type: "BLOCKED",
+        OR: [
+          { userId, targetUserId: callee.id },
+          { userId: callee.id, targetUserId: userId },
+        ],
+      },
+      select: { id: true },
+    });
+    if (blocked) throw new Error("当前无法发起此私信通话");
 
     const callerCallId = this.activeByUser.get(userId);
     const calleeCallId = this.activeByUser.get(callee.id);

@@ -29,6 +29,16 @@ test.describe("消息视口顶部悬浮历史横幅与上下边缘渐变模糊�
         localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token",
       );
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
+      localStorage.setItem(
+        "tescord_last_user",
+        JSON.stringify({ id: "e2e_tester_user", username: "tester_pro" }),
+      );
+      // The fixture owns guild/channel state; a real Gateway READY may replace it.
+      (window as any).WebSocket = class MockWebSocket extends EventTarget {
+        readyState = 3;
+        close() {}
+        send() {}
+      };
     });
 
     await page.route("**/api/auth/me", (route) => {
@@ -36,7 +46,7 @@ test.describe("消息视口顶部悬浮历史横幅与上下边缘渐变模糊�
         status: 200,
         contentType: "application/json",
         body: JSON.stringify({
-          id: "usr_default_admin",
+          id: "e2e_tester_user",
           username: "tester_pro",
           displayName: "专业测试员",
           email: "tester@tescord.local",
@@ -108,14 +118,14 @@ test.describe("消息视口顶部悬浮历史横幅与上下边缘渐变模糊�
 
     await page.goto("/");
 
-    // 1. 进入服务器与频道
-    const serverBtn = page
-      .getByRole("button", { name: /Tescord 极客研发部|极客/i })
-      .first();
-    await expect(serverBtn).toBeVisible({ timeout: 10000 });
-    await serverBtn.click();
-
     const generalChannel = page.getByRole("button", { name: "general" });
+    if (!(await generalChannel.isVisible())) {
+      const serverBtn = page
+        .getByRole("button", { name: /Tescord 极客研发部|极客/i })
+        .first();
+      await expect(serverBtn).toBeVisible({ timeout: 10000 });
+      await serverBtn.click();
+    }
     await expect(generalChannel).toBeVisible({ timeout: 5000 });
     await generalChannel.click();
 
@@ -143,7 +153,12 @@ test.describe("消息视口顶部悬浮历史横幅与上下边缘渐变模糊�
         ),
       )
       .toBeGreaterThan(200);
-    await firstMsg.scrollIntoViewIfNeeded();
+    await messageViewport.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+      element.dispatchEvent(new Event("scroll", { bubbles: true }));
+    });
+    await expect(lastMsg).toBeInViewport();
+    await page.waitForTimeout(500);
     await messageViewport.evaluate((element) => {
       element.scrollTop = 0;
       element.dispatchEvent(new Event("scroll", { bubbles: true }));
@@ -154,6 +169,7 @@ test.describe("消息视口顶部悬浮历史横幅与上下边缘渐变模糊�
     await expect(floatingBanner).toHaveClass(/animate-slide-down/);
     await expect(floatingBanner).toContainText("您正在查看较旧的消息");
     await expect(floatingBanner).toContainText("跳到最新");
+    await expect(firstMsg).toBeInViewport();
 
     // 等待 0.2s 平滑下滑入场动画完成
     await page.waitForTimeout(300);

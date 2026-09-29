@@ -319,7 +319,7 @@ test.describe("令牌失效重新登录 Modal 与会话无感恢复验收", () =
     // 验证 ReauthModal 消失，且页面切换为初始未登录欢迎/登录页
     await expect(reauthBackdrop).not.toBeVisible();
 
-    const loginBtn = page.getByRole("button", { name: /登\s*录/i });
+    const loginBtn = page.getByTestId("use-other-account-btn");
     await expect(loginBtn).toBeVisible({ timeout: 5000 });
 
     // 验证 localStorage 已清理
@@ -392,7 +392,7 @@ test.describe("令牌失效重新登录 Modal 与会话无感恢复验收", () =
 
     // 验证 ReauthModal 关闭并回退到登录页
     await expect(reauthBackdrop).not.toBeVisible();
-    const loginBtn = page.getByRole("button", { name: /登\s*录/i });
+    const loginBtn = page.getByTestId("use-other-account-btn");
     await expect(loginBtn).toBeVisible({ timeout: 5000 });
   });
 });

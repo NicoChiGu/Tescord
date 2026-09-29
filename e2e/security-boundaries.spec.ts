@@ -914,4 +914,3 @@ test("PATCH /api/channels/:channelId rejects parentId belonging to different gui
   });
   expect(response.status()).toBe(400);
 });
-

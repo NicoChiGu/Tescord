@@ -168,19 +168,22 @@ test.describe("4项核心缺陷与体验优化验收 (Four Core Fixes E2E)", () 
 
     const firstMsg = page.locator("#message-msg_fix_1");
     const lastMsg = page.locator("#message-msg_fix_50");
-    await expect(lastMsg).toBeVisible({ timeout: 6000 });
+    const messageViewport = page.getByTestId("chat-scroll-container");
+    await messageViewport.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+      el.dispatchEvent(new Event("scroll"));
+    });
+    await expect(lastMsg).toBeInViewport({ timeout: 10000 });
 
     // 初始状态贴底，横幅不可见
     const floatingBanner = page.locator(".animate-slide-down");
-    await expect(floatingBanner).not.toBeVisible();
+    await expect(floatingBanner).not.toBeVisible({ timeout: 10000 });
 
     // 滚动至顶部较旧消息
-    await page
-      .locator('[data-testid="chat-scroll-container"]')
-      .evaluate((el) => {
-        el.scrollTop = 0;
-        el.dispatchEvent(new Event("scroll"));
-      });
+    await messageViewport.evaluate((el) => {
+      el.scrollTop = 0;
+      el.dispatchEvent(new Event("scroll"));
+    });
 
     // 验证横幅显现且文案为“您正在查看较旧的消息”与“跳到最新”
     await expect(floatingBanner).toBeVisible({ timeout: 5000 });

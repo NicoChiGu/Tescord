@@ -33,7 +33,8 @@ test.describe("UI 右键菜单与交互体验专项验收 (Context Menu & Intera
         avatarUrl: null,
         status: "ONLINE",
       },
-      content: "Hello from me! 这是我自己的消息，用于验证删除二次确认与悬浮栏。",
+      content:
+        "Hello from me! 这是我自己的消息，用于验证删除二次确认与悬浮栏。",
       sequence: 2,
       isEncrypted: false,
       isPinned: false,
@@ -160,7 +161,9 @@ test.describe("UI 右键菜单与交互体验专项验收 (Context Menu & Intera
     });
   });
 
-  test("A1: 服务器列表空白区域右键菜单 - 新建服务器与加入服务器", async ({ page }) => {
+  test("A1: 服务器列表空白区域右键菜单 - 新建服务器与加入服务器", async ({
+    page,
+  }) => {
     await page.goto("/");
 
     // 找到左侧服务器列表 aside
@@ -203,9 +206,193 @@ test.describe("UI 右键菜单与交互体验专项验收 (Context Menu & Intera
     await expect(modalHeading).toBeVisible({ timeout: 5000 });
 
     // 点击右上角关闭按钮关闭模态框
-    const closeBtn = page.locator('button[title*="关闭"]');
+    const closeBtn = page.getByRole("button", { name: "关闭", exact: true });
     await closeBtn.click();
     await expect(modalHeading).not.toBeVisible();
+  });
+
+  test("A1b: creating a guild uploads its locally generated icon after creation", async ({
+    page,
+  }) => {
+    const steps: string[] = [];
+    const externalIdenticonRequests: string[] = [];
+    const pageErrors: string[] = [];
+    let uploadedIcon: Buffer | null = null;
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+    page.on("request", (request) => {
+      if (request.url().includes("dicebear.com/7.x/identicon/"))
+        externalIdenticonRequests.push(request.url());
+    });
+    await page.route("**/api/guilds", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      const body = route.request().postDataJSON();
+      expect(body).not.toHaveProperty("iconUrl");
+      steps.push("create");
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "g_icon_test",
+          name: body.name,
+          iconUrl: null,
+          ownerId: "e2e_tester_user",
+          channels: [],
+          members: [],
+        }),
+      });
+    });
+    await page.route("**/api/attachments/presigned-url", async (route) => {
+      const body = route.request().postDataJSON();
+      expect(body).toMatchObject({
+        purpose: "guild-icon",
+        guildId: "g_icon_test",
+        mimeType: "image/png",
+      });
+      expect(body.fileSize).toBeGreaterThan(0);
+      steps.push("grant");
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          uploadUrl: "/api/attachments/upload/identicon.png",
+          fileUrl: "/public-assets/identicon.png",
+          requiresAuth: true,
+        }),
+      });
+    });
+    await page.route(
+      "**/api/attachments/upload/identicon.png",
+      async (route) => {
+        expect(route.request().headers()["content-type"]).toBe("image/png");
+        expect(route.request().postDataBuffer()?.length).toBeGreaterThan(0);
+        uploadedIcon = route.request().postDataBuffer();
+        steps.push("upload");
+        await route.fulfill({ status: 200, body: "" });
+      },
+    );
+    await page.route("**/api/guilds/g_icon_test", async (route) => {
+      expect(route.request().method()).toBe("PATCH");
+      expect(route.request().postDataJSON()).toEqual({
+        iconUrl: "/public-assets/identicon.png",
+      });
+      steps.push("claim");
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "g_icon_test",
+          iconUrl: "/public-assets/identicon.png",
+        }),
+      });
+    });
+    await page.route("**/public-assets/identicon.png", (route) =>
+      route.fulfill({
+        contentType: "image/png",
+        body: uploadedIcon ?? Buffer.alloc(0),
+      }),
+    );
+
+    await page.goto("/");
+    const sidebar = page.locator('aside[data-testid="servers-sidebar"]');
+    await expect(sidebar).toBeVisible();
+    const bounds = await sidebar.boundingBox();
+    expect(bounds).not.toBeNull();
+    await page.mouse.click(
+      bounds!.x + bounds!.width / 2,
+      bounds!.y + bounds!.height - 15,
+      { button: "right" },
+    );
+    await page
+      .locator('[role="menuitem"]', { hasText: /新建服务器|创建服务器/i })
+      .click();
+
+    const preview = page.getByRole("img", { name: "换一个图标" });
+    await expect(preview).toHaveAttribute("src", /^data:image\/png;base64,/);
+    const firstIcon = await preview.getAttribute("src");
+    await page.getByRole("button", { name: "换一个图标" }).click();
+    await expect(preview).not.toHaveAttribute("src", firstIcon!);
+    await page.getByRole("button", { name: "立即创建" }).click();
+    await expect(
+      page.getByRole("heading", { name: "创建你的专属服务器" }),
+    ).not.toBeVisible();
+    expect(steps).toEqual(["create", "grant", "upload", "claim"]);
+    await expect(
+      page.locator('img[src="/public-assets/identicon.png"]').first(),
+    ).toBeVisible();
+    expect(externalIdenticonRequests).toEqual([]);
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("A1c: failed icon claim discards pending upload without creating a second guild", async ({
+    page,
+  }) => {
+    let creates = 0;
+    let discarded = false;
+    await page.route("**/api/guilds", async (route) => {
+      if (route.request().method() !== "POST") return route.fallback();
+      creates++;
+      await route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          id: "g_icon_failed",
+          name: "测试",
+          iconUrl: null,
+          channels: [],
+          members: [],
+        }),
+      });
+    });
+    await page.route("**/api/attachments/presigned-url", (route) =>
+      route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({
+          uploadUrl: "/api/attachments/upload/failed.png",
+          fileUrl: "/public-assets/failed.png",
+          requiresAuth: true,
+        }),
+      }),
+    );
+    await page.route("**/api/attachments/upload/failed.png", (route) =>
+      route.fulfill({ status: 200, body: "" }),
+    );
+    await page.route("**/api/guilds/g_icon_failed", (route) =>
+      route.fulfill({ status: 500, body: "{}" }),
+    );
+    await page.route(
+      "**/api/guilds/g_icon_failed/pending-icon",
+      async (route) => {
+        expect(route.request().method()).toBe("DELETE");
+        expect(route.request().postDataJSON()).toEqual({
+          fileUrl: "/public-assets/failed.png",
+        });
+        discarded = true;
+        await route.fulfill({
+          contentType: "application/json",
+          body: '{"success":true}',
+        });
+      },
+    );
+
+    await page.goto("/");
+    const sidebar = page.locator('aside[data-testid="servers-sidebar"]');
+    await expect(sidebar).toBeVisible();
+    const bounds = await sidebar.boundingBox();
+    expect(bounds).not.toBeNull();
+    await page.mouse.click(
+      bounds!.x + bounds!.width / 2,
+      bounds!.y + bounds!.height - 15,
+      { button: "right" },
+    );
+    await page
+      .locator('[role="menuitem"]', { hasText: /新建服务器|创建服务器/i })
+      .click();
+    await page.getByRole("button", { name: "立即创建" }).click();
+    await expect(
+      page.getByRole("heading", { name: "创建你的专属服务器" }),
+    ).not.toBeVisible();
+    await expect.poll(() => discarded).toBe(true);
+    expect(creates).toBe(1);
+    await expect(
+      page.getByText("服务器已创建，但图标上传失败。请在服务器设置中重试。"),
+    ).toBeVisible();
   });
 
   test("A2: 服务器右键菜单 - 将服务器静音与通知设定", async ({ page }) => {
@@ -344,7 +531,7 @@ test.describe("UI 右键菜单与交互体验专项验收 (Context Menu & Intera
     await channelBtn.click();
 
     // 等待消息卡片可见
-    const messageItem = page.locator('[data-message-item]').first();
+    const messageItem = page.locator("[data-message-item]").first();
     await expect(messageItem).toBeVisible({ timeout: 5000 });
 
     // 鼠标悬停在消息卡片上
@@ -390,7 +577,7 @@ test.describe("UI 右键菜单与交互体验专项验收 (Context Menu & Intera
     await channelBtn.click();
 
     // 第二条是用户自己的消息，具有删除按钮
-    const ownMessageItem = page.locator('[data-message-item]').nth(1);
+    const ownMessageItem = page.locator("[data-message-item]").nth(1);
     await expect(ownMessageItem).toBeVisible({ timeout: 5000 });
 
     // 悬停以显示悬浮工具栏
@@ -428,7 +615,9 @@ test.describe("UI 右键菜单与交互体验专项验收 (Context Menu & Intera
     await expect(confirmDeleteMenuItem).toBeVisible();
   });
 
-  test("C3: 聊天区域用户头像右键菜单 - 无独立音量，具备新增好友、传送消息与开始通话", async ({ page }) => {
+  test("C3: 聊天区域用户头像右键菜单 - 无独立音量，具备新增好友、传送消息与开始通话", async ({
+    page,
+  }) => {
     await page.goto("/");
 
     const serverButton = page
@@ -444,7 +633,7 @@ test.describe("UI 右键菜单与交互体验专项验收 (Context Menu & Intera
     await channelBtn.click();
 
     // 在聊天列表的第一条消息头像（Alice）上右键
-    const avatar = page.locator('[data-message-item] img').first();
+    const avatar = page.locator("[data-message-item] img").first();
     await expect(avatar).toBeVisible({ timeout: 5000 });
     await avatar.click({ button: "right" });
 

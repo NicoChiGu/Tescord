@@ -3,6 +3,7 @@ import Redis, { Redis as RedisClient } from "ioredis";
 
 export interface ICacheStore {
   get(key: string): Promise<string | null>;
+  getdel(key: string): Promise<string | null>;
   set(key: string, value: string, ttlSeconds?: number): Promise<void>;
   del(key: string): Promise<void>;
   setUserPresence(
@@ -44,6 +45,16 @@ export class MemoryCacheStore implements ICacheStore {
   private presences = new Map<string, UserPresence>();
   private subscribers = new Map<string, Set<(message: string) => void>>();
 
+  constructor() {
+    const sweep = setInterval(() => {
+      const now = Date.now();
+      for (const [key, item] of this.store) {
+        if (item.expireAt && item.expireAt <= now) this.store.delete(key);
+      }
+    }, 60_000);
+    sweep.unref?.();
+  }
+
   async get(key: string): Promise<string | null> {
     const item = this.store.get(key);
     if (!item) return null;
@@ -54,7 +65,23 @@ export class MemoryCacheStore implements ICacheStore {
     return item.value;
   }
 
+  async getdel(key: string): Promise<string | null> {
+    const item = this.store.get(key);
+    this.store.delete(key);
+    if (!item || (item.expireAt && item.expireAt < Date.now())) return null;
+    return item.value;
+  }
+
   async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
+    if (!this.store.has(key) && this.store.size >= 50_000) {
+      const now = Date.now();
+      for (const [existingKey, item] of this.store) {
+        if (item.expireAt && item.expireAt <= now)
+          this.store.delete(existingKey);
+      }
+    }
+    if (!this.store.has(key) && this.store.size >= 50_000)
+      throw new Error("In-memory cache capacity exceeded");
     const expireAt = ttlSeconds ? Date.now() + ttlSeconds * 1000 : undefined;
     this.store.set(key, { value, expireAt });
   }
@@ -223,6 +250,17 @@ export class DualCacheStore implements ICacheStore {
       }
     }
     return this.memory.get(key);
+  }
+
+  async getdel(key: string): Promise<string | null> {
+    if (this.isRedisAvailable && this.redis) {
+      try {
+        return (await this.redis.call("GETDEL", key)) as string | null;
+      } catch {
+        this.isRedisAvailable = false;
+      }
+    }
+    return this.memory.getdel(key);
   }
 
   async set(key: string, value: string, ttlSeconds?: number): Promise<void> {

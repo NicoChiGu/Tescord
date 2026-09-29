@@ -45,6 +45,18 @@ export function getRelyingPartyConfig(req: FastifyRequest): RelyingPartyConfig {
         .filter(Boolean)
     : null;
 
+  if (process.env.NODE_ENV === "production") {
+    const serverOrigin = new URL(process.env.SERVER_BASE_URL || "");
+    return {
+      rpName: envRpName,
+      rpID: envRpId || serverOrigin.hostname,
+      expectedOrigin:
+        envOrigins && envOrigins.length > 0
+          ? envOrigins
+          : [serverOrigin.origin],
+    };
+  }
+
   // 优先从客户端 Origin 或 Referer 提取访问域名，完美应对 Vite proxy / 反向代理变更 Host 的情况
   let clientHostname = "";
   let clientOrigin = "";
@@ -127,7 +139,9 @@ export function formatPasskey(p: any): PasskeyInfo {
     id: p.id,
     name: p.name,
     createdAt:
-      p.createdAt instanceof Date ? p.createdAt.toISOString() : String(p.createdAt),
+      p.createdAt instanceof Date
+        ? p.createdAt.toISOString()
+        : String(p.createdAt),
     lastUsedAt: p.lastUsedAt
       ? p.lastUsedAt instanceof Date
         ? p.lastUsedAt.toISOString()
@@ -159,7 +173,9 @@ export class WebAuthnService {
 
     const excludeCredentials = existingPasskeys.map((pk) => ({
       id: pk.credentialId,
-      transports: pk.transports ? (JSON.parse(pk.transports) as any) : undefined,
+      transports: pk.transports
+        ? (JSON.parse(pk.transports) as any)
+        : undefined,
     }));
 
     const options = await generateRegistrationOptions({
@@ -172,7 +188,7 @@ export class WebAuthnService {
       excludeCredentials,
       authenticatorSelection: {
         residentKey: "preferred",
-        userVerification: "preferred",
+        userVerification: "required",
       },
     });
 
@@ -202,7 +218,7 @@ export class WebAuthnService {
     req: FastifyRequest,
   ): Promise<PasskeyInfo> {
     const cacheKey = `webauthn:challenge:${dto.challengeId}`;
-    const rawCached = await cacheStore.get(cacheKey);
+    const rawCached = await cacheStore.getdel(cacheKey);
     if (!rawCached) {
       throw new WebAuthnError(
         ErrorCode.WEBAUTHN_CHALLENGE_EXPIRED,
@@ -230,8 +246,6 @@ export class WebAuthnService {
       );
     }
 
-    await cacheStore.del(cacheKey);
-
     const config = getRelyingPartyConfig(req);
 
     let verification;
@@ -241,7 +255,7 @@ export class WebAuthnService {
         expectedChallenge: cached.challenge,
         expectedOrigin: config.expectedOrigin,
         expectedRPID: config.rpID,
-        requireUserVerification: false,
+        requireUserVerification: true,
       });
     } catch (err: any) {
       req.log.warn({ err }, "WebAuthn registration verification failed");
@@ -273,7 +287,9 @@ export class WebAuthnService {
       );
     }
 
-    const publicKeyBase64Url = Buffer.from(credential.publicKey).toString("base64url");
+    const publicKeyBase64Url = Buffer.from(credential.publicKey).toString(
+      "base64url",
+    );
     const defaultName = (dto.name || "").trim() || "通行密钥";
 
     const saved = await prisma.passkey.create({
@@ -283,7 +299,9 @@ export class WebAuthnService {
         credentialId: credential.id,
         publicKey: publicKeyBase64Url,
         counter: BigInt(credential.counter || 0),
-        transports: credential.transports ? JSON.stringify(credential.transports) : null,
+        transports: credential.transports
+          ? JSON.stringify(credential.transports)
+          : null,
         aaguid: aaguid || null,
       },
     });
@@ -325,7 +343,7 @@ export class WebAuthnService {
 
     const options = await generateAuthenticationOptions({
       rpID: config.rpID,
-      userVerification: "preferred",
+      userVerification: "required",
       allowCredentials,
     });
 
@@ -354,7 +372,7 @@ export class WebAuthnService {
     req: FastifyRequest,
   ): Promise<AuthResponse> {
     const cacheKey = `webauthn:challenge:${dto.challengeId}`;
-    const rawCached = await cacheStore.get(cacheKey);
+    const rawCached = await cacheStore.getdel(cacheKey);
     if (!rawCached) {
       throw new WebAuthnError(
         ErrorCode.WEBAUTHN_CHALLENGE_EXPIRED,
@@ -381,8 +399,6 @@ export class WebAuthnService {
         400,
       );
     }
-
-    await cacheStore.del(cacheKey);
 
     const credentialId = dto.response?.id;
     if (!credentialId) {
@@ -433,11 +449,15 @@ export class WebAuthnService {
         expectedRPID: config.rpID,
         credential: {
           id: passkey.credentialId,
-          publicKey: new Uint8Array(Buffer.from(passkey.publicKey, "base64url")),
+          publicKey: new Uint8Array(
+            Buffer.from(passkey.publicKey, "base64url"),
+          ),
           counter: Number(passkey.counter),
-          transports: passkey.transports ? JSON.parse(passkey.transports) : undefined,
+          transports: passkey.transports
+            ? JSON.parse(passkey.transports)
+            : undefined,
         },
-        requireUserVerification: false,
+        requireUserVerification: true,
       });
     } catch (err: any) {
       req.log.warn({ err }, "WebAuthn authentication verification failed");
@@ -509,11 +529,7 @@ export class WebAuthnService {
     });
 
     if (!passkey || passkey.userId !== userId) {
-      throw new WebAuthnError(
-        ErrorCode.NOT_FOUND,
-        "未找到对应的通行密钥",
-        404,
-      );
+      throw new WebAuthnError(ErrorCode.NOT_FOUND, "未找到对应的通行密钥", 404);
     }
 
     const updated = await prisma.passkey.update({
@@ -561,11 +577,7 @@ export class WebAuthnService {
     });
 
     if (!passkey || passkey.userId !== userId) {
-      throw new WebAuthnError(
-        ErrorCode.NOT_FOUND,
-        "未找到对应的通行密钥",
-        404,
-      );
+      throw new WebAuthnError(ErrorCode.NOT_FOUND, "未找到对应的通行密钥", 404);
     }
 
     await prisma.passkey.delete({

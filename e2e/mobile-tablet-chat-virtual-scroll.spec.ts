@@ -59,9 +59,10 @@ test.describe("移动端与平板设备文字频道动态加载与视口优化�
     expect(count).toBeGreaterThan(0);
     expect(count).toBeLessThanOrEqual(14);
 
-    // 验证移动端专属快捷操作按钮可见
+    // 移动端先选中消息，再显示该消息的快捷操作入口。
     const firstItem = renderedItems.first();
-    const actionBtn = firstItem.locator('button[title="快捷操作面板"]');
+    await firstItem.click();
+    const actionBtn = firstItem.locator('button[title="更多"]');
     await expect(actionBtn).toBeVisible();
   });
 
@@ -81,16 +82,18 @@ test.describe("移动端与平板设备文字频道动态加载与视口优化�
       createdAt: new Date(Date.now() - (30 - i) * 60000).toISOString(),
     }));
 
-    await page.route(
-      "**/api/channels/chn_default_text_01/messages*",
-      (route) => {
-        route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify(mockMessages),
-        });
-      },
-    );
+    await page.route("**/api/channels/*/messages*", (route) => {
+      const channelId = new URL(route.request().url()).pathname.match(
+        /\/api\/channels\/([^/]+)\/messages/,
+      )?.[1];
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          mockMessages.map((message) => ({ ...message, channelId })),
+        ),
+      });
+    });
 
     await page.goto("/");
 
@@ -124,16 +127,33 @@ test.describe("移动端与平板设备文字频道动态加载与视口优化�
 
     await expect(container).toBeVisible({ timeout: 6000 });
 
-    // 验证平板触屏模式下快捷操作按钮可见（lg:hidden 在 820px 下可见）
-    const actionBtn = container
-      .locator('[data-message-id] button[title="快捷操作面板"]')
-      .first();
-    await expect(actionBtn).toBeVisible();
+    // 虚拟列表首项可能仅露出一条边；选择视口中完整可见的最后一条消息。
+    const message = container.locator("[data-message-id]").last();
+    await expect(message).toBeInViewport({ ratio: 0.8 });
+    const box = await message.boundingBox();
+    expect(box).not.toBeNull();
+    const x = box!.x + Math.min(box!.width / 2, 100);
+    const y = box!.y + box!.height / 2;
+    await message.evaluate(
+      (element, { x, y }) => {
+        const touch = new Touch({
+          identifier: 1,
+          target: element,
+          clientX: x,
+          clientY: y,
+        });
+        element.dispatchEvent(
+          new TouchEvent("touchstart", {
+            bubbles: true,
+            touches: [touch],
+            targetTouches: [touch],
+            changedTouches: [touch],
+          }),
+        );
+      },
+      { x, y },
+    );
 
-    // 点击快捷操作按钮唤出操作面板
-    await actionBtn.click();
-
-    // 确认 MobileActionSheet 成功唤出并可见
     const mobileSheet = page.locator('[data-testid="mobile-action-sheet"]');
     await expect(mobileSheet).toBeVisible({ timeout: 4000 });
     await expect(mobileSheet.getByText("引用回复")).toBeVisible();
@@ -157,16 +177,18 @@ test.describe("移动端与平板设备文字频道动态加载与视口优化�
       },
     ];
 
-    await page.route(
-      "**/api/channels/chn_default_text_01/messages*",
-      (route) => {
-        route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify(mockMessages),
-        });
-      },
-    );
+    await page.route("**/api/channels/*/messages*", (route) => {
+      const channelId = new URL(route.request().url()).pathname.match(
+        /\/api\/channels\/([^/]+)\/messages/,
+      )?.[1];
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(
+          mockMessages.map((message) => ({ ...message, channelId })),
+        ),
+      });
+    });
 
     await page.goto("/");
 

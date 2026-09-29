@@ -32,6 +32,7 @@ import type {
   CfCallsUnsubscribeRequest,
   CfStreamWatchRequest,
   LiveKitTokenRequest,
+  LiveKitPublishSource,
 } from "@tescord/types";
 
 import {
@@ -129,13 +130,15 @@ server.addHook("onRequest", async (request, reply) => {
   const rule =
     path === "/api/auth/login" || path === "/api/auth/register"
       ? { name: "auth", limit: 10, windowMs: 60_000 }
-      : path.includes("/call-token")
-        ? { name: "call", limit: 20, windowMs: 60_000 }
-        : path === "/api/attachments/access"
-          ? { name: "attachment-access", limit: 120, windowMs: 60_000 }
-          : path.startsWith("/api/attachments/")
-            ? { name: "upload", limit: 40, windowMs: 60_000 }
-            : null;
+      : path.startsWith("/api/auth/webauthn/")
+        ? { name: "webauthn", limit: 60, windowMs: 60_000 }
+        : path.includes("/call-token")
+          ? { name: "call", limit: 20, windowMs: 60_000 }
+          : path === "/api/attachments/access"
+            ? { name: "attachment-access", limit: 120, windowMs: 60_000 }
+            : path.startsWith("/api/attachments/")
+              ? { name: "upload", limit: 40, windowMs: 60_000 }
+              : null;
   if (!rule) return;
   const key = `${rule.name}:${request.ip}`;
   const now = Date.now();
@@ -554,15 +557,25 @@ server.get(
       const userId = request.user?.sub;
       const user = await prisma.user.findUnique({ where: { id: userId } });
       if (!user) {
-        return reply.status(401).send({ error: "用户不存在", code: ErrorCode.AUTH_USER_NOT_FOUND });
+        return sendApiError(
+          reply,
+          401,
+          ErrorCode.AUTH_USER_NOT_FOUND,
+          ErrorCode.AUTH_USER_NOT_FOUND,
+        );
       }
       return await webauthnService.generateRegisterOptions(user, request);
     } catch (err: any) {
       if (err instanceof WebAuthnError) {
-        return reply.status(err.statusCode).send({ error: err.message, code: err.code });
+        return sendApiError(reply, err.statusCode, err.code, err.code);
       }
       request.log.error({ err }, "webauthn register-options failed");
-      return reply.status(500).send({ error: "生成注册凭据配置失败", code: ErrorCode.INTERNAL_ERROR });
+      return sendApiError(
+        reply,
+        500,
+        ErrorCode.INTERNAL_ERROR,
+        ErrorCode.INTERNAL_ERROR,
+      );
     }
   },
 );
@@ -576,17 +589,31 @@ server.post(
       const userId = request.user?.sub;
       const user = await prisma.user.findUnique({ where: { id: userId } });
       if (!user) {
-        return reply.status(401).send({ error: "用户不存在", code: ErrorCode.AUTH_USER_NOT_FOUND });
+        return sendApiError(
+          reply,
+          401,
+          ErrorCode.AUTH_USER_NOT_FOUND,
+          ErrorCode.AUTH_USER_NOT_FOUND,
+        );
       }
       const body = (request.body || {}) as WebAuthnVerifyRegisterDTO;
-      const passkey = await webauthnService.verifyRegisterResponse(user, body, request);
+      const passkey = await webauthnService.verifyRegisterResponse(
+        user,
+        body,
+        request,
+      );
       return passkey;
     } catch (err: any) {
       if (err instanceof WebAuthnError) {
-        return reply.status(err.statusCode).send({ error: err.message, code: err.code });
+        return sendApiError(reply, err.statusCode, err.code, err.code);
       }
       request.log.error({ err }, "webauthn register-verify failed");
-      return reply.status(400).send({ error: err.message || "注册通行密钥失败", code: ErrorCode.WEBAUTHN_VERIFICATION_FAILED });
+      return sendApiError(
+        reply,
+        500,
+        ErrorCode.INTERNAL_ERROR,
+        ErrorCode.INTERNAL_ERROR,
+      );
     }
   },
 );
@@ -594,15 +621,23 @@ server.post(
 // 3. 获取通行密钥登录挑战 (公开)
 server.post("/api/auth/webauthn/login-options", async (request, reply) => {
   try {
-    const body = (request.body || {}) as { emailOrUsername?: string; email?: string };
+    const body = (request.body || {}) as {
+      emailOrUsername?: string;
+      email?: string;
+    };
     const emailOrUsername = body.emailOrUsername || body.email;
     return await webauthnService.generateLoginOptions(request, emailOrUsername);
   } catch (err: any) {
     if (err instanceof WebAuthnError) {
-      return reply.status(err.statusCode).send({ error: err.message, code: err.code });
+      return sendApiError(reply, err.statusCode, err.code, err.code);
     }
     request.log.error({ err }, "webauthn login-options failed");
-    return reply.status(500).send({ error: "生成登录凭据配置失败", code: ErrorCode.INTERNAL_ERROR });
+    return sendApiError(
+      reply,
+      500,
+      ErrorCode.INTERNAL_ERROR,
+      ErrorCode.INTERNAL_ERROR,
+    );
   }
 });
 
@@ -617,10 +652,15 @@ server.post("/api/auth/webauthn/login-verify", async (request, reply) => {
     };
   } catch (err: any) {
     if (err instanceof WebAuthnError) {
-      return reply.status(err.statusCode).send({ error: err.message, code: err.code });
+      return sendApiError(reply, err.statusCode, err.code, err.code);
     }
     request.log.error({ err }, "webauthn login-verify failed");
-    return reply.status(400).send({ error: err.message || "通行密钥登录失败", code: ErrorCode.WEBAUTHN_VERIFICATION_FAILED });
+    return sendApiError(
+      reply,
+      500,
+      ErrorCode.INTERNAL_ERROR,
+      ErrorCode.INTERNAL_ERROR,
+    );
   }
 });
 
@@ -634,7 +674,12 @@ server.get(
       return await webauthnService.listPasskeys(userId);
     } catch (err: any) {
       request.log.error({ err }, "list passkeys failed");
-      return reply.status(500).send({ error: "获取通行密钥列表失败", code: ErrorCode.INTERNAL_ERROR });
+      return sendApiError(
+        reply,
+        500,
+        ErrorCode.INTERNAL_ERROR,
+        ErrorCode.INTERNAL_ERROR,
+      );
     }
   },
 );
@@ -651,10 +696,15 @@ server.patch(
       return await webauthnService.renamePasskey(userId, id, body.name);
     } catch (err: any) {
       if (err instanceof WebAuthnError) {
-        return reply.status(err.statusCode).send({ error: err.message, code: err.code });
+        return sendApiError(reply, err.statusCode, err.code, err.code);
       }
       request.log.error({ err }, "rename passkey failed");
-      return reply.status(500).send({ error: "重命名通行密钥失败", code: ErrorCode.INTERNAL_ERROR });
+      return sendApiError(
+        reply,
+        500,
+        ErrorCode.INTERNAL_ERROR,
+        ErrorCode.INTERNAL_ERROR,
+      );
     }
   },
 );
@@ -672,10 +722,15 @@ server.delete(
       return { success: true };
     } catch (err: any) {
       if (err instanceof WebAuthnError) {
-        return reply.status(err.statusCode).send({ error: err.message, code: err.code });
+        return sendApiError(reply, err.statusCode, err.code, err.code);
       }
       request.log.error({ err }, "delete passkey failed");
-      return reply.status(500).send({ error: "解绑通行密钥失败", code: ErrorCode.INTERNAL_ERROR });
+      return sendApiError(
+        reply,
+        500,
+        ErrorCode.INTERNAL_ERROR,
+        ErrorCode.INTERNAL_ERROR,
+      );
     }
   },
 );
@@ -716,7 +771,10 @@ server.patch(
         }
         if (
           nextAvatar.includes("/public-assets/") &&
-          !(claimedNewAvatar = storageService.claimUserAvatar(userId, nextAvatar))
+          !(claimedNewAvatar = storageService.claimUserAvatar(
+            userId,
+            nextAvatar,
+          ))
         ) {
           return sendApiError(
             reply,
@@ -739,7 +797,10 @@ server.patch(
         }
         if (
           nextBanner.includes("/public-assets/") &&
-          !(claimedNewBanner = storageService.claimUserBanner(userId, nextBanner))
+          !(claimedNewBanner = storageService.claimUserBanner(
+            userId,
+            nextBanner,
+          ))
         ) {
           return sendApiError(
             reply,
@@ -1868,17 +1929,30 @@ server.patch("/api/guilds/:guildId", async (request, reply) => {
   if (!guild) return reply.status(404).send({ error: "服务器不存在" });
 
   const body = (request.body || {}) as UpdateGuildDTO;
+  if (
+    body.iconUrl !== undefined &&
+    body.iconUrl !== null &&
+    typeof body.iconUrl !== "string"
+  ) {
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.INVALID_PARAMS,
+      ErrorCode.INVALID_PARAMS,
+    );
+  }
+  const nextIconUrl = body.iconUrl?.trim() || null;
   let claimedNewIcon = false;
   if (
-    body.iconUrl?.includes("/public-assets/") &&
-    body.iconUrl !== guild.iconUrl &&
+    nextIconUrl &&
+    nextIconUrl !== guild.iconUrl &&
     !(claimedNewIcon = storageService.claimPublicAsset(
       user.id,
       guildId,
-      body.iconUrl,
+      nextIconUrl,
     ))
   ) {
-    return reply.status(403).send({ error: "服务器图标上传授权无效" });
+    return sendApiError(reply, 403, ErrorCode.FORBIDDEN, ErrorCode.FORBIDDEN);
   }
   let updated;
   try {
@@ -1886,7 +1960,7 @@ server.patch("/api/guilds/:guildId", async (request, reply) => {
       where: { id: guildId },
       data: {
         name: body.name !== undefined ? body.name.trim() : undefined,
-        iconUrl: body.iconUrl !== undefined ? body.iconUrl : undefined,
+        iconUrl: body.iconUrl !== undefined ? nextIconUrl : undefined,
         description:
           body.description !== undefined ? body.description : undefined,
         isPublic:
@@ -1896,8 +1970,8 @@ server.patch("/api/guilds/:guildId", async (request, reply) => {
       },
     });
   } catch (error) {
-    if (claimedNewIcon && body.iconUrl) {
-      storageService.releasePublicAssetClaim(user.id, guildId, body.iconUrl);
+    if (claimedNewIcon && nextIconUrl) {
+      storageService.releasePublicAssetClaim(user.id, guildId, nextIconUrl);
     }
     throw error;
   }
@@ -6086,6 +6160,7 @@ server.post("/api/livekit/token", async (request, reply) => {
 
   const wantsPublish = body.isPublisher !== false;
   let isPublisher = wantsPublish;
+  let publishSources: LiveKitPublishSource[] | undefined;
   if (wantsPublish && channel.guildId) {
     const canSpeak = await permissionService.hasChannelPermission(
       reqUserId,
@@ -6097,9 +6172,11 @@ server.post("/api/livekit/token", async (request, reply) => {
       channel.id,
       PermissionFlags.STREAM,
     );
-    if (!canSpeak && !canStream) {
-      isPublisher = false;
-    }
+    publishSources = [
+      ...(canSpeak ? (["microphone", "camera"] as const) : []),
+      ...(canStream ? (["screen_share", "screen_share_audio"] as const) : []),
+    ];
+    isPublisher = publishSources.length > 0;
   }
 
   return await generateLiveKitToken({
@@ -6108,6 +6185,7 @@ server.post("/api/livekit/token", async (request, reply) => {
     gatewaySessionId,
     name: typeof body.name === "string" ? body.name.slice(0, 128) : undefined,
     isPublisher,
+    publishSources,
     bitrate: body.bitrate,
   });
 });
@@ -6166,6 +6244,8 @@ server.post("/api/livekit/webhook", async (request, reply) => {
 type CfMediaBody = {
   channelId?: string;
   sessionId?: string;
+  callId?: string;
+  gatewaySessionId?: string;
   sessionDescription?: { type: "offer" | "answer"; sdp: string };
   tracks?: Array<{
     mid?: string;
@@ -6209,6 +6289,31 @@ function cfLoginSession(request: FastifyRequest): string {
   return (request.user as { sessionId?: string } | undefined)?.sessionId || "";
 }
 
+function cfAuthorizeDMCall(
+  userId: string,
+  loginSessionId: string,
+  channelId: string,
+  callId: string | undefined,
+  gatewaySessionId: string | undefined,
+): boolean {
+  if (
+    !callId ||
+    !gatewaySessionId ||
+    !gatewayManager.hasIdentifiedLoginSession(
+      userId,
+      gatewaySessionId,
+      loginSessionId,
+    )
+  )
+    return false;
+  try {
+    dmCallService.authorizeMedia(userId, gatewaySessionId, callId, channelId);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function cfCanUseChannel(
   userId: string,
   channelId: string,
@@ -6245,6 +6350,25 @@ async function cfSessionForRequest(
   const session = cloudflareRealtimeService.getSession(sessionId);
   if (!session || !(await cfCanUseChannel(userId, session.channelId)))
     return null;
+  const channel = await prisma.channel.findUnique({
+    where: { id: session.channelId },
+    select: { type: true },
+  });
+  if (channel?.type === "DM" || channel?.type === "GROUP_DM") {
+    if (
+      channel.type !== "DM" ||
+      !cfAuthorizeDMCall(
+        userId,
+        cfLoginSession(request),
+        session.channelId,
+        session.callId,
+        session.gatewaySessionId,
+      )
+    )
+      return null;
+  } else if (session.callId) {
+    return null;
+  }
   return { ...session, sessionId };
 }
 
@@ -6339,7 +6463,7 @@ server.post("/api/cloudflare-realtime/session/new", async (request, reply) => {
     return reply.status(401).send({ error: "Unauthorized" });
   }
 
-  const { channelId } = cfBody(request);
+  const { channelId, callId, gatewaySessionId } = cfBody(request);
   if (
     typeof channelId !== "string" ||
     !channelId ||
@@ -6350,6 +6474,31 @@ server.post("/api/cloudflare-realtime/session/new", async (request, reply) => {
   if (!cfLoginSession(request))
     return reply.status(401).send({ error: "Invalid login session" });
 
+  const channel = await prisma.channel.findUnique({
+    where: { id: channelId },
+    select: { type: true, isE2EE: true },
+  });
+  if (channel?.type === "DM" || channel?.type === "GROUP_DM") {
+    if (
+      channel.type !== "DM" ||
+      !cfAuthorizeDMCall(
+        userId,
+        cfLoginSession(request),
+        channelId,
+        callId,
+        gatewaySessionId,
+      )
+    )
+      return sendApiError(reply, 403, ErrorCode.FORBIDDEN, ErrorCode.FORBIDDEN);
+  } else if (callId || gatewaySessionId) {
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.INVALID_PARAMS,
+      ErrorCode.INVALID_PARAMS,
+    );
+  }
+
   try {
     const session = await cloudflareRealtimeService.createSession();
     cloudflareRealtimeService.registerSession(
@@ -6357,12 +6506,10 @@ server.post("/api/cloudflare-realtime/session/new", async (request, reply) => {
       userId,
       channelId,
       cfLoginSession(request),
+      callId,
+      gatewaySessionId,
     );
     await cfSendViewerEvents();
-    const channel = await prisma.channel.findUnique({
-      where: { id: channelId },
-      select: { type: true, isE2EE: true },
-    });
     return {
       ...session,
       tracks: cloudflareRealtimeService.getTracks(channelId),
@@ -6848,12 +6995,27 @@ const cloudflareMediaSweep = setInterval(async () => {
         where: { id: session.userId },
         select: { isBanned: true },
       });
+      const channel = await prisma.channel.findUnique({
+        where: { id: session.channelId },
+        select: { type: true },
+      });
+      const dmAuthorized =
+        channel?.type === "DM"
+          ? cfAuthorizeDMCall(
+              session.userId,
+              session.loginSessionId,
+              session.channelId,
+              session.callId,
+              session.gatewaySessionId,
+            )
+          : channel?.type !== "GROUP_DM" && !session.callId;
       if (
         Date.now() - session.lastSeenAt <= 45_000 &&
         login?.userId === session.userId &&
         login.expiresAt > new Date() &&
         user &&
         !user.isBanned &&
+        dmAuthorized &&
         (await cfCanUseChannel(session.userId, session.channelId))
       )
         continue;

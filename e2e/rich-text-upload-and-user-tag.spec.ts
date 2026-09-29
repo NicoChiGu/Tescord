@@ -14,7 +14,9 @@ test.describe("文字频道富文本悬浮菜单、图片上传404修复与识�
     if (await quickLoginBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await quickLoginBtn.click();
       const loginSubmitBtn = page.getByRole("button", { name: "登 录" });
-      if (await loginSubmitBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      if (
+        await loginSubmitBtn.isVisible({ timeout: 2000 }).catch(() => false)
+      ) {
         await loginSubmitBtn.click();
       }
     }
@@ -26,7 +28,9 @@ test.describe("文字频道富文本悬浮菜单、图片上传404修复与识�
     await expect(serverButton).toBeVisible({ timeout: 10000 });
     await serverButton.click();
 
-    const generalChannel = page.getByRole("button", { name: /general|综合闲聊|常规/i }).first();
+    const generalChannel = page
+      .getByRole("button", { name: /general|综合闲聊|常规/i })
+      .first();
     if (await generalChannel.isVisible({ timeout: 3000 }).catch(() => false)) {
       await generalChannel.click();
     }
@@ -48,7 +52,7 @@ test.describe("文字频道富文本悬浮菜单、图片上传404修复与识�
       const textNode = editor.firstChild;
       const range = document.createRange();
       range.setStart(textNode, 6); // "World" 开始位置
-      range.setEnd(textNode, 11);  // "World" 结束位置
+      range.setEnd(textNode, 11); // "World" 结束位置
       const sel = window.getSelection();
       sel?.removeAllRanges();
       sel?.addRange(range);
@@ -63,7 +67,9 @@ test.describe("文字频道富文本悬浮菜单、图片上传404修复与识�
 
     // 验证 8 个格式化按钮完整展示
     await expect(page.locator('[data-testid="format-btn-bold"]')).toBeVisible();
-    await expect(page.locator('[data-testid="format-btn-italic"]')).toBeVisible();
+    await expect(
+      page.locator('[data-testid="format-btn-italic"]'),
+    ).toBeVisible();
     await expect(
       page.locator('[data-testid="format-btn-strikethrough"]'),
     ).toBeVisible();
@@ -105,23 +111,17 @@ test.describe("文字频道富文本悬浮菜单、图片上传404修复与识�
     if (await quickLoginBtn.isVisible({ timeout: 3000 }).catch(() => false)) {
       await quickLoginBtn.click();
       const loginSubmitBtn = page.getByRole("button", { name: "登 录" });
-      if (await loginSubmitBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+      if (
+        await loginSubmitBtn.isVisible({ timeout: 2000 }).catch(() => false)
+      ) {
         await loginSubmitBtn.click();
       }
     }
 
     // 等待主界面加载完毕
-    const userPanel = page.locator('[data-testid="current-user-panel"]').or(
-      page.locator('button[title*="设置"], button[aria-label*="设置"]'),
-    );
-    await expect(userPanel.first()).toBeVisible({ timeout: 10000 });
-
-    // 点击底部齿轮/设置按钮打开用户设置弹窗
-    const settingsButton = page
-      .locator(
-        'button[data-testid="user-settings-btn"], button[title*="用户设置"], button[aria-label*="用户设置"], button[title*="设置"], button[aria-label*="设置"]',
-      )
-      .first();
+    // 底部个人设置齿轮有稳定的 test id；泛化“设置”会匹配到隐藏的服务器设置按钮。
+    const settingsButton = page.getByTestId("user-settings-gear-btn");
+    await expect(settingsButton).toBeVisible({ timeout: 10000 });
     await settingsButton.click();
 
     // 确保个人设置弹窗已打开并切到个人资料 tab
@@ -145,7 +145,9 @@ test.describe("文字频道富文本悬浮菜单、图片上传404修复与识�
     await expect(embeddedTag).toBeVisible();
 
     // 验证头像组件正常渲染，右侧 1:1 卡片预览区也正常展示
-    const profileCardPreview = page.locator('[data-testid="profile-preview-display-name"]');
+    const profileCardPreview = page.locator(
+      '[data-testid="profile-preview-display-name"]',
+    );
     await expect(profileCardPreview).toBeVisible();
   });
 });

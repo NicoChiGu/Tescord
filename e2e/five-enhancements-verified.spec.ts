@@ -75,9 +75,9 @@ test.describe("五大核心优化功能端到端综合验收测试 (Five Enhance
         .locator('[role="menuitem"]:has-text("个人资料")')
         .or(page.locator('[role="menuitem"]:has-text("個人資料")'));
       await expect(profileItem.first()).toBeVisible();
-      const copyIdItem = page
-        .locator('[role="menuitem"]:has-text("复制使用者 ID")')
-        .or(page.locator('[role="menuitem"]:has-text("複製使用者 ID")'));
+      const copyIdItem = contextMenu.getByRole("menuitem", {
+        name: /复制用户 ID|複製使用者 ID/,
+      });
       await expect(copyIdItem.first()).toBeVisible();
       await page.keyboard.press("Escape");
     }

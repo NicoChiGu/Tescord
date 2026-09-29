@@ -1,9 +1,14 @@
 import {
   AccessToken,
   RoomServiceClient,
+  TrackSource,
   WebhookReceiver,
 } from "livekit-server-sdk";
-import { LiveKitTokenRequest, LiveKitTokenResponse } from "@tescord/types";
+import {
+  LiveKitPublishSource,
+  LiveKitTokenRequest,
+  LiveKitTokenResponse,
+} from "@tescord/types";
 
 function resolveLiveKitCredentials(
   apiKey?: string,
@@ -90,10 +95,20 @@ export async function generateLiveKitToken(
     ttl: "2h",
   });
 
+  const sourceMap: Record<LiveKitPublishSource, TrackSource> = {
+    microphone: TrackSource.MICROPHONE,
+    camera: TrackSource.CAMERA,
+    screen_share: TrackSource.SCREEN_SHARE,
+    screen_share_audio: TrackSource.SCREEN_SHARE_AUDIO,
+  };
+  const publishSources = req.publishSources?.map((source) => sourceMap[source]);
   at.addGrant({
     roomJoin: true,
     room: req.roomName,
-    canPublish: req.isPublisher !== false, // 默认允许推流
+    canPublish:
+      req.isPublisher !== false &&
+      (publishSources === undefined || publishSources.length > 0),
+    canPublishSources: publishSources,
     canSubscribe: true,
     canPublishData: true,
   });

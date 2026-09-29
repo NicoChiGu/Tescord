@@ -206,7 +206,7 @@ test.describe("附件上传与发信授权验收 (Attachment Upload & Message Se
     expect(accessRequests).toBeGreaterThanOrEqual(2);
 
     await page
-      .getByRole("button", { name: "预览图片 e2e_pure_attachment.png" })
+      .getByRole("button", { name: "预览 e2e_pure_attachment.png" })
       .click();
     await expect(
       page.getByRole("dialog", { name: "预览 e2e_pure_attachment.png" }),

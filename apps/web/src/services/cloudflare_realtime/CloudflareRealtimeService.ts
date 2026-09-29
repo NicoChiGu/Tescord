@@ -1,5 +1,6 @@
 import {
   CfCallsCreateSessionResponse,
+  CfCallsCreateSessionRequest,
   CfCallsPublishTrackResponse,
   CfCallsSubscribeTrackResponse,
   CfTurnIceServersResponse,
@@ -74,6 +75,10 @@ export class CloudflareRealtimeService {
   private sessionId: string | null = null;
   private pendingSessionLeaves = new Set<string>();
   private currentChannelId: string | null = null;
+  private callContext: Pick<
+    CfCallsCreateSessionRequest,
+    "callId" | "gatewaySessionId"
+  > | null = null;
   private connectionStatus: CfRealtimeConnectionStatus = "disconnected";
 
   private localAudioStream: MediaStream | null = null;
@@ -658,7 +663,10 @@ export class CloudflareRealtimeService {
       {
         method: "POST",
         headers: this.authHeaders,
-        body: JSON.stringify({ channelId: this.currentChannelId }),
+        body: JSON.stringify({
+          channelId: this.currentChannelId,
+          ...this.callContext,
+        } satisfies CfCallsCreateSessionRequest),
       },
     );
     if (!sessionRes.ok)
@@ -751,6 +759,8 @@ export class CloudflareRealtimeService {
       audioStream?: MediaStream;
       audioBitrate?: number;
       iceServers?: RTCIceServer[];
+      callId?: string;
+      gatewaySessionId?: string;
     },
     retryCount = 0,
   ): Promise<string> {
@@ -762,6 +772,12 @@ export class CloudflareRealtimeService {
     }
 
     this.currentChannelId = channelId;
+    this.callContext = options?.callId
+      ? {
+          callId: options.callId,
+          gatewaySessionId: options.gatewaySessionId,
+        }
+      : null;
     this.audioBitrate = options?.audioBitrate || 64000;
     this.setStatus("connecting");
 
@@ -2131,6 +2147,7 @@ export class CloudflareRealtimeService {
 
     this.sessionId = null;
     this.currentChannelId = null;
+    this.callContext = null;
     this.setStatus("disconnected");
   }
 

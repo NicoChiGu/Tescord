@@ -12,6 +12,7 @@
     "submit": "立即建立",
     "submitting": "建立中...",
     "failed": "建立伺服器失敗",
+    "iconUploadFailed": "伺服器已建立，但圖示上傳失敗。請在伺服器設定中重試。",
     "defaultName": "{{username}} 的私密小窩",
     "defaultFallbackName": "我的極客伺服器"
   },

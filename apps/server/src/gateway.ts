@@ -77,6 +77,18 @@ export class GatewayManager {
     const conn = this.userSessions.get(userId)?.get(sessionId);
     return conn?.userId === userId && conn.ws.readyState === WebSocket.OPEN;
   }
+  public hasIdentifiedLoginSession(
+    userId: string,
+    sessionId: string,
+    loginSessionId: string,
+  ): boolean {
+    const conn = this.userSessions.get(userId)?.get(sessionId);
+    return (
+      conn?.userId === userId &&
+      conn.authSessionId === loginSessionId &&
+      conn.ws.readyState === WebSocket.OPEN
+    );
+  }
   // 离线防抖缓冲池：userId -> NodeJS.Timeout (3.5秒防抖)
   public isMaintenanceActive = false;
   public maintenancePayload: MaintenanceUpdatePayload = {
@@ -130,7 +142,10 @@ export class GatewayManager {
           "[Gateway] Closing unauthenticated connection due to IDENTIFY timeout",
         );
         this.send(conn.ws, { op: GatewayOpCode.INVALID_SESSION });
-        conn.ws.close(GatewayCloseCode.UNAUTHORIZED, "Authentication timed out");
+        conn.ws.close(
+          GatewayCloseCode.UNAUTHORIZED,
+          "Authentication timed out",
+        );
         this.cleanup(conn);
       }
     }, 15000);
@@ -1284,6 +1299,31 @@ export class GatewayManager {
   }
 
   private publishCallEnd(call: DMCallSession, endedBy: string) {
+    if (process.env.VOICE_ENGINE !== "cloudflare_realtime") {
+      void this.terminateCallMedia(call.channelId, call.callId, [
+        call.callerId,
+        call.calleeId,
+      ]).catch((error) =>
+        console.warn("[Gateway] DM LiveKit cleanup pending", error),
+      );
+    }
+    void cloudflareRealtimeService
+      .revokeCallSessions(call.callId)
+      .then(() => {
+        const payload = {
+          op: GatewayOpCode.DISPATCH,
+          t: GatewayEvents.CF_MEDIA_TRACKS,
+          d: {
+            channelId: call.channelId,
+            tracks: cloudflareRealtimeService.getTracks(call.channelId),
+          },
+        };
+        for (const userId of [call.callerId, call.calleeId])
+          this.sendToUser(userId, payload);
+      })
+      .catch((error) =>
+        console.warn("[Gateway] DM media cleanup pending", error),
+      );
     const event: DMCallEndedPayload = {
       callId: call.callId,
       channelId: call.channelId,
@@ -1347,6 +1387,10 @@ export class GatewayManager {
   }
 
   private cleanup(conn: ClientConnection) {
+    if (conn.authTimer) {
+      clearTimeout(conn.authTimer);
+      conn.authTimer = undefined;
+    }
     if (conn.userId) {
       this.pendingVoiceJoins.delete(conn.userId);
     }
@@ -1378,22 +1422,7 @@ export class GatewayManager {
         ? dmCallService.onDisconnect(conn.userId, conn.sessionId)
         : null;
       if (endedCall) {
-        const event = {
-          callId: endedCall.callId,
-          channelId: endedCall.channelId,
-          endedBy: conn.userId,
-          reason: endedCall.endedReason,
-        };
-        this.sendToUser(endedCall.callerId, {
-          op: GatewayOpCode.DISPATCH,
-          t: GatewayEvents.CALL_END,
-          d: event,
-        });
-        this.sendToUser(endedCall.calleeId, {
-          op: GatewayOpCode.DISPATCH,
-          t: GatewayEvents.CALL_END,
-          d: event,
-        });
+        this.publishCallEnd(endedCall, conn.userId);
       }
 
       // 仅当断开的连接其 sessionId 恰好是当前活跃语音的持有者时，才清理语音状态并全网广播

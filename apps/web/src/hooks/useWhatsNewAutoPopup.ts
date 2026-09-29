@@ -31,6 +31,7 @@ export function isVersionGreater(v1: string, v2: string): boolean {
 export function useWhatsNewAutoPopup(
   isAuthenticated: boolean,
   isLoading: boolean = false,
+  isUserSettingsOpen: boolean = false,
 ) {
   const hasCheckedRef = useRef(false);
   const openWhatsNew = useWhatsNewStore((s) => s.openWhatsNew);
@@ -57,7 +58,11 @@ export function useWhatsNewAutoPopup(
       return;
     }
 
-    hasCheckedRef.current = true;
+    // 设置面板中的操作优先；取消待触发的定时器，避免公告覆盖正在使用的弹窗。
+    if (isUserSettingsOpen) {
+      hasCheckedRef.current = true;
+      return;
+    }
 
     try {
       const lastSeen = localStorage.getItem(WHATS_NEW_LAST_SEEN_KEY);
@@ -65,6 +70,7 @@ export function useWhatsNewAutoPopup(
       if (!lastSeen || isVersionGreater(CURRENT_APP_VERSION, lastSeen)) {
         // 延时 800ms 温和拉起，避免与应用启动初始动画竞争
         const timer = setTimeout(() => {
+          hasCheckedRef.current = true;
           openWhatsNew({
             version: CURRENT_APP_VERSION,
             mode: "view",
@@ -72,8 +78,9 @@ export function useWhatsNewAutoPopup(
         }, 800);
         return () => clearTimeout(timer);
       }
+      hasCheckedRef.current = true;
     } catch {
       // 忽略存储读取异常
     }
-  }, [isAuthenticated, isLoading, openWhatsNew]);
+  }, [isAuthenticated, isLoading, isUserSettingsOpen, openWhatsNew]);
 }

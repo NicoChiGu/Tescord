@@ -124,13 +124,10 @@ test.describe("WebAuthn (Passkey) 身份认证与凭据管理端到端自动化�
     page.on("console", (msg) => {
       console.log(`[PAGE LOG ${msg.type()}]:`, msg.text());
     });
-    page.on("response", async (res) => {
+    page.on("response", (res) => {
       if (res.url().includes("webauthn")) {
-        let body = "";
-        try {
-          body = await res.text();
-        } catch {}
-        console.log(`[WEBAUTHN RES ${res.status()}]:`, res.url(), body);
+        // 登录响应含访问令牌和刷新令牌，测试日志只记录状态与接口。
+        console.log(`[WEBAUTHN RES ${res.status()}]:`, res.url());
       }
     });
 
@@ -157,6 +154,10 @@ test.describe("WebAuthn (Passkey) 身份认证与凭据管理端到端自动化�
     await userSettingsBtn.click();
     await page.getByTestId("tab-security-btn").click();
     await expect(page.getByTestId("security-settings-tab")).toBeVisible();
+    const whatsNewModal = page.getByTestId("whats-new-modal");
+    // 登录后的自动公告延迟 800ms；进入设置后不能再覆盖通行密钥操作。
+    await page.waitForTimeout(1000);
+    await expect(whatsNewModal).not.toBeVisible();
 
     // 2. 点击「添加通行密钥」
     const addBtn = page.getByTestId("add-passkey-btn");
@@ -179,10 +180,13 @@ test.describe("WebAuthn (Passkey) 身份认证与凭据管理端到端自动化�
     await promptInput.fill("我的专属安全硬件 (CDP)");
     await page.getByTestId("dialog-prompt-submit-btn").click();
     await expect(passkeyItem).toContainText("我的专属安全硬件 (CDP)");
+    await expect(whatsNewModal).not.toBeVisible();
 
     // 6. 关闭设置弹窗并登出
     const closeSettingsBtn = page.getByTestId("close-user-settings-btn");
     await closeSettingsBtn.click();
+    await page.waitForTimeout(900);
+    await expect(whatsNewModal).not.toBeVisible();
 
     // 点击退出登录
     await userSettingsBtn.click();
@@ -193,11 +197,17 @@ test.describe("WebAuthn (Passkey) 身份认证与凭据管理端到端自动化�
     await confirmLogoutBtn.click();
 
     // 7. 退出到登录界面，测试通行密钥免密一键登录
-    const passkeyLoginBtn = page.locator("[data-testid='account-picker-passkey-btn'], [data-testid='auth-passkey-login-btn']").first();
+    const passkeyLoginBtn = page
+      .locator(
+        "[data-testid='account-picker-passkey-btn'], [data-testid='auth-passkey-login-btn']",
+      )
+      .first();
     await expect(passkeyLoginBtn).toBeVisible({ timeout: 10000 });
     await passkeyLoginBtn.click();
 
     // 8. 验证通过 Passkey 一键成功登录回到主面板
-    await expect(page.getByTestId("user-settings-gear-btn")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId("user-settings-gear-btn")).toBeVisible({
+      timeout: 15000,
+    });
   });
 });

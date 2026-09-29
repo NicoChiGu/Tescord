@@ -1,10 +1,40 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { X, Sparkles, Server } from "lucide-react";
 import { Guild } from "@tescord/types";
 import { useTranslation } from "react-i18next";
-import { API_BASE } from "../../config.js";
+import { API_BASE, resolveServerUrl } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { getErrorMessage } from "../../i18n/index.js";
+import { toast } from "../../stores/useToastStore.js";
+
+const createIdenticon = (seed: string): string => {
+  const canvas = document.createElement("canvas");
+  canvas.width = 160;
+  canvas.height = 160;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Canvas 2D unavailable");
+
+  let hash = 2166136261;
+  for (const char of seed) {
+    hash = Math.imul(hash ^ char.charCodeAt(0), 16777619) >>> 0;
+  }
+  context.fillStyle = `hsl(${hash % 360}, 34%, 20%)`;
+  context.fillRect(0, 0, 160, 160);
+  context.fillStyle = `hsl(${hash % 360}, 72%, 68%)`;
+  for (let row = 0; row < 5; row++) {
+    for (let column = 0; column < 3; column++) {
+      hash ^= hash << 13;
+      hash ^= hash >>> 17;
+      hash ^= hash << 5;
+      if ((hash & 1) === 0) continue;
+      context.fillRect(16 + column * 26, 16 + row * 26, 26, 26);
+      if (column !== 2) {
+        context.fillRect(16 + (4 - column) * 26, 16 + row * 26, 26, 26);
+      }
+    }
+  }
+  return canvas.toDataURL("image/png");
+};
 
 interface CreateGuildModalProps {
   isOpen: boolean;
@@ -21,6 +51,7 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
 }) => {
   const { t, i18n } = useTranslation(["modals", "common", "admin", "errors"]);
   const { user } = useAuthStore();
+  const { getAuthHeaders } = useAuthStore();
   const [guildName, setGuildName] = useState(() =>
     user
       ? t("modals:createGuild.defaultName", { username: user.displayName })
@@ -32,10 +63,9 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
   const [isPublic, setIsPublic] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const iconUrl = useMemo(() => createIdenticon(iconSeed), [iconSeed]);
 
   if (!isOpen) return null;
-
-  const iconUrl = `https://api.dicebear.com/7.x/identicon/svg?seed=${iconSeed}`;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,16 +75,15 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
     setError(null);
 
     try {
-      const token = localStorage.getItem("tescord_access_token");
+      const authHeaders = getAuthHeaders();
       const res = await fetch(`${API_BASE}/api/guilds`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...authHeaders,
         },
         body: JSON.stringify({
           name: guildName.trim(),
-          iconUrl,
           isPublic,
           locale: i18n.language,
         }),
@@ -68,7 +97,73 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
       }
 
       const createdGuild: Guild = await res.json();
-      onGuildCreated(createdGuild);
+      let guild = createdGuild;
+      let pendingFileUrl: string | null = null;
+      try {
+        const iconBlob = await fetch(iconUrl).then((response) =>
+          response.blob(),
+        );
+        const grantResponse = await fetch(
+          `${API_BASE}/api/attachments/presigned-url`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders },
+            body: JSON.stringify({
+              fileName: `guild_icon_${Date.now()}.png`,
+              fileSize: iconBlob.size,
+              mimeType: "image/png",
+              purpose: "guild-icon",
+              guildId: createdGuild.id,
+            }),
+          },
+        );
+        if (!grantResponse.ok) throw new Error(t("errors:UPLOAD_FAILED"));
+        const grant: {
+          uploadUrl: string;
+          fileUrl: string;
+          requiresAuth: boolean;
+        } = await grantResponse.json();
+        pendingFileUrl = grant.fileUrl;
+
+        const uploadResponse = await fetch(resolveServerUrl(grant.uploadUrl), {
+          method: "PUT",
+          headers: {
+            "Content-Type": "image/png",
+            ...(grant.requiresAuth ? authHeaders : {}),
+          },
+          body: iconBlob,
+        });
+        if (!uploadResponse.ok) throw new Error(t("errors:UPLOAD_FAILED"));
+
+        const updateResponse = await fetch(
+          `${API_BASE}/api/guilds/${createdGuild.id}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json", ...authHeaders },
+            body: JSON.stringify({ iconUrl: grant.fileUrl }),
+          },
+        );
+        if (!updateResponse.ok) throw new Error(t("errors:UPLOAD_FAILED"));
+        const updated: Guild = await updateResponse.json();
+        guild = { ...createdGuild, iconUrl: updated.iconUrl };
+        pendingFileUrl = null;
+      } catch {
+        // Guild creation has succeeded. Keep it visible and report only the
+        // icon failure; retrying the form would create a duplicate guild.
+        toast.error(t("modals:createGuild.iconUploadFailed"));
+      } finally {
+        if (pendingFileUrl) {
+          void fetch(`${API_BASE}/api/guilds/${createdGuild.id}/pending-icon`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json", ...authHeaders },
+            body: JSON.stringify({ fileUrl: pendingFileUrl }),
+            keepalive: true,
+          }).catch(() => {
+            // The server also expires abandoned upload grants.
+          });
+        }
+      }
+      onGuildCreated(guild);
       onClose();
     } catch (err: any) {
       setError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
@@ -110,7 +205,7 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
             <div className="relative group">
               <img
                 src={iconUrl}
-                alt="Guild Icon Preview"
+                alt={t("modals:createGuild.randomIcon")}
                 className="w-20 h-20 rounded-full border-2 border-discord-brand bg-[#2b2d31] p-1 shadow-md transition group-hover:scale-105"
               />
               <button
@@ -118,6 +213,7 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
                 onClick={() =>
                   setIconSeed(Math.random().toString(36).substring(7))
                 }
+                disabled={isSubmitting}
                 className="absolute -bottom-1 -right-1 bg-discord-brand hover:bg-discord-brand/80 text-white p-1.5 rounded-full shadow-lg transition"
                 title={t("modals:createGuild.randomIcon")}
               >

@@ -1,9 +1,61 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("P2P 直连与智能接力直播传输模式端到端自动化验收", () => {
-  test.beforeEach(async ({ page }) => {
+  let fixtureGuild: { id: string; name: string } | null = null;
+  let fixtureToken = "";
+
+  test.beforeEach(async ({ page, request }) => {
+    fixtureGuild = null;
+    fixtureToken = "";
+    const login = await request.post("/api/auth/login", {
+      data: { emailOrUsername: "Jackey", password: "adminpassword123" },
+    });
+    expect(login.ok()).toBeTruthy();
+    fixtureToken = ((await login.json()) as { accessToken: string })
+      .accessToken;
+    const headers = { Authorization: `Bearer ${fixtureToken}` };
+    const created = await request.post("/api/guilds", {
+      headers,
+      data: { name: "P2P 极客实验室", locale: "zh-CN" },
+    });
+    expect(created.ok()).toBeTruthy();
+    const guild = (await created.json()) as {
+      id: string;
+      name: string;
+      channels: Array<{ id: string; type: string; voiceMode?: string }>;
+    };
+    fixtureGuild = { id: guild.id, name: guild.name };
+    const voiceChannel = guild.channels.find(
+      (channel) => channel.type === "VOICE",
+    );
+    expect(voiceChannel).toBeTruthy();
+    const updated = await request.patch(`/api/channels/${voiceChannel!.id}`, {
+      headers,
+      data: { voiceMode: "p2p_mesh", streamMode: "sfu" },
+    });
+    expect(updated.ok()).toBeTruthy();
+    const updatedVoiceChannel = await updated.json();
+    const initialGuild = {
+      ...guild,
+      channels: guild.channels.map((channel) =>
+        channel.id === voiceChannel!.id ? updatedVoiceChannel : channel,
+      ),
+    };
+
     // 注入 Mock Token 模拟已登录态
-    await page.addInitScript(() => {
+    await page.addInitScript((guild) => {
+      localStorage.setItem(
+        "tescord_last_user",
+        JSON.stringify({ id: "usr_default_admin", username: "Jackey" }),
+      );
+      localStorage.setItem(
+        "tescord_last_guild_usr_default_admin",
+        JSON.stringify(guild.id),
+      );
+      localStorage.setItem(
+        "tescord_guilds_cache_usr_default_admin",
+        JSON.stringify([guild]),
+      );
       localStorage.setItem(
         "tescord_access_token",
         localStorage.getItem("tescord_e2e_access_token") ||
@@ -85,7 +137,7 @@ test.describe("P2P 直连与智能接力直播传输模式端到端自动化验�
         navigator.mediaDevices.getUserMedia = async () => createMockStream();
         navigator.mediaDevices.getDisplayMedia = async () => createMockStream();
       }
-    });
+    }, initialGuild);
 
     // Mock 用户认证接口
     await page.route("**/api/auth/me", (route) => {
@@ -132,37 +184,22 @@ test.describe("P2P 直连与智能接力直播传输模式端到端自动化验�
         }),
       });
     });
+  });
 
-    // Mock 频道与服务器数据
-    await page.route("**/api/guilds", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify([
-          {
-            id: "guild_p2p_test",
-            name: "P2P 极客实验室",
-            iconUrl: null,
-            ownerId: "usr_default_admin",
-            channels: [
-              {
-                id: "chan_voice_p2p",
-                guildId: "guild_p2p_test",
-                name: "开黑开播 1",
-                type: "VOICE",
-                bitrate: 64000,
-                voiceMode: "p2p_mesh",
-                streamMode: "sfu",
-                position: 0,
-                createdAt: new Date().toISOString(),
-              },
-            ],
-            members: [],
-            roles: [],
-          },
-        ]),
-      });
-    });
+  test.afterEach(async ({ page, request }) => {
+    try {
+      await page.close();
+    } finally {
+      if (fixtureGuild) {
+        const { id, name } = fixtureGuild;
+        fixtureGuild = null;
+        const deleted = await request.delete(`/api/guilds/${id}`, {
+          headers: { Authorization: `Bearer ${fixtureToken}` },
+          data: { nameConfirmation: name },
+        });
+        expect(deleted.ok()).toBeTruthy();
+      }
+    }
   });
 
   test("主播可以在直播弹窗中自由选择「服务器中继」与「P2P 直连打洞」，并能切换 Mesh 直连与 Tree 接力", async ({
@@ -180,7 +217,7 @@ test.describe("P2P 直连与智能接力直播传输模式端到端自动化验�
 
     // 2. 加入语音频道
     const voiceChannelBtn = page
-      .getByRole("button", { name: /开黑开播 1|voice/i })
+      .getByRole("button", { name: /日常闲聊|voice/i })
       .first();
     await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
     await voiceChannelBtn.click();
@@ -250,7 +287,7 @@ test.describe("P2P 直连与智能接力直播传输模式端到端自动化验�
 
     // 2. 加入语音频道
     const voiceChannelBtn = page
-      .getByRole("button", { name: /开黑开播 1|voice/i })
+      .getByRole("button", { name: /日常闲聊|voice/i })
       .first();
     await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
     await voiceChannelBtn.click();
@@ -309,7 +346,7 @@ test.describe("P2P 直连与智能接力直播传输模式端到端自动化验�
     await serverButton.click();
 
     const voiceChannelBtn = page
-      .getByRole("button", { name: /开黑开播 1|voice/i })
+      .getByRole("button", { name: /日常闲聊|voice/i })
       .first();
     await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
     await voiceChannelBtn.dblclick();
@@ -355,7 +392,7 @@ test.describe("P2P 直连与智能接力直播传输模式端到端自动化验�
       .first()
       .click();
     await page
-      .getByRole("button", { name: /开黑开播 1|voice/i })
+      .getByRole("button", { name: /日常闲聊|voice/i })
       .first()
       .dblclick();
     await expect(

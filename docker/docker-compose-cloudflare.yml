@@ -71,6 +71,8 @@ services:
       CORS_ORIGINS: https://${SITE_HOST:?set SITE_HOST}
       ALLOW_FILE_ORIGIN: "true"
       SERVER_BASE_URL: https://${SITE_HOST:?set SITE_HOST}
+      WEBAUTHN_RP_ID: ${SITE_HOST:?set SITE_HOST}
+      WEBAUTHN_ORIGINS: https://${SITE_HOST:?set SITE_HOST}
     command: ["pnpm", "--filter", "@tescord/server", "db:migrate:deploy"]
     depends_on:
       postgres: { condition: service_healthy }

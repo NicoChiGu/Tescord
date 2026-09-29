@@ -2,14 +2,15 @@ param(
   [ValidateSet('baseline', 'release')][string]$Phase = 'baseline',
   [ValidateRange(1, 10)][int]$Runs = 1,
   [switch]$ForceRelay,
-  [switch]$NetworkRecovery
+  [switch]$NetworkRecovery,
+  [switch]$DMCall
 )
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $target = 'tera@100.69.12.101'
 $baseUrl = 'https://tescord.terata.top'
-$resultRoot = Join-Path $repoRoot ('release/cloudflare-acceptance/' + $Phase + $(if ($ForceRelay) { '-relay' } else { '-auto' }))
+$resultRoot = Join-Path $repoRoot ('release/cloudflare-acceptance/' + $Phase + $(if ($DMCall) { '-dm-call' } elseif ($ForceRelay) { '-relay' } else { '-auto' }))
 New-Item -ItemType Directory -Force -Path $resultRoot | Out-Null
 
 for ($run = 1; $run -le $Runs; $run++) {
@@ -48,7 +49,8 @@ for ($run = 1; $run -le $Runs; $run++) {
     $env:TESCORD_TEST_NETWORK_RECOVERY = $(if ($NetworkRecovery) { '1' } else { '0' })
     Push-Location $repoRoot
     try {
-      pnpm exec playwright test --config playwright.cloudflare-target.config.ts e2e-real/cloudflare-live-media.spec.ts
+      $spec = $(if ($DMCall) { 'e2e-real/cloudflare-dm-call.spec.ts' } else { 'e2e-real/cloudflare-live-media.spec.ts' })
+      pnpm exec playwright test --config playwright.cloudflare-target.config.ts $spec
       $testExit = $LASTEXITCODE
     } finally {
       Pop-Location
@@ -63,11 +65,13 @@ for ($run = 1; $run -le $Runs; $run++) {
       $cleanupExit = $LASTEXITCODE
       Copy-Item -LiteralPath $cleanupManifestPath -Destination (Join-Path $runDir 'resources.json') -Force
     }
-    $statsPath = Join-Path $repoRoot 'test-results/cloudflare-target/media-stats.json'
-    if (Test-Path -LiteralPath $statsPath) { Copy-Item -LiteralPath $statsPath -Destination (Join-Path $runDir 'media-stats.json') -Force }
-    $screenshotPath = Join-Path $repoRoot 'test-results/cloudflare-target/media-receiver.png'
-    if (Test-Path -LiteralPath $screenshotPath) { Copy-Item -LiteralPath $screenshotPath -Destination (Join-Path $runDir 'media-receiver.png') -Force }
-    @{ marker = $marker; phase = $Phase; run = $run; forceRelay = [bool]$ForceRelay; networkRecovery = [bool]$NetworkRecovery; testExit = $testExit; cleanupExit = $cleanupExit } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runDir 'result.json') -Encoding utf8
+    $statsName = $(if ($DMCall) { 'dm-media-stats.json' } else { 'media-stats.json' })
+    $statsPath = Join-Path $repoRoot ('test-results/cloudflare-target/' + $statsName)
+    if (Test-Path -LiteralPath $statsPath) { Copy-Item -LiteralPath $statsPath -Destination (Join-Path $runDir $statsName) -Force }
+    $screenshotName = $(if ($DMCall) { 'dm-call.png' } else { 'media-receiver.png' })
+    $screenshotPath = Join-Path $repoRoot ('test-results/cloudflare-target/' + $screenshotName)
+    if (Test-Path -LiteralPath $screenshotPath) { Copy-Item -LiteralPath $screenshotPath -Destination (Join-Path $runDir $screenshotName) -Force }
+    @{ marker = $marker; phase = $Phase; run = $run; dmCall = [bool]$DMCall; forceRelay = [bool]$ForceRelay; networkRecovery = [bool]$NetworkRecovery; testExit = $testExit; cleanupExit = $cleanupExit } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $runDir 'result.json') -Encoding utf8
     Remove-Item Env:TESCORD_ACCEPTANCE_ADMIN_PASSWORD -ErrorAction SilentlyContinue
     Remove-Item Env:TESCORD_ACCEPTANCE_ADMIN_USERNAME -ErrorAction SilentlyContinue
     Remove-Item Env:TESCORD_ACCEPTANCE_MARKER -ErrorAction SilentlyContinue

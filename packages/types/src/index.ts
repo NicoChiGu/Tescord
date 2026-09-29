@@ -860,12 +860,16 @@ export interface PresenceUpdateEvent {
 }
 
 // 6. LiveKit 媒体 Token 协议
+export type LiveKitPublishSource =
+  "microphone" | "camera" | "screen_share" | "screen_share_audio";
+
 export interface LiveKitTokenRequest {
   roomName: string;
   identity: string;
   gatewaySessionId?: string;
   name?: string;
   isPublisher?: boolean;
+  publishSources?: LiveKitPublishSource[];
   bitrate?: number; // 麦克风推流比特率 (bps, e.g. 16000 - 128000)
 }
 
@@ -3444,6 +3448,14 @@ export interface CfCallsCreateSessionResponse {
   sessionId: string;
   tracks?: CfMediaPublication[];
   requiresE2EE?: boolean;
+}
+
+export interface CfCallsCreateSessionRequest {
+  channelId: string;
+  /** Required for a DM call, omitted for a guild voice channel. */
+  callId?: string;
+  /** The identified Gateway connection that owns this DM call. */
+  gatewaySessionId?: string;
 }
 
 export interface CfMediaPublication {

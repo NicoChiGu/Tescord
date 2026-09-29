@@ -376,6 +376,25 @@ const isSafeExternalUrl = (raw: string) => {
   }
 };
 
+const isActiveWebFile = (rawUrl: string): boolean => {
+  try {
+    const target = new URL(rawUrl);
+    if (target.protocol !== "file:") return false;
+    const activeEntry = UpdateManager.getInstance().getActiveWebEntry();
+    const allowedDir = path.dirname(path.resolve(activeEntry.indexPath));
+    const targetPath = path.resolve(fileURLToPath(target));
+    const relative = path.relative(allowedDir, targetPath);
+    return (
+      relative === "" ||
+      (relative !== ".." &&
+        !relative.startsWith(`..${path.sep}`) &&
+        !path.isAbsolute(relative))
+    );
+  } catch {
+    return false;
+  }
+};
+
 const isTrustedIpcSender = (event: IpcMainInvokeEvent | IpcMainEvent) => {
   const isFromMain = Boolean(
     mainWindow &&
@@ -388,21 +407,19 @@ const isTrustedIpcSender = (event: IpcMainInvokeEvent | IpcMainEvent) => {
     event.sender === authWindow.webContents,
   );
   if (!isFromMain && !isFromAuth) return false;
+  if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame)
+    return false;
   try {
-    const senderUrl = event.senderFrame?.url;
+    const senderUrl = event.senderFrame.url;
     if (!senderUrl) return false;
     const url = new URL(senderUrl);
-    if (url.protocol === "file:") {
-      const activeEntry = UpdateManager.getInstance().getActiveWebEntry();
-      const allowedDir = path
-        .dirname(path.resolve(activeEntry.indexPath))
-        .toLowerCase();
-      const senderPath = path.resolve(fileURLToPath(senderUrl)).toLowerCase();
-      return senderPath.startsWith(allowedDir);
-    }
+    if (url.protocol === "file:") return isActiveWebFile(senderUrl);
+    if (app.isPackaged) return false;
+    const currentUrl = new URL(event.sender.getURL());
     return (
       (url.protocol === "https:" || url.protocol === "http:") &&
-      (url.hostname === "localhost" || url.hostname === "127.0.0.1")
+      (url.hostname === "localhost" || url.hostname === "127.0.0.1") &&
+      url.origin === currentUrl.origin
     );
   } catch {
     return false;
@@ -502,19 +519,16 @@ function setupWindowHandlers(win: BrowserWindow, _isAuth: boolean) {
         target.protocol === "file:" &&
         current.protocol === "file:"
       ) {
-        const activeEntry = UpdateManager.getInstance().getActiveWebEntry();
-        const allowedDir = path
-          .dirname(path.resolve(activeEntry.indexPath))
-          .toLowerCase();
-        const targetPath = path.resolve(fileURLToPath(targetUrl)).toLowerCase();
-        if (targetPath.startsWith(allowedDir)) {
+        if (isActiveWebFile(targetUrl)) {
           return;
         }
       } else if (
+        !app.isPackaged &&
         current &&
         target.protocol !== "file:" &&
         target.origin === current.origin &&
-        target.protocol === current.protocol
+        target.protocol === current.protocol &&
+        (target.hostname === "localhost" || target.hostname === "127.0.0.1")
       ) {
         return;
       }
@@ -1233,11 +1247,15 @@ ipcMain.handle(
 );
 
 // 5. 开机自启动设置 (Auto Launch)
-ipcMain.handle("get-auto-launch", async () => {
+ipcMain.handle("get-auto-launch", async (event) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
   return app.getLoginItemSettings().openAtLogin;
 });
 
-ipcMain.handle("set-auto-launch", async (_event, enabled: boolean) => {
+ipcMain.handle("set-auto-launch", async (event, enabled: boolean) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+  if (typeof enabled !== "boolean")
+    throw new Error("Invalid auto-launch setting");
   app.setLoginItemSettings({
     openAtLogin: enabled,
     openAsHidden: true,
@@ -1247,12 +1265,22 @@ ipcMain.handle("set-auto-launch", async (_event, enabled: boolean) => {
 });
 
 // 6. 状态同步与托盘菜单刷新
-ipcMain.on("sync-user-status", (_event, status: UserStatus) => {
+ipcMain.on("sync-user-status", (event, status: UserStatus) => {
+  if (!isTrustedIpcSender(event)) return;
+  if (
+    status !== "ONLINE" &&
+    status !== "IDLE" &&
+    status !== "DND" &&
+    status !== "OFFLINE" &&
+    status !== "INVISIBLE"
+  )
+    return;
   currentUserStatus = status;
   updateTrayContextMenu(status);
 });
 
-ipcMain.on("sync-locale", (_event, locale: SupportedLocale) => {
+ipcMain.on("sync-locale", (event, locale: SupportedLocale) => {
+  if (!isTrustedIpcSender(event)) return;
   if (
     locale === "zh-CN" ||
     locale === "en-US" ||
@@ -1268,11 +1296,13 @@ ipcMain.on("sync-locale", (_event, locale: SupportedLocale) => {
 
 // 7. 窗口控制接口与认证状态联动
 ipcMain.handle("window-minimize", (event) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
   const senderWin = BrowserWindow.fromWebContents(event.sender);
   senderWin?.minimize();
 });
 
 ipcMain.handle("window-maximize", (event) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
   const senderWin = BrowserWindow.fromWebContents(event.sender);
   if (senderWin === authWindow) return;
   if (senderWin?.isMaximized()) {
@@ -1283,6 +1313,7 @@ ipcMain.handle("window-maximize", (event) => {
 });
 
 ipcMain.handle("window-close", (event) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
   const senderWin = BrowserWindow.fromWebContents(event.sender);
   if (senderWin === authWindow) {
     // 登录窗口点击 X：直接彻底退出应用（对齐 Discord 原生规范）
@@ -1297,6 +1328,7 @@ ipcMain.handle("window-close", (event) => {
 });
 
 ipcMain.handle("window-is-maximized", (event) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
   const senderWin = BrowserWindow.fromWebContents(event.sender);
   return senderWin?.isMaximized() ?? false;
 });
@@ -1336,7 +1368,8 @@ ipcMain.handle("window-get-mode", (event) => {
 });
 
 // 原生网络穿透与 UPnP 自动打洞
-ipcMain.handle("desktop-detect-local-network", async () => {
+ipcMain.handle("desktop-detect-local-network", async (event) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
   return detectLocalNetwork();
 });
 
@@ -1367,12 +1400,15 @@ ipcMain.handle(
     ) {
       throw new Error("Invalid UPnP request");
     }
+    if (protocol !== undefined && protocol !== "UDP" && protocol !== "TCP")
+      throw new Error("Invalid UPnP protocol");
     return await UPnPClient.unmapPort(port, protocol || "UDP");
   },
 );
 
 // 硬件加速与显卡供应商探测 (支持检测 Intel 0x8086 / NVIDIA 0x10de / AMD 0x1002)
-ipcMain.handle("get-gpu-info", async () => {
+ipcMain.handle("get-gpu-info", async (event) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
   try {
     const gpuInfo = await app.getGPUInfo("basic");
     const featureStatus = app.getGPUFeatureStatus();

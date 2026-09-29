@@ -226,9 +226,10 @@ test.describe("六项核心体验修复专项验收 (头像裁切/布局解耦/O
     await page.waitForLoadState("domcontentloaded");
 
     // 进入服务器
-    const serverButton = page
-      .getByRole("button", { name: /极客音频测试服|极客/i })
-      .first();
+    const serverButton = page.getByRole("button", {
+      name: "极客音频测试服",
+      exact: true,
+    });
     await expect(serverButton).toBeVisible();
     await serverButton.click();
 

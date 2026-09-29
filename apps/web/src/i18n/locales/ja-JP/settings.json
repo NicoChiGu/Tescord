@@ -4,6 +4,7 @@
   "appSettings": "アプリの設定",
   "desktopApp": "デスクトップアプリ",
   "profile": "マイアカウント",
+  "saveProfileError": "プロフィールを保存できませんでした。もう一度お試しください。",
   "profileTab": "プロフィールとカスタマイズ",
   "updatesTab": "バージョンと更新",
   "previewProfileCard": "プロフィールをプレビュー",
