@@ -12,6 +12,7 @@
     <img src="https://img.shields.io/badge/Fastify-5.x-black.svg?style=flat-square" alt="Fastify" />
     <img src="https://img.shields.io/badge/Electron-Desktop-47848F.svg?style=flat-square" alt="Electron" />
     <img src="https://img.shields.io/badge/WebRTC-LiveKit%20%7C%20P2P-orange.svg?style=flat-square" alt="WebRTC" />
+    <img src="https://img.shields.io/badge/Cloudflare-Calls%20%7C%20Tunnel-F38020.svg?style=flat-square&logo=cloudflare&logoColor=white" alt="Cloudflare" />
     <img src="https://img.shields.io/badge/i18n-5%20Locales-blueviolet.svg?style=flat-square" alt="i18n" />
   </p>
 </div>
@@ -293,6 +294,132 @@ docker compose up -d
 | **MinIO**          | Latest    | S3 兼容的高性能本地多媒体对象存储服务              | API: `9000`<br/>控制台: `9001`                      |
 | **LiveKit Server** | Latest    | WebRTC SFU 媒体中心，超低延迟音视频路由与屏幕分享  | 信令: `7880`<br/>TCP: `7881`<br/>UDP: `50000-50100` |
 | **Coturn**         | Latest    | 内置 STUN / TURN NAT 网络穿透中继服务              | `3478` (TCP/UDP)                                    |
+
+---
+
+## ☁️ Cloudflare 全栈支持与生产部署指南 (Cloudflare Calls & Zero Trust)
+
+Tescord 原生深度集成了 Cloudflare 生态，支持**无公网 IP、无独立 VPS 穿透、全边缘加速**的一体化生产部署方案，涵盖全球边缘 WebRTC SFU 与持久化内网穿透隧道。
+
+### 1. 核心架构模式对比
+
+| 架构维度           | 方案 A：Cloudflare 一体化全托管部署 (推荐生产方案)    | 方案 B：自建 SFU + Cloudflare Zero Trust 穿透 (混合方案)         |
+| :----------------- | :---------------------------------------------------- | :--------------------------------------------------------------- |
+| **音视频媒体引擎** | **Cloudflare Calls (Realtime Calls)** 边缘 WebRTC SFU | 自建 **LiveKit SFU** + Coturn STUN/TURN                          |
+| **网络穿透方式**   | **单域名模式 (Single Domain via NGINX 反代)**         | **多子域名模式 (Multi-Subdomain via Cloudflare Tunnel)**         |
+| **公网端口暴露**   | **0 开放端口** (全站走 `cloudflared` 隧道安全回源)    | **0 开放端口** (媒体流推荐直连或 Coturn 独立中继)                |
+| **运维复杂度**     | 极低（免维护 Coturn、免维护 LiveKit 进程）            | 中等（自维护完整媒体与穿透容器栈）                               |
+| **编排配置文件**   | `docker/docker-compose-cloudflare.yml`                | `docker/docker-compose.yml` + `docker/docker-compose-tunnel.yml` |
+| **环境配置模版**   | `docker/.env.cloudflare.example`                      | `docker/.env.tunnel.example`                                     |
+
+---
+
+### 2. 方案 A：Cloudflare 一体化全托管生产部署 (推荐)
+
+此方案利用 **Cloudflare Calls** 承载音视频媒体流，利用 **Cloudflare Zero Trust Tunnel** 穿透前端、网关与对象存储，前端由内置 NGINX 统一反代，只需在 Cloudflare 解析一个单域名即可完整运行全站。
+
+#### 拓扑图：
+
+```text
+[ 用户客户端 (Web / Electron) ]
+               │
+               │ HTTPS / WSS (单域名: tescord.yourdomain.com)
+               ▼
+[ Cloudflare 全球边缘网络 (CDN + WAF) ]
+       │                               │
+       │ WebRTC 媒体流 (UDP)           │ 双向安全加密隧道 (QUIC/HTTP2)
+       ▼                               ▼
+[ Cloudflare Calls 全球 SFU ]   [ cloudflared 容器 (docker-compose-cloudflare.yml) ]
+                                       │
+                                       ▼
+                                [ NGINX 统一反向代理 ]
+                                       ├── / ────────► Web 前端静态应用
+                                       ├── /api ─────► Fastify REST API (:3001)
+                                       ├── /gateway ─► WebSocket 信令网关 (:3001)
+                                       └── /ort/ ────► WASM 降噪模型资源
+```
+
+#### 部署步骤：
+
+1. **准备环境变量**：
+   ```bash
+   cp docker/.env.cloudflare.example docker/.env.cloudflare
+   ```
+2. **填入 Cloudflare 凭证与站点配置** (`docker/.env.cloudflare`)：
+   - `SITE_HOST`: 您的公网单域名（例如 `tescord.yourdomain.com`）
+   - `CLOUDFLARE_CALLS_APP_ID`: Cloudflare Dashboard ➔ Calls ➔ App ID
+   - `CLOUDFLARE_CALLS_APP_SECRET`: Cloudflare Dashboard ➔ Calls ➔ App Secret
+   - `CLOUDFLARE_CALLS_TURN_KEY_ID`: Cloudflare Calls 提供的 TURN 密钥 ID
+   - `CLOUDFLARE_CALLS_TURN_API_TOKEN`: Cloudflare Calls 提供的 TURN API Token
+   - `CLOUDFLARE_TUNNEL_TOKEN`: Cloudflare Zero Trust Tunnels 创建的 Tunnel Token
+3. **在 Cloudflare Zero Trust 控制台配置 Public Hostname**：
+   - 映射 `tescord.yourdomain.com` ➔ `HTTP` ➔ `web:80`（或 `http://localhost:18080`）
+4. **一键启动全栈服务**：
+   ```bash
+   docker compose -f docker/docker-compose-cloudflare.yml --env-file docker/.env.cloudflare up -d
+   ```
+
+---
+
+### 3. 方案 B：自建媒体 SFU + Cloudflare Zero Trust 多子域名穿透 (混合架构)
+
+若希望媒体数据完全保留在自建基础设施（LiveKit + Coturn），同时享受 Cloudflare Zero Trust 免公网 IP、免映射端口的穿透便利：
+
+#### 快速启动指令：
+
+```bash
+# 联合启动基础服务与穿透隧道
+pnpm tunnel:up
+
+# 实时查看隧道接入与运行日志
+pnpm tunnel:logs
+
+# 停止隧道与关联服务
+pnpm tunnel:down
+```
+
+#### 多子域名独立路由映射表：
+
+在 [Cloudflare Zero Trust 控制台](https://one.dash.cloudflare.com/) 的 Tunnel ➔ **Public Hostname** 中配置以下 4 条路由：
+
+| 序号  | 建议域名示例             | Service Type | URL (目标地址)              | 说明                                      |
+| :---: | :----------------------- | :----------: | :-------------------------- | :---------------------------------------- |
+| **1** | `tescord.yourdomain.com` |   **HTTP**   | `host.docker.internal:3000` | Web 前端客户端                            |
+| **2** | `api.yourdomain.com`     |   **HTTP**   | `host.docker.internal:3001` | Fastify API 与 WebSocket `/gateway` 网关  |
+| **3** | `s3.yourdomain.com`      |   **HTTP**   | `minio:9000`                | MinIO 附件对象存储 (支持直传与大文件下载) |
+| **4** | `rtc.yourdomain.com`     |   **HTTP**   | `livekit:7880`              | LiveKit SFU WebRTC 房间信令通道           |
+
+> [!NOTE]
+> 详细的多子域名配置步骤、WebRTC UDP 穿透原理及 Coturn 搭配策略，请参阅专用文档：[`docker/CLOUDFLARE_TUNNEL.md`](docker/CLOUDFLARE_TUNNEL.md)。
+
+---
+
+### 4. Cloudflare 核心环境变量速查
+
+| 变量名                            | 适用服务     | 描述与示例                                                                  |
+| :-------------------------------- | :----------- | :-------------------------------------------------------------------------- |
+| `VOICE_ENGINE`                    | Server / Web | 设为 `cloudflare_realtime` 启用 Cloudflare 边缘媒体引擎（默认为 `livekit`） |
+| `CLOUDFLARE_CALLS_APP_ID`         | Server       | Cloudflare Realtime Calls 应用程序 ID                                       |
+| `CLOUDFLARE_CALLS_APP_SECRET`     | Server       | Cloudflare Realtime Calls 应用程序私钥                                      |
+| `CLOUDFLARE_CALLS_TURN_KEY_ID`    | Server       | Cloudflare 提供的全球边缘 TURN Key ID                                       |
+| `CLOUDFLARE_CALLS_TURN_API_TOKEN` | Server       | Cloudflare 全球边缘 TURN API 凭证                                           |
+| `CLOUDFLARE_TUNNEL_TOKEN`         | cloudflared  | Cloudflare Zero Trust 远程安全隧道鉴权 Token                                |
+
+---
+
+### 5. 防 CDN 缓存污染与 WAF 安全防御策略
+
+为防止公网 CDN / 边缘节点错误缓存用户私密数据，Tescord 服务端实施了严格的防缓存注入策略：
+
+- **私有附件短期访问签名**：所有附件与媒体资源均签发带有 5 分钟有效期的 HMAC-SHA256 签名外链；
+- **防 CDN 负向缓存标头 (Negative Caching Defense)**：
+  - 对 `404 Not Found`、`403 Forbidden`、`401 Unauthorized` 等非成功请求，服务端严格附加标头：
+    ```http
+    Cache-Control: no-store, no-cache, must-revalidate
+    Cloudflare-CDN-Cache-Control: no-store
+    CDN-Cache-Control: no-store
+    ```
+  - 彻底规避因某成员暂时无权访问导致 CDN 边缘节点持久缓存 403 页面、阻断后续授权访问的安全缺陷。
 
 ---
 
