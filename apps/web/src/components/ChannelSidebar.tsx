@@ -7,6 +7,8 @@ import {
   VoiceState,
   VoiceConnectionStatus,
   PeerLatencyReport,
+  ChannelUnreadInfo,
+  ChannelUnreadMap,
 } from "@tescord/types";
 import {
   Hash,
@@ -137,6 +139,7 @@ interface ChannelSidebarProps {
   onSendMessage?: (userId: string) => void;
   onKickMember?: (userId: string, username: string) => void;
   onBanMember?: (userId: string, username: string) => void;
+  channelUnreadMap?: ChannelUnreadMap;
 }
 
 interface SortableChannelItemProps {
@@ -151,6 +154,7 @@ interface SortableChannelItemProps {
   activeSpeakers: string[];
   peerLatencies: Map<string, PeerLatencyReport>;
   t: (key: string, options?: any) => string;
+  unreadInfo?: ChannelUnreadInfo;
   onSelectChannel: (channel: Channel) => void;
   onJoinVoiceChannel: (channel: Channel) => void;
   onEditChannel?: (channel: Channel) => void;
@@ -178,6 +182,7 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
   activeSpeakers,
   peerLatencies,
   t,
+  unreadInfo,
   onSelectChannel,
   onJoinVoiceChannel,
   onEditChannel,
@@ -196,6 +201,10 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
   const isConnected = activeVoiceChannelId === channel.id;
   const isVoice = channel.type === "VOICE";
   const isChannelMuted = useSettingsStore((s) => s.isChannelMuted(channel.id));
+  const hasUnread = Boolean(unreadInfo?.hasUnread && !isSelected);
+  const mentionCount = unreadInfo?.mentionCount || 0;
+  // 静音时普通未读不显示白条，仅在有 mention 时显示（对齐 Discord 经典规范）
+  const showPill = hasUnread && (!isChannelMuted || mentionCount > 0);
 
   // 触屏长按 1.5 秒且位移不超过 8px 时呼出菜单并锁定拖拽
   const touchStartPosRef = React.useRef<{ x: number; y: number } | null>(null);
@@ -308,6 +317,14 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
           data-channel-id={channel.id}
           className="relative group w-full flex items-center"
         >
+          {/* Discord 经典左边缘未读白色胶囊指示条 */}
+          {showPill && (
+            <span
+              data-testid="channel-unread-pill"
+              className="absolute -left-2 top-1/2 -translate-y-1/2 w-1 bg-white rounded-r-full transition-all duration-200 pointer-events-none h-2 group-hover:h-5 z-10"
+            />
+          )}
+
           {isVoice ? (
             <button
               type="button"
@@ -347,18 +364,28 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
               className={`w-full flex items-center pl-2 pr-12 py-1.5 rounded-md text-sm font-medium transition ${
                 isSelected
                   ? "bg-discord-active text-white"
-                  : isChannelMuted
-                    ? "text-[#80848e] opacity-75 hover:bg-discord-hover hover:text-discord-textNormal"
-                    : "text-discord-textMuted hover:bg-discord-hover hover:text-discord-textNormal"
+                  : showPill
+                    ? "text-white font-semibold hover:bg-discord-hover"
+                    : isChannelMuted
+                      ? "text-[#80848e] opacity-75 hover:bg-discord-hover hover:text-discord-textNormal"
+                      : "text-discord-textMuted hover:bg-discord-hover hover:text-discord-textNormal"
               }`}
             >
               {channel.isE2EE ? (
                 <div className="relative mr-1.5 flex-shrink-0">
-                  <Hash className="w-4 h-4 text-discord-textMuted" />
+                  <Hash
+                    className={`w-4 h-4 ${
+                      isSelected || showPill ? "text-white" : "text-discord-textMuted"
+                    }`}
+                  />
                   <Lock className="w-2.5 h-2.5 text-discord-green absolute -top-0.5 -right-1" />
                 </div>
               ) : (
-                <Hash className="w-4 h-4 mr-1.5 text-discord-textMuted flex-shrink-0" />
+                <Hash
+                  className={`w-4 h-4 mr-1.5 flex-shrink-0 ${
+                    isSelected || showPill ? "text-white" : "text-discord-textMuted"
+                  }`}
+                />
               )}
               <span className="truncate">{channel.name}</span>
             </button>
@@ -366,6 +393,14 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
 
           {/* 右侧指示器与操作区域 */}
           <div className="absolute right-2 flex items-center space-x-1.5 pointer-events-none">
+            {mentionCount > 0 && !isSelected && (
+              <span
+                data-testid={`channel-mention-badge-${channel.id}`}
+                className="bg-[#da373c] text-white text-[11px] font-bold px-1.5 py-0.5 rounded-full min-w-[16px] h-4 flex items-center justify-center flex-shrink-0"
+              >
+                {mentionCount}
+              </span>
+            )}
             {isChannelMuted && (
               <span
                 className="flex items-center text-discord-textMuted"
@@ -552,6 +587,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   onKickMember,
   onBanMember,
   onOpenInviteFriends,
+  channelUnreadMap,
 }) => {
   const { t } = useTranslation(["voice", "common", "contextMenu"]);
   const [copiedInvite, setCopiedInvite] = useState<string | null>(null);
@@ -1145,6 +1181,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                       activeSpeakers={activeSpeakers}
                       peerLatencies={peerLatencies}
                       t={t}
+                      unreadInfo={channelUnreadMap?.[channel.id]}
                       onSelectChannel={onSelectChannel}
                       onJoinVoiceChannel={onJoinVoiceChannel}
                       onEditChannel={onEditChannel}
@@ -1217,6 +1254,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                                 activeSpeakers={activeSpeakers}
                                 peerLatencies={peerLatencies}
                                 t={t}
+                                unreadInfo={channelUnreadMap?.[channel.id]}
                                 onSelectChannel={onSelectChannel}
                                 onJoinVoiceChannel={onJoinVoiceChannel}
                                 onEditChannel={onEditChannel}

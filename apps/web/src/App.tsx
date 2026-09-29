@@ -20,6 +20,8 @@ import {
   MediaKeyEnvelopePayload,
   DMCallEndedPayload,
   ClientCallState,
+  ChannelUnreadInfo,
+  ChannelUnreadMap,
 } from "@tescord/types";
 import { TitleBar } from "./components/TitleBar.js";
 import { GatewayConnectionBanner } from "./components/GatewayConnectionBanner.js";
@@ -516,6 +518,30 @@ export const App: React.FC = () => {
   const [guildUnreadMap, setGuildUnreadMap] = useState<
     Record<string, { hasUnread: boolean; mentionCount: number }>
   >({});
+  const [channelUnreadMap, setChannelUnreadMap] = useState<ChannelUnreadMap>({});
+  const channelUnreadMapRef = useRef<ChannelUnreadMap>(channelUnreadMap);
+  channelUnreadMapRef.current = channelUnreadMap;
+
+  const markChannelReadOnServer = useCallback(
+    async (channelId: string, sequence?: number) => {
+      const auth = useAuthStore.getState();
+      const token = auth.token;
+      if (!token) return;
+      try {
+        await fetch(`${API_BASE}/api/channels/${channelId}/read`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ sequence }),
+        });
+      } catch (err) {
+        console.error("Failed to mark channel as read on server:", err);
+      }
+    },
+    [],
+  );
 
   const totalDmUnread = React.useMemo(() => {
     return dmChannels.reduce((sum, ch) => sum + (ch.unreadCount || 0), 0);
@@ -712,6 +738,26 @@ export const App: React.FC = () => {
         )
           return;
         setGuilds(data);
+        setChannelUnreadMap((prev) => {
+          const next = { ...prev };
+          for (const g of data) {
+            for (const ch of g.channels || []) {
+              if (ch.type === "TEXT") {
+                const unreadCount = ch.unreadCount || 0;
+                const existing = next[ch.id];
+                next[ch.id] = {
+                  channelId: ch.id,
+                  guildId: g.id,
+                  hasUnread: existing ? existing.hasUnread : unreadCount > 0,
+                  unreadCount: existing ? existing.unreadCount : unreadCount,
+                  mentionCount: existing ? existing.mentionCount : 0,
+                  lastReadSequence: ch.lastReadSequence || 0,
+                };
+              }
+            }
+          }
+          return next;
+        });
         useChannelNavStore.getState().saveCachedGuilds(data, requestedUserId);
 
         // 验证当前选中的公会
@@ -1130,6 +1176,9 @@ export const App: React.FC = () => {
             if (prev.some((m) => m.id === msg.id)) return prev;
             return [...prev, msg];
           });
+          if (msg.authorId !== currentUser?.id) {
+            markChannelReadOnServer(msg.channelId, msg.sequence);
+          }
         }
 
         // 查找该消息频道所属的服务器 (若存在)
@@ -1138,7 +1187,7 @@ export const App: React.FC = () => {
         );
         const msgGuildId = targetGuild?.id;
 
-        // 若属于服务器消息，且当前未在此频道，累计服务器未读与提及计数
+        // 若属于服务器消息，且当前未在此频道，累计频道与服务器未读与提及计数
         if (msgGuildId && msg.channelId !== selectedChannelRef.current?.id) {
           const isMentioned = Boolean(
             currentUser &&
@@ -1146,6 +1195,28 @@ export const App: React.FC = () => {
               msg.content.includes("@everyone") ||
               msg.content.includes("@here")),
           );
+          setChannelUnreadMap((prev) => {
+            const cur = prev[msg.channelId] || {
+              channelId: msg.channelId,
+              guildId: msgGuildId,
+              hasUnread: false,
+              unreadCount: 0,
+              mentionCount: 0,
+              lastReadSequence: 0,
+            };
+            return {
+              ...prev,
+              [msg.channelId]: {
+                ...cur,
+                hasUnread: true,
+                unreadCount: cur.unreadCount + 1,
+                mentionCount: isMentioned
+                  ? cur.mentionCount + 1
+                  : cur.mentionCount,
+                guildId: msgGuildId,
+              },
+            };
+          });
           setGuildUnreadMap((prev) => {
             const cur = prev[msgGuildId] || {
               hasUnread: false,
@@ -3184,18 +3255,85 @@ export const App: React.FC = () => {
   };
 
   // 业务：标记服务器为已读
-  const handleMarkGuildAsRead = (guild: Guild) => {
+  const handleMarkGuildAsRead = async (guild: Guild) => {
+    // 1. 清空服务器未读
     setGuildUnreadMap((prev) => {
       if (!prev[guild.id]) return prev;
       const next = { ...prev };
       delete next[guild.id];
       return next;
     });
+
+    // 2. 清空该服务器下所有频道的未读与 Mention
+    setChannelUnreadMap((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const key of Object.keys(next)) {
+        if (
+          next[key].guildId === guild.id &&
+          (next[key].hasUnread || next[key].mentionCount > 0)
+        ) {
+          next[key] = {
+            ...next[key],
+            hasUnread: false,
+            unreadCount: 0,
+            mentionCount: 0,
+          };
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+
+    // 3. 异步向服务端请求批量 ACK
+    const auth = useAuthStore.getState();
+    const token = auth.token;
+    if (!token) return;
+    try {
+      await fetch(`${API_BASE}/api/guilds/${guild.id}/ack`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    } catch (err) {
+      console.error("Failed to mark guild as read on server:", err);
+    }
   };
 
   // 业务：标记频道为已读
   const handleMarkChannelAsRead = (channel: Channel) => {
-    console.log(`频道 #${channel.name} 标记为已读`);
+    setChannelUnreadMap((prev) => {
+      const cur = prev[channel.id];
+      if (!cur || (!cur.hasUnread && cur.mentionCount === 0)) return prev;
+      return {
+        ...prev,
+        [channel.id]: {
+          ...cur,
+          hasUnread: false,
+          unreadCount: 0,
+          mentionCount: 0,
+        },
+      };
+    });
+    markChannelReadOnServer(channel.id);
+    if (channel.guildId) {
+      // 检查当前公会是否还有其他频道未读
+      const otherUnread = Object.values(channelUnreadMapRef.current).some(
+        (item) =>
+          item.guildId === channel.guildId &&
+          item.channelId !== channel.id &&
+          (item.hasUnread || item.mentionCount > 0),
+      );
+      if (!otherUnread) {
+        setGuildUnreadMap((prev) => {
+          if (!prev[channel.guildId!]) return prev;
+          const next = { ...prev };
+          delete next[channel.guildId!];
+          return next;
+        });
+      }
+    }
   };
 
   // 加入语音频道
@@ -4612,6 +4750,22 @@ export const App: React.FC = () => {
                   .getState()
                   .recordChannelVisit(targetChannel.guildId, targetChannel.id);
               }
+              if (targetChannel && targetChannel.type === "TEXT") {
+                setChannelUnreadMap((prev) => {
+                  const cur = prev[targetChannel.id];
+                  if (!cur || (!cur.hasUnread && cur.mentionCount === 0)) return prev;
+                  return {
+                    ...prev,
+                    [targetChannel.id]: {
+                      ...cur,
+                      hasUnread: false,
+                      unreadCount: 0,
+                      mentionCount: 0,
+                    },
+                  };
+                });
+                markChannelReadOnServer(targetChannel.id);
+              }
             }
             // Guild metadata may have changed while another guild was open.
             // Reconcile the remembered channel against the current server list.
@@ -4702,6 +4856,36 @@ export const App: React.FC = () => {
               useChannelNavStore
                 .getState()
                 .recordTextChannelVisit(ch.guildId, ch.id);
+              setChannelUnreadMap((prev) => {
+                const cur = prev[ch.id];
+                if (!cur || (!cur.hasUnread && cur.mentionCount === 0)) return prev;
+                return {
+                  ...prev,
+                  [ch.id]: {
+                    ...cur,
+                    hasUnread: false,
+                    unreadCount: 0,
+                    mentionCount: 0,
+                  },
+                };
+              });
+              markChannelReadOnServer(ch.id);
+              if (ch.guildId) {
+                const otherUnread = Object.values(channelUnreadMapRef.current).some(
+                  (item) =>
+                    item.guildId === ch.guildId &&
+                    item.channelId !== ch.id &&
+                    (item.hasUnread || item.mentionCount > 0),
+                );
+                if (!otherUnread) {
+                  setGuildUnreadMap((prev) => {
+                    if (!prev[ch.guildId!]) return prev;
+                    const next = { ...prev };
+                    delete next[ch.guildId!];
+                    return next;
+                  });
+                }
+              }
             }
           }
           if (ch.type === "DM" || !ch.guildId) {
@@ -4765,6 +4949,7 @@ export const App: React.FC = () => {
         onLeaveGuild={handleLeaveGuild}
         onMarkGuildAsRead={handleMarkGuildAsRead}
         onMarkChannelAsRead={handleMarkChannelAsRead}
+        channelUnreadMap={channelUnreadMap}
       />
     </>
   );

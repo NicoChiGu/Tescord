@@ -48,6 +48,7 @@ model User {
   registeredWithInvite       RegistrationInvite?  @relation("RegisteredWithInvite", fields: [registeredWithInviteCode], references: [code], onDelete: SetNull)
   relationships              Relationship[]       @relation("UserRelationships")
   targetedRelationships      Relationship[]       @relation("TargetUserRelationships")
+  channelReadStates          ChannelReadState[]
 }
 
 model RefreshToken {
@@ -167,6 +168,7 @@ model Channel {
 
   messages   Message[]
   recipients ChannelRecipient[]
+  readStates ChannelReadState[]
 
   @@index([guildId])
   @@index([parentId])
@@ -383,4 +385,21 @@ model Relationship {
 
   @@unique([userId, targetUserId])
   @@index([userId, type])
+}
+
+// 15. 频道已读状态 (Channel Read State，支持公会频道多端同步)
+model ChannelReadState {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channelId        String
+  channel          Channel  @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  guildId          String?
+  lastReadSequence Int      @default(0)
+  lastReadAt       DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([userId, channelId])
+  @@index([userId, guildId])
+  @@index([channelId])
 }

@@ -76,6 +76,8 @@ import {
   SystemSettingsDTO,
   CreateDMDTO,
   MarkDMReadDTO,
+  MarkChannelReadDTO,
+  MarkGuildReadDTO,
   RegisterDeviceKeyDTO,
   ErrorCode,
   SupportedLocale,
@@ -1173,6 +1175,12 @@ server.get("/api/guilds", async (request, reply) => {
       },
       channels: {
         orderBy: { position: "asc" },
+        include: {
+          readStates: {
+            where: { userId },
+            select: { lastReadSequence: true },
+          },
+        },
       },
       members: {
         include: {
@@ -1219,20 +1227,26 @@ server.get("/api/guilds", async (request, reply) => {
         createdAt: cat.createdAt.toISOString(),
         updatedAt: cat.updatedAt.toISOString(),
       })),
-      channels: g.channels.map((c) => ({
-        id: c.id,
-        guildId: c.guildId,
-        name: c.name,
-        type: c.type as any,
-        topic: c.topic,
-        parentId: c.parentId,
-        position: c.position,
-        isE2EE: c.isE2EE,
-        bitrate: c.bitrate,
-        voiceMode: ((c as any).voiceMode || "sfu") as any,
-        streamMode: ((c as any).streamMode || "sfu") as any,
-        createdAt: c.createdAt.toISOString(),
-      })),
+      channels: g.channels.map((c: any) => {
+        const lastReadSeq = c.readStates?.[0]?.lastReadSequence ?? 0;
+        const unreadCount = Math.max(0, (c.nextMessageSequence || 0) - lastReadSeq);
+        return {
+          id: c.id,
+          guildId: c.guildId,
+          name: c.name,
+          type: c.type as any,
+          topic: c.topic,
+          parentId: c.parentId,
+          position: c.position,
+          isE2EE: c.isE2EE,
+          bitrate: c.bitrate,
+          voiceMode: (c.voiceMode || "sfu") as any,
+          streamMode: (c.streamMode || "sfu") as any,
+          lastReadSequence: lastReadSeq,
+          unreadCount,
+          createdAt: c.createdAt.toISOString(),
+        };
+      }),
       roles: g.roles.map((r) => ({
         id: r.id,
         guildId: r.guildId,
@@ -1312,21 +1326,33 @@ server.get("/api/guilds/:guildId/channels", async (request, reply) => {
   const channels = await prisma.channel.findMany({
     where: { guildId },
     orderBy: { position: "asc" },
+    include: {
+      readStates: {
+        where: { userId },
+        select: { lastReadSequence: true },
+      },
+    },
   });
-  return channels.map((c) => ({
-    id: c.id,
-    guildId: c.guildId,
-    name: c.name,
-    type: c.type,
-    topic: c.topic,
-    parentId: c.parentId,
-    position: c.position,
-    isE2EE: c.isE2EE,
-    bitrate: c.bitrate,
-    voiceMode: ((c as any).voiceMode || "sfu") as any,
-    streamMode: ((c as any).streamMode || "sfu") as any,
-    createdAt: c.createdAt.toISOString(),
-  }));
+  return channels.map((c: any) => {
+    const lastReadSeq = c.readStates?.[0]?.lastReadSequence ?? 0;
+    const unreadCount = Math.max(0, (c.nextMessageSequence || 0) - lastReadSeq);
+    return {
+      id: c.id,
+      guildId: c.guildId,
+      name: c.name,
+      type: c.type,
+      topic: c.topic,
+      parentId: c.parentId,
+      position: c.position,
+      isE2EE: c.isE2EE,
+      bitrate: c.bitrate,
+      voiceMode: ((c as any).voiceMode || "sfu") as any,
+      streamMode: ((c as any).streamMode || "sfu") as any,
+      lastReadSequence: lastReadSeq,
+      unreadCount,
+      createdAt: c.createdAt.toISOString(),
+    };
+  });
 });
 
 // 获取公开服务器发现列表 (Server Discovery)
@@ -4523,6 +4549,22 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
       }
     }
   } else {
+    if (targetChannel.guildId) {
+      await prisma.channelReadState.upsert({
+        where: { userId_channelId: { userId: author.id, channelId } },
+        create: {
+          userId: author.id,
+          channelId,
+          guildId: targetChannel.guildId,
+          lastReadSequence: messagePayload.sequence,
+          lastReadAt: new Date(),
+        },
+        update: {
+          lastReadSequence: messagePayload.sequence,
+          lastReadAt: new Date(),
+        },
+      });
+    }
     gatewayManager.broadcast({
       op: GatewayOpCode.DISPATCH,
       t: GatewayEvents.MESSAGE_CREATE,
@@ -7272,24 +7314,132 @@ server.delete(
   },
 );
 
-// 标记私信已读
+// 标记频道已读 (支持私信与公会文字频道)
 server.post(
   "/api/channels/:channelId/read",
   { preValidation: [(server as any).authenticate] },
   async (request, reply) => {
     const userPayload = request.user as any;
     const { channelId } = request.params as any;
-    const body = (request.body || {}) as MarkDMReadDTO;
-    try {
-      const lastReadSequence = await dmService.markAsRead(
-        userPayload.sub,
-        channelId,
-        body.lastReadSequence,
-      );
-      return { channelId, lastReadSequence };
-    } catch (error: any) {
-      return reply.status(403).send({ error: error.message || "无法标记已读" });
+    const body = (request.body || {}) as MarkChannelReadDTO;
+    const userId = userPayload.sub;
+
+    const channel = await prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { id: true, type: true, guildId: true, nextMessageSequence: true },
+    });
+    if (!channel) {
+      return reply.status(404).send({ error: "频道不存在" });
     }
+
+    if (channel.type === "DM" || channel.type === "GROUP_DM") {
+      try {
+        const targetSeq =
+          body.lastReadSequence !== undefined
+            ? body.lastReadSequence
+            : body.sequence !== undefined
+              ? body.sequence
+              : channel.nextMessageSequence;
+        const lastReadSequence = await dmService.markAsRead(
+          userId,
+          channelId,
+          targetSeq,
+        );
+        return { channelId, lastReadSequence };
+      } catch (error: any) {
+        return reply.status(403).send({ error: error.message || "无法标记已读" });
+      }
+    }
+
+    if (channel.type === "TEXT" && channel.guildId) {
+      const membership = await prisma.guildMember.findUnique({
+        where: { guildId_userId: { guildId: channel.guildId, userId } },
+      });
+      if (!membership) {
+        return reply.status(403).send({ error: "您不是该服务器成员" });
+      }
+      const rawSeq =
+        body.lastReadSequence !== undefined
+          ? body.lastReadSequence
+          : body.sequence !== undefined
+            ? body.sequence
+            : channel.nextMessageSequence;
+      const boundedSequence = Math.max(
+        0,
+        Math.min(Number(rawSeq) || 0, channel.nextMessageSequence),
+      );
+
+      await prisma.channelReadState.upsert({
+        where: { userId_channelId: { userId, channelId } },
+        create: {
+          userId,
+          channelId,
+          guildId: channel.guildId,
+          lastReadSequence: boundedSequence,
+          lastReadAt: new Date(),
+        },
+        update: {
+          lastReadSequence: boundedSequence,
+          lastReadAt: new Date(),
+        },
+      });
+
+      return { channelId, lastReadSequence: boundedSequence };
+    }
+
+    return reply.status(400).send({ error: "该类型频道不支持标记已读" });
+  },
+);
+
+// 批量标记服务器内全部频道已读
+server.post(
+  "/api/guilds/:guildId/ack",
+  { preValidation: [(server as any).authenticate] },
+  async (request, reply) => {
+    const userPayload = request.user as any;
+    const { guildId } = request.params as any;
+    const userId = userPayload.sub;
+
+    const membership = await prisma.guildMember.findUnique({
+      where: { guildId_userId: { guildId, userId } },
+    });
+    if (!membership) {
+      return reply.status(403).send({ error: "您不是该服务器成员" });
+    }
+
+    const textChannels = await prisma.channel.findMany({
+      where: { guildId, type: "TEXT" },
+      select: { id: true, nextMessageSequence: true },
+    });
+
+    const now = new Date();
+    await prisma.$transaction(
+      textChannels.map((c) =>
+        prisma.channelReadState.upsert({
+          where: { userId_channelId: { userId, channelId: c.id } },
+          create: {
+            userId,
+            channelId: c.id,
+            guildId,
+            lastReadSequence: c.nextMessageSequence,
+            lastReadAt: now,
+          },
+          update: {
+            lastReadSequence: c.nextMessageSequence,
+            lastReadAt: now,
+          },
+        }),
+      ),
+    );
+
+    return {
+      success: true,
+      guildId,
+      updatedChannels: textChannels.map((c) => ({
+        channelId: c.id,
+        lastReadSequence: c.nextMessageSequence,
+      })),
+    };
   },
 );
 

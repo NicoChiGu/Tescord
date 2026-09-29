@@ -108,6 +108,7 @@ export const ServerContextMenu: React.FC<ServerContextMenuProps> = ({
         )}
 
         <ContextMenuItem
+          data-testid="server-context-menu-mark-as-read"
           onClick={() => onMarkAsRead?.(guild)}
           className="hover:bg-discord-brand"
         >

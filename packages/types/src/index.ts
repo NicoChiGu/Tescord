@@ -433,7 +433,49 @@ export interface Channel {
   recipients?: User[];
   lastMessage?: Message;
   unreadCount?: number;
+  lastReadSequence?: number;
   createdAt: string;
+}
+
+export interface ChannelUnreadInfo {
+  channelId: string;
+  guildId?: string | null;
+  hasUnread: boolean;
+  unreadCount: number;
+  mentionCount: number;
+  lastReadSequence: number;
+}
+
+export type ChannelUnreadMap = Record<string, ChannelUnreadInfo>;
+
+export interface ChannelReadState {
+  id: string;
+  userId: string;
+  channelId: string;
+  guildId?: string | null;
+  lastReadSequence: number;
+  lastReadAt: string;
+}
+
+export interface MarkChannelReadDTO {
+  sequence?: number;
+  lastReadSequence?: number;
+}
+
+export interface MarkGuildReadDTO {
+  guildId: string;
+}
+
+export interface MarkChannelReadResponse {
+  success: boolean;
+  channelId: string;
+  lastReadSequence: number;
+}
+
+export interface MarkGuildReadResponse {
+  success: boolean;
+  guildId: string;
+  updatedChannels: { channelId: string; lastReadSequence: number }[];
 }
 
 export interface GuildMember {

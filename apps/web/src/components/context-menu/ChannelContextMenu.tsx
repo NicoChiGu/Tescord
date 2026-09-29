@@ -120,6 +120,7 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
         </ContextMenuItem>
 
         <ContextMenuItem
+          data-testid="channel-context-menu-mark-as-read"
           onClick={() => onMarkAsRead?.(channel)}
           className="hover:bg-discord-brand"
         >
