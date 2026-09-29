@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import path from "path";
+import { CURRENT_APP_VERSION } from "../apps/web/src/data/changelogs";
 
 // 构造用于测试的有效 100x100 PNG 图片 Buffer
 const testImageBuffer = Buffer.from(
@@ -9,15 +10,15 @@ const testImageBuffer = Buffer.from(
 
 test.describe("图片查看器交互、移动端缩放、点击背景关闭与下载圆形加载条验收 (Lightbox Modal & Download Spinner)", () => {
   test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
+    await page.addInitScript((version) => {
       const accessToken =
         localStorage.getItem("tescord_e2e_access_token") ||
         localStorage.getItem("tescord_access_token");
       if (accessToken) {
         localStorage.setItem("tescord_access_token", accessToken);
       }
-      localStorage.setItem("tescord_last_seen_changelog_version", "0.2.0");
-    });
+      localStorage.setItem("tescord_last_seen_changelog_version", version);
+    }, CURRENT_APP_VERSION);
   });
 
   test("图片查看器完整链路：点击外部关闭、防误触、下载按钮圆形加载条(animate-spin)与错误反馈", async ({
