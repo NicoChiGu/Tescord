@@ -2001,6 +2001,10 @@ export interface DesktopNotificationPayload {
   silent?: boolean;
 }
 
+export interface DesktopUnreadStatePayload {
+  hasUnread: boolean;
+}
+
 export interface AutoLaunchSettings {
   enabled: boolean;
   openAsHidden: boolean;

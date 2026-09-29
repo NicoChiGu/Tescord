@@ -9,10 +9,10 @@
     "build:sqlite": "electron-builder install-app-deps",
     "build": "node ../../scripts/generate-build-config.mjs && pnpm run build:native && pnpm run build:sqlite && tsc && pnpm run copy-assets",
     "start": "electron .",
-    "dev": "pnpm run build && electron .",
-    "dist": "pnpm run build && electron-builder",
-    "dist:win": "pnpm run build && electron-builder --win",
-    "dist:mac": "pnpm run build && electron-builder --mac"
+    "dev": "node ../../scripts/build-desktop-web.mjs && pnpm run build && electron .",
+    "dist": "node ../../scripts/build-desktop-web.mjs && pnpm run build && electron-builder",
+    "dist:win": "node ../../scripts/build-desktop-web.mjs && pnpm run build && electron-builder --win",
+    "dist:mac": "node ../../scripts/build-desktop-web.mjs && pnpm run build && electron-builder --mac"
   },
   "dependencies": {
     "@tescord/types": "workspace:*",
@@ -38,6 +38,7 @@
     },
     "files": [
       "dist/**/*",
+      "resources/**/*",
       "node_modules/**/*",
       "package.json"
     ],
@@ -47,6 +48,13 @@
     ],
     "extraResources": [
       {
+        "from": "resources",
+        "to": "resources",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
         "from": "../web/dist",
         "to": "web/dist",
         "filter": [
@@ -55,6 +63,7 @@
       }
     ],
     "win": {
+      "icon": "resources/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -77,6 +86,7 @@
       "createStartMenuShortcut": true
     },
     "mac": {
+      "icon": "resources/icon.png",
       "target": [
         {
           "target": "dmg",

@@ -23,6 +23,7 @@ import { API_BASE } from "../../config.js";
 import { AuthBackground } from "./AuthBackground.js";
 import { AccountPicker } from "./AccountPicker.js";
 import { SavedAccount } from "@tescord/types";
+import { BrandLogo } from "../ui/BrandLogo.js";
 import { isWebAuthnSupported } from "../../utils/webauthn.js";
 
 type AuthPhase = "ACCOUNT_PICKER" | "EMAIL" | "PASSWORD" | "REGISTER";
@@ -607,9 +608,13 @@ export const AuthModal: React.FC = () => {
               </div>
             ) : (
               <div className="flex flex-col items-center text-center mb-6">
-                <div className="w-16 h-16 rounded-2xl bg-[#5865f2] flex items-center justify-center shadow-lg shadow-[#5865f2]/30 mb-3 transform hover:rotate-6 transition-transform">
-                  <span className="text-3xl font-black text-white">T</span>
-                </div>
+                <BrandLogo
+                  data-testid="auth-brand-logo"
+                  variant="badge"
+                  size="2xl"
+                  badgeRadius={20}
+                  className="shadow-lg shadow-[#5865f2]/30 mb-3 transform hover:rotate-6 transition-transform cursor-pointer"
+                />
                 <div key={phase} className="animate-auth-step">
                   <h2 className="text-2xl font-bold text-white tracking-tight">
                     {title}

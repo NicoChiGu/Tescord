@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <mask id="mascot-mask-128-n">
+    <rect width="128" height="128" fill="white" />
+    <path d="M 36 33 C 38 38, 42 44, 45 47 C 42.5 47, 39 45, 36.5 41.5 C 34.5 38.5, 34.5 35, 36 33 Z" fill="black" />
+    <path d="M 92 33 C 93.5 35, 93.5 38.5, 91.5 41.5 C 89 45, 85.5 47, 83 47 C 86 44, 90 38, 92 33 Z" fill="black" />
+    <rect x="39" y="63" width="14" height="20" rx="7" fill="black" />
+    <rect x="75" y="63" width="14" height="20" rx="7" fill="black" />
+    <path d="M 58 88 Q 64 92 70 88" stroke="black" stroke-width="3.5" stroke-linecap="round" fill="none" />
+
+  </mask>
+  <path d="M 36 99 C 28 95, 21 87, 19 77 C 17 67, 20 57, 24 49 C 25.5 44, 27 36, 28 29 C 28.8 24.5, 33 22, 37.5 24.5 C 43 27.5, 48.5 36, 52 43.5 C 56 42, 72 42, 76 43.5 C 79.5 36, 85 27.5, 90.5 24.5 C 95 22, 99.2 24.5, 100 29 C 101 36, 102.5 44, 104 49 C 108 57, 111 67, 109 77 C 107 87, 100 95, 92 99 C 84 103, 76 105.5, 64 105.5 C 52 105.5, 44 103, 36 99 Z" fill="#5865F2" mask="url(#mascot-mask-128-n)"/>
+
+</svg>

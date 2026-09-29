@@ -102,6 +102,13 @@ test.describe("消息滚动记忆、新消息红线消除与多类型附件上�
 
     const scrollContainer = page.getByTestId("chat-scroll-container");
     await expect(scrollContainer).toBeVisible();
+    await expect
+      .poll(() =>
+        scrollContainer.evaluate((el) => el.scrollHeight - el.clientHeight),
+      )
+      .toBeGreaterThan(1000);
+    // Wait for initial virtual-row measurement and its delayed bottom alignment.
+    await page.waitForTimeout(300);
 
     // 模拟滚动到特定坐标 (scrollTop = 400)
     await scrollContainer.evaluate((el) => {
@@ -116,6 +123,16 @@ test.describe("消息滚动记忆、新消息红线消除与多类型附件上�
       (el) => el.scrollTop,
     );
     expect(recordedScrollTop).toBeGreaterThanOrEqual(350);
+    expect(recordedScrollTop).toBeLessThan(500);
+    await expect
+      .poll(() =>
+        page.evaluate(async () => {
+          const db = (window as any).__tescord_messageDb;
+          const meta = await db?.getChannelMeta("chn_default_text_01");
+          return meta?.scrollTop >= 350 && meta?.scrollTop < 500;
+        }),
+      )
+      .toBe(true);
 
     // 3. 切换到 crypto-vault 频道
     const cryptoChannelBtn = page.getByRole("button", { name: "crypto-vault" });

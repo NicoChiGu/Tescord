@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Guild } from "@tescord/types";
-import { MessageSquare, Plus, Compass, ShieldAlert } from "lucide-react";
+import { Plus, Compass, ShieldAlert } from "lucide-react";
+import { BrandLogo } from "./ui/BrandLogo.js";
 import { resolveServerUrl } from "../config.js";
 import { ServerContextMenu } from "./context-menu/ServerContextMenu.js";
 import { ServerListContextMenu } from "./context-menu/ServerListContextMenu.js";
@@ -259,7 +260,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 selectedGuildId === null ? "h-10" : "h-0 group-hover:h-5"
               }`}
             />
-            <MessageSquare className="w-6 h-6" />
+            <BrandLogo
+              variant="symbol"
+              className="w-7 h-7 transition-transform duration-200 group-hover:scale-105 active:scale-95"
+            />
 
             {/* 右下角 Badge 展示私信未读数量，超过99展示 99+ */}
             {totalDmUnread > 0 && (

@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { randomBytes } from "node:crypto";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { CURRENT_APP_VERSION } from "../apps/web/src/data/changelogs";
 
 declare global {
   interface Window {
@@ -189,43 +190,48 @@ test("public DM call negotiates E2EE and exchanges audio after Cloudflare SFU fa
       permissions: ["microphone", "camera"],
       locale: "zh-CN",
     });
-    await context.addInitScript((token) => {
-      localStorage.setItem("tescord_access_token", token);
-      localStorage.setItem("tescord_last_seen_changelog_version", "0.2.0");
-      const NativePC = window.RTCPeerConnection;
-      window.__dmAcceptancePcs = [];
-      window.__dmEncodedHooks = { send: 0, receive: 0 };
-      let blockFirstOffer = true;
-      window.RTCPeerConnection = class extends NativePC {
-        constructor(...args: ConstructorParameters<typeof RTCPeerConnection>) {
-          super(...args);
-          if (blockFirstOffer) {
-            blockFirstOffer = false;
-            this.createOffer = async () => {
-              throw new Error("Acceptance test blocks P2P offer");
-            };
+    await context.addInitScript(
+      ({ token, appVersion }) => {
+        localStorage.setItem("tescord_access_token", token);
+        localStorage.setItem("tescord_last_seen_changelog_version", appVersion);
+        const NativePC = window.RTCPeerConnection;
+        window.__dmAcceptancePcs = [];
+        window.__dmEncodedHooks = { send: 0, receive: 0 };
+        let blockFirstOffer = true;
+        window.RTCPeerConnection = class extends NativePC {
+          constructor(
+            ...args: ConstructorParameters<typeof RTCPeerConnection>
+          ) {
+            super(...args);
+            if (blockFirstOffer) {
+              blockFirstOffer = false;
+              this.createOffer = async () => {
+                throw new Error("Acceptance test blocks P2P offer");
+              };
+            }
+            window.__dmAcceptancePcs.push(this);
           }
-          window.__dmAcceptancePcs.push(this);
-        }
-      };
-      const senderProto = RTCRtpSender.prototype as RTCRtpSender & {
-        createEncodedStreams?: () => unknown;
-      };
-      const receiverProto = RTCRtpReceiver.prototype as RTCRtpReceiver & {
-        createEncodedStreams?: () => unknown;
-      };
-      for (const [prototype, direction] of [
-        [senderProto, "send"],
-        [receiverProto, "receive"],
-      ] as const) {
-        const native = prototype.createEncodedStreams;
-        if (typeof native !== "function") continue;
-        prototype.createEncodedStreams = function () {
-          window.__dmEncodedHooks[direction]++;
-          return native.call(this);
         };
-      }
-    }, user.token);
+        const senderProto = RTCRtpSender.prototype as RTCRtpSender & {
+          createEncodedStreams?: () => unknown;
+        };
+        const receiverProto = RTCRtpReceiver.prototype as RTCRtpReceiver & {
+          createEncodedStreams?: () => unknown;
+        };
+        for (const [prototype, direction] of [
+          [senderProto, "send"],
+          [receiverProto, "receive"],
+        ] as const) {
+          const native = prototype.createEncodedStreams;
+          if (typeof native !== "function") continue;
+          prototype.createEncodedStreams = function () {
+            window.__dmEncodedHooks[direction]++;
+            return native.call(this);
+          };
+        }
+      },
+      { token: user.token, appVersion: CURRENT_APP_VERSION },
+    );
     const page = await context.newPage();
     page.on("console", (message) => {
       if (

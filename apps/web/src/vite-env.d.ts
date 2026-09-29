@@ -20,6 +20,9 @@ interface ElectronAPI {
     callback: (status: import("@tescord/types").UserStatus) => void,
   ) => () => void;
   syncUserStatus: (status: import("@tescord/types").UserStatus) => void;
+  syncTrayUnread?: (
+    state: import("@tescord/types").DesktopUnreadStatePayload,
+  ) => void;
   syncLocale?: (locale: import("@tescord/types").SupportedLocale) => void;
   onGlobalMuteToggle: (callback: () => void) => () => void;
   onGlobalPTTDown: (callback: () => void) => () => void;

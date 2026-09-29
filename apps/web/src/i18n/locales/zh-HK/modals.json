@@ -264,6 +264,8 @@
       "v0_3_0_appearance_desc": "可調整聊天字體大小、訊息密度同介面縮放。",
       "v0_3_0_roles_title": "伺服器成員管理優化",
       "v0_3_0_roles_desc": "改善成員列表同身分組選單版面，避免連續操作互相覆蓋。",
+      "v0_3_0_brand_title": "統一品牌吉祥物同系統匣提示",
+      "v0_3_0_brand_desc": "網頁、登入畫面同桌面端採用全新吉祥物圖示；系統匣可顯示未讀紅點。",
       "v0_2_0_livekit_title": "多引擎低延遲音視訊網關",
       "v0_2_0_livekit_desc": "無縫整合 LiveKit 同 Cloudflare Realtime，支援高音質低延遲多人語音連線同高清螢幕共享。",
       "v0_2_0_rnnoise_title": "RNNoise 神經網絡實時降噪",

@@ -694,6 +694,7 @@ function createAuthWindow(targetEntryPath?: string): BrowserWindow {
     show: false,
     backgroundColor: "#313338",
     title: "Tescord - 登录",
+    icon: getAppIconPath(),
     frame: false,
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     autoHideMenuBar: true,
@@ -814,6 +815,7 @@ function createMainWindow(targetEntryPath?: string): BrowserWindow {
     show: false,
     backgroundColor: "#313338",
     title: "Tescord 客户端",
+    icon: getAppIconPath(),
     frame: false,
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     autoHideMenuBar: true,
@@ -942,6 +944,7 @@ async function switchToMainWindow(): Promise<void> {
 async function switchToAuthWindow(): Promise<void> {
   saveHasAuthSession(false);
   currentWindowMode = "auth";
+  setTrayBadge(false);
 
   // 记录主窗口最后退出前的有效尺寸与最大化状态
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -1014,7 +1017,30 @@ async function applyWindowMode(targetMode: DesktopWindowMode): Promise<void> {
   }
 }
 
-// 生成高保真矢量自适应托盘图标 (16x16 RGBA 蓝紫圆角徽标，零外部静态资源依赖)
+// 智能解析跨平台静态资源路径 (兼容开发、生产打包及测试目录结构)
+function getResourcePath(...subPaths: string[]): string {
+  const candidates = [
+    path.join(__dirname, "../resources", ...subPaths),
+    path.join(__dirname, "../../resources", ...subPaths),
+    path.join(process.resourcesPath, "resources", ...subPaths),
+    path.join(process.resourcesPath, ...subPaths),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  return candidates[0];
+}
+
+function getAppIconPath(): string {
+  const iconName = process.platform === "win32" ? "icon.ico" : "icon.png";
+  const preferred = getResourcePath(iconName);
+  if (fs.existsSync(preferred)) return preferred;
+  return getResourcePath("icon.png");
+}
+
+let hasTrayUnread = false;
+
+// 生成高保真矢量自适应托盘图标 (16x16 RGBA 蓝紫圆角徽标，作为资源缺失时的坚实兜底)
 function createDefaultTrayIcon(): Electron.NativeImage {
   const size = 16;
   const buffer = Buffer.alloc(size * size * 4);
@@ -1036,6 +1062,33 @@ function createDefaultTrayIcon(): Electron.NativeImage {
     }
   }
   return nativeImage.createFromBuffer(buffer, { width: size, height: size });
+}
+
+// 加载系统托盘高清图标 (优先读取静态资源文件，支持 macOS Template 与红点，优雅降级为内存绘制)
+function getTrayIcon(hasBadge: boolean = false): Electron.NativeImage {
+  const iconName = hasBadge
+    ? "tray-badge.png"
+    : process.platform === "darwin"
+      ? "tray-white.png"
+      : "tray.png";
+  const iconPath = getResourcePath(iconName);
+  if (fs.existsSync(iconPath)) {
+    const img = nativeImage.createFromPath(iconPath);
+    if (img.isEmpty()) return createDefaultTrayIcon();
+    if (process.platform === "darwin" && !hasBadge) {
+      img.setTemplateImage(true);
+    }
+    return img;
+  }
+  return createDefaultTrayIcon();
+}
+
+function setTrayBadge(unread: boolean) {
+  if (hasTrayUnread === unread) return;
+  hasTrayUnread = unread;
+  if (tray) {
+    tray.setImage(getTrayIcon(hasTrayUnread));
+  }
 }
 
 function updateTrayContextMenu(status: UserStatus = currentUserStatus) {
@@ -1140,7 +1193,7 @@ function updateTrayContextMenu(status: UserStatus = currentUserStatus) {
 function setupSystemTray() {
   if (tray) return;
   const t = getDesktopLocale(currentLocale);
-  const icon = createDefaultTrayIcon();
+  const icon = getTrayIcon(false);
   tray = new Tray(icon);
   tray.setToolTip(t.trayTooltip);
 
@@ -1354,6 +1407,19 @@ ipcMain.on("sync-user-status", (event, status: UserStatus) => {
     return;
   currentUserStatus = status;
   updateTrayContextMenu(status);
+});
+
+ipcMain.on("sync-tray-unread", (event, state: unknown) => {
+  if (
+    !isTrustedIpcSender(event) ||
+    BrowserWindow.fromWebContents(event.sender) !== mainWindow ||
+    event.senderFrame !== event.sender.mainFrame ||
+    typeof state !== "object" ||
+    state === null ||
+    typeof (state as { hasUnread?: unknown }).hasUnread !== "boolean"
+  )
+    return;
+  setTrayBadge((state as { hasUnread: boolean }).hasUnread);
 });
 
 ipcMain.on("sync-locale", (event, locale: SupportedLocale) => {

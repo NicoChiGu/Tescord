@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type {
   DesktopNotificationPayload,
+  DesktopUnreadStatePayload,
   UserStatus,
   DesktopWindowMode,
   DesktopAuthSuccessPayload,
@@ -113,6 +114,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   },
   syncUserStatus: (status: UserStatus) =>
     ipcRenderer.send("sync-user-status", status),
+  syncTrayUnread: (state: DesktopUnreadStatePayload) =>
+    ipcRenderer.send("sync-tray-unread", state),
   syncLocale: (locale: any) => ipcRenderer.send("sync-locale", locale),
 
   // 全局热键与静音

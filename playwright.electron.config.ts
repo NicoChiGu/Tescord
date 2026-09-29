@@ -20,12 +20,17 @@ export default defineConfig({
       timeout: 60000,
     },
     {
-      command: "pnpm --filter @tescord/web preview --port 4173",
-      env: { TESCORD_E2E_BACKEND_PORT: "3101" },
+      command:
+        "node scripts/build-desktop-web.mjs && pnpm --filter @tescord/web preview --port 4173",
+      env: {
+        TESCORD_E2E_BACKEND_PORT: "3101",
+        VITE_API_URL: "http://127.0.0.1:3101",
+        VITE_GATEWAY_URL: "ws://127.0.0.1:3101/gateway",
+      },
       url: "https://localhost:4173",
       ignoreHTTPSErrors: true,
       reuseExistingServer: false,
-      timeout: 30000,
+      timeout: 60000,
     },
   ],
 });

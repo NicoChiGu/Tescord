@@ -4,6 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { CURRENT_APP_VERSION } from "../apps/web/src/data/changelogs";
 
 const execFileAsync = promisify(execFile);
 
@@ -270,9 +271,15 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
       permissions: ["microphone", "camera"],
     });
     await context.addInitScript(
-      ({ accessToken, forceRelay, blockP2P, measureVideoLatency }) => {
+      ({
+        accessToken,
+        forceRelay,
+        blockP2P,
+        measureVideoLatency,
+        appVersion,
+      }) => {
         localStorage.setItem("tescord_access_token", accessToken);
-        localStorage.setItem("tescord_last_seen_changelog_version", "0.2.0");
+        localStorage.setItem("tescord_last_seen_changelog_version", appVersion);
         const nativeEnumerate = navigator.mediaDevices.enumerateDevices.bind(
           navigator.mediaDevices,
         );
@@ -398,6 +405,7 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
         forceRelay,
         blockP2P: testP2PFallback && index === 1,
         measureVideoLatency,
+        appVersion: CURRENT_APP_VERSION,
       },
     );
     const page = await context.newPage();

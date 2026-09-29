@@ -27,9 +27,22 @@ test("real Electron keeps remembered credentials in native storage", async ({}, 
   try {
     const window = await app.firstWindow();
     await expect.poll(() => window.url()).toMatch(/^file:\/\//);
+    await expect(window.locator('link[rel="icon"]')).toHaveAttribute(
+      "href",
+      "./favicon.svg",
+    );
+    await expect(window.locator('script[type="module"]')).toHaveAttribute(
+      "src",
+      /^\.\/assets\//,
+    );
     await expect
       .poll(() =>
-        window.evaluate(() => Boolean((window as any).electronAPI?.storage)),
+        window.evaluate(() =>
+          Boolean(
+            (window as any).electronAPI?.storage &&
+            (window as any).electronAPI?.syncTrayUnread,
+          ),
+        ),
       )
       .toBe(true);
     await expect(window.getByTestId("auth-email-input")).toBeVisible({

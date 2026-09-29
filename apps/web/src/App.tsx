@@ -548,6 +548,18 @@ export const App: React.FC = () => {
   const totalDmUnread = React.useMemo(() => {
     return dmChannels.reduce((sum, ch) => sum + (ch.unreadCount || 0), 0);
   }, [dmChannels]);
+  const hasAnyUnread = React.useMemo(
+    () =>
+      totalDmUnread > 0 ||
+      Object.values(guildUnreadMap).some((entry) => entry.hasUnread) ||
+      Object.values(channelUnreadMap).some((entry) => entry.hasUnread),
+    [totalDmUnread, guildUnreadMap, channelUnreadMap],
+  );
+  useEffect(() => {
+    window.electronAPI?.syncTrayUnread?.({
+      hasUnread: Boolean(isAuthenticated && currentUser && hasAnyUnread),
+    });
+  }, [isAuthenticated, currentUser?.id, hasAnyUnread]);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [incomingCall, setIncomingCall] = useState<{
     callId: string;
@@ -663,6 +675,7 @@ export const App: React.FC = () => {
       if (lastActiveUserIdRef.current !== null) {
         // 用户身份发生变动（从 User A 变为 User B，或者从 User A 变为登出）
         isAccountTransitionRef.current = true;
+        window.electronAPI?.syncTrayUnread?.({ hasUnread: false });
         gatewayClient.disconnect();
         preheatManager.reset();
         clearFastMarkdownCache();
