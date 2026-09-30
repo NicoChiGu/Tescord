@@ -163,11 +163,42 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
       ctx.imageSmoothingQuality = "high";
       ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
 
-      // 导出极小体积的 WebP 图片 (质量 0.85)
+      // 检测当前浏览器是否支持导出 WebP 格式（iOS Safari 部分版本会静默降级为 PNG）
+      let exportType = "image/webp";
+      let exportQuality = 0.88;
+      try {
+        const testCanvas = document.createElement("canvas");
+        testCanvas.width = 1;
+        testCanvas.height = 1;
+        if (!testCanvas.toDataURL("image/webp").startsWith("data:image/webp")) {
+          exportType = "image/jpeg";
+          exportQuality = 0.9;
+        }
+      } catch {
+        exportType = "image/jpeg";
+        exportQuality = 0.9;
+      }
+
       canvas.toBlob(
         async (blob) => {
           if (!blob) {
-            setIsProcessing(false);
+            // 若 WebP 导出完全为空，尝试降级为 JPEG 重新导出
+            canvas.toBlob(
+              async (fallbackBlob) => {
+                if (!fallbackBlob) {
+                  setIsProcessing(false);
+                  return;
+                }
+                try {
+                  await onConfirm(fallbackBlob);
+                  onClose();
+                } finally {
+                  setIsProcessing(false);
+                }
+              },
+              "image/jpeg",
+              0.9,
+            );
             return;
           }
           try {
@@ -177,8 +208,8 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
             setIsProcessing(false);
           }
         },
-        "image/webp",
-        0.85,
+        exportType,
+        exportQuality,
       );
     } catch (err) {
       console.error("图片裁剪压缩失败:", err);

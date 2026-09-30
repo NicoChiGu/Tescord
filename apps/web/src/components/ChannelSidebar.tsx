@@ -36,6 +36,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { VOICE_ENGINE, resolveServerUrl } from "../config.js";
 import { VoiceConnectionStatusPopover } from "./VoiceConnectionStatusPopover.js";
+import { StatusBadge } from "./ui/StatusBadge.js";
 import {
   DndContext,
   DragOverlay,
@@ -1618,17 +1619,13 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                   isSpeaking ? "speaking-ring" : ""
                 }`}
               />
-              <span
-                className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-[#232428] ${
-                  currentUser.status === "ONLINE"
-                    ? "bg-emerald-500"
-                    : currentUser.status === "IDLE"
-                      ? "bg-amber-500"
-                      : currentUser.status === "DND"
-                        ? "bg-rose-500"
-                        : "bg-gray-400"
-                }`}
-              />
+              <div className="absolute bottom-0 right-0">
+                <StatusBadge
+                  status={currentUser.status}
+                  size={10}
+                  borderColor="#232428"
+                />
+              </div>
             </div>
             <div className="flex flex-col truncate">
               <span

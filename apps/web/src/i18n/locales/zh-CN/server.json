@@ -212,5 +212,12 @@
   "voiceChannel": "语音频道",
   "inviteFriends": "邀请好友",
   "inviteLink": "邀请链接",
-  "copyInviteLink": "复制邀请链接"
+  "copyInviteLink": "复制邀请链接",
+  "emojis": "表情",
+  "emojiManagement": "服务器表情管理",
+  "uploadEmoji": "上传表情",
+  "emojiUploadHint": "支持 JPEG、PNG、WebP、GIF。GIF 大小限制在 2MB 以下，静态图限制在 1MB 以下，建议尺寸 128x128 像素。",
+  "emojiNamePlaceholder": "表情代号 (如 cat_dance)",
+  "deleteEmojiConfirm": "确定要删除此表情吗？此操作无法撤销。",
+  "emojiSlotsAvailable": "可用表情位: {{count}}/50"
 }

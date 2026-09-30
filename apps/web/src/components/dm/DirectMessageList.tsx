@@ -17,6 +17,7 @@ import { usePresenceStore } from "../../stores/usePresenceStore.js";
 import { useFriendStore } from "../../stores/useFriendStore.js";
 import { useSettingsStore } from "../../stores/useSettingsStore.js";
 import { UserContextMenu } from "../context-menu/UserContextMenu.js";
+import { StatusBadge } from "../ui/StatusBadge.js";
 
 interface DirectMessageListProps {
   channels: Channel[];
@@ -230,11 +231,13 @@ export const DirectMessageList: React.FC<DirectMessageListProps> = ({
                         {displayName.slice(0, 2).toUpperCase()}
                       </div>
                     )}
-                    <span
-                      className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-discord-channelList ${getStatusColor(
-                        status,
-                      )}`}
-                    />
+                    <div className="absolute -bottom-0.5 -right-0.5">
+                      <StatusBadge
+                        status={status}
+                        size={10}
+                        borderColor="#2b2d31"
+                      />
+                    </div>
                   </div>
 
                   {/* 昵称与最后一条消息预览 */}

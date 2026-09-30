@@ -186,5 +186,17 @@
     "retry": "再試行",
     "originalBadge": "原寸",
     "zoomBadge": "ズーム {{percent}}%"
-  }
+  },
+  "searchEmoji": "絵文字を検索...",
+  "emojiCategoryRecent": "よく使う絵文字",
+  "emojiCategoryServer": "サーバー絵文字",
+  "emojiCategoryUser": "マイ絵文字",
+  "emojiCategoryPeople": "スマイリーと人々",
+  "emojiCategoryNature": "動物と自然",
+  "emojiCategoryFood": "食べ物と飲み物",
+  "emojiCategoryActivities": "アクティビティ",
+  "emojiCategoryTravel": "旅行と場所",
+  "emojiCategoryObjects": "オブジェクトとツール",
+  "emojiCategorySymbols": "記号",
+  "emojiCategoryFlags": "旗"
 }

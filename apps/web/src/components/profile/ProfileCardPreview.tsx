@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { User, UserStatus, Activity } from "@tescord/types";
 import { resolveServerUrl } from "../../config.js";
+import { StatusBadge } from "../ui/StatusBadge.js";
 import {
   Gamepad2,
   Calendar,
@@ -59,44 +60,11 @@ export const ProfileCardPreview: React.FC<ProfileCardPreviewProps> = ({
 
   // 状态灯辅助样式
   const renderStatusBadge = (s: UserStatus) => {
-    switch (s) {
-      case "ONLINE":
-        return (
-          <div
-            className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-[#23a55a] ring-[4px] ring-[#232428] flex items-center justify-center shadow"
-            title="在线"
-          />
-        );
-      case "IDLE":
-        return (
-          <div
-            className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-[#f0b232] ring-[4px] ring-[#232428] flex items-center justify-center shadow"
-            title="闲置"
-          >
-            <div className="w-2.5 h-2.5 bg-[#232428] rounded-full -mt-0.5 -ml-0.5" />
-          </div>
-        );
-      case "DND":
-        return (
-          <div
-            className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-[#f23f43] ring-[4px] ring-[#232428] flex items-center justify-center shadow"
-            title="请勿打扰"
-          >
-            <div className="w-3 h-0.5 bg-white rounded-full" />
-          </div>
-        );
-      case "OFFLINE":
-      case "INVISIBLE":
-      default:
-        return (
-          <div
-            className="absolute bottom-0 right-0 w-6 h-6 rounded-full border-2 border-[#80848e] bg-[#232428] ring-[4px] ring-[#232428] flex items-center justify-center shadow"
-            title="隐身 / 离线"
-          >
-            <div className="w-2 h-2 bg-[#80848e] rounded-full" />
-          </div>
-        );
-    }
+    return (
+      <div className="absolute bottom-0 right-0 z-10">
+        <StatusBadge status={s} size={24} borderColor="#232428" />
+      </div>
+    );
   };
 
   // 横幅背景计算

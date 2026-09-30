@@ -143,13 +143,14 @@ export class AuthService {
   public async getRegistrationStatus(): Promise<RegistrationStatusResponse> {
     const settings = await prisma.systemSetting.findMany({
       where: {
-        key: { in: ["allow_registration", "require_invite_code"] },
+        key: { in: ["allow_registration", "require_invite_code", "allow_non_super_admin_create_guild"] },
       },
     });
     const map = new Map(settings.map((s) => [s.key, s.value]));
     return {
       allowRegistration: map.get("allow_registration") !== "false",
       requireInviteCode: map.get("require_invite_code") === "true",
+      allowNonSuperAdminCreateGuild: map.get("allow_non_super_admin_create_guild") !== "false",
     };
   }
 

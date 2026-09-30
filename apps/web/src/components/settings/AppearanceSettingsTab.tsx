@@ -4,20 +4,15 @@ import {
   Monitor,
   Check,
   RotateCcw,
-  Keyboard,
   Eye,
   Type,
-  Maximize2,
 } from "lucide-react";
 import {
   useSettingsStore,
-  applyChatFontSize,
-  applyZoomFactor,
 } from "../../stores/useSettingsStore.js";
 import { MessageDisplayMode } from "@tescord/types";
 
-const FONT_SIZE_PRESETS = [12, 14, 15, 16, 18, 20];
-const ZOOM_PRESETS = [0.8, 0.9, 1.0, 1.1, 1.25, 1.5];
+const FONT_SIZE_PRESETS = [13, 14, 15, 16, 18, 20];
 
 export const AppearanceSettingsTab: React.FC = () => {
   const { t } = useTranslation(["settings", "common"]);
@@ -25,13 +20,11 @@ export const AppearanceSettingsTab: React.FC = () => {
   const chatFontSize = useSettingsStore((s) => s.chatFontSize) ?? 16;
   const messageDisplayMode =
     useSettingsStore((s) => s.messageDisplayMode) ?? "cozy";
-  const zoomFactor = useSettingsStore((s) => s.zoomFactor) ?? 1.0;
 
   const setChatFontSize = useSettingsStore((s) => s.setChatFontSize);
   const setMessageDisplayMode = useSettingsStore(
     (s) => s.setMessageDisplayMode,
   );
-  const setZoomFactor = useSettingsStore((s) => s.setZoomFactor);
 
   const handleDisplayModeSelect = (mode: MessageDisplayMode) => {
     setMessageDisplayMode(mode);
@@ -48,10 +41,6 @@ export const AppearanceSettingsTab: React.FC = () => {
     setChatFontSize(16);
   };
 
-  const handleResetZoom = () => {
-    setZoomFactor(1.0);
-  };
-
   return (
     <div
       className="space-y-8 max-w-4xl pb-10"
@@ -66,7 +55,7 @@ export const AppearanceSettingsTab: React.FC = () => {
         <p className="text-xs text-gray-400 mt-1">
           {t(
             "settings:appearance.description",
-            "自定义聊天展示模式、字体大小与全界面视口缩放比例。",
+            "自定义消息展示模式与全站全局文字大小。",
           )}
         </p>
       </div>
@@ -138,52 +127,31 @@ export const AppearanceSettingsTab: React.FC = () => {
                 <span className="font-semibold text-white text-sm shrink-0">
                   {t("settings:appearance.previewBot", "系统小助手")}
                 </span>
-                <span className="text-[10px] bg-[#5865f2] text-white px-1 py-0.2 rounded font-bold uppercase tracking-wider shrink-0">
+                <span className="text-[9px] bg-[#5865f2] text-white px-1 py-0.2 rounded font-bold uppercase tracking-wider shrink-0">
                   {t("settings:appearance.previewBotTag", "BOT")}
                 </span>
-                <span className="text-discord-textMuted select-none mr-0.5 shrink-0">
-                  :
-                </span>
-                <div
-                  className="text-discord-textNormal transition-all flex-1 min-w-0"
-                  style={{
-                    fontSize: `${chatFontSize}px`,
-                    lineHeight: `${((chatFontSize * 1.375) / 16).toFixed(3)}rem`,
-                  }}
+                <span
+                  className="text-discord-textNormal truncate transition-all flex-1"
+                  style={{ fontSize: `${chatFontSize}px` }}
                 >
-                  <span>
-                    {t(
-                      "settings:appearance.previewMessage",
-                      "欢迎使用 Tescord！这是为您实时呈现的排版与字号预览效果。",
-                    )}
-                  </span>
-                  <span className="inline-block px-1 py-0.2 rounded bg-[#5865f2]/20 text-[#5865f2] font-medium text-[0.875em] mx-1">
-                    {t("settings:appearance.previewMention", "@everyone")}
-                  </span>
-                </div>
-              </div>
-              <div
-                className="mt-1.5 ml-14 bg-[#2b2d31] p-2 rounded-lg border border-[#383a40] font-mono text-[0.85em] text-emerald-400"
-                style={{
-                  fontSize: `${chatFontSize}px`,
-                }}
-              >
-                {t(
-                  "settings:appearance.previewCode",
-                  "const tescord = { privacy: 'first', webrtc: 'mesh/sfu' };",
-                )}
+                  {t(
+                    "settings:appearance.previewMessageCompact",
+                    "这是紧凑排列下的单行消息展示效果，适合快速浏览高密度沟通记录。",
+                  )}
+                </span>
               </div>
             </div>
           )}
         </div>
       </div>
 
-      {/* 消息展示模式 (Message Display Mode) */}
-      <div className="space-y-3">
-        <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">
+      {/* 消息展示模式选择 (Message Display Mode) */}
+      <div className="space-y-4">
+        <label className="text-xs font-bold uppercase tracking-wider text-gray-400">
           {t("settings:appearance.displayMode", "消息展示模式")}
         </label>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Cozy 舒适模式 */}
           <button
             type="button"
@@ -209,29 +177,24 @@ export const AppearanceSettingsTab: React.FC = () => {
                   )}
                 </div>
                 <span className="text-sm font-bold text-white">
-                  {t("settings:appearance.modeCozy", "普通模式 (Cozy)")}
+                  {t("settings:appearance.modeCozy", "舒适模式 (Cozy)")}
                 </span>
               </div>
-              {messageDisplayMode === "cozy" && (
-                <span className="text-[10px] font-medium bg-[#5865f2]/20 text-[#5865f2] px-2 py-0.5 rounded-full">
-                  {t("settings:appearance.defaultBadge", "默认")}
-                </span>
-              )}
             </div>
 
             {/* 图元示意 */}
-            <div className="w-full bg-[#1e1f22] p-2.5 rounded-lg border border-white/5 flex items-center gap-2 mb-2 select-none">
-              <div className="w-6 h-6 rounded-full bg-[#5865f2]/40 shrink-0" />
+            <div className="w-full bg-[#1e1f22] p-2.5 rounded-lg border border-white/5 flex items-center gap-2.5 mb-2 select-none">
+              <div className="w-6 h-6 rounded-full bg-gray-600/40 shrink-0" />
               <div className="flex-1 space-y-1">
                 <div className="w-16 h-2 bg-gray-500/40 rounded" />
-                <div className="w-32 h-2 bg-gray-600/30 rounded" />
+                <div className="w-full h-2 bg-gray-600/30 rounded" />
               </div>
             </div>
 
             <p className="text-xs text-gray-400 leading-relaxed mt-1">
               {t(
                 "settings:appearance.modeCozyDesc",
-                "展示完整头像与独立标题行，舒适宽松，适合日常沟通与阅读。",
+                "现代经典布局，展示用户完整头像与多行间距，适合日常沉浸式交流。",
               )}
             </p>
           </button>
@@ -283,19 +246,25 @@ export const AppearanceSettingsTab: React.FC = () => {
         </div>
       </div>
 
-      {/* 聊天字体大小 (Chat Font Scaling) */}
+      {/* 全局文字大小 (Global Font Size) */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <label className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
-            <Type className="w-4 h-4 text-[#5865f2]" />
-            <span>{t("settings:appearance.chatFontSize", "聊天字体大小")}</span>
-          </label>
+          <div className="space-y-0.5">
+            <label className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+              <Type className="w-4 h-4 text-[#5865f2]" />
+              <span>{t("settings:globalFontSize", "全局文字大小")}</span>
+            </label>
+            <p className="text-[11px] text-gray-400">
+              {t(
+                "settings:globalFontSizeDesc",
+                "按比例动态缩放全软件文字与界面排版大小（基准 13px - 20px）",
+              )}
+            </p>
+          </div>
+
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold text-white bg-[#5865f2]/20 text-[#5865f2] px-2 py-0.5 rounded-md font-mono">
-              {t("settings:appearance.fontSizePx", {
-                size: chatFontSize,
-                defaultValue: `${chatFontSize} 像素`,
-              })}
+              {chatFontSize}px
             </span>
             {chatFontSize !== 16 && (
               <button
@@ -304,13 +273,13 @@ export const AppearanceSettingsTab: React.FC = () => {
                 onClick={handleResetFontSize}
                 className="text-xs text-gray-400 hover:text-white flex items-center gap-1 transition-colors px-2 py-0.5 rounded hover:bg-white/5"
                 title={t(
-                  "settings:appearance.resetToDefault",
-                  "恢复默认 (16px)",
+                  "settings:resetFontSize",
+                  "重置默认字号 (16px)",
                 )}
               >
                 <RotateCcw className="w-3 h-3" />
                 <span>
-                  {t("settings:appearance.resetToDefault", "恢复默认 (16px)")}
+                  {t("settings:resetFontSize", "重置默认字号")}
                 </span>
               </button>
             )}
@@ -321,13 +290,14 @@ export const AppearanceSettingsTab: React.FC = () => {
         <div className="bg-[#2b2d31] p-4 sm:p-5 rounded-xl border border-white/5 space-y-4">
           <div className="relative">
             <input
+              id="global-font-size-slider"
               type="range"
-              min={12}
+              min={13}
               max={20}
               step={1}
               value={chatFontSize}
               onChange={handleFontSizeChange}
-              data-testid="chat-font-size-slider"
+              data-testid="global-font-size-slider"
               className="w-full h-2 bg-[#1e1f22] rounded-lg appearance-none cursor-pointer accent-[#5865f2]"
             />
           </div>
@@ -365,93 +335,6 @@ export const AppearanceSettingsTab: React.FC = () => {
               );
             })}
           </div>
-        </div>
-      </div>
-
-      {/* 界面视口缩放比例 (Zoom Level) */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="space-y-0.5">
-            <label className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
-              <Maximize2 className="w-4 h-4 text-[#5865f2]" />
-              <span>
-                {t("settings:appearance.zoomLevel", "客户端界面缩放")}
-              </span>
-            </label>
-            <p className="text-[11px] text-gray-400">
-              {t(
-                "settings:appearance.zoomDesc",
-                "等比缩放整个应用界面。该配置仅保存在本机设备上，不跨设备同步。",
-              )}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-white bg-[#5865f2]/20 text-[#5865f2] px-2 py-0.5 rounded-md font-mono">
-              {Math.round(zoomFactor * 100)}%
-            </span>
-            {zoomFactor !== 1.0 && (
-              <button
-                type="button"
-                data-testid="reset-zoom-btn"
-                onClick={handleResetZoom}
-                className="text-xs text-gray-400 hover:text-white flex items-center gap-1 transition-colors px-2 py-0.5 rounded hover:bg-white/5"
-                title={t("settings:appearance.resetZoom", "重置缩放 (100%)")}
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>
-                  {t("settings:appearance.resetZoom", "重置缩放 (100%)")}
-                </span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* 缩放预设网格 */}
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-          {ZOOM_PRESETS.map((factor) => {
-            const isSelected = Math.abs(zoomFactor - factor) < 0.01;
-            const isDefault = factor === 1.0;
-            return (
-              <button
-                key={factor}
-                type="button"
-                data-testid={`zoom-option-${Math.round(factor * 100)}`}
-                onClick={() => setZoomFactor(factor)}
-                className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all ${
-                  isSelected
-                    ? "bg-[#5865f2] text-white border-[#5865f2] shadow-md shadow-[#5865f2]/30 font-bold"
-                    : "bg-[#2b2d31] border-white/5 text-gray-300 hover:bg-white/5 hover:text-white"
-                }`}
-              >
-                <span className="text-sm font-mono font-semibold">
-                  {Math.round(factor * 100)}%
-                </span>
-                {isDefault && (
-                  <span
-                    className={`text-[9px] mt-0.5 px-1 rounded uppercase font-semibold ${
-                      isSelected
-                        ? "bg-white/20 text-white"
-                        : "text-gray-400 group-hover:text-white"
-                    }`}
-                  >
-                    {t("settings:appearance.defaultBadge", "默认")}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* 快捷键提示条 */}
-        <div className="bg-[#1e1f22]/70 border border-white/5 rounded-xl p-3 flex items-center gap-2.5 text-xs text-gray-400">
-          <Keyboard className="w-4 h-4 text-[#5865f2] shrink-0" />
-          <span>
-            {t(
-              "settings:appearance.shortcutHint",
-              "快捷键提示：可随时按 Ctrl + / Ctrl - 放大缩小，Ctrl 0 快速重置",
-            )}
-          </span>
         </div>
       </div>
     </div>

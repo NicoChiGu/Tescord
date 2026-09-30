@@ -283,5 +283,10 @@
   "passkeyUnsupportedNotice": "检测到当前运行环境未开启或不支持 WebAuthn 硬件凭据标准。如需体验指纹/面容免密登录，请使用现代浏览器（Chrome、Edge、Safari、Firefox）访问 Tescord Web 客户端。",
   "passkeyLoadFailed": "加载通行密钥失败",
   "passkeyOptFailed": "获取注册配置失败",
-  "passkeyVerifyFailed": "注册通行密钥失败"
+  "passkeyVerifyFailed": "注册通行密钥失败",
+  "globalFontSize": "全局文字大小",
+  "globalFontSizeDesc": "按比例动态缩放全软件文字与界面排版大小（基准 13px - 20px）",
+  "resetFontSize": "重置默认字号",
+  "myEmojis": "我的表情",
+  "myEmojisDesc": "管理您上传的个人表情包，可在任何频道或私信中自由发送"
 }

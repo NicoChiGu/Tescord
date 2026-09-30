@@ -63,16 +63,54 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
     };
   }, [attachment.id || attachment.url, retryCount]);
 
+  const rawWidth = "width" in attachment && typeof (attachment as any).width === "number" ? (attachment as any).width : undefined;
+  const rawHeight = "height" in attachment && typeof (attachment as any).height === "number" ? (attachment as any).height : undefined;
+
+  const { displayWidth, displayHeight, aspectRatio } = React.useMemo(() => {
+    const maxWidth = 380;
+    const maxHeight = 280;
+    if (rawWidth && rawHeight && rawWidth > 0 && rawHeight > 0) {
+      const ratio = rawWidth / rawHeight;
+      let w = rawWidth;
+      let h = rawHeight;
+      if (w > maxWidth) {
+        w = maxWidth;
+        h = Math.round(w / ratio);
+      }
+      if (h > maxHeight) {
+        h = maxHeight;
+        w = Math.round(h * ratio);
+      }
+      return {
+        displayWidth: Math.max(w, 80),
+        displayHeight: Math.max(h, 60),
+        aspectRatio: `${rawWidth} / ${rawHeight}`,
+      };
+    }
+    return {
+      displayWidth: 256,
+      displayHeight: 160,
+      aspectRatio: "16 / 9",
+    };
+  }, [rawWidth, rawHeight]);
+
   return (
     <div
-      style={{ contain: "layout style" }}
-      className={`relative group/att rounded-lg overflow-hidden border border-[#3f4147] max-w-sm max-h-64 min-h-[36px] w-fit h-fit bg-[#1e1f22] flex items-center justify-center select-none ${className}`}
+      style={{
+        contain: "layout style",
+        width: `${displayWidth}px`,
+        height: `${displayHeight}px`,
+        maxWidth: "100%",
+        aspectRatio,
+      }}
+      className={`relative group/att rounded-lg overflow-hidden border border-[#3f4147] bg-[#1e1f22] select-none ${className}`}
     >
-      {/* 1. 初始加载态：优雅流光骨架屏 + 微光脉冲 */}
+      {/* 1. 初始加载态：优雅流光骨架屏 + 微光脉冲 (与真实图片 1:1 像素级等比预占位) */}
       {status === "loading" && (
         <div
           data-testid="image-skeleton"
-          className="relative w-64 h-40 aspect-video max-w-full bg-[#2b2d31] animate-pulse overflow-hidden flex flex-col items-center justify-center text-discord-textMuted/40"
+          style={{ width: "100%", height: "100%" }}
+          className="relative bg-[#2b2d31] animate-pulse overflow-hidden flex flex-col items-center justify-center text-discord-textMuted/40"
         >
           {/* Shimmer 光效 */}
           <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.6s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent pointer-events-none" />
@@ -83,13 +121,13 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
         </div>
       )}
 
-      {/* 2. Token 过期静默换签中态：平滑旋转光晕环，无文字打扰 */}
+      {/* 2. Token 过期静默换签中态：平滑旋转光晕环 */}
       {status === "renewing" && (
         <div
           data-testid="image-renewing"
-          className="relative w-64 h-40 aspect-video max-w-full bg-[#232428] overflow-hidden flex items-center justify-center border border-discord-brand/30"
+          style={{ width: "100%", height: "100%" }}
+          className="relative bg-[#232428] overflow-hidden flex items-center justify-center border border-discord-brand/30"
         >
-          {/* 呼吸光环 */}
           <div className="absolute inset-0 bg-discord-brand/5 animate-pulse" />
           <div className="relative flex items-center justify-center p-3 rounded-full bg-[#2b2d31]/80 shadow-lg border border-discord-brand/40">
             <RefreshCw className="w-6 h-6 text-discord-brand animate-spin drop-shadow-[0_0_8px_rgba(88,101,242,0.5)]" />
@@ -101,7 +139,8 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
       {status === "error" && (
         <div
           data-testid="image-load-error"
-          className="w-56 h-36 bg-[#2b2d31]/90 p-3 flex flex-col items-center justify-center text-center gap-2 border border-red-500/20 rounded-lg"
+          style={{ width: "100%", height: "100%" }}
+          className="bg-[#2b2d31]/90 p-3 flex flex-col items-center justify-center text-center gap-2 border border-red-500/20"
         >
           <div className="p-2 rounded-full bg-[#1e1f22] border border-red-500/30 text-red-400/80 shadow-inner">
             <ImageOff className="w-5 h-5" />
@@ -121,7 +160,7 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
         </div>
       )}
 
-      {/* 4. 成功渲染态：平滑淡入呈现 */}
+      {/* 4. 成功渲染态：平滑淡入呈现，尺寸无缝衔接 */}
       {imageUrl && status !== "error" && (
         <button
           type="button"
@@ -142,8 +181,8 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
           }}
           className={
             status === "loaded"
-              ? "block w-fit h-fit"
-              : "absolute opacity-0 pointer-events-none"
+              ? "block w-full h-full"
+              : "absolute opacity-0 pointer-events-none w-full h-full"
           }
           aria-label={t("lightbox.previewAria", { fileName })}
         >
@@ -152,12 +191,13 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
             alt={fileName}
             loading="lazy"
             decoding="async"
+            style={{ width: "100%", height: "100%", objectFit: "contain" }}
             onLoad={() => {
               setStatus("loaded");
               onLoadSuccess?.();
             }}
             onError={() => setStatus("error")}
-            className="block max-w-full max-h-64 object-contain transition duration-200 group-hover/att:scale-105"
+            className="block transition duration-200 group-hover/att:scale-105"
           />
         </button>
       )}

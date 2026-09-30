@@ -43,5 +43,10 @@
   "WEBAUTHN_CHALLENGE_EXPIRED": "通行密匙驗證挑戰已過期，請重新嘗試",
   "WEBAUTHN_VERIFICATION_FAILED": "通行密匙簽名驗證失敗，請確保使用已綁定嘅正確裝置",
   "WEBAUTHN_CREDENTIAL_EXISTS": "該通行密匙已喺此帳號綁定，無需重複新增",
-  "WEBAUTHN_CREDENTIAL_NOT_FOUND": "搵唔到同此通行密匙匹配嘅帳號，請先喺安全設置中綁定"
+  "WEBAUTHN_CREDENTIAL_NOT_FOUND": "搵唔到同此通行密匙匹配嘅帳號，請先喺安全設置中綁定",
+  "GUILD_CREATION_RESTRICTED": "系統已限制非超級管理員建立新伺服器",
+  "EMOJI_NOT_FOUND": "找不到指定的自訂表情",
+  "EMOJI_LIMIT_REACHED": "自訂表情數量已達上限",
+  "EMOJI_NAME_INVALID": "表情名稱必須為 2-32 位的英數字或底線",
+  "EMOJI_FILE_TOO_LARGE": "表情圖片大小超出限制（GIF必須小於2MB，靜態圖必須小於1MB）"
 }

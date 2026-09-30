@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { UserStatus } from "@tescord/types";
 import { resolveServerUrl } from "../../config";
+import { StatusBadge } from "./StatusBadge.js";
 
 export interface AvatarProps {
   src?: string | null;
@@ -62,36 +63,20 @@ export const Avatar: React.FC<AvatarProps> = ({
 
   const renderStatus = () => {
     if (!showStatus || !status) return null;
-    let badgeBg = "bg-[#80848e]";
-    let content: React.ReactNode = null;
-
-    switch (status) {
-      case "ONLINE":
-        badgeBg = "bg-[#23a55a]";
-        break;
-      case "IDLE":
-        badgeBg = "bg-[#f0b232]";
-        content = (
-          <div className="w-[40%] h-[40%] bg-[#232428] rounded-full -mt-[10%] -ml-[10%]" />
-        );
-        break;
-      case "DND":
-        badgeBg = "bg-[#f23f43]";
-        content = <div className="w-[60%] h-[20%] bg-white rounded-full" />;
-        break;
-      case "OFFLINE":
-      case "INVISIBLE":
-      default:
-        badgeBg = "bg-[#232428] border-2 border-[#80848e]";
-        content = <div className="w-[30%] h-[30%] bg-[#80848e] rounded-full" />;
-        break;
-    }
+    const badgeSizes: Record<string, number> = {
+      xs: 8,
+      sm: 10,
+      md: 14,
+      lg: 16,
+      xl: 20,
+      "2xl": 24,
+      "3xl": 28,
+    };
+    const badgePixelSize = badgeSizes[size] || 14;
 
     return (
-      <div
-        className={`absolute bottom-0 right-0 rounded-full ring-[#232428] flex items-center justify-center shadow ${statusSizeClass} ${badgeBg} ${statusClassName}`}
-      >
-        {content}
+      <div className={`absolute bottom-0 right-0 z-10 ${statusClassName}`}>
+        <StatusBadge status={status} size={badgePixelSize} borderColor="#232428" />
       </div>
     );
   };

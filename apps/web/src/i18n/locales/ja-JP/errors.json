@@ -43,5 +43,10 @@
   "WEBAUTHN_CHALLENGE_EXPIRED": "パスキー認証チャレンジの有効期限が切れました。もう一度お試しください。",
   "WEBAUTHN_VERIFICATION_FAILED": "パスキー署名の検証に失敗しました。登録済みの正しいデバイスを使用していることを確認してください。",
   "WEBAUTHN_CREDENTIAL_EXISTS": "このパスキーは既にアカウントに登録されています。",
-  "WEBAUTHN_CREDENTIAL_NOT_FOUND": "このパスキーに一致するアカウントが見つかりません。先にセキュリティ設定で登録してください。"
+  "WEBAUTHN_CREDENTIAL_NOT_FOUND": "このパスキーに一致するアカウントが見つかりません。先にセキュリティ設定で登録してください。",
+  "GUILD_CREATION_RESTRICTED": "サーバーの新規作成はスーパー管理者に制限されています",
+  "EMOJI_NOT_FOUND": "指定されたカスタム絵文字が見つかりません",
+  "EMOJI_LIMIT_REACHED": "カスタム絵文字の上限に達しました",
+  "EMOJI_NAME_INVALID": "絵文字名は2〜32文字の英数字またはアンダースコアである必要があります",
+  "EMOJI_FILE_TOO_LARGE": "絵文字のファイルサイズが制限を超えています（GIFは2MB以下、静止画は1MB以下）"
 }

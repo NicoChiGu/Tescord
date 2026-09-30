@@ -27,6 +27,7 @@ import {
   Trash2,
   Loader2,
   Fingerprint,
+  Smile,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { AudioSettingsTab } from "./AudioSettingsTab.js";
@@ -34,13 +35,20 @@ import { LanguageSettingsTab } from "./LanguageSettingsTab.js";
 import { AboutUpdatesTab } from "./AboutUpdatesTab.js";
 import { SecuritySettingsTab } from "./SecuritySettingsTab.js";
 import { AppearanceSettingsTab } from "./AppearanceSettingsTab.js";
+import { UserEmojisTab } from "./UserEmojisTab.js";
 import { ProfileCardPreview } from "../profile/ProfileCardPreview.js";
 import { ImageCropModal } from "../modals/ImageCropModal.js";
 import { Avatar } from "../ui/Avatar.js";
 import { API_BASE, resolveServerUrl } from "../../config.js";
 
 export type UserSettingsTabType =
-  "profile" | "security" | "appearance" | "audio" | "language" | "updates";
+  | "profile"
+  | "security"
+  | "appearance"
+  | "emojis"
+  | "audio"
+  | "language"
+  | "updates";
 
 interface UserSettingsModalProps {
   isOpen: boolean;
@@ -189,8 +197,14 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
   };
 
   const handleUploadCropped = async (croppedBlob: Blob) => {
-    const mimeType = "image/webp";
-    const fileName = `user_avatar_${Date.now()}.webp`;
+    const rawType = (croppedBlob.type || "").toLowerCase();
+    const mimeType = rawType.includes("png")
+      ? "image/png"
+      : rawType.includes("jpeg") || rawType.includes("jpg")
+      ? "image/jpeg"
+      : "image/webp";
+    const ext = mimeType === "image/png" ? ".png" : mimeType === "image/jpeg" ? ".jpg" : ".webp";
+    const fileName = `user_avatar_${Date.now()}${ext}`;
 
     // 本地即时生成 Blob 预览，避免在点击保存前向服务端发起 GET 请求产生 404
     const localBlob = URL.createObjectURL(croppedBlob);
@@ -549,6 +563,21 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
               >
                 <Monitor className="w-3.5 h-3.5 md:w-4 md:h-4 text-white md:text-discord-brand" />
                 <span>{t("settings:appearanceTab", "外观与排版")}</span>
+              </button>
+
+              {/* 我的表情 */}
+              <button
+                type="button"
+                data-testid="tab-emojis-btn"
+                onClick={() => selectTab("emojis")}
+                className={`w-full flex items-center gap-2.5 px-3 py-3 md:px-2.5 md:py-2 rounded-lg text-sm md:text-xs font-semibold transition-colors text-left ${
+                  activeTab === "emojis"
+                    ? "bg-[#5865f2] md:bg-white/10 text-white shadow-sm md:shadow-none"
+                    : "text-gray-300 md:text-gray-400 bg-[#1e1f22]/80 md:bg-transparent hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                <Smile className="w-3.5 h-3.5 md:w-4 md:h-4 text-white md:text-discord-brand" />
+                <span>{t("settings:myEmojis", "我的表情")}</span>
               </button>
 
               {/* 语音与视频 */}
@@ -1277,6 +1306,8 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
               {activeTab === "security" && <SecuritySettingsTab />}
 
               {activeTab === "appearance" && <AppearanceSettingsTab />}
+
+              {activeTab === "emojis" && <UserEmojisTab />}
 
               {activeTab === "audio" && (
                 <AudioSettingsTab

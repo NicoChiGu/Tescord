@@ -212,5 +212,12 @@
   "voiceChannel": "Voice Channel",
   "inviteFriends": "Invite Friends",
   "inviteLink": "Invite Link",
-  "copyInviteLink": "Copy Invite Link"
+  "copyInviteLink": "Copy Invite Link",
+  "emojis": "Emojis",
+  "emojiManagement": "Server Emoji Management",
+  "uploadEmoji": "Upload Emoji",
+  "emojiUploadHint": "Supports JPEG, PNG, WebP, GIF. GIFs must be under 2MB, static images under 1MB. Recommended size 128x128 pixels.",
+  "emojiNamePlaceholder": "Emoji code (e.g. cat_dance)",
+  "deleteEmojiConfirm": "Are you sure you want to delete this emoji? This action cannot be undone.",
+  "emojiSlotsAvailable": "Emoji slots: {{count}}/50"
 }

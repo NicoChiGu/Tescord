@@ -7,6 +7,7 @@ import { useUserProfilePopoutStore } from "../stores/useUserProfilePopoutStore.j
 import { usePresenceStore } from "../stores/usePresenceStore.js";
 import { resolveServerUrl } from "../config.js";
 import { getUserDisplayName } from "../utils/userDisplay.js";
+import { StatusBadge } from "./ui/StatusBadge.js";
 
 interface MemberListProps {
   guild: Guild | null;
@@ -289,28 +290,13 @@ export const MemberList: React.FC<MemberListProps> = ({
                       alt={m.username}
                       className="w-8 h-8 rounded-full bg-[#1e1f22] object-cover"
                     />
-                    <span
-                      className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-discord-channelList ${
-                        m.status === "ONLINE"
-                          ? "bg-emerald-500"
-                          : m.status === "IDLE"
-                            ? "bg-amber-500"
-                            : m.status === "DND"
-                              ? "bg-rose-500"
-                              : m.status === "INVISIBLE" &&
-                                  m.id === currentUser.id
-                                ? "border-gray-400 bg-transparent"
-                                : "bg-gray-400"
-                      }`}
-                      title={
-                        m.status === "INVISIBLE" && m.id === currentUser.id
-                          ? t(
-                              "common:memberList.invisibleSelf",
-                              "隐身 (仅自己可见)",
-                            )
-                          : m.status
-                      }
-                    />
+                    <div className="absolute bottom-0 right-0">
+                      <StatusBadge
+                        status={m.status}
+                        size={10}
+                        borderColor="#2b2d31"
+                      />
+                    </div>
                   </div>
 
                   <div className="flex-1 min-w-0 flex flex-col justify-center">

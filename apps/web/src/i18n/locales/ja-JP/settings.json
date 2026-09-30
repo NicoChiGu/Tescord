@@ -283,5 +283,10 @@
   "passkeyUnsupportedNotice": "現在の実行環境では WebAuthn ハードウェア認証がサポートされていません。生体認証によるパスワードレスログインを利用するには、モダンブラウザ（Chrome、Edge、Safari、Firefox）から Tescord Web クライアントにアクセスしてください。",
   "passkeyLoadFailed": "パスキーの読み込みに失敗しました",
   "passkeyOptFailed": "登録オプションの取得に失敗しました",
-  "passkeyVerifyFailed": "パスキーの登録検証に失敗しました"
+  "passkeyVerifyFailed": "パスキーの登録検証に失敗しました",
+  "globalFontSize": "グローバルフォントサイズ",
+  "globalFontSizeDesc": "アプリ全体の文字およびUIレイアウトの基準サイズを調整します（13px〜20px）",
+  "resetFontSize": "フォントサイズをリセット",
+  "myEmojis": "マイ絵文字",
+  "myEmojisDesc": "すべてのチャンネルやダイレクトメッセージで自由に送信できる個人絵文字を管理します"
 }

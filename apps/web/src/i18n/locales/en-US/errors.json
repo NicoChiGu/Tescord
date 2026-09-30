@@ -43,5 +43,10 @@
   "WEBAUTHN_CHALLENGE_EXPIRED": "Passkey authentication challenge has expired. Please try again.",
   "WEBAUTHN_VERIFICATION_FAILED": "Passkey signature verification failed. Please ensure you are using the correct registered device.",
   "WEBAUTHN_CREDENTIAL_EXISTS": "This passkey is already linked to your account.",
-  "WEBAUTHN_CREDENTIAL_NOT_FOUND": "No account found matching this passkey. Please bind it in security settings first."
+  "WEBAUTHN_CREDENTIAL_NOT_FOUND": "No account found matching this passkey. Please bind it in security settings first.",
+  "GUILD_CREATION_RESTRICTED": "Server creation is restricted to Super Administrators",
+  "EMOJI_NOT_FOUND": "Custom emoji not found",
+  "EMOJI_LIMIT_REACHED": "Custom emoji limit reached",
+  "EMOJI_NAME_INVALID": "Emoji name must be 2-32 alphanumeric characters or underscores",
+  "EMOJI_FILE_TOO_LARGE": "Emoji file size exceeds limit (GIF must be under 2MB, static under 1MB)"
 }

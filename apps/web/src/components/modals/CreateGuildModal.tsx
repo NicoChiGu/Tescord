@@ -60,10 +60,27 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
   const [iconSeed, setIconSeed] = useState(() =>
     Math.random().toString(36).substring(7),
   );
-  const [isPublic, setIsPublic] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const iconUrl = useMemo(() => createIdenticon(iconSeed), [iconSeed]);
+  const [isPublic, setIsPublic] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [canCreate, setCanCreate] = useState<boolean>(true);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    if (user?.role === "SUPER_ADMIN") {
+      setCanCreate(true);
+      return;
+    }
+    fetch(`${API_BASE}/api/auth/registration-status`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && typeof data.allowNonSuperAdminCreateGuild === "boolean") {
+          setCanCreate(data.allowNonSuperAdminCreateGuild);
+        }
+      })
+      .catch(() => {});
+  }, [isOpen, user?.role]);
 
   if (!isOpen) return null;
 
@@ -192,13 +209,36 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
           </p>
         </div>
 
-        {/* 表单内容 */}
-        <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
-          {error && (
-            <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs px-3 py-2 rounded">
-              {error}
+        {/* 限制态：仅允许加入已有服务器 */}
+        {!canCreate ? (
+          <div className="px-6 py-6 space-y-4 text-center">
+            <div className="mx-auto w-12 h-12 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+              <Server className="w-6 h-6" />
             </div>
-          )}
+            <p className="text-xs text-discord-textMuted leading-relaxed">
+              {t("modals:createGuildRestrictedNotice")}
+            </p>
+            <div className="pt-2 flex justify-center">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenJoinModal();
+                }}
+                className="bg-discord-brand hover:bg-discord-brandHover text-white px-5 py-2.5 rounded font-medium text-sm transition shadow-md flex items-center space-x-2"
+              >
+                <span>{t("modals:createGuild.haveInvite")}</span>
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* 表单内容 */
+          <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
+            {error && (
+              <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs px-3 py-2 rounded">
+                {error}
+              </div>
+            )}
 
           {/* 服务器图标挑选 */}
           <div className="flex flex-col items-center justify-center space-y-2">
@@ -287,6 +327,7 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );

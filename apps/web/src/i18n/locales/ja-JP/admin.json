@@ -214,5 +214,7 @@
     "sendBroadcast": "今すぐ全網ブロードキャスト",
     "sending": "送信中...",
     "broadcastSuccess": "全オンラインユーザーに配信されました"
-  }
+  },
+  "allowNonSuperAdminCreateGuildTitle": "非スーパー管理者によるサーバー作成を許可",
+  "allowNonSuperAdminCreateGuildDesc": "有効にすると一般ユーザーもサーバーを作成できます。無効にするとスーパー管理者のみが作成可能になります（シングルサーバー運用向け）。"
 }

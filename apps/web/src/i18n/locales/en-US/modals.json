@@ -222,13 +222,13 @@
     },
     "maxUsesTitle": "Max number of uses",
     "maxUsesOptions": {
-      "unlimited": "No limit",
       "1": "1 use",
       "5": "5 uses",
       "10": "10 uses",
       "25": "25 uses",
       "50": "50 uses",
-      "100": "100 uses"
+      "100": "100 uses",
+      "unlimited": "No limit"
     },
     "temporaryTitle": "Grant temporary membership",
     "temporaryDesc": "Members are automatically kicked when they disconnect unless a role is assigned.",
@@ -285,5 +285,6 @@
       "v0_3_0_security_title": "Desktop host security update",
       "v0_3_0_security_desc": "Upgrade to Electron 41.10.6 to fix known issues with context isolation, protocol access, and sandboxing, and update build dependencies."
     }
-  }
+  },
+  "createGuildRestrictedNotice": "Server creation is restricted. You can join an existing server by entering an invite code below."
 }

@@ -212,5 +212,12 @@
   "voiceChannel": "ボイスチャンネル",
   "inviteFriends": "友達を招待",
   "inviteLink": "招待リンク",
-  "copyInviteLink": "招待リンクをコピー"
+  "copyInviteLink": "招待リンクをコピー",
+  "emojis": "絵文字",
+  "emojiManagement": "サーバー絵文字管理",
+  "uploadEmoji": "絵文字をアップロード",
+  "emojiUploadHint": "JPEG、PNG、WebP、GIFに対応。GIFは2MB以下、静止画は1MB以下、推奨サイズは128x128ピクセルです。",
+  "emojiNamePlaceholder": "絵文字コード（例: cat_dance）",
+  "deleteEmojiConfirm": "この絵文字を削除してもよろしいですか？この操作は取り消せません。",
+  "emojiSlotsAvailable": "利用可能なスロット: {{count}}/50"
 }

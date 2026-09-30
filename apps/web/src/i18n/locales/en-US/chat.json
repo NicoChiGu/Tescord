@@ -186,5 +186,17 @@
     "retry": "Click to retry",
     "originalBadge": "Original",
     "zoomBadge": "Zoom {{percent}}%"
-  }
+  },
+  "searchEmoji": "Search emojis...",
+  "emojiCategoryRecent": "Recently Used",
+  "emojiCategoryServer": "Server Emojis",
+  "emojiCategoryUser": "My Emojis",
+  "emojiCategoryPeople": "People & Smileys",
+  "emojiCategoryNature": "Animals & Nature",
+  "emojiCategoryFood": "Food & Drink",
+  "emojiCategoryActivities": "Activities",
+  "emojiCategoryTravel": "Travel & Places",
+  "emojiCategoryObjects": "Objects & Tools",
+  "emojiCategorySymbols": "Symbols",
+  "emojiCategoryFlags": "Flags"
 }

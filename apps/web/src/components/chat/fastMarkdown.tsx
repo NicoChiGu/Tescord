@@ -1,4 +1,4 @@
-import { isServerAttachmentImage } from "../../config.js";
+import { isServerAttachmentImage, resolveServerUrl } from "../../config.js";
 import React, { useState } from "react";
 import {
   AUTOLINK_CANDIDATE_REGEX,
@@ -89,6 +89,7 @@ const ITALIC_STAR_REGEX = /^\*([^\*\n]+)\*/;
 const ITALIC_UNDER_REGEX = /^_([^\_\n\s]+?)_(?![a-zA-Z0-9_\u4e00-\u9fa5])/;
 const STRIKE_REGEX = /^~~([\s\S]+?)~~/;
 const LINK_REGEX = MARKDOWN_LINK_REGEX;
+const CUSTOM_EMOJI_REGEX = /^<(a)?:([a-zA-Z0-9_]{2,32}):([a-zA-Z0-9_-]+)>/;
 
 // 行内解析器：将文本解析为 React 节点流
 function parseInline(
@@ -104,8 +105,28 @@ function parseInline(
   while (remaining.length > 0) {
     const key = `${keyPrefix}-${counter++}`;
 
+    // 0. 自定义表情 <:name:id> 或 <a:name:id>
+    let match = remaining.match(CUSTOM_EMOJI_REGEX);
+    if (match) {
+      const emojiName = match[2];
+      const emojiId = match[3];
+      nodes.push(
+        <img
+          key={key}
+          src={resolveServerUrl(`/api/custom-emojis/${emojiId}`)}
+          alt={`:${emojiName}:`}
+          title={`:${emojiName}:`}
+          className="inline-block w-6 h-6 object-contain align-middle mx-0.5 select-none hover:scale-110 transition-transform cursor-pointer"
+          loading="lazy"
+        />,
+      );
+      prevChar = remaining[match[0].length - 1];
+      remaining = remaining.slice(match[0].length);
+      continue;
+    }
+
     // 1. 行内代码 `code`
-    let match = remaining.match(CODE_INLINE_REGEX);
+    match = remaining.match(CODE_INLINE_REGEX);
     if (match) {
       nodes.push(
         <code
@@ -264,7 +285,7 @@ function parseInline(
 
     // 10. 普通文本累积
     const nextSpecialIndex = remaining.search(
-      /[`*_~|\[@]|https?:\/\/|\/attachments\//,
+      /[`*_~|\[@<]|https?:\/\/|\/attachments\//,
     );
     if (nextSpecialIndex === -1) {
       nodes.push(remaining);
@@ -300,7 +321,7 @@ function parseFastMarkdownInternal(
 
   // 极速快径 1：极简纯文本（无任何格式与特殊符号，普通蛇形命名如 foo_bar 视为纯文本）
   const hasFormatting =
-    /[`*~|\[\]>@\n]|https?:\/\/|\/attachments\//.test(content) ||
+    /[`*~|\[\]>@<\n]|https?:\/\/|\/attachments\//.test(content) ||
     /(?:^|\s)_[^\s_][^_]*[^\s_]_(?:\s|$)/.test(content);
   if (!hasFormatting) {
     return <span>{content}</span>;

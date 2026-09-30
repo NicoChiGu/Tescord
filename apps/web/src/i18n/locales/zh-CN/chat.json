@@ -186,5 +186,17 @@
     "retry": "点击重试",
     "originalBadge": "原图",
     "zoomBadge": "缩放 {{percent}}%"
-  }
+  },
+  "searchEmoji": "搜索表情...",
+  "emojiCategoryRecent": "常用表情",
+  "emojiCategoryServer": "服务器表情",
+  "emojiCategoryUser": "我的表情",
+  "emojiCategoryPeople": "人物与表情",
+  "emojiCategoryNature": "动物与自然",
+  "emojiCategoryFood": "食物与饮品",
+  "emojiCategoryActivities": "活动",
+  "emojiCategoryTravel": "旅行与地点",
+  "emojiCategoryObjects": "物体与工具",
+  "emojiCategorySymbols": "符号",
+  "emojiCategoryFlags": "旗帜"
 }

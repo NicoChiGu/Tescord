@@ -717,6 +717,8 @@ export interface Attachment {
   fileName: string;
   fileSize: number;
   mimeType: string;
+  width?: number;
+  height?: number;
 }
 
 export interface DesktopServerConfig {
@@ -1428,9 +1430,11 @@ export interface PresignedUploadRequest {
   fileName: string;
   fileSize: number;
   mimeType: string;
-  purpose?: "attachment" | "guild-icon" | "user-avatar" | "user-banner";
+  purpose?: "attachment" | "guild-icon" | "user-avatar" | "user-banner" | "custom-emoji";
   channelId?: string;
   guildId?: string;
+  width?: number;
+  height?: number;
 }
 
 export interface PresignedUploadResponse {
@@ -3155,6 +3159,7 @@ export enum ErrorCode {
   GUILD_NOT_FOUND = "GUILD_NOT_FOUND",
   GUILD_NAME_REQUIRED = "GUILD_NAME_REQUIRED",
   GUILD_PERMISSION_DENIED = "GUILD_PERMISSION_DENIED",
+  GUILD_CREATION_RESTRICTED = "GUILD_CREATION_RESTRICTED",
   GUILD_INVITE_INVALID = "GUILD_INVITE_INVALID",
   GUILD_INVITE_EXPIRED = "GUILD_INVITE_EXPIRED",
   GUILD_ALREADY_MEMBER = "GUILD_ALREADY_MEMBER",
@@ -3176,6 +3181,12 @@ export enum ErrorCode {
   FILE_TOO_LARGE = "FILE_TOO_LARGE",
   FILE_TYPE_UNSUPPORTED = "FILE_TYPE_UNSUPPORTED",
   UPLOAD_FAILED = "UPLOAD_FAILED",
+
+  // 自定义表情 (Emoji)
+  EMOJI_NOT_FOUND = "EMOJI_NOT_FOUND",
+  EMOJI_LIMIT_REACHED = "EMOJI_LIMIT_REACHED",
+  EMOJI_NAME_INVALID = "EMOJI_NAME_INVALID",
+  EMOJI_FILE_TOO_LARGE = "EMOJI_FILE_TOO_LARGE",
 
   // 语音与媒体
   VOICE_ROOM_FULL = "VOICE_ROOM_FULL",
@@ -3273,11 +3284,32 @@ export interface SystemSettingsDTO {
   requireInviteCode?: boolean;
   maintenanceMode?: boolean;
   systemAnnouncement?: string;
+  allowNonSuperAdminCreateGuild?: boolean;
 }
 
 export interface RegistrationStatusResponse {
   allowRegistration: boolean;
   requireInviteCode: boolean;
+  allowNonSuperAdminCreateGuild?: boolean;
+}
+
+export interface CustomEmoji {
+  id: string;
+  name: string;
+  imageUrl: string;
+  animated: boolean;
+  guildId?: string | null;
+  userId?: string | null;
+  createdById?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface CreateCustomEmojiDTO {
+  name: string;
+  imageUrl: string;
+  animated?: boolean;
+  guildId?: string;
 }
 
 export interface RegistrationInviteDTO {

@@ -131,6 +131,7 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
                 setIsEmojiPickerOpen(false);
                 handleReactionClick(emoji);
               }}
+              guildId={guild?.id}
             />
           </div>
         </div>

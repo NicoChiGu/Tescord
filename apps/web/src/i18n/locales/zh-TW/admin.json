@@ -214,5 +214,7 @@
     "sendBroadcast": "立即全網廣播",
     "sending": "正在發送...",
     "broadcastSuccess": "廣播已成功下發給所有線上使用者"
-  }
+  },
+  "allowNonSuperAdminCreateGuildTitle": "允許非超級管理員建立伺服器",
+  "allowNonSuperAdminCreateGuildDesc": "開啟後所有普通使用者均可建立新伺服器；關閉後僅超級管理員可建服（適合獨立單伺服器模式）"
 }

@@ -49,6 +49,7 @@ model User {
   relationships              Relationship[]       @relation("UserRelationships")
   targetedRelationships      Relationship[]       @relation("TargetUserRelationships")
   channelReadStates          ChannelReadState[]
+  customEmojis               CustomEmoji[]
 }
 
 model RefreshToken {
@@ -98,6 +99,7 @@ model Guild {
   invites     Invite[]
   bans        Ban[]
   auditLogs   AuditLog[]
+  customEmojis CustomEmoji[]
 
   @@index([ownerId])
 }
@@ -218,6 +220,8 @@ model Attachment {
   fileName  String
   fileSize  Int
   mimeType  String
+  width     Int?
+  height    Int?
   previewUrl String?
   previewSize Int?
   previewWidth Int?
@@ -402,4 +406,22 @@ model ChannelReadState {
   @@unique([userId, channelId])
   @@index([userId, guildId])
   @@index([channelId])
+}
+
+// 16. 自定义表情 (Custom Emoji)
+model CustomEmoji {
+  id          String   @id @default(cuid())
+  name        String
+  imageUrl    String
+  animated    Boolean  @default(false)
+  guildId     String?
+  guild       Guild?   @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([guildId])
+  @@index([userId])
 }

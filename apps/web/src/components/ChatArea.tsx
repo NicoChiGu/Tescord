@@ -582,6 +582,7 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
             isOpen={isEmojiPickerOpen}
             onClose={onCloseEmojiPicker}
             onSelectEmoji={(emoji: string) => onReactionAdd?.(msg.id, emoji)}
+            guildId={guild?.id}
           />
         </div>
 
@@ -1819,6 +1820,31 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
     setIsUploading(true);
     try {
+      // 0. 若为图片文件，前端本地提前测量宽高，为 1:1 骨架屏提供瞬时预占位
+      let localImageWidth: number | undefined;
+      let localImageHeight: number | undefined;
+      if (file.type?.startsWith("image/")) {
+        try {
+          const dims = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+            const img = new Image();
+            const url = URL.createObjectURL(file);
+            img.onload = () => {
+              URL.revokeObjectURL(url);
+              resolve({ width: img.naturalWidth, height: img.naturalHeight });
+            };
+            img.onerror = () => {
+              URL.revokeObjectURL(url);
+              reject();
+            };
+            img.src = url;
+          });
+          localImageWidth = dims.width;
+          localImageHeight = dims.height;
+        } catch {
+          // ignore measurement fallback
+        }
+      }
+
       // 1. 获取预签名上传链接
       const presignRes = await fetch(
         `${API_BASE}/api/attachments/presigned-url`,
@@ -1833,6 +1859,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             fileSize: file.size,
             mimeType: file.type || "application/octet-stream",
             channelId: channel.id,
+            width: localImageWidth,
+            height: localImageHeight,
           }),
         },
       );
@@ -1867,6 +1895,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         fileName: file.name,
         fileSize: file.size,
         mimeType: file.type || "application/octet-stream",
+        width: localImageWidth,
+        height: localImageHeight,
       };
 
       if (isImageMime(newAttachment.mimeType, newAttachment.fileName)) {
@@ -2720,6 +2750,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               onSelectEmoji={(emoji: string) => {
                 mentionInputRef.current?.insertText(emoji);
               }}
+              guildId={guild?.id}
             />
           </div>
 

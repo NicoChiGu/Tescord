@@ -283,5 +283,10 @@
   "passkeyUnsupportedNotice": "WebAuthn hardware credentials are not available in the current runtime environment. To experience biometric passwordless sign-in, please open Tescord Web Client in a modern browser (Chrome, Edge, Safari, Firefox).",
   "passkeyLoadFailed": "Failed to load passkeys",
   "passkeyOptFailed": "Failed to get registration options",
-  "passkeyVerifyFailed": "Failed to verify passkey registration"
+  "passkeyVerifyFailed": "Failed to verify passkey registration",
+  "globalFontSize": "Global Font Size",
+  "globalFontSizeDesc": "Scale typography and UI layout across the entire application (13px - 20px)",
+  "resetFontSize": "Reset Font Size",
+  "myEmojis": "My Emojis",
+  "myEmojisDesc": "Manage your personal emojis to use freely in any channel or direct message"
 }

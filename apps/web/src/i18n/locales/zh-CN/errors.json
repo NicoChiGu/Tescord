@@ -43,5 +43,10 @@
   "WEBAUTHN_CHALLENGE_EXPIRED": "通行密钥认证挑战已过期，请重新尝试",
   "WEBAUTHN_VERIFICATION_FAILED": "通行密钥签名验证失败，请确保使用已绑定的正确设备",
   "WEBAUTHN_CREDENTIAL_EXISTS": "该通行密钥已在此账号绑定，无需重复添加",
-  "WEBAUTHN_CREDENTIAL_NOT_FOUND": "未找到与此通行密钥匹配的账号，请先在安全设置中绑定"
+  "WEBAUTHN_CREDENTIAL_NOT_FOUND": "未找到与此通行密钥匹配的账号，请先在安全设置中绑定",
+  "GUILD_CREATION_RESTRICTED": "系统已限制非超级管理员创建新服务器",
+  "EMOJI_NOT_FOUND": "未找到指定的自定义表情",
+  "EMOJI_LIMIT_REACHED": "自定义表情数量已达到上限",
+  "EMOJI_NAME_INVALID": "表情名称必须为 2-32 位的字母、数字或下划线",
+  "EMOJI_FILE_TOO_LARGE": "表情图片大小超出限制（GIF必须小于2MB，静态图必须小于1MB）"
 }

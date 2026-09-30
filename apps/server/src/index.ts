@@ -58,6 +58,7 @@ import {
   CreateInviteDTO,
   JoinInviteDTO,
   PresignedUploadRequest,
+  CreateCustomEmojiDTO,
   AttachmentAccessRequest,
   AttachmentAccessResponse,
   PermissionFlags,
@@ -1639,6 +1640,20 @@ server.post("/api/guilds", async (request, reply) => {
     );
   }
 
+  // 校验系统建服设置：若已关闭且当前用户不是 SUPER_ADMIN，拒绝建服
+  const settingRecord = await prisma.systemSetting.findUnique({
+    where: { key: "allow_non_super_admin_create_guild" },
+  });
+  const allowNonSuperAdmin = settingRecord ? settingRecord.value !== "false" : true;
+  if (!allowNonSuperAdmin && owner.role !== "SUPER_ADMIN") {
+    return sendApiError(
+      reply,
+      403,
+      ErrorCode.GUILD_CREATION_RESTRICTED,
+      "系统已限制非超级管理员创建新服务器",
+    );
+  }
+
   const { name, iconUrl } = (request.body || {}) as CreateGuildDTO;
   if (!name || !name.trim()) {
     return sendApiError(
@@ -3135,6 +3150,205 @@ server.get("/api/guilds/:guildId/invites/active", async (request, reply) => {
   };
 });
 
+// ==================== 表情管理系统 (Emoji System) ====================
+// 获取服务器自定义表情列表
+server.get("/api/guilds/:guildId/emojis", async (request, reply) => {
+  const { guildId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) {
+    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录后查看表情");
+  }
+  const isMember = await prisma.guildMember.findUnique({
+    where: { guildId_userId: { guildId, userId } },
+  });
+  if (!isMember) {
+    return sendApiError(reply, 403, ErrorCode.FORBIDDEN, "非该服务器成员无法查看自定义表情");
+  }
+  const emojis = await prisma.customEmoji.findMany({
+    where: { guildId },
+    orderBy: { createdAt: "desc" },
+  });
+  return emojis.map((e) => ({
+    id: e.id,
+    name: e.name,
+    imageUrl: e.imageUrl,
+    animated: e.animated,
+    guildId: e.guildId,
+    userId: e.userId,
+    createdById: e.createdById,
+    createdAt: e.createdAt.toISOString(),
+  }));
+});
+
+// 获取单个自定义表情重定向至对应图片
+server.get("/api/custom-emojis/:emojiId", async (request, reply) => {
+  const { emojiId } = request.params as any;
+  const emoji = await prisma.customEmoji.findUnique({ where: { id: emojiId } });
+  if (!emoji) {
+    return sendApiError(reply, 404, ErrorCode.EMOJI_NOT_FOUND, "未找到该表情");
+  }
+  return reply.redirect(emoji.imageUrl, 302);
+});
+
+// 上传/创建服务器自定义表情
+server.post("/api/guilds/:guildId/emojis", async (request, reply) => {
+  const { guildId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) {
+    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录后上传表情");
+  }
+  const canManage = await permissionService.hasGuildPermission(
+    userId,
+    guildId,
+    PermissionFlags.MANAGE_GUILD,
+  );
+  if (!canManage) {
+    return sendApiError(reply, 403, ErrorCode.GUILD_PERMISSION_DENIED, "缺少管理服务器权限");
+  }
+  const { name, imageUrl, animated } = (request.body || {}) as CreateCustomEmojiDTO;
+  const trimmedName = String(name || "").trim();
+  if (!trimmedName || !/^[a-zA-Z0-9_]{2,32}$/.test(trimmedName)) {
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.EMOJI_NAME_INVALID,
+      "表情名称必须为 2-32 位字母、数字或下划线",
+    );
+  }
+  const currentCount = await prisma.customEmoji.count({ where: { guildId } });
+  if (currentCount >= 50) {
+    return sendApiError(reply, 400, ErrorCode.EMOJI_LIMIT_REACHED, "服务器自定义表情已达上限 (50个)");
+  }
+  const claimed = storageService.claimCustomEmoji(userId, imageUrl);
+  if (!claimed) {
+    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "表情图片未上传或凭证已失效");
+  }
+  const isAnimated = Boolean(animated || imageUrl.toLowerCase().endsWith(".gif"));
+  const emoji = await prisma.customEmoji.create({
+    data: {
+      name: trimmedName,
+      imageUrl,
+      animated: isAnimated,
+      guildId,
+      createdById: userId,
+    },
+  });
+  return {
+    id: emoji.id,
+    name: emoji.name,
+    imageUrl: emoji.imageUrl,
+    animated: emoji.animated,
+    guildId: emoji.guildId,
+    createdById: emoji.createdById,
+    createdAt: emoji.createdAt.toISOString(),
+  };
+});
+
+// 删除服务器自定义表情
+server.delete("/api/guilds/:guildId/emojis/:emojiId", async (request, reply) => {
+  const { guildId, emojiId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) {
+    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
+  }
+  const canManage = await permissionService.hasGuildPermission(
+    userId,
+    guildId,
+    PermissionFlags.MANAGE_GUILD,
+  );
+  if (!canManage) {
+    return sendApiError(reply, 403, ErrorCode.GUILD_PERMISSION_DENIED, "缺少管理服务器权限");
+  }
+  const emoji = await prisma.customEmoji.findUnique({ where: { id: emojiId } });
+  if (!emoji || emoji.guildId !== guildId) {
+    return sendApiError(reply, 404, ErrorCode.EMOJI_NOT_FOUND, "未找到该表情");
+  }
+  await prisma.customEmoji.delete({ where: { id: emojiId } });
+  return { success: true };
+});
+
+// 获取当前登录用户自己的表情
+server.get("/api/users/me/emojis", async (request, reply) => {
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) {
+    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
+  }
+  const emojis = await prisma.customEmoji.findMany({
+    where: { userId },
+    orderBy: { createdAt: "desc" },
+  });
+  return emojis.map((e) => ({
+    id: e.id,
+    name: e.name,
+    imageUrl: e.imageUrl,
+    animated: e.animated,
+    guildId: e.guildId,
+    userId: e.userId,
+    createdById: e.createdById,
+    createdAt: e.createdAt.toISOString(),
+  }));
+});
+
+// 上传/创建用户个人自定义表情
+server.post("/api/users/me/emojis", async (request, reply) => {
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) {
+    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
+  }
+  const { name, imageUrl, animated } = (request.body || {}) as CreateCustomEmojiDTO;
+  const trimmedName = String(name || "").trim();
+  if (!trimmedName || !/^[a-zA-Z0-9_]{2,32}$/.test(trimmedName)) {
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.EMOJI_NAME_INVALID,
+      "表情名称必须为 2-32 位字母、数字或下划线",
+    );
+  }
+  const currentCount = await prisma.customEmoji.count({ where: { userId } });
+  if (currentCount >= 50) {
+    return sendApiError(reply, 400, ErrorCode.EMOJI_LIMIT_REACHED, "个人自定义表情已达上限 (50个)");
+  }
+  const claimed = storageService.claimCustomEmoji(userId, imageUrl);
+  if (!claimed) {
+    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "表情图片未上传或凭证已失效");
+  }
+  const isAnimated = Boolean(animated || imageUrl.toLowerCase().endsWith(".gif"));
+  const emoji = await prisma.customEmoji.create({
+    data: {
+      name: trimmedName,
+      imageUrl,
+      animated: isAnimated,
+      userId,
+      createdById: userId,
+    },
+  });
+  return {
+    id: emoji.id,
+    name: emoji.name,
+    imageUrl: emoji.imageUrl,
+    animated: emoji.animated,
+    userId: emoji.userId,
+    createdById: emoji.createdById,
+    createdAt: emoji.createdAt.toISOString(),
+  };
+});
+
+// 删除用户个人自定义表情
+server.delete("/api/users/me/emojis/:emojiId", async (request, reply) => {
+  const { emojiId } = request.params as any;
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) {
+    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
+  }
+  const emoji = await prisma.customEmoji.findUnique({ where: { id: emojiId } });
+  if (!emoji || emoji.userId !== userId) {
+    return sendApiError(reply, 404, ErrorCode.EMOJI_NOT_FOUND, "未找到该表情");
+  }
+  await prisma.customEmoji.delete({ where: { id: emojiId } });
+  return { success: true };
+});
+
 // 生成专属邀请码 (Invite)
 server.post("/api/guilds/:guildId/invites", async (request, reply) => {
   const { guildId } = request.params as any;
@@ -4280,6 +4494,8 @@ server.get("/api/channels/:channelId/messages", async (request, reply) => {
             fileName: a.fileName,
             fileSize: a.fileSize,
             mimeType: a.mimeType,
+            width: a.width ?? a.previewWidth ?? undefined,
+            height: a.height ?? a.previewHeight ?? undefined,
           })),
         ),
         createdAt: m.createdAt.toISOString(),
@@ -4443,6 +4659,8 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
                 previewSize: a!.preview?.size,
                 previewWidth: a!.preview?.width,
                 previewHeight: a!.preview?.height,
+                width: a!.width,
+                height: a!.height,
               })),
             }
           : undefined,
@@ -4490,6 +4708,8 @@ server.post("/api/channels/:channelId/messages", async (request, reply) => {
       fileName: a.fileName,
       fileSize: a.fileSize,
       mimeType: a.mimeType,
+      width: a.width ?? a.previewWidth ?? undefined,
+      height: a.height ?? a.previewHeight ?? undefined,
     })),
   );
   const messagePayload: Message = {
@@ -5280,6 +5500,14 @@ server.post("/api/attachments/presigned-url", async (request, reply) => {
         ".gif": "image/gif",
       } as Record<string, string | undefined>
     )[path.extname(body.fileName).toLowerCase()];
+    const cleanMime = (body.mimeType || "").split(";")[0].trim().toLowerCase();
+    const isMatchingImageMime = (expected: string | undefined, actual: string) => {
+      if (!expected) return false;
+      if (expected === actual) return true;
+      if ((expected === "image/jpeg" && actual === "image/jpg") || (expected === "image/jpg" && actual === "image/jpeg")) return true;
+      return false;
+    };
+
     if (body.purpose === "guild-icon") {
       if (
         !body.guildId ||
@@ -5291,7 +5519,7 @@ server.post("/api/attachments/presigned-url", async (request, reply) => {
       ) {
         return reply.status(403).send({ error: "缺少管理服务器权限" });
       }
-      if (!publicImageMime || publicImageMime !== body.mimeType) {
+      if (!publicImageMime || !isMatchingImageMime(publicImageMime, cleanMime)) {
         return sendApiError(
           reply,
           400,
@@ -5300,7 +5528,7 @@ server.post("/api/attachments/presigned-url", async (request, reply) => {
         );
       }
     } else if (body.purpose === "user-avatar") {
-      if (!publicImageMime || publicImageMime !== body.mimeType) {
+      if (!publicImageMime || !isMatchingImageMime(publicImageMime, cleanMime)) {
         return sendApiError(
           reply,
           400,
@@ -5309,12 +5537,43 @@ server.post("/api/attachments/presigned-url", async (request, reply) => {
         );
       }
     } else if (body.purpose === "user-banner") {
-      if (!publicImageMime || publicImageMime !== body.mimeType) {
+      if (!publicImageMime || !isMatchingImageMime(publicImageMime, cleanMime)) {
         return sendApiError(
           reply,
           400,
           ErrorCode.FILE_TYPE_UNSUPPORTED,
           "不支持的用户横幅格式",
+        );
+      }
+    } else if (body.purpose === "custom-emoji") {
+      if (body.guildId) {
+        if (
+          !(await permissionService.hasGuildPermission(
+            userId,
+            body.guildId,
+            PermissionFlags.MANAGE_GUILD,
+          ))
+        ) {
+          return reply.status(403).send({ error: "缺少管理服务器权限" });
+        }
+      }
+      if (!publicImageMime || !isMatchingImageMime(publicImageMime, cleanMime)) {
+        return sendApiError(
+          reply,
+          400,
+          ErrorCode.FILE_TYPE_UNSUPPORTED,
+          "不支持的表情格式",
+        );
+      }
+      const maxEmojiSize = cleanMime === "image/gif" ? 2 * 1024 * 1024 : 1024 * 1024;
+      if (body.fileSize > maxEmojiSize) {
+        return sendApiError(
+          reply,
+          400,
+          ErrorCode.EMOJI_FILE_TOO_LARGE,
+          cleanMime === "image/gif"
+            ? "GIF表情文件过大，限制在2MB以内"
+            : "静态表情文件过大，限制在1MB以内",
         );
       }
     } else {
@@ -5479,7 +5738,8 @@ server.put("/api/attachments/upload/:fileName", async (request, reply) => {
   if (
     (scope.purpose === "guild-icon" ||
       scope.purpose === "user-avatar" ||
-      scope.purpose === "user-banner") &&
+      scope.purpose === "user-banner" ||
+      scope.purpose === "custom-emoji") &&
     !(await storageService.hasValidPublicImage(decodedFileName, buffer))
   ) {
     return sendApiError(

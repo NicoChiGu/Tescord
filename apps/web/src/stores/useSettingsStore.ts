@@ -17,15 +17,22 @@ import { useAuthStore } from "./useAuthStore.js";
 import i18n from "../i18n/index.js";
 import { getStorageAdapter } from "../services/storage/index.js";
 
-export function applyChatFontSize(fontSize: number): void {
+export function applyGlobalFontSize(fontSize: number): void {
   if (typeof document === "undefined") return;
-  const size = Math.max(12, Math.min(24, fontSize || 16));
+  const size = Math.max(13, Math.min(20, fontSize || 16));
+  // 动态调整 <html> 根字体大小，使得全站所有使用 rem 的排版统一平滑缩放
+  document.documentElement.style.fontSize = `${size}px`;
+  // 同时兼容原有 CSS 变量，确保聊天内容与全局保持绝对一致
   const lineHeightRem = (size * 1.375) / 16;
   document.documentElement.style.setProperty("--chat-font-size", `${size}px`);
   document.documentElement.style.setProperty(
     "--chat-line-height",
     `${lineHeightRem.toFixed(3)}rem`,
   );
+}
+
+export function applyChatFontSize(fontSize: number): void {
+  applyGlobalFontSize(fontSize);
 }
 
 export function applyZoomFactor(factor: number): void {
@@ -216,9 +223,9 @@ export const useSettingsStore = create<SettingsState>()(
       },
 
       setChatFontSize: (size) => {
-        const clamped = Math.max(12, Math.min(24, size || 16));
+        const clamped = Math.max(13, Math.min(20, size || 16));
         set({ chatFontSize: clamped });
-        applyChatFontSize(clamped);
+        applyGlobalFontSize(clamped);
         get().syncToCloud();
       },
 

@@ -32,6 +32,7 @@ import { usePresenceStore } from "../../stores/usePresenceStore.js";
 import { useSettingsStore } from "../../stores/useSettingsStore.js";
 import { gatewayClient } from "../../services/gateway.js";
 import { getUserDisplayName, formatUserTag } from "../../utils/userDisplay.js";
+import { StatusBadge } from "../ui/StatusBadge.js";
 
 interface UserProfilePopoutProps {
   isOpen: boolean;
@@ -375,32 +376,9 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
 
   // 状态灯辅助图标
   const renderStatusBadge = (status?: string) => {
-    const isSelfInvisible = isSelf && status === "INVISIBLE";
-    const colorClass = getStatusColor(status);
     return (
-      <div
-        className={`absolute bottom-0 right-0 w-6 h-6 rounded-full ring-[4px] ring-[#232428] flex items-center justify-center ${colorClass}`}
-        title={
-          status === "ONLINE"
-            ? "在线"
-            : status === "IDLE"
-              ? "离开"
-              : status === "DND"
-                ? "请勿打扰"
-                : isSelfInvisible
-                  ? "隐身 (仅自己可见)"
-                  : "离线"
-        }
-      >
-        {status === "DND" && (
-          <div className="w-3 h-0.5 bg-white rounded-full" />
-        )}
-        {status === "IDLE" && (
-          <div className="w-2.5 h-2.5 bg-[#232428] rounded-full -mt-0.5 -ml-0.5" />
-        )}
-        {isSelfInvisible && (
-          <div className="w-2.5 h-2.5 bg-[#232428] rounded-full" />
-        )}
+      <div className="absolute bottom-0 right-0 z-10">
+        <StatusBadge status={status} size={24} borderColor="#232428" />
       </div>
     );
   };

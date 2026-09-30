@@ -19,6 +19,7 @@ import { resolveServerUrl } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { gatewayClient } from "../../services/gateway.js";
 import { getUserDisplayName, formatUserTag } from "../../utils/userDisplay.js";
+import { StatusBadge } from "../ui/StatusBadge.js";
 
 interface CurrentUserPopoutProps {
   isOpen: boolean;
@@ -273,28 +274,9 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
 
   // 渲染头像状态指示图标
   const renderStatusBadge = (status?: string) => {
-    const isOnline = status === "ONLINE" || !status;
-    const isIdle = status === "IDLE";
-    const isDnd = status === "DND";
-    const isInvisible = status === "INVISIBLE";
-
     return (
-      <div
-        className={`absolute bottom-0 right-0 w-5 h-5 rounded-full ring-[3.5px] ring-[#232428] flex items-center justify-center ${
-          isOnline
-            ? "bg-[#23a55a]"
-            : isIdle
-              ? "bg-[#f0b232]"
-              : isDnd
-                ? "bg-[#f23f43]"
-                : "border-2 border-[#80848e] bg-[#232428]"
-        }`}
-      >
-        {isDnd && <div className="w-2.5 h-0.5 bg-white rounded-full" />}
-        {isIdle && (
-          <div className="w-2 h-2 bg-[#232428] rounded-full -mt-0.5 -ml-0.5" />
-        )}
-        {isInvisible && <div className="w-2 h-2 bg-[#232428] rounded-full" />}
+      <div className="absolute bottom-0 right-0 z-10">
+        <StatusBadge status={status} size={20} borderColor="#232428" />
       </div>
     );
   };

@@ -142,32 +142,38 @@ test.describe("外观与排版设置（Appearance, Chat Font Scaling, Cozy/Compa
     expect(resetFontSizeVar).toBe("16px");
   });
 
-  test("4. 能够选择界面缩放比例（80%~150%）并执行重置操作", async ({
+  test("4. 界面缩放功能已按要求移除，且支持全局文字大小 (13px~20px) 自由调节与重置", async ({
     page,
   }) => {
     await page.goto("/");
     await page.getByTestId("user-settings-gear-btn").click();
     await page.getByTestId("tab-appearance-btn").click();
 
-    // 点击 110% 缩放选项
-    const zoom110 = page.getByTestId("zoom-option-110");
-    await expect(zoom110).toBeVisible();
-    await zoom110.click();
-
-    // 检查 store 中的 zoomFactor
-    const zoomVal = await page.evaluate(() => {
-      return (window as any).useSettingsStore?.getState()?.zoomFactor;
-    });
-    expect(zoomVal).toBeCloseTo(1.1, 1);
-
-    // 检查重置缩放按钮
+    // 确认界面缩放选项（Zoom）已彻底移除
+    const zoomOption = page.getByTestId("zoom-option-110");
+    await expect(zoomOption).not.toBeVisible();
     const resetZoomBtn = page.getByTestId("reset-zoom-btn");
-    await expect(resetZoomBtn).toBeVisible();
-    await resetZoomBtn.click();
+    await expect(resetZoomBtn).not.toBeVisible();
 
-    const resetZoomVal = await page.evaluate(() => {
-      return (window as any).useSettingsStore?.getState()?.zoomFactor;
-    });
-    expect(resetZoomVal).toBe(1.0);
+    // 确认全局字号调节器存在
+    const slider = page.locator('input[type="range"]#global-font-size-slider');
+    await expect(slider).toBeVisible();
+
+    // 拖动滑块至 18px
+    await slider.fill("18");
+    await slider.dispatchEvent("input");
+    await slider.dispatchEvent("change");
+
+    // 验证根字体大小与 CSS 变量实时联动
+    const rootFontSize = await page.evaluate(() => document.documentElement.style.fontSize);
+    expect(rootFontSize).toBe("18px");
+
+    // 重置字号
+    const resetBtn = page.getByTestId("reset-font-size-btn");
+    await expect(resetBtn).toBeVisible();
+    await resetBtn.click();
+
+    const resetRootFontSize = await page.evaluate(() => document.documentElement.style.fontSize);
+    expect(resetRootFontSize).toBe("16px");
   });
 });

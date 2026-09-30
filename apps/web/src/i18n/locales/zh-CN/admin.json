@@ -214,5 +214,7 @@
     "sendBroadcast": "立即全网广播",
     "sending": "正在发送...",
     "broadcastSuccess": "广播已成功下发给所有在线用户"
-  }
+  },
+  "allowNonSuperAdminCreateGuildTitle": "允许非超级管理员创建服务器",
+  "allowNonSuperAdminCreateGuildDesc": "开启后所有普通用户均可创建新服务器；关闭后仅超级管理员可建服（适合独立单服务器模式）"
 }

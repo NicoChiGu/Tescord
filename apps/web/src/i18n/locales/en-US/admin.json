@@ -214,5 +214,7 @@
     "sendBroadcast": "Send Global Broadcast",
     "sending": "Sending...",
     "broadcastSuccess": "Broadcast sent to all online users"
-  }
+  },
+  "allowNonSuperAdminCreateGuildTitle": "Allow Non-Super Admins to Create Servers",
+  "allowNonSuperAdminCreateGuildDesc": "When enabled, all users can create new servers. When disabled, only Super Admins can create servers (suitable for single-server setups)."
 }

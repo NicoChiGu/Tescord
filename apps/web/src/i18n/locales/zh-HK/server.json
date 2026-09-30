@@ -212,5 +212,12 @@
   "voiceChannel": "語音頻道",
   "inviteFriends": "邀請好友",
   "inviteLink": "邀請連結",
-  "copyInviteLink": "複製邀請連結"
+  "copyInviteLink": "複製邀請連結",
+  "emojis": "表情",
+  "emojiManagement": "伺服器表情管理",
+  "uploadEmoji": "上載表情",
+  "emojiUploadHint": "支援 JPEG、PNG、WebP、GIF。GIF 大小限制在 2MB 以下，靜態圖限制在 1MB 以下，建議尺寸 128x128 像素。",
+  "emojiNamePlaceholder": "表情代碼 (如 cat_dance)",
+  "deleteEmojiConfirm": "確定要刪除此表情嗎？此操作無法還原。",
+  "emojiSlotsAvailable": "可用表情欄位: {{count}}/50"
 }

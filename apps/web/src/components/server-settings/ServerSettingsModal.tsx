@@ -11,9 +11,11 @@ import {
   FileText,
   Trash2,
   ChevronLeft,
+  Smile,
 } from "lucide-react";
 import { OverviewTab } from "./OverviewTab.js";
 import { RolesTab } from "./RolesTab.js";
+import { EmojisTab } from "./EmojisTab.js";
 import { MembersTab } from "./MembersTab.js";
 import { BansTab } from "./BansTab.js";
 import { InvitesTab } from "./InvitesTab.js";
@@ -33,7 +35,13 @@ interface ServerSettingsModalProps {
 }
 
 type TabType =
-  "overview" | "roles" | "members" | "invites" | "bans" | "audit-log";
+  | "overview"
+  | "roles"
+  | "emojis"
+  | "members"
+  | "invites"
+  | "bans"
+  | "audit-log";
 
 export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
   isOpen,
@@ -454,6 +462,18 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                   <Shield className="w-4 h-4" />
                   <span>{t("server:nav.roles")}</span>
                 </button>
+                <button
+                  data-testid="server-settings-emojis-tab"
+                  onClick={() => selectTab("emojis")}
+                  className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    activeTab === "emojis"
+                      ? "bg-white/10 text-white"
+                      : "text-gray-400 hover:bg-white/5 hover:text-white"
+                  }`}
+                >
+                  <Smile className="w-4 h-4" />
+                  <span>{t("server:emojis", { defaultValue: "表情" })}</span>
+                </button>
               </div>
 
               {/* 分组 2：用户管理 */}
@@ -591,6 +611,8 @@ export const ServerSettingsModal: React.FC<ServerSettingsModalProps> = ({
                     onUpdateGuild={handleUpdateGuild}
                   />
                 )}
+
+                {activeTab === "emojis" && <EmojisTab guild={guild} />}
 
                 {activeTab === "members" && (
                   <MembersTab

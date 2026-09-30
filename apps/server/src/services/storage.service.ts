@@ -24,9 +24,11 @@ export class StorageService {
       expiresAt: number;
       claimed: boolean;
       uploaded: boolean;
-      purpose: "attachment" | "guild-icon" | "user-avatar" | "user-banner";
+      purpose: "attachment" | "guild-icon" | "user-avatar" | "user-banner" | "custom-emoji";
       channelId?: string;
       guildId?: string;
+      width?: number;
+      height?: number;
       preview?: { url: string; size: number; width: number; height: number };
     }
   >();
@@ -227,6 +229,8 @@ export class StorageService {
     fileName: string;
     fileSize: number;
     mimeType: string;
+    width?: number;
+    height?: number;
     preview?: { url: string; size: number; width: number; height: number };
   } | null {
     const candidate = String(input.url || "").trim();
@@ -289,6 +293,8 @@ export class StorageService {
       fileName: path.basename(String(input.fileName || fileKey)).slice(0, 255),
       fileSize: grant.fileSize,
       mimeType: grant.mimeType,
+      width: grant.width,
+      height: grant.height,
       preview: grant.preview,
     };
   }
@@ -411,6 +417,35 @@ export class StorageService {
     ) {
       grant.claimed = false;
     }
+  }
+
+  public claimCustomEmoji(userId: string, fileUrl: string): boolean {
+    let key: string;
+    try {
+      const url = new URL(fileUrl, this.baseUrl);
+      if (
+        url.origin !== new URL(this.baseUrl).origin ||
+        !url.pathname.startsWith("/public-assets/")
+      )
+        return false;
+      key = decodeURIComponent(url.pathname.slice("/public-assets/".length));
+    } catch {
+      return false;
+    }
+    const grant = this.uploadGrants.get(key);
+    if (
+      !grant ||
+      !grant.uploaded ||
+      grant.claimed ||
+      grant.expiresAt < Date.now() ||
+      grant.userId !== userId ||
+      grant.purpose !== "custom-emoji" ||
+      grant.fileUrl !== fileUrl ||
+      !grant.mimeType.startsWith("image/")
+    )
+      return false;
+    grant.claimed = true;
+    return true;
   }
 
   public releasePublicAssetClaim(
@@ -564,14 +599,16 @@ export class StorageService {
     contentType: string | undefined,
   ): boolean {
     const grant = this.uploadGrants.get(fileKey);
+    if (!grant) return false;
+    const cleanContentType = (contentType || "").split(";")[0].trim().toLowerCase();
+    const cleanGrantMime = (grant.mimeType || "").split(";")[0].trim().toLowerCase();
     return Boolean(
-      grant &&
       !grant.claimed &&
       !grant.uploaded &&
       grant.expiresAt >= Date.now() &&
       grant.userId === userId &&
       grant.fileSize === size &&
-      grant.mimeType === contentType,
+      cleanGrantMime === cleanContentType,
     );
   }
 
@@ -584,24 +621,28 @@ export class StorageService {
       !grant ||
       (grant.purpose !== "guild-icon" &&
         grant.purpose !== "user-avatar" &&
-        grant.purpose !== "user-banner")
+        grant.purpose !== "user-banner" &&
+        grant.purpose !== "custom-emoji")
     ) {
       return false;
     }
-    const expectedFormat = {
+    const cleanGrantMime = (grant.mimeType || "").split(";")[0].trim().toLowerCase();
+    const expectedFormat = ({
       "image/png": "png",
       "image/jpeg": "jpeg",
+      "image/jpg": "jpeg",
       "image/webp": "webp",
       "image/gif": "gif",
-    }[grant.mimeType];
+    } as Record<string, string>)[cleanGrantMime];
     if (!expectedFormat) return false;
     try {
       const metadata = await sharp(bytes, {
         limitInputPixels: 40_000_000,
         failOn: "error",
       }).metadata();
+      const matchesFormat = metadata.format === expectedFormat;
       return Boolean(
-        metadata.format === expectedFormat && metadata.width && metadata.height,
+        matchesFormat && metadata.width && metadata.height,
       );
     } catch {
       return false;
@@ -612,7 +653,7 @@ export class StorageService {
     fileKey: string,
     userId: string,
   ): {
-    purpose: "attachment" | "guild-icon" | "user-avatar" | "user-banner";
+    purpose: "attachment" | "guild-icon" | "user-avatar" | "user-banner" | "custom-emoji";
     channelId?: string;
     guildId?: string;
   } | null {
@@ -653,6 +694,23 @@ export class StorageService {
       await fs.promises.writeFile(filePath, bytes, { flag: "wx" });
     }
     grant.uploaded = true;
+    if (
+      grant.purpose === "attachment" &&
+      /^(image\/jpeg|image\/png|image\/webp|image\/avif|image\/gif)$/i.test(grant.mimeType)
+    ) {
+      try {
+        const meta = await sharp(bytes, {
+          limitInputPixels: 40_000_000,
+          failOn: "error",
+        }).metadata();
+        if (meta.width && meta.height) {
+          grant.width = meta.width;
+          grant.height = meta.height;
+        }
+      } catch {
+        // ignore format read error
+      }
+    }
     if (
       grant.purpose === "attachment" &&
       /^(image\/jpeg|image\/png|image\/webp|image\/avif)$/i.test(grant.mimeType)
@@ -888,6 +946,8 @@ export class StorageService {
       purpose: req.purpose || "attachment",
       channelId: req.channelId,
       guildId: req.guildId,
+      width: req.width,
+      height: req.height,
     });
   }
 }

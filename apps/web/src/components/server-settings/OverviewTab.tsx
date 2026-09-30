@@ -113,8 +113,14 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   };
 
   const handleUploadCropped = async (croppedBlob: Blob) => {
-    const mimeType = "image/webp";
-    const fileName = `guild_icon_${Date.now()}.webp`;
+    const rawType = (croppedBlob.type || "").toLowerCase();
+    const mimeType = rawType.includes("png")
+      ? "image/png"
+      : rawType.includes("jpeg") || rawType.includes("jpg")
+      ? "image/jpeg"
+      : "image/webp";
+    const ext = mimeType === "image/png" ? ".png" : mimeType === "image/jpeg" ? ".jpg" : ".webp";
+    const fileName = `guild_icon_${Date.now()}${ext}`;
 
     // 本地即时生成 Blob 预览，避免在点击保存前向 CDN/服务端发起 GET 请求产生 404
     const localBlob = URL.createObjectURL(croppedBlob);
