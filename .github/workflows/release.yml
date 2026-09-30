@@ -75,7 +75,8 @@ jobs:
 
   build-desktop-windows:
     name: Build Windows Host Installer
-    runs-on: windows-latest
+    # node-gyp 11 and Electron 33 native addons use the VS 2022 toolchain.
+    runs-on: windows-2022
     needs: [verify, build-web-incremental]
     steps:
       - name: Checkout Code
@@ -203,7 +204,7 @@ jobs:
           sha256sum tescord-web-* *.exe *.dmg *.zip >> release_notes.md
           echo '```' >> release_notes.md
           echo "" >> release_notes.md
-          echo "> 💡 **更新说明**：已安装客户端的用户无需重新下载 exe/dmg，客户端启动时将自动通过 \`https://v6.gh-proxy.org/\` 代理加速下载轻量增量包秒级生效！" >> release_notes.md
+          echo "> 💡 **更新说明**：增量更新清单采用 Ed25519 签名，客户端须内置对应的验签公钥并满足最低宿主版本。未内置公钥的旧客户端请先安装本版本 exe/dmg；符合条件的客户端可在设置中检测并应用增量更新。" >> release_notes.md
 
       - name: Publish to GitHub Releases
         uses: softprops/action-gh-release@v2
