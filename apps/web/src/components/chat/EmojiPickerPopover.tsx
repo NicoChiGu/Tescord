@@ -195,7 +195,7 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
     <div
       ref={popoverRef}
       data-testid="emoji-picker-popover"
-      className="absolute bottom-full right-0 mb-2 z-50 bg-[#2b2d31] border border-[#383a40] rounded-2xl shadow-2xl w-[360px] sm:w-[420px] max-w-[90vw] h-[460px] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 select-none text-gray-200"
+      className="absolute bottom-full right-0 mb-2 z-50 bg-[#2b2d31] border border-[#383a40] rounded-2xl shadow-2xl w-[23.5rem] sm:w-[27rem] max-w-[95vw] h-[30rem] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150 select-none text-gray-200"
     >
       {/* 顶部搜索框 */}
       <div className="p-3 border-b border-[#1f2023] bg-[#232428] shrink-0">
@@ -343,7 +343,7 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
                         setHoveredEmoji({ type: "custom", item: item.item })
                       }
                       onMouseLeave={() => setHoveredEmoji(null)}
-                      className="w-9 h-9 flex items-center justify-center hover:bg-white/10 rounded-lg transition active:scale-95"
+                      className="aspect-square w-full flex items-center justify-center hover:bg-white/10 rounded-lg transition active:scale-95"
                     >
                       <img
                         src={resolveServerUrl(item.item.imageUrl)}
@@ -362,7 +362,7 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
                       setHoveredEmoji({ type: "unicode", item: item.item })
                     }
                     onMouseLeave={() => setHoveredEmoji(null)}
-                    className="w-9 h-9 flex items-center justify-center text-xl hover:bg-white/10 rounded-lg transition hover:scale-125 active:scale-95"
+                    className="aspect-square w-full flex items-center justify-center text-xl hover:bg-white/10 rounded-lg transition hover:scale-125 active:scale-95"
                   >
                     {item.item.emoji}
                   </button>
@@ -397,7 +397,7 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
                       setHoveredEmoji({ type: "custom", item: emoji })
                     }
                     onMouseLeave={() => setHoveredEmoji(null)}
-                    className="w-9 h-9 flex items-center justify-center hover:bg-white/10 rounded-lg transition active:scale-95"
+                    className="aspect-square w-full flex items-center justify-center hover:bg-white/10 rounded-lg transition active:scale-95"
                   >
                     <img
                       src={resolveServerUrl(emoji.imageUrl)}
@@ -437,7 +437,7 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
                       setHoveredEmoji({ type: "custom", item: emoji })
                     }
                     onMouseLeave={() => setHoveredEmoji(null)}
-                    className="w-9 h-9 flex items-center justify-center hover:bg-white/10 rounded-lg transition active:scale-95"
+                    className="aspect-square w-full flex items-center justify-center hover:bg-white/10 rounded-lg transition active:scale-95"
                   >
                     <img
                       src={resolveServerUrl(emoji.imageUrl)}
@@ -479,7 +479,7 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
                       setHoveredEmoji({ type: "unicode", item: emoji })
                     }
                     onMouseLeave={() => setHoveredEmoji(null)}
-                    className="w-9 h-9 flex items-center justify-center text-xl hover:bg-white/10 rounded-lg transition hover:scale-125 active:scale-95"
+                    className="aspect-square w-full flex items-center justify-center text-xl hover:bg-white/10 rounded-lg transition hover:scale-125 active:scale-95"
                   >
                     {emoji.emoji}
                   </button>

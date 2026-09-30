@@ -549,7 +549,21 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
                         : `添加反应 ${r.emoji}`
                     }
                   >
-                    <span>{r.emoji}</span>
+                    {(() => {
+                      const customMatch = r.emoji.match(/^<a?:([a-zA-Z0-9_]+):([a-zA-Z0-9_-]+)>/);
+                      if (customMatch) {
+                        const [, name, id] = customMatch;
+                        return (
+                          <img
+                            src={resolveServerUrl(`/api/custom-emojis/${id}`)}
+                            alt={name}
+                            className="w-4 h-4 object-contain inline-block shrink-0"
+                            loading="lazy"
+                          />
+                        );
+                      }
+                      return <span>{r.emoji}</span>;
+                    })()}
                     <span>{r.count}</span>
                   </button>
                 );

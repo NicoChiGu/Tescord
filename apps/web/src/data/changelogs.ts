@@ -1,8 +1,45 @@
 import { VersionChangelog } from "@tescord/types";
 
-export const CURRENT_APP_VERSION = "0.3.0";
+export const CURRENT_APP_VERSION = "0.3.1";
 
 export const BUILTIN_CHANGELOGS: VersionChangelog[] = [
+  {
+    version: "0.3.1",
+    releaseDate: "2026-10-01",
+    releaseUrl: "https://github.com/labsphaela/Tescord/releases/tag/0.3.1",
+    items: [
+      {
+        id: "custom-emoji",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_1_emoji_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_1_emoji_desc",
+      },
+      {
+        id: "status-badge",
+        category: "improvements",
+        titleKey: "modals:whatsNew.items.v0_3_1_status_badge_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_1_status_badge_desc",
+      },
+      {
+        id: "typography-zero-cls",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_1_typography_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_1_typography_desc",
+      },
+      {
+        id: "admin-guild-restrictions",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_1_admin_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_1_admin_desc",
+      },
+      {
+        id: "upload-security",
+        category: "fixes",
+        titleKey: "modals:whatsNew.items.v0_3_1_upload_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_1_upload_desc",
+      },
+    ],
+  },
   {
     version: "0.3.0",
     releaseDate: "2026-09-30",

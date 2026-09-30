@@ -3187,6 +3187,7 @@ server.get("/api/custom-emojis/:emojiId", async (request, reply) => {
   if (!emoji) {
     return sendApiError(reply, 404, ErrorCode.EMOJI_NOT_FOUND, "未找到该表情");
   }
+  reply.header("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
   return reply.redirect(emoji.imageUrl, 302);
 });
 
