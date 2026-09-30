@@ -647,9 +647,18 @@ async function loadWindowContent(
   const distPath = targetEntryPath || activeEntry.indexPath;
   const hash = isAuth ? "auth" : "main";
   const search = isAuth ? "window=auth" : "window=main";
+  // The installed host owns its deployment address across generic Web updates.
+  const fileSearch = new URLSearchParams({
+    window: isAuth ? "auth" : "main",
+    desktopServer: BUILD_CONFIG.DEFAULT_SERVER_URL || "http://localhost:3001",
+    desktopGateway:
+      BUILD_CONFIG.DEFAULT_GATEWAY_URL || "ws://localhost:3001/gateway",
+    desktopLivekit: BUILD_CONFIG.DEFAULT_LIVEKIT_URL,
+    desktopVoiceEngine: BUILD_CONFIG.DEFAULT_VOICE_ENGINE,
+  }).toString();
 
   if (app.isPackaged) {
-    win.loadFile(distPath, { hash, search });
+    win.loadFile(distPath, { hash, search: fileSearch });
   } else {
     for (const url of devUrls) {
       if (await probe(url)) {
@@ -659,7 +668,7 @@ async function loadWindowContent(
       }
     }
     if (!win || win.isDestroyed()) return;
-    win.loadFile(distPath, { hash, search });
+    win.loadFile(distPath, { hash, search: fileSearch });
   }
 }
 

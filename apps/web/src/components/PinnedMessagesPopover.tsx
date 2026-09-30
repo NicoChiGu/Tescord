@@ -11,6 +11,8 @@ import {
 } from "lucide-react";
 import { getUserDisplayName } from "../utils/userDisplay.js";
 import { resolveServerUrl } from "../config.js";
+import { ImageAttachment } from "./chat/ImageAttachment.js";
+import { InlineAttachmentEmbed } from "./chat/InlineAttachmentEmbed.js";
 
 interface PinnedMessagesPopoverProps {
   channelName: string;
@@ -185,6 +187,15 @@ export const PinnedMessagesPopover: React.FC<PinnedMessagesPopoverProps> = ({
                   </p>
                 )}
 
+                {/* 正文内嵌图片预览 */}
+                <InlineAttachmentEmbed
+                  content={rawContent}
+                  existingAttachmentUrls={
+                    new Set(msg.attachments?.map((a) => a.url) || [])
+                  }
+                  className="pl-8"
+                />
+
                 {/* 图片或附件预览 */}
                 {msg.attachments && msg.attachments.length > 0 && (
                   <div className="mt-2 pl-8 flex flex-wrap gap-2">
@@ -194,11 +205,10 @@ export const PinnedMessagesPopover: React.FC<PinnedMessagesPopoverProps> = ({
                         /\.(png|jpe?g|gif|webp|svg)$/i.test(att.fileName);
                       if (isImg) {
                         return (
-                          <img
+                          <ImageAttachment
                             key={att.id || att.url}
-                            src={att.url}
-                            alt={att.fileName}
-                            className="max-h-28 max-w-full rounded border border-[#2b2d31] object-cover"
+                            attachment={att}
+                            className="max-h-28"
                           />
                         );
                       }

@@ -1,3 +1,4 @@
+import { isServerAttachmentImage } from "../../config.js";
 import React, { useState } from "react";
 import {
   AUTOLINK_CANDIDATE_REGEX,
@@ -9,6 +10,7 @@ export { extractBalancedAutolink };
 
 export interface MarkdownContext {
   onMentionClick?: (username: string, rect: DOMRect) => void;
+  onAttachmentClick?: (url: string) => void;
   currentUsername?: string;
 }
 
@@ -141,12 +143,20 @@ function parseInline(
     // 4. Markdown 链接 [text](url)
     match = remaining.match(LINK_REGEX);
     if (match) {
+      const linkUrl = match[2];
+      const isAtt = isServerAttachmentImage(linkUrl);
       nodes.push(
         <a
           key={key}
-          href={match[2]}
+          href={linkUrl}
           target="_blank"
           rel="noopener noreferrer"
+          onClick={(e) => {
+            if (isAtt && ctx?.onAttachmentClick) {
+              e.preventDefault();
+              ctx.onAttachmentClick(linkUrl);
+            }
+          }}
           className="text-discord-brand hover:underline font-medium break-all"
         >
           {parseInline(match[1], ctx, `${key}-lnk`)}
@@ -158,16 +168,25 @@ function parseInline(
     }
 
     // 5. 纯文本自动链接 (AutoLink，支持成对括号平衡与全角标点安全剥离)
-    match = remaining.match(AUTOLINK_CANDIDATE_REGEX);
+    match =
+      remaining.match(AUTOLINK_CANDIDATE_REGEX) ||
+      remaining.match(/^(\/attachments\/[^\s<]+)/);
     if (match) {
       const validUrl = extractBalancedAutolink(match[1]);
       if (validUrl) {
+        const isAtt = isServerAttachmentImage(validUrl);
         nodes.push(
           <a
             key={key}
             href={validUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={(e) => {
+              if (isAtt && ctx?.onAttachmentClick) {
+                e.preventDefault();
+                ctx.onAttachmentClick(validUrl);
+              }
+            }}
             className="text-discord-brand hover:underline font-medium break-all"
           >
             {validUrl}
@@ -244,7 +263,9 @@ function parseInline(
     }
 
     // 10. 普通文本累积
-    const nextSpecialIndex = remaining.search(/[`*_~|\[@]|https?:\/\//);
+    const nextSpecialIndex = remaining.search(
+      /[`*_~|\[@]|https?:\/\/|\/attachments\//,
+    );
     if (nextSpecialIndex === -1) {
       nodes.push(remaining);
       break;
@@ -279,7 +300,7 @@ function parseFastMarkdownInternal(
 
   // 极速快径 1：极简纯文本（无任何格式与特殊符号，普通蛇形命名如 foo_bar 视为纯文本）
   const hasFormatting =
-    /[`*~|\[\]>@\n]|https?:\/\//.test(content) ||
+    /[`*~|\[\]>@\n]|https?:\/\/|\/attachments\//.test(content) ||
     /(?:^|\s)_[^\s_][^_]*[^\s_]_(?:\s|$)/.test(content);
   if (!hasFormatting) {
     return <span>{content}</span>;
@@ -287,7 +308,7 @@ function parseFastMarkdownInternal(
 
   // 极速快径 2：仅包含 @提及 而无多行或复杂 Markdown
   const isSimpleMentionOnly =
-    !/[`*~|\[\]>\n]|https?:\/\//.test(content) &&
+    !/[`*~|\[\]>\n]|https?:\/\/|\/attachments\//.test(content) &&
     !/(?:^|\s)_[^\s_][^_]*[^\s_]_(?:\s|$)/.test(content) &&
     content.includes("@");
   if (isSimpleMentionOnly) {
@@ -385,7 +406,10 @@ export function parseFastMarkdown(
 
   // Mention nodes close over the click handler. Reusing them across message
   // components or accounts would invoke the first renderer's stale handler.
-  if (ctx?.onMentionClick && content.includes("@")) {
+  if (
+    (ctx?.onMentionClick && content.includes("@")) ||
+    (ctx?.onAttachmentClick && content.includes("/attachments/"))
+  ) {
     return parseFastMarkdownInternal(content, ctx);
   }
 

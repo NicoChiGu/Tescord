@@ -10,7 +10,15 @@
       "env": [
         "DATABASE_PROVIDER",
         "GITHUB_REPOSITORY",
-        "UPDATE_SIGNING_PUBLIC_KEY_BASE64"
+        "UPDATE_SIGNING_PUBLIC_KEY_BASE64",
+        "BUILD_TARGET",
+        "TESCORD_SERVER_URL",
+        "TESCORD_GATEWAY_URL",
+        "TESCORD_LIVEKIT_URL",
+        "VITE_API_URL",
+        "VITE_GATEWAY_URL",
+        "VITE_LIVEKIT_URL",
+        "VITE_VOICE_ENGINE"
       ],
       "outputs": ["dist/**", ".next/**", "build/**"]
     },

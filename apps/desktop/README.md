@@ -43,21 +43,18 @@ Tescord 客户端采用**双进程强隔离**与**离线本地加载**设计：
 
 在开始编译或打包桌面客户端前，请确保开发环境满足以下要求：
 
-| 工具 / 依赖        | 最低版本要求 | 说明与用途                                              |
-| :----------------- | :----------- | :------------------------------------------------------ |
-| **Node.js**        | `>= 20.0.0`  | 推荐使用 LTS 长期支持版 (20.x 或 22.x)                  |
-| **pnpm**           | `>= 9.0.0`   | 全工程依赖管理工具，请勿使用 npm 或 yarn                |
-| **Python**         | `>= 3.8`     | `node-gyp` 编译原生 C++ 模块时的依赖                    |
-| **C++ 编译工具链** | 详见右侧     | 用于编译 `better-sqlite3` 原生模块与 `rnnoise` 降噪组件 |
+| 工具 / 依赖        | 最低版本要求 | 说明与用途                                               |
+| :----------------- | :----------- | :------------------------------------------------------- |
+| **Node.js**        | `22.x`       | 与 CI 验证环境一致                                       |
+| **pnpm**           | `11.9.0`     | 使用根目录 packageManager 指定版本，请勿使用 npm 或 yarn |
+| **Python**         | `>= 3.8`     | `node-gyp` 编译原生 C++ 模块时的依赖                     |
+| **C++ 编译工具链** | 详见右侧     | 用于编译 `better-sqlite3` 原生模块与 `rnnoise` 降噪组件  |
 
 ### 操作系统编译工具安装指导：
 
 - **Windows 操作系统**：
   - 安装 [Visual Studio 2022 社区版](https://visualstudio.microsoft.com/zh-hans/vs/)，安装时勾选 **“使用 C++ 的桌面开发”**（Desktop development with C++）；
-  - 或者以管理员身份在 PowerShell 中执行命令安装构建依赖：
-    ```powershell
-    npm install --global windows-build-tools
-    ```
+  - 同时安装 Python，并确认 Visual Studio 安装了 Windows SDK。
 - **macOS 操作系统**：
   - 终端运行命令安装 Xcode 命令行工具：
     ```bash
@@ -116,6 +113,9 @@ TESCORD_SERVER_URL="https://tescord.yourcompany.com" pnpm --filter @tescord/desk
 >
 > - `TESCORD_GATEWAY_URL`：显式指定 WebSocket Gateway 地址（默认根据 Server URL 自动派生）
 > - `TESCORD_LIVEKIT_URL`：显式指定 LiveKit 媒体服务器地址
+> - `VITE_VOICE_ENGINE`：`livekit`（默认）或 `cloudflare_realtime`；Cloudflare 部署需选择后者。
+
+安装器宿主会在加载本地页面时提供固定的服务器地址和媒体引擎；应用通用的签名 Web 增量包后仍连接原部署。HTTP 浏览器页面不会采用桌面 URL 参数。
 
 ---
 
@@ -148,7 +148,7 @@ cp apps/desktop/desktop.config.example.json apps/desktop/desktop.config.json
 | `livekitUrl` | `string` | 否     | LiveKit SFU 媒体服务地址；若省略则遵循服务端动态下发配置  | `"wss://livekit.company.com"`    |
 
 > [!NOTE]
-> `apps/desktop/desktop.config.json` 已默认被加入根目录 `.gitignore`，不用担心误将企业私有化服务器地址提交到公开代码仓库。
+> `apps/desktop/desktop.config.json` 已加入根目录 `.gitignore`。地址仍会写入构建产物和构建日志，请勿在 URL 中包含密码、令牌或其他秘密。
 
 ---
 
@@ -169,7 +169,7 @@ cp apps/desktop/desktop.config.example.json apps/desktop/desktop.config.json
 
 ### 3.5 配置解析优先级与自动推导规则
 
-构建系统解析服务器地址时，严格遵循以下**从高到低**的优先级判定：
+构建系统对 API、Gateway 和 LiveKit 三个字段分别按照以下优先级解析；进程中的单独 Gateway 配置可以覆盖文件中的 Gateway，同时保留文件中的 API 地址。非法协议、URL 凭证、查询参数、片段和非字符串配置会终止构建。
 
 ```text
 ┌─────────────────────────────────────────────────────────────┐
@@ -270,7 +270,7 @@ pnpm run dist:win
 **产物位置**：`apps/desktop/release/`
 
 - `Tescord Setup 0.3.0.exe`：全功能 NSIS 安装向导程序（支持自定义安装路径、创建桌面快捷方式与开始菜单入口）；
-- `Tescord-0.3.0-win-x64.zip`：便携免安装绿色压缩包，解压后双击 `Tescord.exe` 即可直接运行。
+- `Tescord-0.3.0-win.zip`：便携免安装压缩包，解压后双击 `Tescord.exe` 即可直接运行。
 
 #### 2. 构建 macOS 安装镜像与归档包 (DMG / Zip)
 
@@ -338,7 +338,7 @@ flowchart TD
 - **解决方案**：
   1. 确认已安装 Visual Studio 2022 并包含“使用 C++ 的桌面开发”工作负载；
   2. 确认已安装 Python 3，且可以在终端中运行 `python --version`；
-  3. 执行 `npm config set msvs_version 2022` 锁定构建工具版本。
+  3. 在 Visual Studio Installer 中确认 C++ 工具集与 Windows SDK 已安装，再重新运行 pnpm 构建。
 
 ### Q2: 启动或运行时报错 `The module '...better-sqlite3.node' was compiled against a different Node.js version`？
 

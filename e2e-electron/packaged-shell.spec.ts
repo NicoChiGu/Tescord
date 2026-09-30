@@ -27,6 +27,13 @@ test("packaged Windows app loads its bundled file UI with an isolated profile", 
       timeout: 20000,
     });
     await expect.poll(() => window.url()).toMatch(/^file:\/\//);
+    if (process.env.TESCORD_E2E_PACKAGED_SERVER_URL) {
+      const params = new URL(window.url()).searchParams;
+      expect(params.get("desktopServer")).toBe(
+        process.env.TESCORD_E2E_PACKAGED_SERVER_URL,
+      );
+      expect(params.get("desktopVoiceEngine")).toBe("cloudflare_realtime");
+    }
     await expect(window.getByTestId("auth-email-input")).toBeVisible({
       timeout: 15000,
     });

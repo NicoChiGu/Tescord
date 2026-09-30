@@ -32,6 +32,18 @@ export const BUILTIN_CHANGELOGS: VersionChangelog[] = [
         titleKey: "modals:whatsNew.items.v0_3_0_brand_title",
         descriptionKey: "modals:whatsNew.items.v0_3_0_brand_desc",
       },
+      {
+        id: "inline-media",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_0_media_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_0_media_desc",
+      },
+      {
+        id: "desktop-audio",
+        category: "improvements",
+        titleKey: "modals:whatsNew.items.v0_3_0_desktop_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_0_desktop_desc",
+      },
     ],
   },
   {

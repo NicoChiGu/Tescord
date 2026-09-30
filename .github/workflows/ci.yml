@@ -80,6 +80,11 @@ jobs:
       - name: Desktop Updater Tests
         run: pnpm test:updater
 
+      - name: Desktop Server Configuration and Inline Attachment URL Tests
+        run: |
+          node scripts/test-desktop-server-config.mjs
+          pnpm --filter @tescord/server exec tsx ../../scripts/test-attachment-token-renewal.ts
+
       - name: MinIO Stream Compatibility Tests
         run: pnpm test:minio-compat
 

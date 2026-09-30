@@ -719,14 +719,31 @@ export interface Attachment {
   mimeType: string;
 }
 
+export interface DesktopServerConfig {
+  serverUrl: string;
+  gatewayUrl: string;
+  livekitUrl: string;
+  voiceEngine: "livekit" | "cloudflare_realtime";
+}
+
+export interface FileUrlAccess {
+  fileUrl: string;
+  url: string;
+  previewUrl?: string;
+  downloadUrl?: string;
+  expiresAt: number;
+}
+
 export interface AttachmentAccessRequest {
-  attachmentIds: string[];
+  attachmentIds?: string[];
+  fileUrls?: string[];
 }
 
 export interface AttachmentAccessResponse {
   attachments: Array<
     Pick<Attachment, "id" | "url" | "previewUrl" | "downloadUrl" | "expiresAt">
   >;
+  fileUrls?: FileUrlAccess[];
 }
 
 export interface MessageReaction {

@@ -2,8 +2,19 @@ import * as ort from "onnxruntime-web/wasm";
 import { Dfn3Processor } from "../../../../packages/audio-dsp/dfn3-core.mjs";
 import { fetchVerifiedAsset } from "./verifyModelAsset.js";
 
+export type Dfn3ComparisonInput = {
+  type: "COMPARE";
+  base: string;
+  pcm: Float32Array;
+  sampleRate: number;
+};
+export type Dfn3ComparisonOutput =
+  | { type: "COMPARED"; pcm: Float32Array; processedFrames: number }
+  | { type: "ERROR"; reason: string };
 type WorkerInput =
-  { type: "START"; port: MessagePort; base: string } | { type: "STOP" };
+  | { type: "START"; port: MessagePort; base: string }
+  | Dfn3ComparisonInput
+  | { type: "STOP" };
 let port: MessagePort | null = null;
 let processor: InstanceType<typeof Dfn3Processor> | null = null;
 let stopped = false;
@@ -57,9 +68,17 @@ self.onmessage = async ({ data }: MessageEvent<WorkerInput>) => {
     self.close();
     return;
   }
-  if (data.type !== "START" || processor) return;
+  if (processor) return;
   try {
-    port = data.port;
+    if (data.type === "COMPARE") {
+      if (
+        data.sampleRate !== 48000 ||
+        !(data.pcm instanceof Float32Array) ||
+        !data.pcm.length ||
+        data.pcm.length > 48000 * 30
+      )
+        throw new Error("Invalid DFN3 comparison PCM");
+    } else port = data.port;
     const base = new URL(data.base, self.location.href);
     ort.env.wasm.wasmPaths = new URL("ort/", base).href;
     ort.env.wasm.numThreads = 1;
@@ -94,7 +113,31 @@ self.onmessage = async ({ data }: MessageEvent<WorkerInput>) => {
       new Uint8Array(stateBytes),
       12,
     );
-    port.onmessage = ({ data: frame }) => {
+    if (data.type === "COMPARE") {
+      // A recorded audition has no real-time deadline. Run the exact model
+      // sequentially so slow CPUs cannot turn scheduling gaps into silence.
+      // Include the same 600 ms tail used by the live replay for model latency.
+      const paddedLength = Math.ceil((data.pcm.length + 28800) / 512) * 512;
+      const output = new Float32Array(paddedLength);
+      for (let offset = 0; offset < paddedLength && !stopped; offset += 512) {
+        const frame = new Float32Array(512);
+        frame.set(data.pcm.subarray(offset, offset + 512));
+        const enhanced = await processor.push48k(frame);
+        output.set(enhanced, offset);
+      }
+      if (!stopped) {
+        const result: Dfn3ComparisonOutput = {
+          type: "COMPARED",
+          pcm: output,
+          processedFrames: processor.processedFrames,
+        };
+        self.postMessage(result, { transfer: [output.buffer] });
+      }
+      self.close();
+      return;
+    }
+    const streamPort = data.port;
+    streamPort.onmessage = ({ data: frame }) => {
       if (frame?.type !== "PCM" || !(frame.pcm instanceof Float32Array)) return;
       if (
         pending.length >= 16 ||
@@ -118,7 +161,7 @@ self.onmessage = async ({ data }: MessageEvent<WorkerInput>) => {
       });
       void drain();
     };
-    port.start();
+    streamPort.start();
     self.postMessage({ type: "READY" });
   } catch (error) {
     self.postMessage({ type: "ERROR", reason: String(error) });

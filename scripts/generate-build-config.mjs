@@ -155,6 +155,8 @@ export const BUILD_CONFIG = {
   DEFAULT_GATEWAY_URL: ${JSON.stringify(serverConfig.gatewayUrl || "")},
   /** 编译期固化的 LiveKit SFU 媒体服务地址 */
   DEFAULT_LIVEKIT_URL: ${JSON.stringify(serverConfig.livekitUrl || "")},
+  /** Installed host retains its media engine across Web updates. */
+  DEFAULT_VOICE_ENGINE: ${JSON.stringify(serverConfig.voiceEngine)},
   /** 固化服务器配置来源 */
   SERVER_CONFIG_SOURCE: ${JSON.stringify(serverConfig.source)},
   /** 是否启用了更新检测服务 (build 时未检测到仓库信息则为 false，此时不进行更新检测) */

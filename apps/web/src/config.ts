@@ -1,14 +1,39 @@
 // 环境与服务端连接地址配置 (支持 Web 代理与 Electron 本地 file:// 协议)
+import { isInlineAttachmentImageUrl } from "./utils/url.js";
+
+export function isServerAttachmentImage(url: string): boolean {
+  return isInlineAttachmentImageUrl(url, API_BASE || window.location.href);
+}
 export const isFileProtocol =
   typeof window !== "undefined" && window.location.protocol === "file:";
 
+const desktopParams = isFileProtocol
+  ? new URLSearchParams(window.location.search)
+  : null;
+const desktopConfig: import("@tescord/types").DesktopServerConfig | null =
+  desktopParams?.has("desktopServer")
+    ? {
+        serverUrl:
+          desktopParams.get("desktopServer") || "http://localhost:3001",
+        gatewayUrl:
+          desktopParams.get("desktopGateway") || "ws://localhost:3001/gateway",
+        livekitUrl: desktopParams.get("desktopLivekit") || "",
+        voiceEngine:
+          desktopParams.get("desktopVoiceEngine") === "cloudflare_realtime"
+            ? "cloudflare_realtime"
+            : "livekit",
+      }
+    : null;
+
 // API 基础路径：支持环境变量注入 -> Electron file:// 回退 -> 浏览器同源相对路径 (经 Vite 代理)
 export const API_BASE =
+  desktopConfig?.serverUrl ||
   import.meta.env.VITE_API_URL ||
   (isFileProtocol ? "http://localhost:3001" : "");
 
 // WebSocket Gateway 地址
 export const GATEWAY_URL =
+  desktopConfig?.gatewayUrl ||
   import.meta.env.VITE_GATEWAY_URL ||
   (isFileProtocol
     ? "ws://localhost:3001/gateway"
@@ -66,6 +91,9 @@ export function resolveServerUrl(url: string | undefined | null): string {
  * 3. 如果运行在普通局域网 HTTP 下且目标为 localhost，则自动替换为当前访问的宿主机 IP。
  */
 export function resolveLiveKitUrl(rawUrl: string | undefined | null): string {
+  if (desktopConfig) {
+    return desktopConfig.livekitUrl || rawUrl || "ws://localhost:7880";
+  }
   if (import.meta.env.VITE_LIVEKIT_URL) {
     return import.meta.env.VITE_LIVEKIT_URL;
   }
@@ -102,5 +130,6 @@ export function resolveLiveKitUrl(rawUrl: string | undefined | null): string {
  * 可选: "cloudflare_realtime" | "livekit"
  */
 export const VOICE_ENGINE =
+  desktopConfig?.voiceEngine ||
   (import.meta.env.VITE_VOICE_ENGINE as "livekit" | "cloudflare_realtime") ||
   "livekit";

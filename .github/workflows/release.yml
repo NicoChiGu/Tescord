@@ -54,7 +54,7 @@ jobs:
       - name: Build Web Bundle
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: pnpm build:web
+        run: node scripts/build-desktop-web.mjs
 
       - name: Extract Changelog & Pack Incremental Zip
         env:

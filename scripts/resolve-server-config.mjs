@@ -2,184 +2,130 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const defaultRootDir = path.resolve(__dirname, "..");
+const defaultRootDir = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "..",
+);
 
 export function loadEnvFile(envPath) {
   if (!fs.existsSync(envPath)) return {};
-  try {
-    const content = fs.readFileSync(envPath, "utf-8");
-    const env = {};
-    for (const line of content.split("\n")) {
-      const trimmed = line.trim();
-      if (!trimmed || trimmed.startsWith("#")) continue;
-      const eqIdx = trimmed.indexOf("=");
-      if (eqIdx > 0) {
-        const key = trimmed.slice(0, eqIdx).trim();
-        let val = trimmed.slice(eqIdx + 1).trim();
-        if (
-          (val.startsWith('"') && val.endsWith('"')) ||
-          (val.startsWith("'") && val.endsWith("'"))
-        ) {
-          val = val.slice(1, -1);
-        }
-        env[key] = val;
-      }
-    }
-    return env;
-  } catch (err) {
-    console.warn(
-      `[ResolveServerConfig] 读取 env 文件异常 ${envPath}:`,
-      err.message,
-    );
-    return {};
+  const env = {};
+  for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIdx = trimmed.indexOf("=");
+    if (eqIdx <= 0) continue;
+    const key = trimmed.slice(0, eqIdx).trim();
+    let val = trimmed.slice(eqIdx + 1).trim();
+    if (
+      (val.startsWith('"') && val.endsWith('"')) ||
+      (val.startsWith("'") && val.endsWith("'"))
+    )
+      val = val.slice(1, -1);
+    env[key] = val;
   }
+  return env;
 }
 
 export function loadJsonFile(jsonPath) {
   if (!fs.existsSync(jsonPath)) return {};
-  try {
-    const content = fs.readFileSync(jsonPath, "utf-8");
-    return JSON.parse(content);
-  } catch (err) {
-    console.warn(
-      `[ResolveServerConfig] 解析 JSON 文件异常 ${jsonPath}:`,
-      err.message,
-    );
-    return {};
-  }
+  const parsed = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+    throw new Error("Desktop build configuration must be an object");
+  return parsed;
 }
 
-/**
- * 将 HTTP/HTTPS 服务端基础地址推导为对应的 WebSocket Gateway 地址
- * @param {string} serverUrl
- * @returns {string}
- */
-export function deriveGatewayUrl(serverUrl) {
-  if (!serverUrl) return "";
+function validateUrl(value, protocols, field) {
+  if (typeof value !== "string") throw new Error(`${field} must be a string`);
+  const trimmed = value.trim();
+  if (!trimmed) return "";
+  let parsed;
   try {
-    const parsed = new URL(serverUrl);
-    const wsProtocol = parsed.protocol === "https:" ? "wss:" : "ws:";
-    const basePath = parsed.pathname.replace(/\/+$/, "");
-    return `${wsProtocol}//${parsed.host}${basePath}/gateway`;
+    parsed = new URL(trimmed);
   } catch {
-    const wsPrefix = serverUrl.startsWith("https://") ? "wss://" : "ws://";
-    const cleaned = serverUrl.replace(/^https?:\/\//i, "").replace(/\/+$/, "");
-    return `${wsPrefix}${cleaned}/gateway`;
+    throw new Error(`${field} must be an absolute URL`);
   }
+  if (
+    !protocols.includes(parsed.protocol) ||
+    parsed.username ||
+    parsed.password ||
+    parsed.search ||
+    parsed.hash
+  )
+    throw new Error(
+      `${field} has an unsupported protocol, credentials, query or fragment`,
+    );
+  return parsed.href.replace(/\/+$/, "");
 }
 
-/**
- * 统一解析桌面端编译期配置的服务器地址
- * @param {object} [options]
- * @param {string} [options.rootDir]
- * @param {string} [options.desktopDir]
- * @returns {{
- *   serverUrl: string,
- *   gatewayUrl: string,
- *   livekitUrl: string,
- *   source: string
- * }}
- */
+export function deriveGatewayUrl(serverUrl) {
+  const normalized = validateUrl(serverUrl, ["http:", "https:"], "serverUrl");
+  if (!normalized) return "";
+  const parsed = new URL(normalized);
+  parsed.protocol = parsed.protocol === "https:" ? "wss:" : "ws:";
+  parsed.pathname = `${parsed.pathname.replace(/\/+$/, "")}/gateway`;
+  return parsed.href;
+}
+
+/** Resolve each field independently; malformed configuration fails the build. */
 export function resolveServerConfig(options = {}) {
   const rootDir = options.rootDir || defaultRootDir;
   const desktopDir =
     options.desktopDir || path.resolve(rootDir, "apps/desktop");
-
-  let serverUrl = "";
-  let gatewayUrl = "";
-  let livekitUrl = "";
-  let source = "default (http://localhost:3001)";
-
-  // 1. 命令行/进程环境变量（最高优先级）
-  if (process.env.TESCORD_SERVER_URL || process.env.VITE_API_URL) {
-    serverUrl = (
-      process.env.TESCORD_SERVER_URL || process.env.VITE_API_URL
-    ).trim();
-    gatewayUrl = (
-      process.env.TESCORD_GATEWAY_URL ||
-      process.env.VITE_GATEWAY_URL ||
-      ""
-    ).trim();
-    livekitUrl = (
-      process.env.TESCORD_LIVEKIT_URL ||
-      process.env.VITE_LIVEKIT_URL ||
-      ""
-    ).trim();
-    source = process.env.TESCORD_SERVER_URL
-      ? "process.env.TESCORD_SERVER_URL"
-      : "process.env.VITE_API_URL";
-  }
-
-  // 2. 检查 apps/desktop/desktop.config.json
-  if (!serverUrl) {
-    const desktopConfigPath = path.resolve(desktopDir, "desktop.config.json");
-    const desktopConfig = loadJsonFile(desktopConfigPath);
-    if (desktopConfig.serverUrl || desktopConfig.apiUrl) {
-      serverUrl = (desktopConfig.serverUrl || desktopConfig.apiUrl).trim();
-      gatewayUrl = (desktopConfig.gatewayUrl || "").trim();
-      livekitUrl = (desktopConfig.livekitUrl || "").trim();
-      source = "apps/desktop/desktop.config.json";
+  const processEnv = options.env || process.env;
+  const desktopConfig = loadJsonFile(
+    path.resolve(desktopDir, "desktop.config.json"),
+  );
+  const desktopEnv = loadEnvFile(path.resolve(desktopDir, ".env"));
+  const rootEnv = loadEnvFile(path.resolve(rootDir, ".env"));
+  const sources = [
+    [processEnv, "process.env"],
+    [desktopConfig, "apps/desktop/desktop.config.json"],
+    [desktopEnv, "apps/desktop/.env"],
+    [rootEnv, "root .env"],
+  ];
+  const select = (keys) => {
+    for (const [values, source] of sources) {
+      for (const key of keys) {
+        const value = values[key];
+        if (value === undefined || value === "") continue;
+        if (typeof value !== "string")
+          throw new Error(`${key} must be a string`);
+        if (value.trim()) return { value, source: `${source}.${key}` };
+      }
     }
-  }
-
-  // 3. 检查 apps/desktop/.env
-  if (!serverUrl) {
-    const desktopEnvPath = path.resolve(desktopDir, ".env");
-    const desktopEnv = loadEnvFile(desktopEnvPath);
-    if (desktopEnv.TESCORD_SERVER_URL || desktopEnv.VITE_API_URL) {
-      serverUrl = (
-        desktopEnv.TESCORD_SERVER_URL || desktopEnv.VITE_API_URL
-      ).trim();
-      gatewayUrl = (
-        desktopEnv.TESCORD_GATEWAY_URL ||
-        desktopEnv.VITE_GATEWAY_URL ||
-        ""
-      ).trim();
-      livekitUrl = (
-        desktopEnv.TESCORD_LIVEKIT_URL ||
-        desktopEnv.VITE_LIVEKIT_URL ||
-        ""
-      ).trim();
-      source = "apps/desktop/.env";
-    }
-  }
-
-  // 4. 检查根目录 .env
-  if (!serverUrl) {
-    const rootEnvPath = path.resolve(rootDir, ".env");
-    const rootEnv = loadEnvFile(rootEnvPath);
-    if (rootEnv.TESCORD_SERVER_URL || rootEnv.VITE_API_URL) {
-      serverUrl = (rootEnv.TESCORD_SERVER_URL || rootEnv.VITE_API_URL).trim();
-      gatewayUrl = (
-        rootEnv.TESCORD_GATEWAY_URL ||
-        rootEnv.VITE_GATEWAY_URL ||
-        ""
-      ).trim();
-      livekitUrl = (
-        rootEnv.TESCORD_LIVEKIT_URL ||
-        rootEnv.VITE_LIVEKIT_URL ||
-        ""
-      ).trim();
-      source = "根目录 .env";
-    }
-  }
-
-  // 规范化处理
-  if (serverUrl) {
-    serverUrl = serverUrl.replace(/\/+$/, "");
-    if (!gatewayUrl) {
-      gatewayUrl = deriveGatewayUrl(serverUrl);
-    } else {
-      gatewayUrl = gatewayUrl.replace(/\/+$/, "");
-    }
-  }
-
+    return { value: "", source: "default (http://localhost:3001)" };
+  };
+  const server = select([
+    "TESCORD_SERVER_URL",
+    "VITE_API_URL",
+    "serverUrl",
+    "apiUrl",
+  ]);
+  const gateway = select([
+    "TESCORD_GATEWAY_URL",
+    "VITE_GATEWAY_URL",
+    "gatewayUrl",
+  ]);
+  const livekit = select([
+    "TESCORD_LIVEKIT_URL",
+    "VITE_LIVEKIT_URL",
+    "livekitUrl",
+  ]);
+  const voice = select(["VITE_VOICE_ENGINE", "voiceEngine"]);
+  const voiceEngine = voice.value || "livekit";
+  if (voiceEngine !== "livekit" && voiceEngine !== "cloudflare_realtime")
+    throw new Error("voiceEngine must be livekit or cloudflare_realtime");
+  const serverUrl = validateUrl(server.value, ["http:", "https:"], "serverUrl");
+  const gatewayUrl =
+    validateUrl(gateway.value, ["ws:", "wss:"], "gatewayUrl") ||
+    deriveGatewayUrl(serverUrl);
+  const livekitUrl = validateUrl(livekit.value, ["ws:", "wss:"], "livekitUrl");
   return {
     serverUrl,
     gatewayUrl,
     livekitUrl,
-    source,
+    voiceEngine,
+    source: server.source,
   };
 }

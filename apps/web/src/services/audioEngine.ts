@@ -16,6 +16,10 @@ import {
   wavBlob,
 } from "./audioComparison.js";
 import { useSettingsStore } from "../stores/useSettingsStore.js";
+import type {
+  Dfn3ComparisonInput,
+  Dfn3ComparisonOutput,
+} from "../workers/dfn3Worker.js";
 
 export interface ABTestResult {
   rawUrl: string;
@@ -47,6 +51,59 @@ async function verifyRnnoiseWasm(binary: ArrayBuffer): Promise<ArrayBuffer> {
   if (!RNNOISE_WASM_HASHES.has(hash))
     throw new Error("RNNoise WASM checksum mismatch");
   return binary;
+}
+
+async function processDfn3Comparison(
+  pcm: Float32Array,
+  sampleRate: number,
+  signal?: AbortSignal,
+): Promise<Float32Array> {
+  const worker = new Worker(
+    new URL("../workers/dfn3Worker.ts", import.meta.url),
+    {
+      type: "module",
+    },
+  );
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  let cancel: (() => void) | undefined;
+  try {
+    return await new Promise<Float32Array>((resolve, reject) => {
+      cancel = () => reject(new DOMException("", "AbortError"));
+      if (signal?.aborted) {
+        cancel();
+        return;
+      }
+      signal?.addEventListener("abort", cancel, { once: true });
+      timeout = setTimeout(
+        () => reject(new Error("DFN3 comparison timed out")),
+        120_000,
+      );
+      worker.onerror = (event) => reject(new Error(event.message));
+      worker.onmessage = ({ data }: MessageEvent<Dfn3ComparisonOutput>) => {
+        if (data.type === "ERROR") reject(new Error(data.reason));
+        else if (
+          data.type === "COMPARED" &&
+          data.pcm instanceof Float32Array &&
+          data.pcm.length >= pcm.length &&
+          data.processedFrames > 0
+        )
+          resolve(data.pcm);
+        else reject(new Error("Invalid DFN3 comparison output"));
+      };
+      const request: Dfn3ComparisonInput = {
+        type: "COMPARE",
+        base: new URL(import.meta.env.BASE_URL || "./", window.location.href)
+          .href,
+        pcm,
+        sampleRate,
+      };
+      worker.postMessage(request);
+    });
+  } finally {
+    if (timeout) clearTimeout(timeout);
+    if (cancel) signal?.removeEventListener("abort", cancel);
+    worker.terminate();
+  }
 }
 
 type NoiseRoute = {
@@ -1060,6 +1117,7 @@ export class AudioEngine {
     let freshRnnoise: RnnoiseWorkletNode | DtlnWorkletNode | null = null;
     let freshDtln: DtlnWorkletNode | null = null;
     let freshDfn3: Dfn3WorkletNode | null = null;
+    const offlineDfn3 = !window.electronAPI?.openAudioInferencePort;
     const addOutput = (
       mode: "raw" | "rnnoise" | "dtln" | "dfn3",
       node?: AudioNode,
@@ -1147,16 +1205,18 @@ export class AudioEngine {
         errors.dtln = String(error);
       }
       checkCancelled();
-      try {
-        await loadDfn3Worklet(context);
-        freshDfn3 = new Dfn3WorkletNode(context);
-        await freshDfn3.ready();
-        freshDfn3.onFailure = (reason) => {
-          errors.dfn3 = reason;
-        };
-        addOutput("dfn3", freshDfn3);
-      } catch (error) {
-        errors.dfn3 = String(error);
+      if (!offlineDfn3) {
+        try {
+          await loadDfn3Worklet(context);
+          freshDfn3 = new Dfn3WorkletNode(context);
+          await freshDfn3.ready();
+          freshDfn3.onFailure = (reason) => {
+            errors.dfn3 = reason;
+          };
+          addOutput("dfn3", freshDfn3);
+        } catch (error) {
+          errors.dfn3 = String(error);
+        }
       }
       checkCancelled();
       await Promise.all(
@@ -1212,6 +1272,26 @@ export class AudioEngine {
       const targetLength = Math.min(rawPcm.length, recordedPcm.length);
       const reference = rawPcm.subarray(0, targetLength);
       urls.raw = URL.createObjectURL(wavBlob(reference, sampleRate));
+      if (offlineDfn3) {
+        try {
+          const processed = await processDfn3Comparison(
+            monoPcm(recordedPcm),
+            sampleRate,
+            signal,
+          );
+          checkCancelled();
+          const lag = estimateComparisonLag(reference, processed, sampleRate);
+          urls.dfn3 = URL.createObjectURL(
+            wavBlob(
+              alignComparisonPcm(processed, lag.samples, targetLength),
+              sampleRate,
+            ),
+          );
+        } catch (error) {
+          checkCancelled();
+          errors.dfn3 = String(error);
+        }
+      }
       for (const mode of ["rnnoise", "dtln", "dfn3"] as const) {
         if (errors[mode] || !blobs[mode]?.size) continue;
         try {

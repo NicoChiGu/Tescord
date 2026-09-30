@@ -52,6 +52,7 @@ import { MobileActionSheet } from "./chat/MobileActionSheet.js";
 import { MentionInput, MentionInputHandle } from "./chat/MentionInput.js";
 import { TypingIndicator } from "./chat/TypingIndicator.js";
 import { ImageAttachment } from "./chat/ImageAttachment.js";
+import { InlineAttachmentEmbed } from "./chat/InlineAttachmentEmbed.js";
 import { FileAttachment } from "./chat/FileAttachment.js";
 import { ServerInviteEmbed } from "./chat/ServerInviteEmbed.js";
 import { PinnedMessagesPopover } from "./PinnedMessagesPopover.js";
@@ -467,10 +468,31 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
                   content={displayContent}
                   currentUsername={currentUser.username}
                   onMentionClick={onOpenProfileByName}
+                  onAttachmentClick={(url) => {
+                    const rawFileName =
+                      url.split("/attachments/")[1]?.split("?")[0] ||
+                      "image.png";
+                    setLightboxImage({
+                      id: url,
+                      url,
+                      fileName: decodeURIComponent(rawFileName),
+                      fileSize: 0,
+                      mimeType: `image/${rawFileName.split(".").pop() || "png"}`,
+                    });
+                  }}
                 />
               </div>
             )
           ) : null}
+
+          {/* 正文内嵌图片富媒体展开 (Discord Embed 风格，支持多图网格、自动换签与大图弹窗) */}
+          <InlineAttachmentEmbed
+            content={displayContent}
+            existingAttachmentUrls={
+              new Set(msg.attachments?.map((a) => a.url) || [])
+            }
+            onPreview={setLightboxImage}
+          />
 
           {/* 服务器邀请卡片 (Discord 风格) */}
           {inviteCodes.length > 0 && (
@@ -2794,10 +2816,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       <LightboxModal
         attachment={lightboxImage}
         fallbackUrl={
-          lightboxImage
-            ? pendingImageUrls[lightboxImage.id] ||
-              resolveServerUrl(lightboxImage.url)
-            : undefined
+          lightboxImage ? pendingImageUrls[lightboxImage.id] : undefined
         }
         onClose={() => setLightboxImage(null)}
       />

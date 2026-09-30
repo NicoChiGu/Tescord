@@ -1,4 +1,9 @@
-import { GatewayEvents, type Attachment } from "@tescord/types";
+import { tGlobal } from "../i18n/index.js";
+import {
+  GatewayEvents,
+  type Attachment,
+  type AttachmentAccessResponse,
+} from "@tescord/types";
 import { API_BASE, resolveServerUrl } from "../config.js";
 import { gatewayClient } from "./gateway.js";
 import { useAuthStore } from "../stores/useAuthStore.js";
@@ -100,18 +105,18 @@ async function accessFetch(attachment: Attachment): Promise<Access> {
   if (!response.ok) {
     throw new Error(
       response.status === 403 || response.status === 404
-        ? "没有权限访问此附件"
-        : "附件访问凭据获取失败",
+        ? tGlobal("errors:FORBIDDEN")
+        : tGlobal("chat:lightbox.loadFailed"),
     );
   }
   const data = (await response.json()) as { attachments: Access[] };
   const access = data.attachments.find((item) => item.id === attachment.id);
-  if (!access) throw new Error("附件已失效或不可访问");
+  if (!access) throw new Error(tGlobal("errors:NOT_FOUND"));
   if (
     useAuthStore.getState().user?.id !== expectedUserId ||
     generation !== cacheGeneration
   ) {
-    throw new Error("账号已切换，请重新加载附件");
+    throw new Error(tGlobal("errors:UNAUTHORIZED"));
   }
   accessCache.set(cacheKey(attachment, "original"), access);
   return access;
@@ -121,6 +126,15 @@ export async function getAttachmentAccess(
   attachment: Attachment,
   force = false,
 ): Promise<Access> {
+  const isUrlId =
+    typeof attachment.id === "string" &&
+    (attachment.id.startsWith("http://") ||
+      attachment.id.startsWith("https://") ||
+      attachment.id.includes("/attachments/"));
+  if (isUrlId) {
+    return getUrlAccess(attachment.url || attachment.id, force);
+  }
+
   const key = cacheKey(attachment, "original");
   if (!force) {
     const cached = accessCache.get(key);
@@ -135,31 +149,103 @@ export async function getAttachmentAccess(
   return request;
 }
 
-export async function loadAttachmentBlob(
-  attachment: Attachment,
-  variant: "preview" | "original",
+export async function getUrlAccess(
+  fileUrl: string,
+  force = false,
+): Promise<Access> {
+  const userId = useAuthStore.getState().user?.id || "guest";
+  const key = `${API_BASE}|${userId}|url:${fileUrl}|original`;
+  if (!force) {
+    const cached = accessCache.get(key);
+    if (cached && cached.expiresAt > Date.now() + 60_000) return cached;
+  }
+  const pending = accessRequests.get(key);
+  if (pending) return pending;
+
+  const request = (async () => {
+    const expectedUserId = useAuthStore.getState().user?.id;
+    const generation = cacheGeneration;
+    const execute = () =>
+      fetch(`${API_BASE}/api/attachments/access`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...useAuthStore.getState().getAuthHeaders(),
+        },
+        body: JSON.stringify({ fileUrls: [fileUrl] }),
+      });
+    let response = await execute();
+    if (
+      response.status === 401 &&
+      (await useAuthStore.getState().refreshAuth())
+    ) {
+      response = await execute();
+    }
+    if (!response.ok) {
+      throw new Error(
+        response.status === 403 || response.status === 404
+          ? tGlobal("errors:FORBIDDEN")
+          : tGlobal("chat:lightbox.loadFailed"),
+      );
+    }
+    const data = (await response.json()) as AttachmentAccessResponse;
+    const accessItem = data.fileUrls?.find((item) => item.fileUrl === fileUrl);
+    if (!accessItem) throw new Error(tGlobal("errors:NOT_FOUND"));
+    if (
+      useAuthStore.getState().user?.id !== expectedUserId ||
+      generation !== cacheGeneration
+    ) {
+      throw new Error(tGlobal("errors:UNAUTHORIZED"));
+    }
+    const access: Access = {
+      id: fileUrl,
+      url: accessItem.url,
+      previewUrl: accessItem.previewUrl,
+      downloadUrl: accessItem.downloadUrl,
+      expiresAt: accessItem.expiresAt,
+    };
+    accessCache.set(key, access);
+    return access;
+  })().finally(() => accessRequests.delete(key));
+
+  accessRequests.set(key, request);
+  return request;
+}
+
+export async function loadMediaBlob(
+  target: Attachment | string,
+  variant: "preview" | "original" = "preview",
   signal?: AbortSignal,
+  onRenewing?: () => void,
 ): Promise<Blob> {
-  const key = cacheKey(attachment, variant);
+  const isAttachmentObj = typeof target !== "string";
+  const userId = useAuthStore.getState().user?.id || "guest";
+  const key = isAttachmentObj
+    ? cacheKey(target, variant)
+    : `${API_BASE}|${userId}|url:${target}|${variant}`;
+
   const pending = signal ? undefined : blobRequests.get(key);
   if (pending) return pending;
   const request = (async () => {
     const generation = cacheGeneration;
-    let access = await getAttachmentAccess(attachment);
+    let access = isAttachmentObj
+      ? await getAttachmentAccess(target)
+      : await getUrlAccess(target);
+
     if (signal?.aborted)
       throw new DOMException("Request aborted", "AbortError");
     const cached = readBlob(key);
     if (cached) return cached;
     for (let attempt = 0; attempt < 2; attempt++) {
-      const target =
+      const targetUrl =
         variant === "preview" ? access.previewUrl || access.url : access.url;
-      const response = await fetch(resolveServerUrl(target), { signal });
+      const response = await fetch(resolveServerUrl(targetUrl), { signal });
       if (response.ok) {
         const blob = await response.blob();
         if (signal?.aborted)
           throw new DOMException("Request aborted", "AbortError");
         if (generation !== cacheGeneration)
-          throw new Error("附件权限已变更，请重新加载");
+          throw new Error(tGlobal("errors:FORBIDDEN"));
         rememberBlob(key, blob);
         return blob;
       }
@@ -167,19 +253,33 @@ export async function loadAttachmentBlob(
         attempt === 0 &&
         (response.status === 401 || response.status === 403)
       ) {
-        access = await getAttachmentAccess(attachment, true);
+        onRenewing?.();
+        access = isAttachmentObj
+          ? await getAttachmentAccess(target, true)
+          : await getUrlAccess(target, true);
         continue;
       }
       throw new Error(
-        response.status === 403 ? "附件授权已失效" : "附件加载失败",
+        response.status === 403
+          ? tGlobal("errors:FORBIDDEN")
+          : tGlobal("chat:lightbox.loadFailed"),
       );
     }
-    throw new Error("附件加载失败");
+    throw new Error(tGlobal("chat:lightbox.loadFailed"));
   })().finally(() => {
     if (!signal) blobRequests.delete(key);
   });
   if (!signal) blobRequests.set(key, request);
   return request;
+}
+
+export async function loadAttachmentBlob(
+  attachment: Attachment,
+  variant: "preview" | "original",
+  signal?: AbortSignal,
+  onRenewing?: () => void,
+): Promise<Blob> {
+  return loadMediaBlob(attachment, variant, signal, onRenewing);
 }
 
 export async function openAttachmentDownload(attachment: Attachment) {

@@ -6,6 +6,7 @@ export { Spoiler };
 export interface MarkdownRendererProps {
   content: string;
   onMentionClick?: (username: string, rect: DOMRect) => void;
+  onAttachmentClick?: (url: string) => void;
   currentUsername?: string;
   className?: string;
 }
@@ -13,15 +14,17 @@ export interface MarkdownRendererProps {
 const MarkdownRendererComponent: React.FC<MarkdownRendererProps> = ({
   content,
   onMentionClick,
+  onAttachmentClick,
   currentUsername,
   className = "",
 }) => {
   const renderedContent = useMemo(() => {
     return parseFastMarkdown(content, {
       onMentionClick,
+      onAttachmentClick,
       currentUsername,
     });
-  }, [content, onMentionClick, currentUsername]);
+  }, [content, onMentionClick, onAttachmentClick, currentUsername]);
 
   return (
     <div

@@ -4960,32 +4960,49 @@ function getAttachmentScope(request: FastifyRequest): {
 
 server.post("/api/attachments/access", async (request, reply) => {
   const userId = await getUserIdFromRequest(request);
-  if (!userId) return reply.status(401).send({ error: "需要登录" });
+  if (!userId)
+    return sendApiError(
+      reply,
+      401,
+      ErrorCode.UNAUTHORIZED,
+      ErrorCode.UNAUTHORIZED,
+    );
   const attachmentScope = getAttachmentScope(request);
   const body = request.body as AttachmentAccessRequest | undefined;
+
   if (
-    !Array.isArray(body?.attachmentIds) ||
-    body.attachmentIds.length < 1 ||
-    body.attachmentIds.length > 50 ||
-    body.attachmentIds.some(
-      (id) => typeof id !== "string" || !id || id.length > 128,
-    )
+    !body ||
+    typeof body !== "object" ||
+    (body.attachmentIds !== undefined && !Array.isArray(body.attachmentIds)) ||
+    (body.fileUrls !== undefined && !Array.isArray(body.fileUrls))
   ) {
-    return reply.status(400).send({ error: "附件 ID 列表无效" });
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.INVALID_PARAMS,
+      ErrorCode.INVALID_PARAMS,
+    );
   }
-  const ids = [...new Set(body.attachmentIds)];
-  const attachments = await prisma.attachment.findMany({
-    where: { id: { in: ids }, messageId: { not: null } },
-    include: {
-      message: { include: { channel: { include: { recipients: true } } } },
-    },
-  });
-  if (attachments.length !== ids.length)
-    return reply.status(404).send({ error: "附件不存在" });
+  const hasAttachmentIds =
+    Array.isArray(body?.attachmentIds) && body.attachmentIds.length > 0;
+  const hasFileUrls = Array.isArray(body?.fileUrls) && body.fileUrls.length > 0;
+
+  if (!hasAttachmentIds && !hasFileUrls) {
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.INVALID_PARAMS,
+      ErrorCode.INVALID_PARAMS,
+    );
+  }
+
   const allowedByChannel = new Map<string, boolean>();
-  for (const attachment of attachments) {
-    const channel = attachment.message?.channel;
-    if (!channel) return reply.status(404).send({ error: "附件不存在" });
+  const checkChannelAllowed = async (channel: {
+    id: string;
+    guildId: string | null;
+    type: string;
+    recipients: Array<{ userId: string }>;
+  }) => {
     let allowed = allowedByChannel.get(channel.id);
     if (allowed === undefined) {
       allowed = channel.guildId
@@ -5006,43 +5023,242 @@ server.post("/api/attachments/access", async (request, reply) => {
           channel.recipients.some((r) => r.userId === userId);
       allowedByChannel.set(channel.id, allowed);
     }
-    if (!allowed) return reply.status(403).send({ error: "无权读取附件" });
+    return allowed;
+  };
+
+  const response: AttachmentAccessResponse = {
+    attachments: [],
+  };
+
+  if (hasAttachmentIds) {
+    if (
+      body!.attachmentIds!.length > 50 ||
+      body!.attachmentIds!.some(
+        (id) => typeof id !== "string" || !id || id.length > 128,
+      )
+    ) {
+      return sendApiError(
+        reply,
+        400,
+        ErrorCode.INVALID_PARAMS,
+        ErrorCode.INVALID_PARAMS,
+      );
+    }
+    const ids = [...new Set(body!.attachmentIds!)];
+    const attachments = await prisma.attachment.findMany({
+      where: { id: { in: ids }, messageId: { not: null } },
+      include: {
+        message: { include: { channel: { include: { recipients: true } } } },
+      },
+    });
+    if (attachments.length !== ids.length)
+      return sendApiError(reply, 404, ErrorCode.NOT_FOUND, ErrorCode.NOT_FOUND);
+
+    for (const attachment of attachments) {
+      const channel = attachment.message?.channel;
+      if (!channel)
+        return sendApiError(
+          reply,
+          404,
+          ErrorCode.NOT_FOUND,
+          ErrorCode.NOT_FOUND,
+        );
+      const allowed = await checkChannelAllowed(channel);
+      if (!allowed)
+        return sendApiError(
+          reply,
+          403,
+          ErrorCode.FORBIDDEN,
+          ErrorCode.FORBIDDEN,
+        );
+    }
+
+    const entries = await Promise.all(
+      attachments.map(async (attachment) => {
+        const channelId = attachment.message!.channelId;
+        return {
+          id: attachment.id,
+          url: await storageService.createDownloadUrl(
+            attachment.url,
+            channelId,
+            attachmentScope,
+          ),
+          ...(attachment.previewUrl
+            ? {
+                previewUrl: await storageService.createDownloadUrl(
+                  attachment.url,
+                  channelId,
+                  attachmentScope,
+                  "preview",
+                ),
+              }
+            : {}),
+          downloadUrl: await storageService.createDownloadUrl(
+            attachment.url,
+            channelId,
+            attachmentScope,
+            "original",
+            true,
+          ),
+          expiresAt: storageService.getDownloadExpiry(),
+        };
+      }),
+    );
+    const byId = new Map(entries.map((entry) => [entry.id, entry]));
+    response.attachments = ids.map((id) => byId.get(id)!);
   }
-  const entries = await Promise.all(
-    attachments.map(async (attachment) => {
-      const channelId = attachment.message!.channelId;
-      return {
-        id: attachment.id,
-        url: await storageService.createDownloadUrl(
+
+  if (hasFileUrls) {
+    if (
+      body!.fileUrls!.length > 50 ||
+      body!.fileUrls!.some(
+        (url) => typeof url !== "string" || !url || url.length > 2048,
+      )
+    ) {
+      return sendApiError(
+        reply,
+        400,
+        ErrorCode.INVALID_PARAMS,
+        ErrorCode.INVALID_PARAMS,
+      );
+    }
+    const rawUrls = [...new Set(body!.fileUrls!)];
+    const fileUrlEntries: NonNullable<AttachmentAccessResponse["fileUrls"]> =
+      [];
+
+    for (const rawUrl of rawUrls) {
+      try {
+        let pathname = "";
+        let search = "";
+        if (rawUrl.startsWith("http://") || rawUrl.startsWith("https://")) {
+          const parsed = new URL(rawUrl);
+          const allowedOrigins = new Set([
+            new URL(process.env.SERVER_BASE_URL || "http://localhost:3001")
+              .origin,
+            ...(process.env.CORS_ORIGINS || "")
+              .split(",")
+              .filter(Boolean)
+              .map((origin) => new URL(origin.trim()).origin),
+            ...(process.env.NODE_ENV !== "production"
+              ? ["https://localhost:4173", "http://localhost:3000"]
+              : []),
+          ]);
+          if (
+            !allowedOrigins.has(parsed.origin) ||
+            parsed.username ||
+            parsed.password
+          ) {
+            return sendApiError(
+              reply,
+              400,
+              ErrorCode.INVALID_PARAMS,
+              ErrorCode.INVALID_PARAMS,
+            );
+          }
+          pathname = parsed.pathname;
+          search = parsed.search;
+        } else {
+          const [p, s] = rawUrl.split("?");
+          pathname = p;
+          search = s ? `?${s}` : "";
+        }
+
+        const match = pathname.match(/^\/attachments\/([^/?#]+)$/);
+        if (!match)
+          return sendApiError(
+            reply,
+            400,
+            ErrorCode.INVALID_PARAMS,
+            ErrorCode.INVALID_PARAMS,
+          );
+        const fileName = decodeURIComponent(match[1]);
+        if (
+          !fileName ||
+          /[\\/\x00]/.test(fileName) ||
+          fileName === "." ||
+          fileName === ".."
+        ) {
+          return sendApiError(
+            reply,
+            400,
+            ErrorCode.INVALID_PARAMS,
+            ErrorCode.INVALID_PARAMS,
+          );
+        }
+        const searchParams = new URLSearchParams(search);
+        let channelId = searchParams.get("channelId");
+
+        const attachment = await prisma.attachment.findFirst({
+          where: {
+            url: { endsWith: `/${fileName}` },
+            ...(channelId ? { message: { channelId } } : {}),
+          },
+          include: {
+            message: {
+              include: { channel: { include: { recipients: true } } },
+            },
+          },
+        });
+
+        if (!attachment || !attachment.message?.channel)
+          return sendApiError(
+            reply,
+            404,
+            ErrorCode.NOT_FOUND,
+            ErrorCode.NOT_FOUND,
+          );
+        const channel = attachment.message.channel;
+        channelId = channel.id;
+
+        const allowed = await checkChannelAllowed(channel);
+        if (!allowed)
+          return sendApiError(
+            reply,
+            403,
+            ErrorCode.FORBIDDEN,
+            ErrorCode.FORBIDDEN,
+          );
+
+        const freshUrl = await storageService.createDownloadUrl(
           attachment.url,
           channelId,
           attachmentScope,
-        ),
-        ...(attachment.previewUrl
-          ? {
-              previewUrl: await storageService.createDownloadUrl(
-                attachment.url,
-                channelId,
-                attachmentScope,
-                "preview",
-              ),
-            }
-          : {}),
-        downloadUrl: await storageService.createDownloadUrl(
+        );
+        const freshPreviewUrl = attachment.previewUrl
+          ? await storageService.createDownloadUrl(
+              attachment.url,
+              channelId,
+              attachmentScope,
+              "preview",
+            )
+          : undefined;
+        const freshDownloadUrl = await storageService.createDownloadUrl(
           attachment.url,
           channelId,
           attachmentScope,
           "original",
           true,
-        ),
-        expiresAt: storageService.getDownloadExpiry(),
-      };
-    }),
-  );
-  const byId = new Map(entries.map((entry) => [entry.id, entry]));
-  const response: AttachmentAccessResponse = {
-    attachments: ids.map((id) => byId.get(id)!),
-  };
+        );
+
+        fileUrlEntries.push({
+          fileUrl: rawUrl,
+          url: freshUrl,
+          previewUrl: freshPreviewUrl,
+          downloadUrl: freshDownloadUrl,
+          expiresAt: storageService.getDownloadExpiry(),
+        });
+      } catch {
+        return sendApiError(
+          reply,
+          400,
+          ErrorCode.INVALID_PARAMS,
+          ErrorCode.INVALID_PARAMS,
+        );
+      }
+    }
+    response.fileUrls = fileUrlEntries;
+  }
+
   reply.header("Cache-Control", "no-store");
   return response;
 });
@@ -5305,7 +5521,7 @@ async function servePrivateAttachment(
     sessionId: query.sessionId || "",
     sessionVersion: Number(query.sessionVersion),
   };
-  const sendAttachmentError = (status: number, message: string) => {
+  const sendAttachmentError = (status: number, _message: string) => {
     reply.header(
       "Cache-Control",
       "no-store, no-cache, must-revalidate, max-age=0",
@@ -5314,7 +5530,13 @@ async function servePrivateAttachment(
     reply.header("Expires", "0");
     reply.header("Cloudflare-CDN-Cache-Control", "no-store");
     reply.header("CDN-Cache-Control", "no-store");
-    return reply.status(status).send({ error: message });
+    const code =
+      status === 403
+        ? ErrorCode.FORBIDDEN
+        : status === 404
+          ? ErrorCode.NOT_FOUND
+          : ErrorCode.INTERNAL_ERROR;
+    return sendApiError(reply, status, code, code);
   };
 
   if (
@@ -5323,19 +5545,21 @@ async function servePrivateAttachment(
   ) {
     return sendAttachmentError(403, "附件访问授权无效");
   }
-  if (
-    !query.channelId ||
-    !query.signature ||
-    !storageService.verifyDownload(
-      decodedFileName,
-      query.channelId,
-      Number(query.expires),
-      query.signature,
-      scope,
-      variant,
-      download,
-    )
-  ) {
+  if (!query.channelId || !query.signature) {
+    return sendAttachmentError(403, "附件访问授权无效");
+  }
+
+  const isExactValid = storageService.verifyDownload(
+    decodedFileName,
+    query.channelId,
+    Number(query.expires),
+    query.signature,
+    scope,
+    variant,
+    download,
+  );
+
+  if (!isExactValid) {
     return sendAttachmentError(403, "附件访问授权无效或已过期");
   }
   const [user, session, attachment] = await Promise.all([

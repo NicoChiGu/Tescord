@@ -103,6 +103,16 @@ test.describe("Discord 风格图标微动效与手风琴交互专项验收", () 
     // 验证出现红色斜线指示条
     const strikeLine = deafenBtn.locator("span.bg-discord-danger.rotate-45");
     await expect(strikeLine).toBeVisible();
+    await expect
+      .poll(() =>
+        strikeLine.evaluate((element) => {
+          const matrix = new DOMMatrixReadOnly(
+            getComputedStyle(element).transform,
+          );
+          return Math.round((Math.atan2(matrix.b, matrix.a) * 180) / Math.PI);
+        }),
+      )
+      .toBe(45);
 
     // 再次点击恢复
     await deafenBtn.click();
@@ -125,5 +135,31 @@ test.describe("Discord 风格图标微动效与手风琴交互专项验收", () 
     await expect(exploreBtn).toBeVisible();
     const compassIcon = exploreBtn.locator("svg");
     await expect(compassIcon).toHaveClass(/group-hover:rotate-45/);
+  });
+
+  test("zoom entry animation preserves popup centering after completion", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const geometry = await page.evaluate(async () => {
+      const anchor = document.createElement("div");
+      anchor.style.cssText =
+        "position:fixed;left:200px;top:100px;width:100px;height:100px";
+      const popup = document.createElement("div");
+      popup.className =
+        "absolute left-1/2 -translate-x-1/2 w-64 animate-in zoom-in-95";
+      popup.style.height = "40px";
+      anchor.append(popup);
+      document.body.append(anchor);
+      await Promise.all(
+        popup.getAnimations().map((animation) => animation.finished),
+      );
+      const parent = anchor.getBoundingClientRect();
+      const child = popup.getBoundingClientRect();
+      const offset = child.x + child.width / 2 - (parent.x + parent.width / 2);
+      anchor.remove();
+      return offset;
+    });
+    expect(Math.abs(geometry)).toBeLessThan(1);
   });
 });

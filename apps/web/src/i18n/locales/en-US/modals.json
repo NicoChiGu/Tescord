@@ -277,7 +277,11 @@
       "v0_2_0_perf_title": "Virtual Message List & Local SQLite Optimizations",
       "v0_2_0_perf_desc": "Sub-millisecond loading of massive chat message histories and full-text search with significantly reduced RAM and CPU usage.",
       "v0_2_0_fix_audio_title": "Audio Device Switching & Channel Reset Fixes",
-      "v0_2_0_fix_audio_desc": "Improved device plug-and-play handling across multi-soundcard setups, eliminating audio mixing anomalies and resource leaks."
+      "v0_2_0_fix_audio_desc": "Improved device plug-and-play handling across multi-soundcard setups, eliminating audio mixing anomalies and resource leaks.",
+      "v0_3_0_media_title": "Image attachments and interactions",
+      "v0_3_0_media_desc": "Preview inline image links, open the lightbox, and renew access after permission checks. Channels and controls gain interaction animations.",
+      "v0_3_0_desktop_title": "Desktop connections and audio fixes",
+      "v0_3_0_desktop_desc": "Configure server addresses at build time, fix local resource loading in installations and incremental updates, and improve four-track denoising comparisons."
     }
   }
 }

@@ -23,7 +23,7 @@
 
 **Tescord** 是一个专注于**本地私有化部署、离线自治、高性能音视频通信与端到端加密**的跨端即时协作平台（Web / Electron 桌面端）。系统深度还原 Discord 经典交互体验，提供文字频道、富文本即时通讯、1v1 呼叫、公会多人实时语音、4K 60fps 超清屏幕分享直播、深度学习神经网络降噪（RNNoise / DTLN / DFN3）以及严格的 SFrame WebRTC 端到端加密（E2EE）安全体系。
 
-无论是自建团队内部协作基础设施、局域网私网开黑，还是高安全敏感环境，Tescord 均可在 100% 无公网外部商业 SaaS 依赖的环境下安全自治运行。
+自建模式使用 LiveKit、Coturn、MinIO 与本地降噪模型，可在局域网或自主服务器运行。Cloudflare 模式依赖 Cloudflare Realtime 与 Tunnel 服务，需要外网连接及对应凭证。
 
 ---
 
@@ -35,7 +35,7 @@
   - 高保真支持粗体（`**`）、斜体（`*`）、下划线（`__`）、删除线（`~~`）、行内代码与多行语法高亮代码块。
   - **Discord 经典剧透黑条 (`||spoiler||`)**：默认遮蔽敏感文字与图片，点击翻转查看，再次点击重新遮蔽。
   - **@提及胶囊 (@Mentions)**：高亮展示 `@username`、`@everyone`、`@here`；点击胶囊即可呼出个人悬浮资料卡片。
-  - **AST 编译缓存加速**：静态 Tokenizer 规避重复正则计算，保障万级长消息列表滚动流畅达 60 FPS。
+  - **AST 编译缓存加速**：静态 Tokenizer 减少重复解析；长消息列表使用虚拟滚动，实际帧率取决于设备和消息内容。
 - **TipTap 风格浮动气泡工具栏 (Bubble Menu)**：
   - 选中文本后自动浮现 8 大常用格式快捷按钮；移动端输入框顶部自适应吸附横向滚动格式栏。
 - **URL 智能提取与服务器邀请卡片内嵌 (`ServerInviteEmbed`)**：
@@ -86,7 +86,7 @@
 - **高可用容灾熔断降级链**：DFN3/DTLN 运行异常时秒级自动平滑降级至 RNNoise，再降级至直通，保证通话不间断。
 - **QuadTrack 四轨录音对齐与 A/B/C/D 实时对比试听**：
   - 本地录制 5 秒音频，底层实例并行生成 4 轨音频，基于能量包络相关对齐起始时间轴，无缝切换对比试听与波形呈现。
-- **高保真立体声模式 (High-Fidelity Stereo)**：突破传统语音限制，支持高达 510kbps 双声道无损传输。
+- **高保真立体声模式 (High-Fidelity Stereo)**：提供双声道与音频码率配置，实际使用 Opus 有损编码；收发码率和声道数以媒体统计及设备能力为准。
 - **语音输入模式**：VAD（语音感应激活，附带实时音量电平表与阈值调节）与 PTT（按键说话，按键捕获与松手延迟调节）。
 - **音频打断自动恢复横幅 (`AudioInterruptedBanner`)**：应对浏览器 Autoplay Policy 造成的 AudioContext 挂起，一键快速恢复。
 
@@ -99,7 +99,7 @@
   - 登录阶段呈现居中且紧凑的小窗（480x640）；
   - 登录成功后平滑切换至 1280x800 全功能主工作区，并自动持久化窗口位置与尺寸。
 - **系统托盘与动态未读角标**：
-  - 任务栏托盘实时指示用户状态（在线绿点、离开黄点、勿扰红点、离线灰点）；
+  - 托盘菜单同步在线、离开、勿扰、隐身状态；
   - 出现未读消息或提及通知时，托盘图标自动点亮红点剪影角标（`tray-badge.png`）。
 - **Windows 原生通知与快捷定位**：
   - 注册专属 `AppUserModelId`，系统 Toast 通知携带频道/公会元数据，点击直接精准唤醒并切入目标频道。
@@ -110,7 +110,7 @@
 - **独立子进程神经网络音频推理**：
   - 基于 Electron `utilityProcess.fork` 将 AI 降噪运算隔离在专属独立子进程中，通过 `MessagePort` 进行轻量二进制 PCM 帧直传，彻底规避界面渲染卡顿。
 - **离线持久化存储架构**：
-  - 桌面专用驱动 (`ElectronSqliteStorageAdapter`)：基于独立 Worker 线程的本地 SQLite，关键 Token 依托系统级 `safeStorage`（Windows DPAPI / macOS Keychain）硬件级加密；
+  - 桌面专用驱动 (`ElectronSqliteStorageAdapter`)：基于独立 Worker 线程的本地 SQLite，关键 Token 依托系统级 `safeStorage`（Windows DPAPI / macOS Keychain）加密；
   - Web 端专用驱动 (`IndexedDBStorageAdapter`)：依托浏览器 IndexedDB 缓存历史消息。
 - **安全自动更新机制 (`UpdateManager`)**：
   - 具备优雅的启动屏加载动画（Splash Screen），支持 SHA-256 完整性校验与防 Zip Slip 路径穿越解压防护。
@@ -217,8 +217,8 @@ Tescord/
 
 ### 1. 环境准备
 
-- **Node.js**: `>= 20.0.0`
-- **pnpm**: `>= 9.0.0` (推荐 `pnpm@11`)
+- **Node.js**: `22.x`（与 CI 验证环境一致）
+- **pnpm**: `11.9.0`（根目录 `packageManager` 指定版本）
 - **Docker & Docker Compose**: 运行自建数据库与媒体组件
 
 ### 2. 安装依赖
@@ -303,7 +303,7 @@ Tescord 原生深度集成了 Cloudflare 生态，支持**无公网 IP、无独�
 
 ### 1. 核心架构模式对比
 
-| 架构维度           | 方案 A：Cloudflare 一体化全托管部署 (推荐生产方案)    | 方案 B：自建 SFU + Cloudflare Zero Trust 穿透 (混合方案)         |
+| 架构维度           | 方案 A：Cloudflare 媒体与 Tunnel + 自建应用服务       | 方案 B：自建 SFU + Cloudflare Zero Trust 穿透 (混合方案)         |
 | :----------------- | :---------------------------------------------------- | :--------------------------------------------------------------- |
 | **音视频媒体引擎** | **Cloudflare Calls (Realtime Calls)** 边缘 WebRTC SFU | 自建 **LiveKit SFU** + Coturn STUN/TURN                          |
 | **网络穿透方式**   | **单域名模式 (Single Domain via NGINX 反代)**         | **多子域名模式 (Multi-Subdomain via Cloudflare Tunnel)**         |
@@ -314,7 +314,7 @@ Tescord 原生深度集成了 Cloudflare 生态，支持**无公网 IP、无独�
 
 ---
 
-### 2. 方案 A：Cloudflare 一体化全托管生产部署 (推荐)
+### 2. 方案 A：Cloudflare 媒体与 Tunnel + 自建应用服务
 
 此方案利用 **Cloudflare Calls** 承载音视频媒体流，利用 **Cloudflare Zero Trust Tunnel** 穿透前端、网关与对象存储，前端由内置 NGINX 统一反代，只需在 Cloudflare 解析一个单域名即可完整运行全站。
 
@@ -356,14 +356,17 @@ Tescord 原生深度集成了 Cloudflare 生态，支持**无公网 IP、无独�
    - 映射 `tescord.yourdomain.com` ➔ `HTTP` ➔ `web:80`（或 `http://localhost:18080`）
 4. **一键启动全栈服务**：
    ```bash
-   docker compose -f docker/docker-compose-cloudflare.yml --env-file docker/.env.cloudflare up -d
+   cd docker
+   ./scripts/compose-cloudflare.sh build server web migrate
+   ./scripts/compose-cloudflare.sh run --rm migrate
+   ./scripts/compose-cloudflare.sh up -d --no-build
    ```
 
 ---
 
 ### 3. 方案 B：自建媒体 SFU + Cloudflare Zero Trust 多子域名穿透 (混合架构)
 
-若希望媒体数据完全保留在自建基础设施（LiveKit + Coturn），同时享受 Cloudflare Zero Trust 免公网 IP、免映射端口的穿透便利：
+自建 LiveKit + Coturn 时，Cloudflare Tunnel 可代理 HTTP/WebSocket 信令。实际 WebRTC 媒体需要客户端能到达自建 SFU/TURN 的媒体端口；仅建立 HTTP Tunnel 不能提供 UDP 媒体穿透。
 
 #### 快速启动指令：
 

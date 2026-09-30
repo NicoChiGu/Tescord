@@ -108,3 +108,65 @@ export function extractBalancedAutolink(candidate: string): string {
  */
 export const MARKDOWN_LINK_REGEX =
   /^\[([^\]]+)\]\(((?:https?:\/\/|\/)(?:[^\s()]|\((?:[^\s()]|\([^\s()]*\))*\))+)\)/;
+
+const IMAGE_EXTENSIONS = new Set([
+  "png",
+  "jpg",
+  "jpeg",
+  "gif",
+  "webp",
+  "svg",
+  "bmp",
+  "avif",
+]);
+
+/**
+ * 从文本中提取所有属于本站附件且为图片的 URL
+ */
+export function extractInlineAttachmentUrls(content?: string): string[] {
+  if (!content) return [];
+
+  // Hidden spoilers and code must not reveal media through a second renderer.
+  content = content.replace(/```[\s\S]*?```|`[^`]*`|\|\|[\s\S]*?\|\|/g, " ");
+
+  const regex =
+    /(?:https?:\/\/[^\s<>"'`]+)?\/attachments\/([^\s<>"'`?#]+)(?:\?[^\s<>"'`]*)?/gi;
+
+  const urls: string[] = [];
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(content)) !== null) {
+    const rawUrl = extractBalancedAutolink(match[0]);
+    if (isInlineAttachmentImageUrl(rawUrl)) {
+      urls.push(rawUrl);
+    }
+  }
+
+  return [...new Set(urls)];
+}
+
+export function isInlineAttachmentImageUrl(
+  url: string,
+  serverUrl?: string,
+): boolean {
+  try {
+    if (!/^https?:\/\//i.test(url) && !/^\/attachments\//.test(url))
+      return false;
+    const parsed = new URL(url, serverUrl || "https://attachment.invalid");
+    if (
+      !["http:", "https:"].includes(parsed.protocol) ||
+      parsed.username ||
+      parsed.password
+    )
+      return false;
+    if (serverUrl && parsed.origin !== new URL(serverUrl).origin) return false;
+    const match = /^\/attachments\/([^/]+)$/.exec(parsed.pathname);
+    if (!match) return false;
+    const fileName = decodeURIComponent(match[1]);
+    if (/[\\/\x00]/.test(fileName)) return false;
+    const ext = fileName.split(".").pop()?.toLowerCase();
+    return Boolean(ext && IMAGE_EXTENSIONS.has(ext));
+  } catch {
+    return false;
+  }
+}

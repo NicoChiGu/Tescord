@@ -21,11 +21,16 @@ export default defineConfig({
     },
     {
       command:
-        "node scripts/build-desktop-web.mjs && pnpm --filter @tescord/web preview --port 4173",
+        "node scripts/build-desktop-web.mjs && pnpm --filter @tescord/desktop build && pnpm --filter @tescord/web preview --port 4173",
       env: {
         TESCORD_E2E_BACKEND_PORT: "3101",
+        TESCORD_SERVER_URL: "http://127.0.0.1:3101",
+        TESCORD_GATEWAY_URL: "ws://127.0.0.1:3101/gateway",
+        TESCORD_LIVEKIT_URL: "",
+        VITE_LIVEKIT_URL: "",
         VITE_API_URL: "http://127.0.0.1:3101",
         VITE_GATEWAY_URL: "ws://127.0.0.1:3101/gateway",
+        VITE_VOICE_ENGINE: "livekit",
       },
       url: "https://localhost:4173",
       ignoreHTTPSErrors: true,

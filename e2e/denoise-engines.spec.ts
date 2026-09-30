@@ -303,12 +303,28 @@ test("一次录音重放为四轨真实引擎试听", async ({ page }) => {
         url ? (await (await fetch(url)).blob()).size : 0,
       ),
     );
+    const context = new AudioContext();
+    const audio = await Promise.all(
+      entries.map(async (url) => {
+        if (!url) return { samples: 0, energy: 0 };
+        const decoded = await context.decodeAudioData(
+          await (await fetch(url)).arrayBuffer(),
+        );
+        const pcm = decoded.getChannelData(0);
+        return {
+          samples: decoded.length,
+          energy: pcm.reduce((sum, value) => sum + value * value, 0),
+        };
+      }),
+    );
+    await context.close();
     entries.forEach((url) => {
       if (url) URL.revokeObjectURL(url);
     });
     audioEngine.stop();
     return {
       sizes,
+      audio,
       errors: [
         comparison.rnnoiseError,
         comparison.dtlnError,
@@ -321,7 +337,69 @@ test("一次录音重放为四轨真实引擎试听", async ({ page }) => {
     JSON.stringify(result),
   ).toBe(true);
   expect(result.errors).toEqual([undefined, undefined, undefined]);
+  expect(result.audio.every((clip) => clip.energy > 0)).toBe(true);
+  expect(
+    result.audio.every((clip) => clip.samples === result.audio[0].samples),
+  ).toBe(true);
   expect(errors).toEqual([]);
+});
+
+test("离线 DFN3 试听取消后终止推理 worker 并保留麦克风", async ({ page }) => {
+  await page.route(`${origin}audio-test`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "text/html",
+      body: "<html></html>",
+    }),
+  );
+  await page.goto(`${origin}audio-test`);
+  const result = await page.evaluate(async () => {
+    const { audioEngine } = await import("/src/services/audioEngine.ts");
+    const controller = new AbortController();
+    const NativeWorker = window.Worker;
+    let comparisonWorker: Worker | undefined;
+    let terminated = false;
+    window.Worker = class extends NativeWorker {
+      postMessage(
+        message: unknown,
+        options?: Transferable[] | StructuredSerializeOptions,
+      ) {
+        if ((message as { type?: string })?.type === "COMPARE") {
+          comparisonWorker = this;
+          setTimeout(() => controller.abort(), 10);
+        }
+        if (Array.isArray(options)) super.postMessage(message, options);
+        else super.postMessage(message, options);
+      }
+      terminate() {
+        if (this === comparisonWorker) terminated = true;
+        super.terminate();
+      }
+    };
+    const stream = await audioEngine.initMicrophone();
+    const track = stream!.getAudioTracks()[0];
+    let cancelled = false;
+    try {
+      await audioEngine.recordTripleABComparison(
+        1,
+        undefined,
+        controller.signal,
+      );
+    } catch (error) {
+      cancelled = error instanceof DOMException && error.name === "AbortError";
+    } finally {
+      window.Worker = NativeWorker;
+    }
+    const stillActive = track.readyState === "live";
+    audioEngine.stop();
+    return { cancelled, terminated, stillActive, stopped: track.readyState };
+  });
+  expect(result).toEqual({
+    cancelled: true,
+    terminated: true,
+    stillActive: true,
+    stopped: "ended",
+  });
 });
 
 test("试听时间轴识别并校正 50 ms 延迟", async ({ page }) => {
