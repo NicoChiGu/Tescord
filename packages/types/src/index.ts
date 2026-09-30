@@ -3444,6 +3444,7 @@ export type UpdaterState =
 
 export interface UpdateManifest {
   version: string; // 目标版本号 (如 "0.2.0")
+  releaseTag?: string; // 签名发布标签，必须等于 version 或 v${version}；旧清单省略时采用 v 前缀
   releaseDate: string; // 发布时间 (ISO 8601)
   minHostVersion: string; // 最低需要的 Electron 原生 Host 壳版本
   webPackageUrl: string; // 已签名清单中的包文件名 (如 tescord-web-v0.2.0.zip)

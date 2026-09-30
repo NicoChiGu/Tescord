@@ -17,14 +17,14 @@
   "dependencies": {
     "@tescord/types": "workspace:*",
     "adm-zip": "^0.6.1",
-    "better-sqlite3": "^12.6.0",
+    "better-sqlite3": "12.11.1",
     "onnxruntime-node": "1.22.0"
   },
   "devDependencies": {
     "@shiguredo/rnnoise-wasm": "2022.2.0",
     "@types/adm-zip": "^0.5.8",
     "@types/better-sqlite3": "^9.6.0",
-    "electron": "^33.2.1",
+    "electron": "41.10.6",
     "electron-builder": "^26.15.3",
     "node-gyp": "11.5.0",
     "typescript": "^5.8.2"
@@ -80,6 +80,7 @@
       ]
     },
     "nsis": {
+      "artifactName": "Tescord-Setup-${version}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
@@ -87,21 +88,23 @@
     },
     "mac": {
       "icon": "resources/icon.png",
-      "target": [
+      "extendInfo": {
+        "NSAudioCaptureUsageDescription": "Tescord captures system audio when you share your screen with audio.",
+        "NSMicrophoneUsageDescription": "Tescord uses your microphone for voice channels and calls.",
+        "NSCameraUsageDescription": "Tescord uses your camera for video channels and calls."
+      },
+      "extraResources": [
         {
-          "target": "dmg",
-          "arch": [
-            "x64",
-            "arm64"
-          ]
-        },
-        {
-          "target": "zip",
-          "arch": [
-            "x64",
-            "arm64"
+          "from": "resources/mac-locales",
+          "to": ".",
+          "filter": [
+            "**/*.lproj/InfoPlist.strings"
           ]
         }
+      ],
+      "target": [
+        "dmg",
+        "zip"
       ],
       "category": "public.app-category.social-networking"
     }

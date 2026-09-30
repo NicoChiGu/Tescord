@@ -1,5 +1,35 @@
 import path from "node:path";
 import AdmZip from "adm-zip";
+import type { UpdateManifest } from "@tescord/types";
+
+export function getUpdateReleaseTag(
+  manifest: Pick<UpdateManifest, "version" | "releaseTag">,
+): string {
+  if (
+    typeof manifest.version !== "string" ||
+    !isValidUpdateVersion(manifest.version)
+  )
+    throw new Error("Invalid update version");
+  const releaseTag =
+    manifest.releaseTag === undefined
+      ? `v${manifest.version}`
+      : manifest.releaseTag;
+  if (releaseTag !== manifest.version && releaseTag !== `v${manifest.version}`)
+    throw new Error("Invalid signed release tag");
+  return releaseTag;
+}
+
+export function isUpdateHostSupported(
+  hostVersion: string,
+  minHostVersion: string,
+): boolean {
+  if (
+    !isValidUpdateVersion(hostVersion) ||
+    !isValidUpdateVersion(minHostVersion)
+  )
+    throw new Error("Invalid update host version");
+  return compareUpdateVersions(hostVersion, minHostVersion) >= 0;
+}
 
 export interface ValidatedUpdateEntry {
   entry: AdmZip.IZipEntry;

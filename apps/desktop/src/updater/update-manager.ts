@@ -16,6 +16,8 @@ import {
   compareUpdateVersions,
   isValidUpdateVersion,
   validateUpdateArchive,
+  getUpdateReleaseTag,
+  isUpdateHostSupported,
 } from "./archive-security.js";
 
 interface VersionRecord {
@@ -56,6 +58,7 @@ export class UpdateManager {
 
   private validateManifest(manifest: UpdateManifest): void {
     this.safeVersionDir(manifest.version);
+    getUpdateReleaseTag(manifest);
     if (
       manifest.webPackageUrl !== `tescord-web-v${manifest.version}.zip` ||
       !/^[a-fA-F0-9]{64}$/.test(manifest.webPackageSha256 || "")
@@ -271,11 +274,18 @@ export class UpdateManager {
     }
 
     const manifest = this.latestManifest!;
-    const proxyManager = ProxyManager.getInstance();
 
     // 组装增量包下载地址
     this.validateManifest(manifest);
-    const rawPackageUrl = `https://github.com/${BUILD_CONFIG.REPO_FULL_NAME}/releases/download/v${manifest.version}/${manifest.webPackageUrl}`;
+    if (
+      !isUpdateHostSupported(this.getHostVersion(), manifest.minHostVersion)
+    ) {
+      console.warn("[UpdateManager] HOST_UPDATE_REQUIRED");
+      return { success: false, newVersion: "" };
+    }
+    const proxyManager = ProxyManager.getInstance();
+    const releaseTag = getUpdateReleaseTag(manifest);
+    const rawPackageUrl = `https://github.com/${BUILD_CONFIG.REPO_FULL_NAME}/releases/download/${releaseTag}/${manifest.webPackageUrl}`;
 
     this.currentState = "downloading";
     this.broadcastProgress(
@@ -344,6 +354,11 @@ export class UpdateManager {
             fs.writeFileSync(outputPath, data, { flag: "wx" });
           }
         }
+        // Enforce the native boundary again before replacing any installed data.
+        if (
+          !isUpdateHostSupported(this.getHostVersion(), manifest.minHostVersion)
+        )
+          throw new Error("HOST_UPDATE_REQUIRED");
         const backupDir = fs.existsSync(targetVersionDir)
           ? fs.mkdtempSync(path.join(this.updatesRootDir, "backup-"))
           : null;

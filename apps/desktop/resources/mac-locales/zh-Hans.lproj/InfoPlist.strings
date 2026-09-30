@@ -1,0 +1,3 @@
+"NSAudioCaptureUsageDescription" = "Tescord 在您共享屏幕并开启声音时采集系统音频。";
+"NSMicrophoneUsageDescription" = "Tescord 使用您的麦克风参与语音频道和通话。";
+"NSCameraUsageDescription" = "Tescord 使用您的摄像头参与视频频道和通话。";

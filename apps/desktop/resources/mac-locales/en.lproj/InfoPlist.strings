@@ -1,0 +1,3 @@
+"NSAudioCaptureUsageDescription" = "Tescord captures system audio when you share your screen with audio.";
+"NSMicrophoneUsageDescription" = "Tescord uses your microphone for voice channels and calls.";
+"NSCameraUsageDescription" = "Tescord uses your camera for video channels and calls.";

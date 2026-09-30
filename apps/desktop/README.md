@@ -269,13 +269,13 @@ pnpm run dist:win
 
 **产物位置**：`apps/desktop/release/`
 
-- `Tescord Setup 0.3.0.exe`：全功能 NSIS 安装向导程序（支持自定义安装路径、创建桌面快捷方式与开始菜单入口）；
+- `Tescord-Setup-0.3.0.exe`：全功能 NSIS 安装向导程序（支持自定义安装路径、创建桌面快捷方式与开始菜单入口）；
 - `Tescord-0.3.0-win.zip`：便携免安装压缩包，解压后双击 `Tescord.exe` 即可直接运行。
 
 #### 2. 构建 macOS 安装镜像与归档包 (DMG / Zip)
 
 ```bash
-# macOS 环境下执行 (同时构建 x64 与 arm64 架构)
+# macOS 环境下执行，生成与当前构建机架构一致的安装包
 TESCORD_SERVER_URL="https://im.company.com" pnpm --filter @tescord/desktop run dist:mac
 ```
 
@@ -283,6 +283,8 @@ TESCORD_SERVER_URL="https://im.company.com" pnpm --filter @tescord/desktop run d
 
 - `Tescord-0.3.0.dmg`：macOS 拖拽安装镜像包；
 - `Tescord-0.3.0-mac.zip`：便携压缩包。
+
+Apple Silicon 构建机对应产物带 `-arm64` 后缀。Electron、RNNoise 与 SQLite 原生模块必须使用相同架构；发布流水线分别使用 Intel 与 Apple Silicon 构建机，检查最终应用的架构、音视频权限说明和五种语言的权限资源。请在相应架构的 macOS 上构建，不要将单一架构的原生模块复制到另一架构的安装包。
 
 #### 3. 构建 Linux 安装包 (AppImage / Deb)
 

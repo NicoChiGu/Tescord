@@ -281,7 +281,9 @@
       "v0_3_0_media_title": "Image attachments and interactions",
       "v0_3_0_media_desc": "Preview inline image links, open the lightbox, and renew access after permission checks. Channels and controls gain interaction animations.",
       "v0_3_0_desktop_title": "Desktop connections and audio fixes",
-      "v0_3_0_desktop_desc": "Configure server addresses at build time, fix local resource loading in installations and incremental updates, and improve four-track denoising comparisons."
+      "v0_3_0_desktop_desc": "Configure server addresses at build time, fix local resource loading in installations and incremental updates, and improve four-track denoising comparisons.",
+      "v0_3_0_security_title": "Desktop host security update",
+      "v0_3_0_security_desc": "Upgrade to Electron 41.10.6 to fix known issues with context isolation, protocol access, and sandboxing, and update build dependencies."
     }
   }
 }

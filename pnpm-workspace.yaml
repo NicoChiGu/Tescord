@@ -1,10 +1,10 @@
 packages:
-  - 'apps/*'
-  - 'packages/*'
+  - "apps/*"
+  - "packages/*"
 
 allowBuilds:
-  '@prisma/client': true
-  '@prisma/engines': true
+  "@prisma/client": true
+  "@prisma/engines": true
   better-sqlite3: true
   electron: true
   electron-winstaller: true
@@ -17,16 +17,20 @@ onlyBuiltDependencies:
   - electron
   - esbuild
   - electron-winstaller
-  - '@prisma/client'
-  - '@prisma/engines'
+  - "@prisma/client"
+  - "@prisma/engines"
   - prisma
   - better-sqlite3
 
 overrides:
-  'minio>query-string': 9.5.1
-  'minio>stream-json': 3.7.0
+  "minio>query-string": 9.5.1
+  "minio>stream-json": 3.7.0
   ini: 1.3.6
   adm-zip: 0.6.1
+  "ejs@<3.1.10": 3.1.10
+  "semver@<5.7.2": 5.7.2
+  "semver@>=6.0.0 <6.3.1": 6.3.1
+  "extract-zip@<2.0.2": 2.0.2
 
 patchedDependencies:
   app-builder-lib@26.15.3: patches/app-builder-lib@26.15.3.patch

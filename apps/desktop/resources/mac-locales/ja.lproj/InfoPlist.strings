@@ -1,0 +1,3 @@
+"NSAudioCaptureUsageDescription" = "Tescord は音声付きの画面共有時にシステム音声を取得します。";
+"NSMicrophoneUsageDescription" = "Tescord は音声チャンネルや通話でマイクを使用します。";
+"NSCameraUsageDescription" = "Tescord はビデオチャンネルや通話でカメラを使用します。";

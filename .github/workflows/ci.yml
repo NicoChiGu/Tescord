@@ -19,6 +19,8 @@ concurrency:
 env:
   ONNXRUNTIME_NODE_INSTALL: skip
   GITHUB_EVENT_BEFORE: ${{ github.event.before }}
+  npm_config_electron_mirror: "https://github.com/electron/electron/releases/download/"
+  npm_config_electron_custom_dir: "v{{ version }}"
 
 jobs:
   build-and-test:
@@ -101,5 +103,5 @@ jobs:
           pnpm --filter @tescord/server build
           pnpm --filter @tescord/server exec tsx scripts/verify-postgres.ts
 
-      - name: Production Dependency Audit
-        run: pnpm audit --prod --audit-level high --registry=https://registry.npmjs.org
+      - name: Dependency Audit Including Desktop Host and Build Tools
+        run: pnpm audit --audit-level high --registry=https://registry.npmjs.org

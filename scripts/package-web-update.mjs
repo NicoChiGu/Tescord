@@ -73,6 +73,15 @@ function main() {
   ) {
     throw new Error("Invalid release version");
   }
+  const releaseTag =
+    process.env.RELEASE_TAG ||
+    (process.env.GITHUB_REF_TYPE === "tag"
+      ? process.env.GITHUB_REF_NAME
+      : "") ||
+    version;
+  if (releaseTag !== version && releaseTag !== `v${version}`) {
+    throw new Error("Release tag does not match the release version");
+  }
   const zipFilename = `tescord-web-v${version}.zip`;
   const targetZipPath = path.join(outputDir, zipFilename);
 
@@ -92,8 +101,9 @@ function main() {
 
   const manifest = {
     version: version,
+    releaseTag,
     releaseDate: new Date().toISOString(),
-    minHostVersion: "0.1.0",
+    minHostVersion: "0.3.0",
     webPackageUrl: zipFilename,
     webPackageSha256: sha256,
     changelog: changelog,

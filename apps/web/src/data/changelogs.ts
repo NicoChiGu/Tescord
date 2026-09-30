@@ -44,6 +44,12 @@ export const BUILTIN_CHANGELOGS: VersionChangelog[] = [
         titleKey: "modals:whatsNew.items.v0_3_0_desktop_title",
         descriptionKey: "modals:whatsNew.items.v0_3_0_desktop_desc",
       },
+      {
+        id: "desktop-security",
+        category: "fixes",
+        titleKey: "modals:whatsNew.items.v0_3_0_security_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_0_security_desc",
+      },
     ],
   },
   {
