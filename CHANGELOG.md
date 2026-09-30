@@ -25,6 +25,7 @@
 ### 🛠 部署与数据 (Deployment & Data)
 
 - 新增 PostgreSQL `ChannelReadState` 迁移；Cloudflare Compose 部署时须执行 `db:migrate:deploy`，并在迁移完成后启动新版应用。
+- 服务镜像内置已验证的 pnpm 缓存，启动和迁移不再依赖运行时下载包管理器。
 
 ## [v0.2.0] - 2026-09-29
 

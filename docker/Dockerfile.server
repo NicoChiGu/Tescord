@@ -13,6 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends openssl curl &&
 RUN corepack enable
 WORKDIR /app
 COPY --from=build /app /app
+COPY --from=build /root/.cache/node/corepack /root/.cache/node/corepack
 ENV NODE_ENV=production
 ENV DATABASE_PROVIDER=postgresql
+ENV COREPACK_ENABLE_NETWORK=0
 CMD ["pnpm", "--filter", "@tescord/server", "start"]
