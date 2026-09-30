@@ -226,6 +226,16 @@ jobs:
           name: windows-release-artifacts
           path: dist-release/
 
+      - name: Normalize Web Artifact Layout
+        working-directory: dist-release
+        run: |
+          test -s release/manifest.json
+          test -s release/manifest.json.sig
+          mv -- release/manifest.json release/manifest.json.sig release/tescord-web-*.zip .
+          rmdir release
+          test -s manifest.json
+          test -s manifest.json.sig
+
       - name: Download macOS Artifacts
         uses: actions/download-artifact@v4
         with:
@@ -240,7 +250,7 @@ jobs:
           echo "---" >> release_notes.md
           echo "### 🔒 资产 SHA-256 完整性指纹 (Checksums)" >> release_notes.md
           echo '```text' >> release_notes.md
-          sha256sum tescord-web-* *.exe *.dmg *.zip >> release_notes.md
+          sha256sum *.exe *.dmg *.zip >> release_notes.md
           echo '```' >> release_notes.md
           echo "" >> release_notes.md
           echo "> 💡 **更新说明**：增量更新清单采用 Ed25519 签名，客户端须内置对应的验签公钥并满足最低宿主版本。未内置公钥的旧客户端请先安装本版本 exe/dmg；符合条件的客户端可在设置中检测并应用增量更新。" >> release_notes.md
