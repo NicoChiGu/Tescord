@@ -1,8 +1,39 @@
 import { VersionChangelog } from "@tescord/types";
 
-export const CURRENT_APP_VERSION = "0.3.1";
+export const CURRENT_APP_VERSION = "0.3.2";
 
 export const BUILTIN_CHANGELOGS: VersionChangelog[] = [
+  {
+    version: "0.3.2",
+    releaseDate: "2026-10-02",
+    releaseUrl: "https://github.com/labsphaela/Tescord/releases/tag/0.3.2",
+    items: [
+      {
+        id: "message-search",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_2_search_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_2_search_desc",
+      },
+      {
+        id: "invite-friends-fix",
+        category: "fixes",
+        titleKey: "modals:whatsNew.items.v0_3_2_invite_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_2_invite_desc",
+      },
+      {
+        id: "header-typography-fix",
+        category: "improvements",
+        titleKey: "modals:whatsNew.items.v0_3_2_header_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_2_header_desc",
+      },
+      {
+        id: "touch-drag-reorder",
+        category: "improvements",
+        titleKey: "modals:whatsNew.items.v0_3_2_touch_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_2_touch_desc",
+      },
+    ],
+  },
   {
     version: "0.3.1",
     releaseDate: "2026-10-01",
