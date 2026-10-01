@@ -102,9 +102,11 @@ const SortableServerItem: React.FC<SortableServerItemProps> = ({
         <button
           {...sortableAttributes}
           {...listeners}
+          draggable={false}
+          onDragStart={(e) => e.preventDefault()}
           onClick={() => onSelectGuild(guild.id)}
           className={`group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] transition-all duration-200 ease-out overflow-visible shrink-0 select-none active:scale-95 ${
-            isDragging ? "touch-none opacity-25" : ""
+            isDragging ? "opacity-25" : ""
           } ${
             isSelected ? "!rounded-[16px]" : ""
           }`}
@@ -125,10 +127,11 @@ const SortableServerItem: React.FC<SortableServerItemProps> = ({
               <img
                 src={resolveServerUrl(guild.iconUrl)}
                 alt={guild.name}
-                className="w-full h-full object-cover pointer-events-none"
+                draggable={false}
+                className="w-full h-full object-cover pointer-events-none select-none"
               />
             ) : (
-              <div className="w-full h-full bg-discord-channelList text-discord-textHeader flex items-center justify-center font-semibold text-sm pointer-events-none">
+              <div className="w-full h-full bg-discord-channelList text-discord-textHeader flex items-center justify-center font-semibold text-sm pointer-events-none select-none">
                 {guild.name.slice(0, 2).toUpperCase()}
               </div>
             )}
@@ -168,13 +171,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { t } = useTranslation("common");
   const [activeGuild, setActiveGuild] = useState<Guild | null>(null);
 
-  // 拖拽传感器：
-  // 1. MouseSensor 5px 快速响应；
-  // 2. TouchSensor 延时 1450ms (450ms长按呼出菜单 + 1000ms菜单展示缓冲)：
-  //    - 0~450ms：正常触屏滑动列表或点击；
-  //    - 450ms：触发长按打开上下文菜单，此时拖拽被阻断；
-  //    - 450ms~1450ms (菜单展示1秒内)：松手则保留长按菜单；
-  //    - 达到1450ms后发生滑动：判定为用户启动拖拽，自动关闭长按菜单并启动拖拽重排！
+  // 拖拽传感器：PC 端与触屏端完全分隔
+  // - PC 桌面端（MouseSensor）：鼠标左键移动 5px 立即启动拖拽，零延迟，完全不受长按影响；
+  // - 触屏端（TouchSensor）：延时 1450ms 连续手势状态机（450ms 长按呼出菜单 + 1000ms 菜单展示缓冲，展示满 1 秒后滑动无缝启动拖拽重排）。
   const sensors = useSensors(
     useSensor(MouseSensor, {
       activationConstraint: {
@@ -221,14 +220,27 @@ export const Sidebar: React.FC<SidebarProps> = ({
     if (found) {
       setActiveGuild(found);
     }
-    // 当启动拖拽时，自动关闭当前展示的长按上下文菜单
-    document.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
-    );
-    if (typeof navigator !== "undefined" && navigator.vibrate) {
-      try {
-        navigator.vibrate(40);
-      } catch {}
+    // 严格与 PC 端分隔：
+    // 通过 activatorEvent 精确判定是否由触屏手势触发。
+    // 触屏端（touch）：派发 Escape 关闭已展示的长按菜单并提供触觉振动反馈；
+    // PC 桌面端（mouse）：绝对不派发 Escape 键盘事件，避免触发 @dnd-kit 取消拖拽导致无法移动！
+    const isTouch =
+      (typeof TouchEvent !== "undefined" &&
+        event.activatorEvent instanceof TouchEvent) ||
+      (event.activatorEvent && "touches" in event.activatorEvent) ||
+      (event.activatorEvent &&
+        typeof event.activatorEvent.type === "string" &&
+        event.activatorEvent.type.startsWith("touch"));
+
+    if (isTouch) {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      );
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        try {
+          navigator.vibrate(40);
+        } catch {}
+      }
     }
   };
 

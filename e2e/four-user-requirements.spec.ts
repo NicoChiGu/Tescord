@@ -31,6 +31,15 @@ test.describe("4 项核心用户需求与缺陷修复完整验收 (four-user-req
     ],
   };
 
+  const mockGuild2: any = {
+    id: "g_search_guild_2",
+    name: "二号公会",
+    ownerId: "e2e_tester_user",
+    iconUrl: null,
+    channels: [],
+    members: [],
+  };
+
   const mockTargetFriend = {
     id: "u_friend_alice",
     username: "alice_wonderland",
@@ -107,7 +116,7 @@ test.describe("4 项核心用户需求与缺陷修复完整验收 (four-user-req
       route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify([mockGuild]),
+        body: JSON.stringify([mockGuild, mockGuild2]),
       });
     });
 
@@ -468,30 +477,60 @@ test.describe("4 项核心用户需求与缺陷修复完整验收 (four-user-req
     await expect(chatMessage).toBeVisible();
   });
 
-  test("需求 4：触屏端服务器列表长按菜单与拖拽逻辑（移除 touch-none 与手势状态机保护）", async ({
+  test("需求 4：服务器列表 PC 端鼠标瞬时拖拽重排与触屏端手势逻辑隔离", async ({
     page,
   }) => {
     await page.goto("/");
     await page.waitForLoadState("domcontentloaded");
 
-    // 定位服务器列表中的第一个服务器图标按钮
-    const serverButton = page
+    // 定位服务器列表中的第一个与第二个服务器图标按钮
+    const serverButton1 = page
       .locator(`button[aria-label="${mockGuild.name}"]`)
       .first();
-    await expect(serverButton).toBeVisible();
+    const serverButton2 = page
+      .locator(`button[aria-label="${mockGuild2.name}"]`)
+      .first();
+    await expect(serverButton1).toBeVisible();
+    await expect(serverButton2).toBeVisible();
 
-    // 1. 验证移除 touch-none：确认按钮没有 touch-none 样式类，确保触屏用户可顺畅上下滑动侧栏
-    const serverBtnClass = await serverButton.getAttribute("class");
+    // 1. 验证触屏端保护：确认按钮未常驻 touch-none 样式类，确保触屏用户可顺畅上下滑动侧栏
+    const serverBtnClass = await serverButton1.getAttribute("class");
     expect(serverBtnClass).not.toContain("touch-none");
 
-    // 2. 验证触屏传感器配置：TouchSensor 设置了 1450ms 延时保护（避免 1 秒内滑动误触发拖拽）
-    // 触发长按呼出右键上下文菜单
-    await serverButton.dispatchEvent("contextmenu");
+    // 2. 验证右键菜单长按行为：触发长按/右键呼出上下文菜单
+    await serverButton1.dispatchEvent("contextmenu");
     const contextMenu = page.locator('[role="menu"]');
     await expect(contextMenu).toBeVisible();
 
-    // 3. 模拟当拖拽开始时（dispatch keydown Escape），右键菜单会自动关闭阻断，无缝交由拖拽重排接管
+    // 模拟当按 Escape 时，菜单正常关闭
     await page.keyboard.press("Escape");
     await expect(contextMenu).not.toBeVisible();
+
+    // 3. 核心验收：验证 PC 端鼠标拖拽彻底与触屏逻辑隔离（不派发 Escape，鼠标左键拖拽 5px 即顺畅启动并成功完成排序）
+    const box1 = await serverButton1.boundingBox();
+    const box2 = await serverButton2.boundingBox();
+    expect(box1).not.toBeNull();
+    expect(box2).not.toBeNull();
+
+    if (box1 && box2) {
+      await page.mouse.move(box1.x + box1.width / 2, box1.y + box1.height / 2);
+      await page.mouse.down({ button: "left" });
+      // 向下拖动超过第二个服务器位置
+      await page.mouse.move(
+        box2.x + box2.width / 2,
+        box2.y + box2.height / 2 + 10,
+        { steps: 20 },
+      );
+      await page.mouse.up();
+      // 等待排序动画与状态刷新
+      await page.waitForTimeout(200);
+
+      // 验证 PC 拖拽重排成功：第二个公会现在排列在前面或两者位置发生调换
+      const serverButtons = page.locator(
+        '[data-testid="server-list-container"] button',
+      );
+      const firstAriaLabel = await serverButtons.first().getAttribute("aria-label");
+      expect(firstAriaLabel).toBe(mockGuild2.name);
+    }
   });
 });
