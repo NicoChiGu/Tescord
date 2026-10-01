@@ -15,6 +15,7 @@ import {
 } from "../services/storage/index.js";
 import { startAuthentication } from "@simplewebauthn/browser";
 import { isWebAuthnSupported } from "../utils/webauthn.js";
+import { getErrorMessage } from "../i18n/index.js";
 
 const MAX_SAVED_ACCOUNTS = 10;
 const SAVED_ACCOUNTS_STORAGE_KEY = "tescord_saved_accounts";
@@ -609,7 +610,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       const data = await verifyRes.json();
       if (!verifyRes.ok) {
-        throw new Error(data.error || "通行密钥验证失败");
+        const errObj = new Error(
+          getErrorMessage(data.code || data.error) ||
+            data.error ||
+            "通行密钥验证失败",
+        );
+        (errObj as any).code = data.code;
+        throw errObj;
       }
 
       // 4. 写入会话状态与双令牌
@@ -643,7 +650,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (err.name === "NotAllowedError") {
         set({ error: "已取消通行密钥验证" });
       } else {
-        set({ error: err.message || "通行密钥登录失败" });
+        const msg = getErrorMessage(err) || err.message || "通行密钥登录失败";
+        set({ error: msg });
       }
       throw err;
     }

@@ -1,6 +1,13 @@
 import React from "react";
 import { SavedAccount } from "@tescord/types";
-import { X, UserPlus, KeyRound, ArrowRight, Fingerprint } from "lucide-react";
+import {
+  X,
+  UserPlus,
+  KeyRound,
+  ArrowRight,
+  Fingerprint,
+  AlertCircle,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 interface AccountPickerProps {
@@ -11,6 +18,7 @@ interface AccountPickerProps {
   onPasskeyLogin?: () => void;
   isPasskeySupported?: boolean;
   isLoading?: boolean;
+  error?: string;
 }
 
 export const AccountPicker: React.FC<AccountPickerProps> = ({
@@ -21,6 +29,7 @@ export const AccountPicker: React.FC<AccountPickerProps> = ({
   onPasskeyLogin,
   isPasskeySupported = false,
   isLoading = false,
+  error,
 }) => {
   const { t } = useTranslation(["auth", "common"]);
 
@@ -40,6 +49,17 @@ export const AccountPicker: React.FC<AccountPickerProps> = ({
           })}
         </p>
       </div>
+
+      {/* 错误提示横幅 */}
+      {error && (
+        <div
+          data-testid="account-picker-error"
+          className="w-full mb-4 flex items-center gap-2 rounded-lg bg-rose-500/10 border border-rose-500/30 p-3 text-sm text-rose-400 animate-in fade-in duration-200"
+        >
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <span className="flex-1 text-xs leading-relaxed">{error}</span>
+        </div>
+      )}
 
       {/* 历史账号卡片列表 */}
       <div className="w-full space-y-2.5 max-h-[320px] overflow-y-auto pr-1 custom-scrollbar">

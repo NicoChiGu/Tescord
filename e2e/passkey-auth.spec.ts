@@ -65,6 +65,53 @@ test.describe("WebAuthn (Passkey) 身份认证与凭据管理端到端自动化�
     await expect(passkeyBtn).toContainText("使用通行密钥登录");
   });
 
+  test("2.1 多账号选择器下通行密钥校验失败时显式展示错误横幅 (account-picker-error)", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+      localStorage.setItem(
+        "tescord_saved_accounts",
+        JSON.stringify([
+          {
+            id: "user_test_mock",
+            email: "tester@tescord.local",
+            username: "PasskeyTester",
+            displayName: "Passkey测试员",
+            lastActiveAt: Date.now(),
+            rememberPassword: true,
+          },
+        ]),
+      );
+    });
+
+    // 拦截 login-options 模拟失败，验证错误横幅出现且不被吞没
+    await page.route("**/api/auth/webauthn/login-options", async (route) => {
+      await route.fulfill({
+        status: 400,
+        contentType: "application/json",
+        body: JSON.stringify({
+          code: "WEBAUTHN_VERIFICATION_FAILED",
+          error: "WEBAUTHN_VERIFICATION_FAILED",
+        }),
+      });
+    });
+
+    await page.goto("/");
+    const accountPicker = page.getByTestId("account-picker");
+    await expect(accountPicker).toBeVisible({ timeout: 10000 });
+
+    const passkeyBtn = page.getByTestId("account-picker-passkey-btn");
+    await expect(passkeyBtn).toBeVisible();
+    await passkeyBtn.click();
+
+    // 验证 account-picker-error 正常显示，不再被静默吞没
+    const errorBanner = page.getByTestId("account-picker-error");
+    await expect(errorBanner).toBeVisible({ timeout: 5000 });
+    await expect(errorBanner).toContainText("通行密钥签名验证失败");
+  });
+
   test("3. 用户设置中心新增「账号安全与通行密钥」标签页及设备管理", async ({
     page,
   }) => {

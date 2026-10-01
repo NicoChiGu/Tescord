@@ -570,7 +570,9 @@ server.get(
       return await webauthnService.generateRegisterOptions(user, request);
     } catch (err: any) {
       if (err instanceof WebAuthnError) {
-        return sendApiError(reply, err.statusCode, err.code, err.code);
+        return sendApiError(reply, err.statusCode, err.code, err.message, {
+          reason: err.message,
+        });
       }
       request.log.error({ err }, "webauthn register-options failed");
       return sendApiError(
@@ -608,7 +610,9 @@ server.post(
       return passkey;
     } catch (err: any) {
       if (err instanceof WebAuthnError) {
-        return sendApiError(reply, err.statusCode, err.code, err.code);
+        return sendApiError(reply, err.statusCode, err.code, err.message, {
+          reason: err.message,
+        });
       }
       request.log.error({ err }, "webauthn register-verify failed");
       return sendApiError(
@@ -632,7 +636,9 @@ server.post("/api/auth/webauthn/login-options", async (request, reply) => {
     return await webauthnService.generateLoginOptions(request, emailOrUsername);
   } catch (err: any) {
     if (err instanceof WebAuthnError) {
-      return sendApiError(reply, err.statusCode, err.code, err.code);
+      return sendApiError(reply, err.statusCode, err.code, err.message, {
+        reason: err.message,
+      });
     }
     request.log.error({ err }, "webauthn login-options failed");
     return sendApiError(
@@ -655,7 +661,9 @@ server.post("/api/auth/webauthn/login-verify", async (request, reply) => {
     };
   } catch (err: any) {
     if (err instanceof WebAuthnError) {
-      return sendApiError(reply, err.statusCode, err.code, err.code);
+      return sendApiError(reply, err.statusCode, err.code, err.message, {
+        reason: err.message,
+      });
     }
     request.log.error({ err }, "webauthn login-verify failed");
     return sendApiError(
@@ -1644,7 +1652,9 @@ server.post("/api/guilds", async (request, reply) => {
   const settingRecord = await prisma.systemSetting.findUnique({
     where: { key: "allow_non_super_admin_create_guild" },
   });
-  const allowNonSuperAdmin = settingRecord ? settingRecord.value !== "false" : true;
+  const allowNonSuperAdmin = settingRecord
+    ? settingRecord.value !== "false"
+    : true;
   if (!allowNonSuperAdmin && owner.role !== "SUPER_ADMIN") {
     return sendApiError(
       reply,
@@ -3156,13 +3166,23 @@ server.get("/api/guilds/:guildId/emojis", async (request, reply) => {
   const { guildId } = request.params as any;
   const userId = await getUserIdFromRequest(request);
   if (!userId) {
-    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录后查看表情");
+    return sendApiError(
+      reply,
+      401,
+      ErrorCode.UNAUTHORIZED,
+      "需要登录后查看表情",
+    );
   }
   const isMember = await prisma.guildMember.findUnique({
     where: { guildId_userId: { guildId, userId } },
   });
   if (!isMember) {
-    return sendApiError(reply, 403, ErrorCode.FORBIDDEN, "非该服务器成员无法查看自定义表情");
+    return sendApiError(
+      reply,
+      403,
+      ErrorCode.FORBIDDEN,
+      "非该服务器成员无法查看自定义表情",
+    );
   }
   const emojis = await prisma.customEmoji.findMany({
     where: { guildId },
@@ -3187,7 +3207,10 @@ server.get("/api/custom-emojis/:emojiId", async (request, reply) => {
   if (!emoji) {
     return sendApiError(reply, 404, ErrorCode.EMOJI_NOT_FOUND, "未找到该表情");
   }
-  reply.header("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
+  reply.header(
+    "Cache-Control",
+    "public, max-age=86400, stale-while-revalidate=604800",
+  );
   return reply.redirect(emoji.imageUrl, 302);
 });
 
@@ -3196,7 +3219,12 @@ server.post("/api/guilds/:guildId/emojis", async (request, reply) => {
   const { guildId } = request.params as any;
   const userId = await getUserIdFromRequest(request);
   if (!userId) {
-    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录后上传表情");
+    return sendApiError(
+      reply,
+      401,
+      ErrorCode.UNAUTHORIZED,
+      "需要登录后上传表情",
+    );
   }
   const canManage = await permissionService.hasGuildPermission(
     userId,
@@ -3204,9 +3232,15 @@ server.post("/api/guilds/:guildId/emojis", async (request, reply) => {
     PermissionFlags.MANAGE_GUILD,
   );
   if (!canManage) {
-    return sendApiError(reply, 403, ErrorCode.GUILD_PERMISSION_DENIED, "缺少管理服务器权限");
+    return sendApiError(
+      reply,
+      403,
+      ErrorCode.GUILD_PERMISSION_DENIED,
+      "缺少管理服务器权限",
+    );
   }
-  const { name, imageUrl, animated } = (request.body || {}) as CreateCustomEmojiDTO;
+  const { name, imageUrl, animated } = (request.body ||
+    {}) as CreateCustomEmojiDTO;
   const trimmedName = String(name || "").trim();
   if (!trimmedName || !/^[a-zA-Z0-9_]{2,32}$/.test(trimmedName)) {
     return sendApiError(
@@ -3218,13 +3252,25 @@ server.post("/api/guilds/:guildId/emojis", async (request, reply) => {
   }
   const currentCount = await prisma.customEmoji.count({ where: { guildId } });
   if (currentCount >= 50) {
-    return sendApiError(reply, 400, ErrorCode.EMOJI_LIMIT_REACHED, "服务器自定义表情已达上限 (50个)");
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.EMOJI_LIMIT_REACHED,
+      "服务器自定义表情已达上限 (50个)",
+    );
   }
   const claimed = storageService.claimCustomEmoji(userId, imageUrl);
   if (!claimed) {
-    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "表情图片未上传或凭证已失效");
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.INVALID_PARAMS,
+      "表情图片未上传或凭证已失效",
+    );
   }
-  const isAnimated = Boolean(animated || imageUrl.toLowerCase().endsWith(".gif"));
+  const isAnimated = Boolean(
+    animated || imageUrl.toLowerCase().endsWith(".gif"),
+  );
   const emoji = await prisma.customEmoji.create({
     data: {
       name: trimmedName,
@@ -3246,27 +3292,42 @@ server.post("/api/guilds/:guildId/emojis", async (request, reply) => {
 });
 
 // 删除服务器自定义表情
-server.delete("/api/guilds/:guildId/emojis/:emojiId", async (request, reply) => {
-  const { guildId, emojiId } = request.params as any;
-  const userId = await getUserIdFromRequest(request);
-  if (!userId) {
-    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
-  }
-  const canManage = await permissionService.hasGuildPermission(
-    userId,
-    guildId,
-    PermissionFlags.MANAGE_GUILD,
-  );
-  if (!canManage) {
-    return sendApiError(reply, 403, ErrorCode.GUILD_PERMISSION_DENIED, "缺少管理服务器权限");
-  }
-  const emoji = await prisma.customEmoji.findUnique({ where: { id: emojiId } });
-  if (!emoji || emoji.guildId !== guildId) {
-    return sendApiError(reply, 404, ErrorCode.EMOJI_NOT_FOUND, "未找到该表情");
-  }
-  await prisma.customEmoji.delete({ where: { id: emojiId } });
-  return { success: true };
-});
+server.delete(
+  "/api/guilds/:guildId/emojis/:emojiId",
+  async (request, reply) => {
+    const { guildId, emojiId } = request.params as any;
+    const userId = await getUserIdFromRequest(request);
+    if (!userId) {
+      return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
+    }
+    const canManage = await permissionService.hasGuildPermission(
+      userId,
+      guildId,
+      PermissionFlags.MANAGE_GUILD,
+    );
+    if (!canManage) {
+      return sendApiError(
+        reply,
+        403,
+        ErrorCode.GUILD_PERMISSION_DENIED,
+        "缺少管理服务器权限",
+      );
+    }
+    const emoji = await prisma.customEmoji.findUnique({
+      where: { id: emojiId },
+    });
+    if (!emoji || emoji.guildId !== guildId) {
+      return sendApiError(
+        reply,
+        404,
+        ErrorCode.EMOJI_NOT_FOUND,
+        "未找到该表情",
+      );
+    }
+    await prisma.customEmoji.delete({ where: { id: emojiId } });
+    return { success: true };
+  },
+);
 
 // 获取当前登录用户自己的表情
 server.get("/api/users/me/emojis", async (request, reply) => {
@@ -3296,7 +3357,8 @@ server.post("/api/users/me/emojis", async (request, reply) => {
   if (!userId) {
     return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
   }
-  const { name, imageUrl, animated } = (request.body || {}) as CreateCustomEmojiDTO;
+  const { name, imageUrl, animated } = (request.body ||
+    {}) as CreateCustomEmojiDTO;
   const trimmedName = String(name || "").trim();
   if (!trimmedName || !/^[a-zA-Z0-9_]{2,32}$/.test(trimmedName)) {
     return sendApiError(
@@ -3308,13 +3370,25 @@ server.post("/api/users/me/emojis", async (request, reply) => {
   }
   const currentCount = await prisma.customEmoji.count({ where: { userId } });
   if (currentCount >= 50) {
-    return sendApiError(reply, 400, ErrorCode.EMOJI_LIMIT_REACHED, "个人自定义表情已达上限 (50个)");
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.EMOJI_LIMIT_REACHED,
+      "个人自定义表情已达上限 (50个)",
+    );
   }
   const claimed = storageService.claimCustomEmoji(userId, imageUrl);
   if (!claimed) {
-    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "表情图片未上传或凭证已失效");
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.INVALID_PARAMS,
+      "表情图片未上传或凭证已失效",
+    );
   }
-  const isAnimated = Boolean(animated || imageUrl.toLowerCase().endsWith(".gif"));
+  const isAnimated = Boolean(
+    animated || imageUrl.toLowerCase().endsWith(".gif"),
+  );
   const emoji = await prisma.customEmoji.create({
     data: {
       name: trimmedName,
@@ -5502,10 +5576,17 @@ server.post("/api/attachments/presigned-url", async (request, reply) => {
       } as Record<string, string | undefined>
     )[path.extname(body.fileName).toLowerCase()];
     const cleanMime = (body.mimeType || "").split(";")[0].trim().toLowerCase();
-    const isMatchingImageMime = (expected: string | undefined, actual: string) => {
+    const isMatchingImageMime = (
+      expected: string | undefined,
+      actual: string,
+    ) => {
       if (!expected) return false;
       if (expected === actual) return true;
-      if ((expected === "image/jpeg" && actual === "image/jpg") || (expected === "image/jpg" && actual === "image/jpeg")) return true;
+      if (
+        (expected === "image/jpeg" && actual === "image/jpg") ||
+        (expected === "image/jpg" && actual === "image/jpeg")
+      )
+        return true;
       return false;
     };
 
@@ -5520,7 +5601,10 @@ server.post("/api/attachments/presigned-url", async (request, reply) => {
       ) {
         return reply.status(403).send({ error: "缺少管理服务器权限" });
       }
-      if (!publicImageMime || !isMatchingImageMime(publicImageMime, cleanMime)) {
+      if (
+        !publicImageMime ||
+        !isMatchingImageMime(publicImageMime, cleanMime)
+      ) {
         return sendApiError(
           reply,
           400,
@@ -5529,7 +5613,10 @@ server.post("/api/attachments/presigned-url", async (request, reply) => {
         );
       }
     } else if (body.purpose === "user-avatar") {
-      if (!publicImageMime || !isMatchingImageMime(publicImageMime, cleanMime)) {
+      if (
+        !publicImageMime ||
+        !isMatchingImageMime(publicImageMime, cleanMime)
+      ) {
         return sendApiError(
           reply,
           400,
@@ -5538,7 +5625,10 @@ server.post("/api/attachments/presigned-url", async (request, reply) => {
         );
       }
     } else if (body.purpose === "user-banner") {
-      if (!publicImageMime || !isMatchingImageMime(publicImageMime, cleanMime)) {
+      if (
+        !publicImageMime ||
+        !isMatchingImageMime(publicImageMime, cleanMime)
+      ) {
         return sendApiError(
           reply,
           400,
@@ -5558,7 +5648,10 @@ server.post("/api/attachments/presigned-url", async (request, reply) => {
           return reply.status(403).send({ error: "缺少管理服务器权限" });
         }
       }
-      if (!publicImageMime || !isMatchingImageMime(publicImageMime, cleanMime)) {
+      if (
+        !publicImageMime ||
+        !isMatchingImageMime(publicImageMime, cleanMime)
+      ) {
         return sendApiError(
           reply,
           400,
@@ -5566,7 +5659,8 @@ server.post("/api/attachments/presigned-url", async (request, reply) => {
           "不支持的表情格式",
         );
       }
-      const maxEmojiSize = cleanMime === "image/gif" ? 2 * 1024 * 1024 : 1024 * 1024;
+      const maxEmojiSize =
+        cleanMime === "image/gif" ? 2 * 1024 * 1024 : 1024 * 1024;
       if (body.fileSize > maxEmojiSize) {
         return sendApiError(
           reply,

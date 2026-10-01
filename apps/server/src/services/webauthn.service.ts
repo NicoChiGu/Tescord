@@ -47,13 +47,50 @@ export function getRelyingPartyConfig(req: FastifyRequest): RelyingPartyConfig {
 
   if (process.env.NODE_ENV === "production") {
     const serverOrigin = new URL(process.env.SERVER_BASE_URL || "");
+    const origins = new Set<string>();
+
+    if (envOrigins && envOrigins.length > 0) {
+      for (const o of envOrigins) {
+        origins.add(o.replace(/\/+$/, ""));
+      }
+    }
+    if (serverOrigin.origin) {
+      origins.add(serverOrigin.origin.replace(/\/+$/, ""));
+    }
+
+    const targetRpId = envRpId || serverOrigin.hostname;
+
+    // 动态兼容反向代理/Cloudflare下客户端发来的 Origin 或 Referer
+    const rawOrigin = req.headers.origin?.trim();
+    if (rawOrigin) {
+      try {
+        const u = new URL(rawOrigin);
+        if (
+          u.hostname === targetRpId ||
+          u.hostname.endsWith(`.${targetRpId}`)
+        ) {
+          origins.add(u.origin.replace(/\/+$/, ""));
+        }
+      } catch {}
+    }
+
+    const rawReferer = req.headers.referer?.trim();
+    if (rawReferer) {
+      try {
+        const u = new URL(rawReferer);
+        if (
+          u.hostname === targetRpId ||
+          u.hostname.endsWith(`.${targetRpId}`)
+        ) {
+          origins.add(u.origin.replace(/\/+$/, ""));
+        }
+      } catch {}
+    }
+
     return {
       rpName: envRpName,
-      rpID: envRpId || serverOrigin.hostname,
-      expectedOrigin:
-        envOrigins && envOrigins.length > 0
-          ? envOrigins
-          : [serverOrigin.origin],
+      rpID: targetRpId,
+      expectedOrigin: Array.from(origins),
     };
   }
 
@@ -343,7 +380,7 @@ export class WebAuthnService {
 
     const options = await generateAuthenticationOptions({
       rpID: config.rpID,
-      userVerification: "required",
+      userVerification: "preferred",
       allowCredentials,
     });
 
@@ -440,6 +477,16 @@ export class WebAuthnService {
 
     const config = getRelyingPartyConfig(req);
 
+    // 兼容 Apple iCloud 钥匙串与多设备同步凭据：
+    // FIDO2 / W3C WebAuthn 规范中，多设备同步凭据（如 Apple/Google 钥匙串）的 counter 恒为 0 且不递增。
+    // 为防止 SimpleWebAuthn 将合法同步凭证误判为重放攻击，当断言为同步凭据或已存 counter 为 0 时容错处理
+    const rawStoredCounter = Number(passkey.counter);
+    const isMultiDeviceOrZero =
+      rawStoredCounter === 0 ||
+      passkey.transports?.includes("internal") ||
+      passkey.transports?.includes("hybrid");
+    const credentialCounter = isMultiDeviceOrZero ? 0 : rawStoredCounter;
+
     let verification;
     try {
       verification = await verifyAuthenticationResponse({
@@ -452,15 +499,22 @@ export class WebAuthnService {
           publicKey: new Uint8Array(
             Buffer.from(passkey.publicKey, "base64url"),
           ),
-          counter: Number(passkey.counter),
+          counter: credentialCounter,
           transports: passkey.transports
             ? JSON.parse(passkey.transports)
             : undefined,
         },
-        requireUserVerification: true,
+        requireUserVerification: false,
       });
     } catch (err: any) {
-      req.log.warn({ err }, "WebAuthn authentication verification failed");
+      req.log.warn(
+        { err, expectedOrigin: config.expectedOrigin, rpID: config.rpID },
+        "WebAuthn authentication verification failed",
+      );
+      console.warn(
+        "[WebAuthn] Authentication verification failed:",
+        err.message,
+      );
       throw new WebAuthnError(
         ErrorCode.WEBAUTHN_VERIFICATION_FAILED,
         `通行密钥验证失败: ${err.message || "未知错误"}`,

@@ -18,13 +18,14 @@ import {
   RegistrationStatusResponse,
   CheckEmailResponse,
 } from "@tescord/types";
-import { normalizeLocale } from "../../i18n/index.js";
+import { normalizeLocale, getErrorMessage } from "../../i18n/index.js";
 import { API_BASE } from "../../config.js";
 import { AuthBackground } from "./AuthBackground.js";
 import { AccountPicker } from "./AccountPicker.js";
 import { SavedAccount } from "@tescord/types";
 import { BrandLogo } from "../ui/BrandLogo.js";
 import { isWebAuthnSupported } from "../../utils/webauthn.js";
+import { toast } from "../../stores/useToastStore.js";
 
 type AuthPhase = "ACCOUNT_PICKER" | "EMAIL" | "PASSWORD" | "REGISTER";
 
@@ -93,16 +94,21 @@ export const AuthModal: React.FC = () => {
     setFieldErrors({});
     try {
       const targetIdentifier =
-        phase === "PASSWORD" ? selectedAccount?.email || email : undefined;
+        phase === "PASSWORD"
+          ? selectedAccount?.email || email
+          : email?.trim() || undefined;
       await loginWithPasskey(targetIdentifier);
     } catch (err: any) {
       if (err.name !== "NotAllowedError") {
+        const friendlyError =
+          getErrorMessage(err) ||
+          err.message ||
+          t("auth:passkeyLoginFailed", { defaultValue: "通行密钥验证失败" });
         setFieldErrors((prev) => ({
           ...prev,
-          general:
-            err.message ||
-            t("auth:passkeyLoginFailed", { defaultValue: "通行密钥验证失败" }),
+          general: friendlyError,
         }));
+        toast.error(friendlyError);
       }
     } finally {
       setIsPasskeyLoading(false);
@@ -571,6 +577,7 @@ export const AuthModal: React.FC = () => {
             onPasskeyLogin={handlePasskeyLogin}
             isPasskeySupported={isPasskeySupported}
             isLoading={isSubmitting || isPasskeyLoading}
+            error={fieldErrors.general}
           />
         ) : (
           <>
