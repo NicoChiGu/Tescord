@@ -56,6 +56,7 @@ import { InlineAttachmentEmbed } from "./chat/InlineAttachmentEmbed.js";
 import { FileAttachment } from "./chat/FileAttachment.js";
 import { ServerInviteEmbed } from "./chat/ServerInviteEmbed.js";
 import { PinnedMessagesPopover } from "./PinnedMessagesPopover.js";
+import { SearchResultsDrawer } from "./chat/SearchResultsDrawer.js";
 import { useUserProfilePopoutStore } from "../stores/useUserProfilePopoutStore.js";
 import { usePresenceStore } from "../stores/usePresenceStore.js";
 import { useContextMenuStore } from "../stores/useContextMenuStore.js";
@@ -103,6 +104,7 @@ interface ChatAreaProps {
   };
   onMarkChannelAsRead?: (channelId: string, sequence: number) => void;
   onReloadLatestMessages?: () => Promise<void> | void;
+  onSelectChannel?: (channel: Channel) => void;
   dmCallElement?: React.ReactNode;
 }
 
@@ -732,6 +734,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   callEncryption,
   onMarkChannelAsRead,
   onReloadLatestMessages,
+  onSelectChannel,
   dmCallElement,
 }) => {
   const { t } = useTranslation(["chat", "common"]);
@@ -990,6 +993,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     Record<string, { text: string; fingerprint?: string }>
   >({});
   const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchDrawerOpen, setIsSearchDrawerOpen] = useState(false);
   const [showFingerprintModal, setShowFingerprintModal] = useState(false);
   const [safetyNumber, setSafetyNumber] = useState<string>(
     "E2EE-A1B2-C3D4-E5F6-0001",
@@ -1399,6 +1403,28 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       });
     }, 60);
   };
+
+  const handleSearchDrawerJump = useCallback(
+    (targetChannelId: string, messageId: string) => {
+      if (targetChannelId !== channel.id) {
+        const targetCh = guild?.channels?.find((c) => c.id === targetChannelId);
+        if (targetCh && onSelectChannel) {
+          onSelectChannel(targetCh);
+        }
+      }
+      setTimeout(
+        () => {
+          handleJumpToMessage(messageId);
+        },
+        targetChannelId !== channel.id ? 250 : 50,
+      );
+
+      if (isMobile || isTablet) {
+        setIsSearchDrawerOpen(false);
+      }
+    },
+    [channel.id, guild?.channels, onSelectChannel, isMobile, isTablet, handleJumpToMessage],
+  );
 
   const [isJumping, setIsJumping] = useState(false);
 
@@ -2101,9 +2127,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         </div>
       )}
 
-      {/* 顶部标题栏 */}
+      {/* 顶部标题栏 (响应式防挤压弹性布局，彻底解决大字号/窄屏排版与截断问题) */}
       <div className="h-12 border-b border-[#232428] px-3 sm:px-4 flex items-center justify-between shadow-sm flex-shrink-0">
-        <div className="flex items-center space-x-2 min-w-0">
+        <div className="flex items-center space-x-1.5 sm:space-x-2 min-w-0 flex-1 mr-2">
           {onToggleMobileDrawer && (
             <button
               type="button"
@@ -2129,7 +2155,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           )}
           <span
             data-testid="chat-header-title"
-            className="font-bold text-discord-textHeader truncate max-w-[120px] xs:max-w-[160px] sm:max-w-xs md:max-w-none"
+            className="font-bold text-discord-textHeader truncate min-w-0 max-w-[110px] xs:max-w-[140px] sm:max-w-xs md:max-w-sm"
           >
             {displayChannelName}
           </span>
@@ -2137,7 +2163,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             <button
               data-testid="chat-header-e2ee-badge"
               onClick={() => setShowFingerprintModal(true)}
-              className="flex items-center space-x-1 px-2 py-0.5 rounded bg-discord-green/10 hover:bg-discord-green/20 border border-discord-green/30 text-[11px] text-discord-green transition cursor-pointer flex-shrink-0"
+              className="flex items-center space-x-1 px-1.5 sm:px-2 py-0.5 rounded bg-discord-green/10 hover:bg-discord-green/20 border border-discord-green/30 text-[11px] text-discord-green transition cursor-pointer flex-shrink-0"
               title="点击查看端加密安全状态"
             >
               <ShieldCheck className="w-3.5 h-3.5" />
@@ -2146,7 +2172,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           )}
           {channel.topic && (
             <>
-              <div className="hidden lg:block w-[1px] h-4 bg-[#3f4147] mx-2" />
+              <div className="hidden lg:block w-[1px] h-4 bg-[#3f4147] mx-2 flex-shrink-0" />
               <span className="hidden lg:inline text-xs text-discord-textMuted truncate max-w-md">
                 {channel.topic}
               </span>
@@ -2154,8 +2180,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           )}
         </div>
 
-        {/* 顶部右侧功能按钮 */}
-        <div className="flex items-center space-x-2 sm:space-x-3 text-discord-textMuted flex-shrink-0">
+        {/* 顶部右侧功能按钮 (严格防溢出保护，保证核心按钮永远可见) */}
+        <div className="flex items-center space-x-1 sm:space-x-2 text-discord-textMuted flex-shrink-0 ml-auto">
           {/* 私信 1v1 呼叫按钮 */}
           {channel.type === "DM" && (
             <div className="flex items-center space-x-1 sm:space-x-2">
@@ -2226,13 +2252,31 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           <button className="hidden sm:block hover:text-discord-textHeader transition-all duration-150 p-1 rounded hover:bg-[#35373c] text-discord-textMuted active:scale-95 group/bell">
             <Bell className="w-5 h-5 transition-transform duration-150 group-hover/bell:rotate-12" />
           </button>
-          <div className="relative flex items-center">
+
+          {/* 窄屏/大字号：折叠为搜索图标按钮，防止挤占宽度 */}
+          <button
+            type="button"
+            data-testid="toggle-search-drawer-btn"
+            onClick={() => setIsSearchDrawerOpen(true)}
+            className="md:hidden p-1.5 rounded hover:bg-[#35373c] text-discord-textMuted hover:text-white transition active:scale-95 flex-shrink-0"
+            title={channel.isE2EE ? "密文搜索" : "搜索"}
+          >
+            <Search className="w-5 h-5" />
+          </button>
+
+          {/* 宽屏：展示搜索输入框，点击或回车即可拉开搜索抽屉 */}
+          <div className="hidden md:flex relative items-center">
             <input
               type="text"
               placeholder={channel.isE2EE ? "密文搜索..." : "搜索..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="bg-discord-sidebar text-xs text-discord-textNormal rounded px-2 py-1 pr-6 focus:outline-none focus:ring-1 focus:ring-discord-brand w-20 xs:w-28 sm:w-40 transition-all focus:w-36 sm:focus:w-52"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  setIsSearchDrawerOpen(true);
+                }
+              }}
+              className="bg-discord-sidebar text-xs text-discord-textNormal rounded px-2 py-1 pr-6 focus:outline-none focus:ring-1 focus:ring-discord-brand w-20 sm:w-28 lg:w-36 transition-all focus:w-44"
             />
             {searchQuery ? (
               <button
@@ -2243,14 +2287,21 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 <X className="w-3.5 h-3.5" />
               </button>
             ) : (
-              <Search className="w-3.5 h-3.5 absolute right-2 top-1/2 -translate-y-1/2 text-discord-textMuted pointer-events-none" />
+              <button
+                type="button"
+                onClick={() => setIsSearchDrawerOpen(true)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-discord-textMuted hover:text-white"
+              >
+                <Search className="w-3.5 h-3.5" />
+              </button>
             )}
           </div>
+
           {/* 频道置顶消息入口 (Discord 原生图钉设计) */}
           <button
             type="button"
             onClick={() => setIsPinnedPopoverOpen((prev) => !prev)}
-            className={`relative p-1 rounded hover:bg-[#35373c] transition-all duration-150 active:scale-95 ${
+            className={`relative p-1 rounded hover:bg-[#35373c] transition-all duration-150 active:scale-95 flex-shrink-0 ${
               isPinnedPopoverOpen || pinnedMessages.length > 0
                 ? "text-discord-textHeader"
                 : "text-discord-textMuted hover:text-discord-textHeader"
@@ -2280,7 +2331,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   onToggleMemberList();
                 }
               }}
-              className={`hover:text-discord-textHeader transition-all duration-150 p-1 rounded hover:bg-[#35373c] active:scale-95 ${showMemberList ? "text-discord-textHeader" : "text-discord-textMuted"}`}
+              className={`hover:text-discord-textHeader transition-all duration-150 p-1 rounded hover:bg-[#35373c] active:scale-95 flex-shrink-0 ${showMemberList ? "text-discord-textHeader" : "text-discord-textMuted"}`}
               title="成员列表"
             >
               <Users className="w-5 h-5 transition-transform duration-150" />
@@ -2300,6 +2351,18 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             onUnpinMessage={onTogglePin}
           />
         )}
+
+        {/* 消息全文搜索抽屉面板 (Discord Search Engine Drawer) */}
+        <SearchResultsDrawer
+          isOpen={isSearchDrawerOpen}
+          channel={channel}
+          guild={guild}
+          currentUser={currentUser}
+          onClose={() => setIsSearchDrawerOpen(false)}
+          onJumpToMessage={handleSearchDrawerJump}
+          initialQuery={searchQuery}
+          decryptedContents={decryptedContents}
+        />
       </div>
 
       {/* 端侧搜索结果提示条 */}

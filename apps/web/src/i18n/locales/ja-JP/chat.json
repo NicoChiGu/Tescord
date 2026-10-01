@@ -198,5 +198,19 @@
   "emojiCategoryTravel": "旅行と場所",
   "emojiCategoryObjects": "オブジェクトとツール",
   "emojiCategorySymbols": "記号",
-  "emojiCategoryFlags": "旗"
+  "emojiCategoryFlags": "旗",
+  "search": {
+    "resultsTitle": "検索結果",
+    "placeholder": "キーワードまたは検索フィルターを入力...",
+    "e2eePlaceholder": "E2EE暗号化チャンネル内を検索...",
+    "e2eeSearch": "暗号化検索",
+    "search": "検索",
+    "scope": "範囲:",
+    "noResults": "一致するメッセージは見つかりませんでした",
+    "noResultsDesc": "検索語を短くするか、フィルターの構文を確認してください。",
+    "welcomeTitle": "Discord メッセージ検索",
+    "welcomeDesc": "キーワード全文検索や from:、has: などの高度な構文フィルターに対応。",
+    "imageAttachment": "画像添付",
+    "fileAttachment": "ファイル添付"
+  }
 }

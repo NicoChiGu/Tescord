@@ -42,7 +42,7 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
   );
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // 拉取当前用户在该服务器的现有活跃邀请链接（不自动创建新链接）
+  // 拉取当前用户在该服务器的现有活跃邀请链接（若无则自动预生成）
   const fetchActiveInvite = async () => {
     try {
       setLoadingCode(true);
@@ -72,24 +72,25 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
             isTemporary: false,
           });
         } else {
-          setInviteCode("");
+          // 当前用户无活跃邀请链接，自动预生成一个默认链接
+          await handleCreateInvite(inviteOptions, false);
         }
       } else {
-        setInviteCode("");
+        await handleCreateInvite(inviteOptions, false);
       }
     } catch (err) {
       console.error("Failed to fetch active invite:", err);
-      setInviteCode("");
+      await handleCreateInvite(inviteOptions, false);
     } finally {
       setLoadingCode(false);
     }
   };
 
-  // 通过按钮主动创建邀请链接（支持指定选项与 forceNew）
+  // 通过按钮主动创建邀请链接（支持指定选项与 forceNew），并返回新邀请码
   const handleCreateInvite = async (
     opts?: InviteOptions,
     forceNew: boolean = false,
-  ) => {
+  ): Promise<string | null> => {
     const targetOpts = opts || inviteOptions;
     try {
       setLoadingCode(true);
@@ -110,12 +111,14 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
         const data = await res.json();
         setInviteCode(data.code);
         setInviteOptions(targetOpts);
+        return data.code;
       }
     } catch (err) {
       console.error("Failed to generate invite:", err);
     } finally {
       setLoadingCode(false);
     }
+    return null;
   };
 
   useEffect(() => {
@@ -175,10 +178,29 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
 
   // 通过私信向好友发送邀请卡片
   const handleSendInviteToFriend = async (friend: User) => {
-    if (invitedUsers[friend.id] || sendingInvite[friend.id] || !fullInviteUrl)
+    if (invitedUsers[friend.id] || sendingInvite[friend.id])
       return;
     try {
       setSendingInvite((prev) => ({ ...prev, [friend.id]: true }));
+      let codeToUse = inviteCode;
+      if (!codeToUse) {
+        // 若当前未就绪，即时静默创建
+        codeToUse = (await handleCreateInvite(inviteOptions, false)) || "";
+      }
+      if (!codeToUse) {
+        throw new Error(
+          t("modals:inviteFriends.createInviteFailed", {
+            defaultValue: "生成邀请链接失败，请稍后重试",
+          }),
+        );
+      }
+
+      const origin =
+        typeof window !== "undefined" && window.location.origin
+          ? window.location.origin
+          : "https://tescord.com";
+      const targetInviteUrl = `${origin}/invite/${codeToUse}`;
+
       // 1. 获取或创建 DM 频道
       const dmRes = await fetch(`${API_BASE}/api/users/@me/channels`, {
         method: "POST",
@@ -188,7 +210,12 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
         },
         body: JSON.stringify({ recipientId: friend.id }),
       });
-      if (!dmRes.ok) throw new Error("无法创建私信会话");
+      if (!dmRes.ok)
+        throw new Error(
+          t("modals:inviteFriends.createDmFailed", {
+            defaultValue: "无法创建私信会话",
+          }),
+        );
       const dmChannel = await dmRes.json();
 
       // 2. 发送邀请链接消息
@@ -201,11 +228,16 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
             ...getAuthHeaders(),
           },
           body: JSON.stringify({
-            content: fullInviteUrl,
+            content: targetInviteUrl,
           }),
         },
       );
-      if (!msgRes.ok) throw new Error("发送邀请私信失败");
+      if (!msgRes.ok)
+        throw new Error(
+          t("modals:inviteFriends.sendInviteFailed", {
+            defaultValue: "发送邀请私信失败",
+          }),
+        );
 
       // 3. 标记为已邀请
       setInvitedUsers((prev) => ({ ...prev, [friend.id]: true }));
@@ -216,7 +248,12 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
         }),
       );
     } catch (err: any) {
-      toast.error(err.message || "发送邀请失败");
+      toast.error(
+        err.message ||
+          t("modals:inviteFriends.sendInviteFailed", {
+            defaultValue: "发送邀请失败",
+          }),
+      );
     } finally {
       setSendingInvite((prev) => ({ ...prev, [friend.id]: false }));
     }
@@ -366,8 +403,8 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
                       ) : (
                         <button
                           onClick={() => handleSendInviteToFriend(friend)}
-                          disabled={isSending || loadingCode}
-                          className="px-4 py-1.5 rounded border border-discord-brand hover:bg-discord-brand text-white text-xs font-semibold transition flex items-center space-x-1"
+                          disabled={isSending}
+                          className="px-4 py-1.5 rounded border border-discord-brand hover:bg-discord-brand text-white text-xs font-semibold transition flex items-center space-x-1 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {isSending && (
                             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -495,7 +532,9 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         currentOptions={inviteOptions}
-        onGenerate={(opts) => handleCreateInvite(opts, true)}
+        onGenerate={async (opts) => {
+          await handleCreateInvite(opts, true);
+        }}
       />
     </>
   );

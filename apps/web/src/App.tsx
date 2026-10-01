@@ -4741,6 +4741,66 @@ export const App: React.FC = () => {
       })()
     : null;
 
+  const handleSelectChannel = (ch: Channel, isDrawer: boolean = false) => {
+    setIsFriendsTabActive(false);
+    setSelectedChannel(ch);
+    if (ch.guildId) {
+      setSelectedGuildId(ch.guildId);
+      useChannelNavStore.getState().recordLastSelectedGuild(ch.guildId);
+      useChannelNavStore.getState().recordChannelVisit(ch.guildId, ch.id);
+      if (ch.type === "TEXT") {
+        useChannelNavStore
+          .getState()
+          .recordTextChannelVisit(ch.guildId, ch.id);
+        setChannelUnreadMap((prev) => {
+          const cur = prev[ch.id];
+          if (!cur || (!cur.hasUnread && cur.mentionCount === 0))
+            return prev;
+          return {
+            ...prev,
+            [ch.id]: {
+              ...cur,
+              hasUnread: false,
+              unreadCount: 0,
+              mentionCount: 0,
+            },
+          };
+        });
+        markChannelReadOnServer(ch.id);
+        if (ch.guildId) {
+          const otherUnread = Object.values(
+            channelUnreadMapRef.current,
+          ).some(
+            (item) =>
+              item.guildId === ch.guildId &&
+              item.channelId !== ch.id &&
+              (item.hasUnread || item.mentionCount > 0),
+          );
+          if (!otherUnread) {
+            setGuildUnreadMap((prev) => {
+              if (!prev[ch.guildId!]) return prev;
+              const next = { ...prev };
+              delete next[ch.guildId!];
+              return next;
+            });
+          }
+        }
+      }
+    }
+    if (ch.type === "DM" || !ch.guildId) {
+      setSelectedGuildId(null);
+      useChannelNavStore.getState().recordLastSelectedGuild(null);
+      setDmChannels((prev) =>
+        prev.map((dm) =>
+          dm.id === ch.id ? { ...dm, unreadCount: 0 } : dm,
+        ),
+      );
+    }
+    if (isDrawer || isMobileDrawerOpen) {
+      setIsMobileDrawerOpen(false);
+    }
+  };
+
   const renderSidebarElements = (isDrawer: boolean = false) => (
     <>
       {/* 1. 最左侧公会导航侧栏 */}
@@ -4874,65 +4934,7 @@ export const App: React.FC = () => {
         voiceTransferNotice={voiceTransferNotice}
         onDismissVoiceTransferNotice={() => setVoiceTransferNotice(null)}
         onReclaimVoice={(ch) => handleJoinVoiceChannel(ch)}
-        onSelectChannel={(ch) => {
-          setIsFriendsTabActive(false);
-          setSelectedChannel(ch);
-          if (ch.guildId) {
-            setSelectedGuildId(ch.guildId);
-            useChannelNavStore.getState().recordLastSelectedGuild(ch.guildId);
-            useChannelNavStore.getState().recordChannelVisit(ch.guildId, ch.id);
-            if (ch.type === "TEXT") {
-              useChannelNavStore
-                .getState()
-                .recordTextChannelVisit(ch.guildId, ch.id);
-              setChannelUnreadMap((prev) => {
-                const cur = prev[ch.id];
-                if (!cur || (!cur.hasUnread && cur.mentionCount === 0))
-                  return prev;
-                return {
-                  ...prev,
-                  [ch.id]: {
-                    ...cur,
-                    hasUnread: false,
-                    unreadCount: 0,
-                    mentionCount: 0,
-                  },
-                };
-              });
-              markChannelReadOnServer(ch.id);
-              if (ch.guildId) {
-                const otherUnread = Object.values(
-                  channelUnreadMapRef.current,
-                ).some(
-                  (item) =>
-                    item.guildId === ch.guildId &&
-                    item.channelId !== ch.id &&
-                    (item.hasUnread || item.mentionCount > 0),
-                );
-                if (!otherUnread) {
-                  setGuildUnreadMap((prev) => {
-                    if (!prev[ch.guildId!]) return prev;
-                    const next = { ...prev };
-                    delete next[ch.guildId!];
-                    return next;
-                  });
-                }
-              }
-            }
-          }
-          if (ch.type === "DM" || !ch.guildId) {
-            setSelectedGuildId(null);
-            useChannelNavStore.getState().recordLastSelectedGuild(null);
-            setDmChannels((prev) =>
-              prev.map((dm) =>
-                dm.id === ch.id ? { ...dm, unreadCount: 0 } : dm,
-              ),
-            );
-          }
-          if (isDrawer) {
-            setIsMobileDrawerOpen(false);
-          }
-        }}
+        onSelectChannel={(ch) => handleSelectChannel(ch, isDrawer)}
         onJoinVoiceChannel={(ch) => {
           handleJoinVoiceChannel(ch);
           if (isDrawer) {
@@ -5191,6 +5193,7 @@ export const App: React.FC = () => {
             }
             onMarkChannelAsRead={handleSyncChannelReadProgress}
             onReloadLatestMessages={handleReloadLatestMessages}
+            onSelectChannel={(ch) => handleSelectChannel(ch)}
             dmCallElement={renderDMCallStage()}
           />
         ) : guilds.length === 0 ? (

@@ -206,7 +206,10 @@
     "expireHours": "招待リンクは {{count}} 時間後に有効期限が切れます。",
     "createInviteBtn": "招待リンクを作成",
     "noActiveInvitePrompt": "有効な招待リンクがありません。ボタンをクリックして作成してください。",
-    "generateNewLink": "新しいリンクを生成"
+    "generateNewLink": "新しいリンクを生成",
+    "createInviteFailed": "招待リンクの作成に失敗しました。後でもう一度お試しください",
+    "createDmFailed": "DMチャンネルを作成できませんでした",
+    "sendInviteFailed": "招待メッセージの送信に失敗しました"
   },
   "inviteSettings": {
     "title": "サーバー招待リンクの設定",

@@ -206,7 +206,10 @@
     "expireHours": "您的邀請連結將在 {{count}} 小時後過期。",
     "createInviteBtn": "建立邀請連結",
     "noActiveInvitePrompt": "目前尚未建立邀請連結，點擊右側按鈕建立。",
-    "generateNewLink": "產生新連結"
+    "generateNewLink": "產生新連結",
+    "createInviteFailed": "建立邀請連結失敗，請稍後重試",
+    "createDmFailed": "無法建立私訊對話",
+    "sendInviteFailed": "傳送邀請私訊失敗"
   },
   "inviteSettings": {
     "title": "伺服器邀請連結設定",

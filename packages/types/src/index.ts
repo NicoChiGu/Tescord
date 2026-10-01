@@ -781,6 +781,31 @@ export interface Message {
   sequence?: number;
 }
 
+// 4.1 消息搜索引擎相关协议 (Discord Search Engine Protocol)
+export interface SearchMessagesQuery {
+  guildId?: string;
+  channelId?: string;
+  query?: string;
+  from?: string; // 发送者 username 或 displayName
+  mentions?: string; // 被提及的用户
+  has?: "link" | "file" | "image" | "video" | "sound"; // 附件或特殊类型
+  pinned?: boolean;
+  before?: string; // ISO 格式时间
+  after?: string; // ISO 格式时间
+  limit?: number;
+  offset?: number;
+}
+
+export interface SearchMessageItem extends Message {
+  channelName?: string;
+}
+
+export interface SearchMessagesResponse {
+  total: number;
+  messages: SearchMessageItem[];
+  hasMore: boolean;
+}
+
 // 5. 网关信令协议 (WebSocket Gateway)
 export enum GatewayOpCode {
   DISPATCH = 0,

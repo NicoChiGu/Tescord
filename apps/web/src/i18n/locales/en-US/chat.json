@@ -198,5 +198,19 @@
   "emojiCategoryTravel": "Travel & Places",
   "emojiCategoryObjects": "Objects & Tools",
   "emojiCategorySymbols": "Symbols",
-  "emojiCategoryFlags": "Flags"
+  "emojiCategoryFlags": "Flags",
+  "search": {
+    "resultsTitle": "Search Results",
+    "placeholder": "Enter keywords or search filters...",
+    "e2eePlaceholder": "Search encrypted channel...",
+    "e2eeSearch": "Encrypted Search",
+    "search": "Search",
+    "scope": "Scope:",
+    "noResults": "No matching messages found",
+    "noResultsDesc": "Try shortening your search query or check filter syntax.",
+    "welcomeTitle": "Discord Message Search",
+    "welcomeDesc": "Search full history with keywords and filters like from: and has:.",
+    "imageAttachment": "Image attachment",
+    "fileAttachment": "File attachment"
+  }
 }

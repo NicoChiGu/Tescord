@@ -103,7 +103,9 @@ const SortableServerItem: React.FC<SortableServerItemProps> = ({
           {...sortableAttributes}
           {...listeners}
           onClick={() => onSelectGuild(guild.id)}
-          className={`group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] transition-all duration-200 ease-out overflow-visible shrink-0 touch-none select-none active:scale-95 ${
+          className={`group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] transition-all duration-200 ease-out overflow-visible shrink-0 select-none active:scale-95 ${
+            isDragging ? "touch-none opacity-25" : ""
+          } ${
             isSelected ? "!rounded-[16px]" : ""
           }`}
           title={guild.name}
@@ -166,7 +168,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const { t } = useTranslation("common");
   const [activeGuild, setActiveGuild] = useState<Guild | null>(null);
 
-  // 拖拽传感器：MouseSensor 5px 快速响应，低于 5px 保留为单击选择或右键菜单；TouchSensor 200ms 防滚屏误触
+  // 拖拽传感器：
+  // 1. MouseSensor 5px 快速响应；
+  // 2. TouchSensor 延时 1450ms (450ms长按呼出菜单 + 1000ms菜单展示缓冲)：
+  //    - 0~450ms：正常触屏滑动列表或点击；
+  //    - 450ms：触发长按打开上下文菜单，此时拖拽被阻断；
+  //    - 450ms~1450ms (菜单展示1秒内)：松手则保留长按菜单；
+  //    - 达到1450ms后发生滑动：判定为用户启动拖拽，自动关闭长按菜单并启动拖拽重排！
   const sensors = useSensors(
     useSensor(MouseSensor, {
       activationConstraint: {
@@ -175,8 +183,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     }),
     useSensor(TouchSensor, {
       activationConstraint: {
-        delay: 200,
-        tolerance: 6,
+        delay: 1450,
+        tolerance: 10,
       },
     }),
   );
@@ -212,6 +220,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
     const found = guilds.find((g) => g.id === event.active.id);
     if (found) {
       setActiveGuild(found);
+    }
+    // 当启动拖拽时，自动关闭当前展示的长按上下文菜单
+    document.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+    );
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      try {
+        navigator.vibrate(40);
+      } catch {}
     }
   };
 

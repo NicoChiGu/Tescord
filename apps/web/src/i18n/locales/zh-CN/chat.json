@@ -198,5 +198,19 @@
   "emojiCategoryTravel": "旅行与地点",
   "emojiCategoryObjects": "物体与工具",
   "emojiCategorySymbols": "符号",
-  "emojiCategoryFlags": "旗帜"
+  "emojiCategoryFlags": "旗帜",
+  "search": {
+    "resultsTitle": "搜索结果",
+    "placeholder": "输入关键词或过滤语法...",
+    "e2eePlaceholder": "在端加密频道中检索...",
+    "e2eeSearch": "密文搜索",
+    "search": "搜索",
+    "scope": "范围:",
+    "noResults": "找不到相符的消息",
+    "noResultsDesc": "请尝试缩短搜索词，或检查过滤标签拼写。",
+    "welcomeTitle": "Discord 消息搜索",
+    "welcomeDesc": "支持关键词全文搜索及 from:、has: 等高级语法过滤。",
+    "imageAttachment": "图片附件",
+    "fileAttachment": "文件附件"
+  }
 }

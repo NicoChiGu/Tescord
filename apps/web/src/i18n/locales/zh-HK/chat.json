@@ -198,5 +198,19 @@
   "emojiCategoryTravel": "旅行與地點",
   "emojiCategoryObjects": "物品與工具",
   "emojiCategorySymbols": "符號",
-  "emojiCategoryFlags": "旗幟"
+  "emojiCategoryFlags": "旗幟",
+  "search": {
+    "resultsTitle": "搜尋結果",
+    "placeholder": "輸入關鍵字或過濾語法...",
+    "e2eePlaceholder": "在端對端加密頻道中檢索...",
+    "e2eeSearch": "密文搜尋",
+    "search": "搜尋",
+    "scope": "範圍:",
+    "noResults": "找不到相符的訊息",
+    "noResultsDesc": "請嘗試縮短搜尋詞，或檢查過濾標籤拼寫。",
+    "welcomeTitle": "Discord 訊息搜尋",
+    "welcomeDesc": "支援關鍵字全文搜尋及 from:、has: 等進階語法過濾。",
+    "imageAttachment": "圖片附件",
+    "fileAttachment": "檔案附件"
+  }
 }

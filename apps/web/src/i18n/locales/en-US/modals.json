@@ -206,7 +206,10 @@
     "expireHours": "Your invite link will expire in {{count}} hours.",
     "createInviteBtn": "Create Invite Link",
     "noActiveInvitePrompt": "No active invite link found. Click button to create one.",
-    "generateNewLink": "Generate New Link"
+    "generateNewLink": "Generate New Link",
+    "createInviteFailed": "Failed to create invite link, please try again later",
+    "createDmFailed": "Unable to create direct message",
+    "sendInviteFailed": "Failed to send invite message"
   },
   "inviteSettings": {
     "title": "Server Invite Link Settings",
