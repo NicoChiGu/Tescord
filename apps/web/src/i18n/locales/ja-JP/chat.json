@@ -137,7 +137,8 @@
       "ended": "通話終了",
       "duration": "通話時間 {{duration}}",
       "noAnswer": "接続されませんでした"
-    }
+    },
+    "welcomePrompt": "ここが {{name}} とのダイレクトメッセージ履歴の始まりです。"
   },
   "invite": {
     "invitedByUser": "{{user}} がサーバーに招待しました",
@@ -249,5 +250,8 @@
     "loadFailed": "STLモデルの読み込みまたは解析に失敗しました",
     "retry": "再試行",
     "dragHint": "左ドラッグで回転 · 右ドラッグで平行移動 · ホイールで拡大縮小"
-  }
+  },
+  "welcomeChannelTitle": "#{{name}} へようこそ！",
+  "welcomeChannelDesc": "ここが #{{name}} チャンネルの始まりです。会話を楽しみましょう！",
+  "welcomeChannelE2EEDesc": "これは実験的なエンドツーエンドDouble Ratchet暗号化機密チャンネル (Beta) です。すべてのメッセージはクライアント側でローカルに暗号化され、サーバーは平文を保存せず中継のみを行います。"
 }

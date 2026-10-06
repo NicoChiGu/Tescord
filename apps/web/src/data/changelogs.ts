@@ -1,8 +1,45 @@
 import { VersionChangelog } from "@tescord/types";
 
-export const CURRENT_APP_VERSION = "0.3.2";
+export const CURRENT_APP_VERSION = "0.3.3";
 
 export const BUILTIN_CHANGELOGS: VersionChangelog[] = [
+  {
+    version: "0.3.3",
+    releaseDate: "2026-10-06",
+    releaseUrl: "https://github.com/labsphaela/Tescord/releases/tag/0.3.3",
+    items: [
+      {
+        id: "stream-media-encryption",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_3_media_e2ee_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_3_media_e2ee_desc",
+      },
+      {
+        id: "stl-3d-preview",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_3_stl_preview_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_3_stl_preview_desc",
+      },
+      {
+        id: "native-loopback-capture",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_3_loopback_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_3_loopback_desc",
+      },
+      {
+        id: "animated-guild-icon",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_3_animated_icon_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_3_animated_icon_desc",
+      },
+      {
+        id: "message-history-cursor",
+        category: "improvements",
+        titleKey: "modals:whatsNew.items.v0_3_3_cursor_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_3_cursor_desc",
+      },
+    ],
+  },
   {
     version: "0.3.2",
     releaseDate: "2026-10-02",

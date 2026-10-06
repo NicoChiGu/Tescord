@@ -137,7 +137,8 @@
       "ended": "通話已結束",
       "duration": "通話時長 {{duration}}",
       "noAnswer": "未建立通話連線"
-    }
+    },
+    "welcomePrompt": "這是你與 {{name}} 私訊歷史記錄的起點。"
   },
   "invite": {
     "invitedByUser": "{{user}} 邀請你加入伺服器",
@@ -249,5 +250,8 @@
     "loadFailed": "STL 模型載入或解析失敗",
     "retry": "重試載入",
     "dragHint": "按住左鍵旋轉 · 右鍵平移 · 滾輪縮放"
-  }
+  },
+  "welcomeChannelTitle": "歡迎來到 #{{name}}!",
+  "welcomeChannelDesc": "這是 #{{name}} 頻道的起點。暢所欲言吧！",
+  "welcomeChannelE2EEDesc": "這是一個實驗性端對端雙棘輪加密絕密頻道 (Beta)。所有訊息均在客戶端本地密文封裝，伺服器僅充當盲中繼，零明文儲存。"
 }

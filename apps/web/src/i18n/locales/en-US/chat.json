@@ -137,7 +137,8 @@
       "ended": "Call Ended",
       "duration": "Call duration {{duration}}",
       "noAnswer": "No answer"
-    }
+    },
+    "welcomePrompt": "This is the beginning of your direct message history with {{name}}."
   },
   "invite": {
     "invitedByUser": "{{user}} invited you to join a server",
@@ -249,5 +250,8 @@
     "loadFailed": "Failed to load or parse STL model",
     "retry": "Retry",
     "dragHint": "Left drag to rotate · Right drag to pan · Scroll to zoom"
-  }
+  },
+  "welcomeChannelTitle": "Welcome to #{{name}}!",
+  "welcomeChannelDesc": "This is the start of the #{{name}} channel. Enjoy chatting!",
+  "welcomeChannelE2EEDesc": "This is an experimental end-to-end Double Ratchet encrypted channel (Beta). All messages are encrypted locally on the client; the server acts only as a blind relay with zero plaintext storage."
 }

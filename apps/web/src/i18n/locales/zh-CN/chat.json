@@ -137,7 +137,8 @@
       "ended": "通话已结束",
       "duration": "通话时长 {{duration}}",
       "noAnswer": "未建立通话连接"
-    }
+    },
+    "welcomePrompt": "这是你与 {{name}} 私信历史记录的起点。"
   },
   "invite": {
     "invitedByUser": "{{user}} 邀请你加入服务器",
@@ -249,5 +250,8 @@
     "loadFailed": "STL 模型加载或解析失败",
     "retry": "重试加载",
     "dragHint": "按住左键旋转 · 右键平移 · 滚轮缩放"
-  }
+  },
+  "welcomeChannelTitle": "欢迎来到 #{{name}}!",
+  "welcomeChannelDesc": "这是 #{{name}} 频道的起点。畅所欲言吧！",
+  "welcomeChannelE2EEDesc": "这是一个实验性端到端双棘轮加密绝密频道 (Beta)。所有消息均在客户端本地密文封装，服务器仅充当盲中继，零明文存储。"
 }

@@ -440,7 +440,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                 </div>
                 {localStats?.videoBitrate ? (
                   <div className="flex justify-between py-1 border-b border-[#35373c]">
-                    <span className="text-discord-textMuted">视频实时码率</span>
+                    <span className="text-discord-textMuted">{t("voice:videoBitrate")}</span>
                     <span className="text-emerald-400 font-mono">
                       {localStats.videoBitrate} kbps
                     </span>
@@ -449,14 +449,14 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                 <div className="flex justify-between py-1 border-b border-[#35373c]">
                   <span className="text-discord-textMuted flex items-center space-x-1">
                     <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>传输加密协议</span>
+                    <span>{t("voice:cryptoProtocol")}</span>
                   </span>
                   <span className="text-discord-green font-mono">
                     <MediaEncryptionIndicator />
                   </span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-[#35373c]">
-                  <span className="text-discord-textMuted">神经网络降噪</span>
+                  <span className="text-discord-textMuted">{t("voice:noiseSuppressionEngine")}</span>
                   <span className="text-white font-mono">
                     {effectiveNoiseLabel}
                   </span>
@@ -464,7 +464,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                 <div className="flex justify-between py-1">
                   <span className="text-discord-textMuted flex items-center space-x-1">
                     <Radio className="w-3.5 h-3.5 text-discord-brand" />
-                    <span>语音活动检测 (VAD)</span>
+                    <span>{t("voice:vadSensitivity")}</span>
                   </span>
                   <span className="text-white font-mono">
                     {isPTTMode
@@ -717,7 +717,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                             </span>
                             <div className="flex items-center gap-3 font-mono text-[11px]">
                               <span className="text-discord-green font-bold">
-                                {rep.rtt > 0 ? `${rep.rtt} ms` : "未知"}
+                                {rep.rtt > 0 ? `${rep.rtt} ms` : t("voice:networkStats.unknown")}
                               </span>
                               <span className="text-discord-textMuted text-[10px]">
                                 {rep.connectionType}

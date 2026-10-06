@@ -4,6 +4,44 @@
 
 ---
 
+## [0.3.3] - 2026-10-06
+
+### 🚀 新增功能 (Features)
+
+- **SFrame (RFC 9605) 实时流媒体端到端加密体系 (Media E2EE v2)**：
+  - 核心音视频流基于 RFC 9605 标准实现客户端本地帧级加密（Insertable Streams / ScriptTransform 与 Web Worker 隔离线程）；
+  - 信令与媒体解耦，支持硬件加速与自动密钥轮转；服务端仅充当盲中继，零明文访问；
+  - 网关升级至媒体协议 v2，完善握手超时拦截与客户端密钥信封协商 (`StreamMediaKeyEnvelope`)；
+  - 完善端到端加密状态指示器与可视化仪表板（`MediaEncryptionIndicator` / `NetworkQualityModal`）。
+
+- **STL 3D 模型在线交互式预览 (3D Model Preview in Chat)**：
+  - 聊天附件全面支持 STL 3D 模型文件在线解析与交互式预览；
+  - 基于 Three.js 异步独立分包（首屏零开销），支持模型自由旋转、全方位缩放、自动居中、面数统计及物理尺寸（mm）实时计算；
+  - 模态框关闭与组件卸载时强制调用 WebGL 上下文释放（`forceContextLoss`），杜绝显存泄漏。
+
+- **桌面客户端原生音频环回捕获 (Native WASAPI Audio Loopback)**：
+  - 深度集成 Windows 原生 C++ 插件（WASAPI Build 20348+），实现系统伴奏与应用级无损音频流采集；
+  - 主进程提供短期 Grant 权限安全校验，屏幕共享时提供独立进程授权与无损混音。
+
+- **公会动态 GIF 图标与像素级安全防护 (Animated Guild Icons)**：
+  - 支持服务器上传动态 GIF 图标并在鼠标悬停时平滑播放；
+  - 服务端深度集成 Sharp 像素级安全检测与魔数比对，限制最大帧数与像素上限，阻断恶意解压炸弹。
+
+### 🐛 问题修复与体验优化 (Bug Fixes & UX)
+
+- **聊天双向游标消息历史分页 (Bidirectional Message History)**：
+  - 重构消息历史加载机制为双向游标（Cursor-based Pagination），彻底消除跨频道切换与跳转定位时的列表闪烁与抖动；
+  - 优化触屏手势抽屉与长按上下文菜单响应，提升移动端与高触控设备的交互流畅度。
+- **国际化与多语言 100% 对齐与硬编码修复**：
+  - 消除网络质量弹窗与频道欢迎横幅的历史硬编码，全面抽离为 i18n 规范调用；
+  - 同步更新 `zh-CN`、`zh-TW`、`zh-HK`、`en-US`、`ja-JP` 全部 5 套语言字典。
+
+### 🛠 部署与数据 (Deployment & Data)
+
+- **PostgreSQL 数据库迁移**：新增 `20261006000000_stream_media_encryption` 生产迁移，创建 `StreamMediaKeyEnvelope` 表支持端到端密钥信封存储。
+
+---
+
 ## [0.3.2] - 2026-10-02
 
 ### 🚀 新增功能 (Features)

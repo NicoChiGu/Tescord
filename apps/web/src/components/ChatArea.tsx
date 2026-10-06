@@ -2714,12 +2714,21 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   )}
                 </div>
                 <h2 className="text-2xl font-bold text-discord-textHeader">
-                  欢迎来到 #{channel.name}!
+                  {t("chat:welcomeChannelTitle", {
+                    name: channel.name,
+                    defaultValue: `欢迎来到 #${channel.name}!`,
+                  })}
                 </h2>
                 <p className="text-sm text-discord-textMuted mt-1">
                   {channel.isE2EE
-                    ? "这是一个实验性端到端双棘轮加密绝密频道 (Beta)。所有消息均在客户端本地密文封装，服务器仅充当盲中继，零明文存储。"
-                    : `这是 #${channel.name} 频道的起点。畅所欲言吧！`}
+                    ? t("chat:welcomeChannelE2EEDesc", {
+                        defaultValue:
+                          "这是一个实验性端到端双棘轮加密绝密频道 (Beta)。所有消息均在客户端本地密文封装，服务器仅充当盲中继，零明文存储。",
+                      })
+                    : t("chat:welcomeChannelDesc", {
+                        name: channel.name,
+                        defaultValue: `这是 #${channel.name} 频道的起点。畅所欲言吧！`,
+                      })}
                 </p>
               </div>
             ))}
