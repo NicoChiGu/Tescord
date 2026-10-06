@@ -253,5 +253,7 @@
   },
   "welcomeChannelTitle": "欢迎来到 #{{name}}!",
   "welcomeChannelDesc": "这是 #{{name}} 频道的起点。畅所欲言吧！",
-  "welcomeChannelE2EEDesc": "这是一个实验性端到端双棘轮加密绝密频道 (Beta)。所有消息均在客户端本地密文封装，服务器仅充当盲中继，零明文存储。"
+  "welcomeChannelE2EEDesc": "这是一个实验性端到端双棘轮加密绝密频道 (Beta)。所有消息均在客户端本地密文封装，服务器仅充当盲中继，零明文存储。",
+  "spoilerHintHidden": "剧透警告：点击显现",
+  "spoilerHintRevealed": "点击重新隐藏剧透"
 }

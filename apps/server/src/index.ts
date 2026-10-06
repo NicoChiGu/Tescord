@@ -905,17 +905,13 @@ server.patch(
         body.customStatus !== undefined ||
         body.showActivity !== undefined
       ) {
-        const existingPresence = await cacheStore.getUserPresence(userId);
-        const presence = {
-          userId,
-          status: updated.status,
-          customStatus: updated.customStatus,
-          activities: existingPresence?.activities,
-          clientStatus: existingPresence?.clientStatus,
-          lastActiveAt: new Date().toISOString(),
-        };
-        await cacheStore.setUserPresence(userId, presence);
-        await gatewayManager.broadcastPresenceUpdate(userId, presence);
+        if (body.status) {
+          gatewayManager.setUserSessionsStatus(
+            userId,
+            body.status === "IDLE" ? "IDLE" : "ONLINE",
+          );
+        }
+        await gatewayManager.recalculateUserPresence(userId);
       }
 
       // 通过网关广播全量资料更新事件

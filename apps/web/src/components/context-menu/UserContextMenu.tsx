@@ -264,7 +264,12 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
   const handleStatusChange = async (newStatus: string) => {
     try {
       const status = newStatus as UserStatus;
-      gatewayClient.updateStatus(status, currentUser?.customStatus);
+      gatewayClient.updateStatus(
+        status,
+        currentUser?.customStatus,
+        undefined,
+        true,
+      );
       await updateProfile({ status });
       window.electronAPI?.syncUserStatus(status);
     } catch (e) {

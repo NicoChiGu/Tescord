@@ -253,5 +253,7 @@
   },
   "welcomeChannelTitle": "#{{name}} へようこそ！",
   "welcomeChannelDesc": "ここが #{{name}} チャンネルの始まりです。会話を楽しみましょう！",
-  "welcomeChannelE2EEDesc": "これは実験的なエンドツーエンドDouble Ratchet暗号化機密チャンネル (Beta) です。すべてのメッセージはクライアント側でローカルに暗号化され、サーバーは平文を保存せず中継のみを行います。"
+  "welcomeChannelE2EEDesc": "これは実験的なエンドツーエンドDouble Ratchet暗号化機密チャンネル (Beta) です。すべてのメッセージはクライアント側でローカルに暗号化され、サーバーは平文を保存せず中継のみを行います。",
+  "spoilerHintHidden": "ネタバレ注意：クリックして表示",
+  "spoilerHintRevealed": "クリックしてネタバレを再非表示"
 }

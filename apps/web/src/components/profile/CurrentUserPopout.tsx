@@ -197,7 +197,12 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
   // 状态切换处理
   const handleStatusChange = async (newStatus: UserStatus) => {
     try {
-      gatewayClient.updateStatus(newStatus, currentUser.customStatus);
+      gatewayClient.updateStatus(
+        newStatus,
+        currentUser.customStatus,
+        undefined,
+        true,
+      );
       await updateProfile({ status: newStatus });
       window.electronAPI?.syncUserStatus(newStatus);
       setIsStatusSubmenuOpen(false);

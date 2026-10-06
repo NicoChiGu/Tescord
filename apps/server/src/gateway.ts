@@ -47,6 +47,7 @@ interface ClientConnection {
   isAlive: boolean;
   heartbeatIntervalTimer?: NodeJS.Timeout;
   authTimer?: NodeJS.Timeout;
+  sessionStatus?: "ONLINE" | "IDLE";
 }
 
 export class GatewayManager {
@@ -59,6 +60,69 @@ export class GatewayManager {
   private connections: Set<ClientConnection> = new Set();
   // 多端/多会话映射：userId -> Map<sessionId, ClientConnection>
   private userSessions: Map<string, Map<string, ClientConnection>> = new Map();
+
+  /**
+   * 重新裁决并聚合指定用户的瞬时在线状态
+   * 规则：
+   * 1. 若用户在数据库的偏好为显式手动设置的 "DND"、"INVISIBLE"、"IDLE" 或 "OFFLINE"，严格遵循用户的手动设置；
+   * 2. 若用户偏好为 "ONLINE"（默认在线）：
+   *    - 若没有任何连接，状态为 "OFFLINE"；
+   *    - 只要其中任意一个在线连接处于活跃状态 (sessionStatus !== "IDLE")，用户全局状态即为 "ONLINE"；
+   *    - 只有当所有已连接的会话都上报闲置 (sessionStatus === "IDLE") 时，才聚合为 "IDLE"。
+   */
+  public async recalculateUserPresence(userId: string): Promise<UserStatus> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { status: true, customStatus: true, showActivity: true },
+    });
+    if (!user) return "OFFLINE";
+
+    const userPref = (user.status as UserStatus) || "ONLINE";
+    const sessions = this.userSessions.get(userId);
+    const hasAnySession = Boolean(sessions && sessions.size > 0);
+
+    let effectiveStatus: UserStatus;
+    if (!hasAnySession) {
+      effectiveStatus = "OFFLINE";
+    } else if (userPref === "ONLINE" || userPref === "OFFLINE") {
+      const hasAnyActiveSession = Array.from(sessions!.values()).some(
+        (s) => s.ws.readyState === WebSocket.OPEN && s.sessionStatus !== "IDLE",
+      );
+      effectiveStatus = hasAnyActiveSession ? "ONLINE" : "IDLE";
+    } else {
+      effectiveStatus = userPref;
+    }
+
+    const currentPresence = await cacheStore.getUserPresence(userId);
+    const presence: UserPresence = {
+      userId,
+      status: effectiveStatus,
+      customStatus: user.customStatus,
+      activities: currentPresence?.activities,
+      clientStatus: {
+        ...(currentPresence?.clientStatus || {}),
+        web: effectiveStatus,
+      },
+      lastActiveAt: new Date().toISOString(),
+    };
+
+    await cacheStore.setUserPresence(
+      userId,
+      presence,
+      effectiveStatus === "OFFLINE" ? 86400 : 90,
+    );
+    await this.broadcastPresenceUpdate(userId, presence);
+    return effectiveStatus;
+  }
+
+  public setUserSessionsStatus(userId: string, status: "ONLINE" | "IDLE") {
+    const sessions = this.userSessions.get(userId);
+    if (sessions) {
+      for (const s of sessions.values()) {
+        s.sessionStatus = status;
+      }
+    }
+  }
   // 全网单用户仅存一个活跃语音会话：userId -> VoiceState
   private voiceStates: Map<string, VoiceState> = new Map();
   private mediaJoinTimers = new Map<string, NodeJS.Timeout>();
@@ -384,6 +448,7 @@ export class GatewayManager {
         }
         const sessions = this.userSessions.get(user.id)!;
         const replacedConnection = sessions.get(sessionId);
+        conn.sessionStatus = "ONLINE";
         sessions.set(sessionId, conn);
         if (
           replacedConnection &&
@@ -396,21 +461,8 @@ export class GatewayManager {
           );
         }
 
-        // 确定用户有效在线状态（若偏好是 OFFLINE 则默认唤醒为 ONLINE，若为 INVISIBLE/DND/IDLE 则保留偏好）
-        const userStatusPref = (user.status as UserStatus) || "ONLINE";
-        const effectiveStatus: UserStatus =
-          userStatusPref === "OFFLINE" ? "ONLINE" : userStatusPref;
-
-        const presence: UserPresence = {
-          userId: user.id,
-          status: effectiveStatus,
-          customStatus: user.customStatus,
-          clientStatus: {
-            web: effectiveStatus,
-          },
-          lastActiveAt: new Date().toISOString(),
-        };
-        await cacheStore.setUserPresence(user.id, presence, 90);
+        // 计算用户有效在线状态并更新缓存与广播（多端在线裁决）
+        const effectiveStatus = await this.recalculateUserPresence(user.id);
 
         // 获取当前用户已加入的公会数据供客户端初始化
         const guilds = await prisma.guild.findMany({
@@ -537,9 +589,6 @@ export class GatewayManager {
           },
         });
 
-        // 向共同公会成员广播在线状态更新 (PRESENCE_UPDATE)
-        await this.broadcastPresenceUpdate(user.id, presence);
-
         if (this.isMaintenanceActive && user.role !== "SUPER_ADMIN") {
           this.send(conn.ws, {
             op: GatewayOpCode.DISPATCH,
@@ -555,36 +604,40 @@ export class GatewayManager {
         const data = payload.d as StatusUpdatePayload;
         if (!data || !data.status) return;
 
-        // 1. 更新数据库持久化偏好
-        await prisma.user.update({
-          where: { id: conn.userId },
-          data: {
-            status: data.status,
-            ...(data.customStatus !== undefined
-              ? { customStatus: data.customStatus }
-              : {}),
-          },
-        });
+        if (data.activities !== undefined) {
+          const current = await cacheStore.getUserPresence(conn.userId);
+          if (current) {
+            current.activities = data.activities;
+            await cacheStore.setUserPresence(conn.userId, current, 90);
+          }
+        }
 
-        // 2. 更新瞬时缓存
-        const presence: UserPresence = {
-          userId: conn.userId,
-          status: data.status,
-          customStatus: data.customStatus,
-          activities: data.activities,
-          clientStatus: {
-            web: data.status,
-          },
-          lastActiveAt: new Date().toISOString(),
-        };
-        await cacheStore.setUserPresence(
-          conn.userId,
-          presence,
-          data.status === "OFFLINE" ? 86400 : 90,
-        );
+        if (data.isManual) {
+          // 1. 用户显式手动设置（在头像弹窗/偏好设置中显式选择状态）
+          await prisma.user.update({
+            where: { id: conn.userId },
+            data: {
+              status: data.status,
+              ...(data.customStatus !== undefined
+                ? { customStatus: data.customStatus }
+                : {}),
+            },
+          });
+          conn.sessionStatus = data.status === "IDLE" ? "IDLE" : "ONLINE";
+        } else {
+          // 2. 会话级活跃度变更 (客户端自动 10 分钟 AFK 或活动唤醒)：
+          // 仅记录当前会话的 sessionStatus，绝对不污染持久化数据库的 user.status！
+          conn.sessionStatus = data.status === "IDLE" ? "IDLE" : "ONLINE";
+          if (data.customStatus !== undefined) {
+            await prisma.user.update({
+              where: { id: conn.userId },
+              data: { customStatus: data.customStatus },
+            });
+          }
+        }
 
-        // 3. 向共同公会广播 PRESENCE_UPDATE
-        await this.broadcastPresenceUpdate(conn.userId, presence);
+        // 3. 统一多端裁决并向全网广播瞬时在线状态
+        await this.recalculateUserPresence(conn.userId);
         break;
       }
 
@@ -1533,6 +1586,9 @@ export class GatewayManager {
             }
           }, 3500);
           this.disconnectGraceTimers.set(userId, timer);
+        } else {
+          // 还有其他 Session 连接：重新计算多端聚合在线状态并广播
+          void this.recalculateUserPresence(conn.userId);
         }
       }
 

@@ -560,6 +560,7 @@ export class GatewayClient {
     status: UserStatus,
     customStatus?: string | null,
     activities?: import("@tescord/types").Activity[],
+    isManual?: boolean,
   ) {
     this.send({
       op: GatewayOpCode.STATUS_UPDATE,
@@ -567,6 +568,7 @@ export class GatewayClient {
         status,
         customStatus,
         activities,
+        isManual,
       },
     });
   }

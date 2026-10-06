@@ -253,5 +253,7 @@
   },
   "welcomeChannelTitle": "歡迎嚟到 #{{name}}!",
   "welcomeChannelDesc": "呢度係 #{{name}} 頻道嘅起點。盡情暢所欲言啦！",
-  "welcomeChannelE2EEDesc": "呢個係實驗性端對端雙棘輪加密絕密頻道 (Beta)。所有訊息都喺客戶端本地密文封裝，伺服器只係充當盲中繼，零明文儲存。"
+  "welcomeChannelE2EEDesc": "呢個係實驗性端對端雙棘輪加密絕密頻道 (Beta)。所有訊息都喺客戶端本地密文封裝，伺服器只係充當盲中繼，零明文儲存。",
+  "spoilerHintHidden": "劇透警告：點擊顯示",
+  "spoilerHintRevealed": "點擊重新隱藏劇透"
 }

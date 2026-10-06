@@ -924,6 +924,8 @@ export interface StatusUpdatePayload {
   status: UserStatus;
   customStatus?: string | null;
   activities?: Activity[];
+  /** 是否为用户显式手动在设置/菜单中切换状态 (true: 持久化偏好; false 或未传: 客户端会话活跃度变更) */
+  isManual?: boolean;
 }
 
 export interface UserPresence {

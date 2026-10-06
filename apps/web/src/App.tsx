@@ -2419,32 +2419,42 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // 10 分钟无操作自动离开 (AFK Auto-Idle) 检测
+  // 10 分钟无操作自动离开 (AFK Auto-Idle) 检测与活跃会话唤醒
   useEffect(() => {
     if (!currentUser || !isAuthenticated) return;
 
     let afkTimer: any = null;
     let isAutoIdled = false;
-    let previousStatus: UserStatus = currentUser.status || "ONLINE";
 
     const resetAfkTimer = () => {
+      const wasAutoIdled = isAutoIdled;
       if (isAutoIdled) {
         isAutoIdled = false;
-        // 恢复前置在线状态
-        gatewayClient.updateStatus(previousStatus, currentUser.customStatus);
+        // 只要当前会话检测到用户操作，即向网关上报恢复为在线 (isManual = false)
+        gatewayClient.updateStatus(
+          "ONLINE",
+          currentUser.customStatus,
+          undefined,
+          false,
+        );
       }
 
       if (afkTimer) clearTimeout(afkTimer);
 
       const latestUser = useAuthStore.getState().user;
-      if (latestUser && latestUser.status === "ONLINE") {
+      // 只要处于 ONLINE 状态（或刚刚从自动离开中被操作唤醒），重新排队 10 分钟闲置倒计时
+      if (wasAutoIdled || (latestUser && latestUser.status === "ONLINE")) {
         afkTimer = setTimeout(
           () => {
             const u = useAuthStore.getState().user;
             if (u && u.status === "ONLINE") {
               isAutoIdled = true;
-              previousStatus = "ONLINE";
-              gatewayClient.updateStatus("IDLE", u.customStatus);
+              gatewayClient.updateStatus(
+                "IDLE",
+                u.customStatus,
+                undefined,
+                false,
+              );
             }
           },
           10 * 60 * 1000,
@@ -2466,7 +2476,7 @@ export const App: React.FC = () => {
         window.removeEventListener(ev, handleActivity),
       );
     };
-  }, [currentUser?.id, isAuthenticated]);
+  }, [currentUser?.id, currentUser?.status, isAuthenticated]);
 
   // 监听 LiveKit SFU 底层断开回调（服务器断线、异常掉线、多端冲突被踢时权威收敛状态并向网关上报）
   useEffect(

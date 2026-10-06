@@ -14,28 +14,8 @@ export interface MarkdownContext {
   currentUsername?: string;
 }
 
-// Discord 风格剧透胶囊组件
-export const Spoiler: React.FC<{ children: React.ReactNode }> = ({
-  children,
-}) => {
-  const [revealed, setRevealed] = useState(false);
-  return (
-    <span
-      onClick={(e) => {
-        e.stopPropagation();
-        setRevealed(!revealed);
-      }}
-      className={`inline-block px-1.5 py-0.5 rounded text-[13px] transition cursor-pointer select-none ${
-        revealed
-          ? "bg-[#35373c] text-discord-textHeader border border-[#4e5058]"
-          : "bg-[#1e1f22] hover:bg-[#2b2d31] text-transparent hover:text-transparent"
-      }`}
-      title={revealed ? "点击隐藏剧透" : "剧透警告：点击显隐"}
-    >
-      {children}
-    </span>
-  );
-};
+import { Spoiler } from "./Spoiler.js";
+export { Spoiler };
 
 // 渲染 @提及 胶囊
 const renderMention = (
