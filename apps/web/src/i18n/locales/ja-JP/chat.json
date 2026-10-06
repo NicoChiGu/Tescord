@@ -226,5 +226,28 @@
     "jumpUnread": "未読へ移動",
     "jumpLatest": "最新へ移動",
     "jumpLatestTitle": "最新のメッセージへ移動"
+  },
+  "stlPreview": {
+    "previewButton": "3Dプレビュー",
+    "previewButtonAria": "STL 3Dモデルをオンラインプレビュー",
+    "tag": "3Dモデル",
+    "title": "STL 3Dモデルプレビュー",
+    "close": "プレビューを閉じる (ESC)",
+    "closeAria": "3Dプレビューを閉じる",
+    "resetCamera": "視点をリセット",
+    "resetCameraAria": "カメラの視点をリセット",
+    "autoRotate": "自動回転",
+    "autoRotateOn": "回転を停止",
+    "autoRotateOff": "自動回転を開始",
+    "triangles": "ポリゴン数",
+    "trianglesCount": "{{count}} 面",
+    "dimensions": "寸法",
+    "dimensionsValue": "{{x}} × {{y}} × {{z}} mm",
+    "download": "STLをダウンロード",
+    "downloadAria": "元のSTLモデルファイルをダウンロード",
+    "loading": "3Dモデルを読み込み中...",
+    "loadFailed": "STLモデルの読み込みまたは解析に失敗しました",
+    "retry": "再試行",
+    "dragHint": "左ドラッグで回転 · 右ドラッグで平行移動 · ホイールで拡大縮小"
   }
 }

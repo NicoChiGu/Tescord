@@ -55,6 +55,7 @@ import { messageDb } from "../services/messageDb.js";
 import { MarkdownRenderer } from "./chat/MarkdownRenderer.js";
 import { EmojiPickerPopover } from "./chat/EmojiPickerPopover.js";
 import { LightboxModal } from "./chat/LightboxModal.js";
+const StlPreviewModal = React.lazy(() => import("./chat/StlPreviewModal.js"));
 import { MobileActionSheet } from "./chat/MobileActionSheet.js";
 import { MentionInput, MentionInputHandle } from "./chat/MentionInput.js";
 import { TypingIndicator } from "./chat/TypingIndicator.js";
@@ -135,6 +136,7 @@ interface ChatMessageItemProps {
   onReactionAdd?: (id: string, emoji: string) => void;
   onReactionRemove?: (id: string, emoji: string) => void;
   setLightboxImage: (attachment: Attachment | null) => void;
+  setPreviewStl?: (attachment: Attachment | null) => void;
   setInputText: React.Dispatch<React.SetStateAction<string>>;
   onOpenMobileActions: (msg: Message) => void;
   onMentionUser?: (username: string) => void;
@@ -169,6 +171,7 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
   onReactionAdd,
   onReactionRemove,
   setLightboxImage,
+  setPreviewStl,
   setInputText,
   onOpenMobileActions,
   onMentionUser,
@@ -530,7 +533,13 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
                   );
                 }
 
-                return <FileAttachment key={att.id} attachment={att} />;
+                return (
+                  <FileAttachment
+                    key={att.id}
+                    attachment={att}
+                    onPreviewStl={setPreviewStl}
+                  />
+                );
               })}
             </div>
           )}
@@ -986,6 +995,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   }, []);
   const [isInputEmojiOpen, setIsInputEmojiOpen] = useState(false);
   const [lightboxImage, setLightboxImage] = useState<Attachment | null>(null);
+  const [previewStlAttachment, setPreviewStlAttachment] =
+    useState<Attachment | null>(null);
   const [pendingImageUrls, setPendingImageUrls] = useState<
     Record<string, string>
   >({});
@@ -2818,6 +2829,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                       onReactionAdd={onReactionAdd}
                       onReactionRemove={onReactionRemove}
                       setLightboxImage={setLightboxImage}
+                      setPreviewStl={setPreviewStlAttachment}
                       setInputText={setInputText}
                       onOpenMobileActions={handleOpenMobileActions}
                       onMentionUser={handleMentionUser}
@@ -3194,6 +3206,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         }
         onClose={() => setLightboxImage(null)}
       />
+
+      {/* STL 3D 模型在线预览灯箱 */}
+      {previewStlAttachment && (
+        <React.Suspense fallback={null}>
+          <StlPreviewModal
+            attachment={previewStlAttachment}
+            onClose={() => setPreviewStlAttachment(null)}
+          />
+        </React.Suspense>
+      )}
 
       {/* 移动端专属消息长按操作抽屉 (Mobile ActionSheet) */}
       <MobileActionSheet

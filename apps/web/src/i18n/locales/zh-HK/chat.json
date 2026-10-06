@@ -226,5 +226,28 @@
     "jumpUnread": "跳至未讀",
     "jumpLatest": "跳至最新",
     "jumpLatestTitle": "跳至最新訊息"
+  },
+  "stlPreview": {
+    "previewButton": "3D 預覽",
+    "previewButtonAria": "線上 3D 預覽 STL 模型",
+    "tag": "3D 模型",
+    "title": "STL 3D 模型預覽",
+    "close": "關閉預覽 (ESC)",
+    "closeAria": "關閉 3D 預覽",
+    "resetCamera": "重設視角",
+    "resetCameraAria": "重設模型觀察視角",
+    "autoRotate": "自動旋轉",
+    "autoRotateOn": "關閉旋轉",
+    "autoRotateOff": "開啟自動旋轉",
+    "triangles": "三角面數",
+    "trianglesCount": "{{count}} 面",
+    "dimensions": "尺寸規格",
+    "dimensionsValue": "{{x}} × {{y}} × {{z}} mm",
+    "download": "下載 STL 模型",
+    "downloadAria": "下載原 STL 模型檔案",
+    "loading": "正在解析 3D 模型...",
+    "loadFailed": "STL 模型載入或解析失敗",
+    "retry": "重試載入",
+    "dragHint": "按住左鍵旋轉 · 右鍵平移 · 滾輪縮放"
   }
 }

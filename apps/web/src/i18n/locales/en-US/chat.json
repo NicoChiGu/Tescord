@@ -226,5 +226,28 @@
     "jumpUnread": "Jump to unread",
     "jumpLatest": "Jump to latest",
     "jumpLatestTitle": "Jump to latest messages"
+  },
+  "stlPreview": {
+    "previewButton": "3D Preview",
+    "previewButtonAria": "Preview STL 3D model online",
+    "tag": "3D Model",
+    "title": "STL 3D Model Preview",
+    "close": "Close Preview (ESC)",
+    "closeAria": "Close 3D preview",
+    "resetCamera": "Reset View",
+    "resetCameraAria": "Reset camera view",
+    "autoRotate": "Auto Rotate",
+    "autoRotateOn": "Stop rotation",
+    "autoRotateOff": "Start auto rotation",
+    "triangles": "Triangles",
+    "trianglesCount": "{{count}}",
+    "dimensions": "Dimensions",
+    "dimensionsValue": "{{x}} × {{y}} × {{z}} mm",
+    "download": "Download STL",
+    "downloadAria": "Download original STL model file",
+    "loading": "Loading 3D model...",
+    "loadFailed": "Failed to load or parse STL model",
+    "retry": "Retry",
+    "dragHint": "Left drag to rotate · Right drag to pan · Scroll to zoom"
   }
 }

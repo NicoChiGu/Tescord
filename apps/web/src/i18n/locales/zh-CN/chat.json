@@ -226,5 +226,28 @@
     "jumpUnread": "跳转至未读",
     "jumpLatest": "跳到最新",
     "jumpLatestTitle": "跳到最新消息"
+  },
+  "stlPreview": {
+    "previewButton": "3D 预览",
+    "previewButtonAria": "在线 3D 预览 STL 模型",
+    "tag": "3D 模型",
+    "title": "STL 3D 模型预览",
+    "close": "关闭预览 (ESC)",
+    "closeAria": "关闭 3D 预览",
+    "resetCamera": "重置视角",
+    "resetCameraAria": "重置模型观察机位",
+    "autoRotate": "自动旋转",
+    "autoRotateOn": "关闭旋转",
+    "autoRotateOff": "开启自动旋转",
+    "triangles": "三角面数",
+    "trianglesCount": "{{count}} 面",
+    "dimensions": "尺寸规格",
+    "dimensionsValue": "{{x}} × {{y}} × {{z}} mm",
+    "download": "下载 STL 模型",
+    "downloadAria": "下载原 STL 模型文件",
+    "loading": "正在解析 3D 模型...",
+    "loadFailed": "STL 模型加载或解析失败",
+    "retry": "重试加载",
+    "dragHint": "按住左键旋转 · 右键平移 · 滚轮缩放"
   }
 }

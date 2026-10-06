@@ -215,7 +215,7 @@ server.addContentTypeParser(
   },
 );
 server.addContentTypeParser(
-  /^application\/(?!json|webhook\+json).+|^image\/.+|^audio\/.+|^video\/.+|^font\/.+|^multipart\/.+/,
+  /^application\/(?!json|webhook\+json).+|^image\/.+|^audio\/.+|^video\/.+|^font\/.+|^model\/.+|^multipart\/.+/,
   { parseAs: "buffer" },
   (req, body, done) => {
     done(null, body);

@@ -1,21 +1,28 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import type { Attachment } from "@tescord/types";
-import { Download, FileText, RefreshCw } from "lucide-react";
+import { Box, Download, Eye, FileText, RefreshCw } from "lucide-react";
 import { resolveServerUrl } from "../../config.js";
 import {
   getAttachmentAccess,
   openAttachmentDownload,
 } from "../../services/attachmentAccess.js";
+import { isStlFile } from "../../utils/fileType.js";
 
 interface FileAttachmentProps {
   attachment: Attachment;
+  onPreviewStl?: (attachment: Attachment) => void;
 }
 
 export const FileAttachment: React.FC<FileAttachmentProps> = ({
   attachment,
+  onPreviewStl,
 }) => {
+  const { t } = useTranslation("chat");
   const isAudio = attachment.mimeType.startsWith("audio/");
   const isVideo = attachment.mimeType.startsWith("video/");
+  const isStl = isStlFile(attachment.mimeType, attachment.fileName);
+
   const [mediaUrl, setMediaUrl] = useState<string>();
   const [mediaFailed, setMediaFailed] = useState(false);
   const [error, setError] = useState<string>();
@@ -30,12 +37,14 @@ export const FileAttachment: React.FC<FileAttachmentProps> = ({
       })
       .catch((cause: unknown) => {
         if (!cancelled)
-          setError(cause instanceof Error ? cause.message : "预览不可用");
+          setError(
+            cause instanceof Error ? cause.message : t("stlPreview.loadFailed"),
+          );
       });
     return () => {
       cancelled = true;
     };
-  }, [attachment.id, isAudio, isVideo]);
+  }, [attachment.id, isAudio, isVideo, t]);
 
   const retryMedia = () => {
     void getAttachmentAccess(attachment, true)
@@ -45,7 +54,9 @@ export const FileAttachment: React.FC<FileAttachmentProps> = ({
         setError(undefined);
       })
       .catch((cause: unknown) =>
-        setError(cause instanceof Error ? cause.message : "预览不可用"),
+        setError(
+          cause instanceof Error ? cause.message : t("stlPreview.loadFailed"),
+        ),
       );
   };
   const onMediaError = () => {
@@ -54,12 +65,19 @@ export const FileAttachment: React.FC<FileAttachmentProps> = ({
   };
   const download = () => {
     void openAttachmentDownload(attachment).catch((cause: unknown) =>
-      setError(cause instanceof Error ? cause.message : "下载失败"),
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : t("lightbox.downloadFailed"),
+      ),
     );
   };
 
   return (
-    <div className="flex flex-col gap-2 bg-[#2b2d31] p-2.5 rounded-lg border border-[#3f4147] w-full max-w-sm text-discord-textNormal">
+    <div
+      data-testid="file-attachment-card"
+      className="flex flex-col gap-2 bg-[#2b2d31] p-2.5 rounded-lg border border-[#3f4147] w-full max-w-sm text-discord-textNormal"
+    >
       {mediaUrl && !mediaFailed && isAudio && (
         <audio
           controls
@@ -79,25 +97,59 @@ export const FileAttachment: React.FC<FileAttachmentProps> = ({
         />
       )}
       <div className="flex items-center gap-2 min-w-0">
-        <FileText className="w-7 h-7 text-discord-brand shrink-0" />
+        {isStl ? (
+          <div
+            data-testid="file-stl-icon"
+            className="p-1 rounded-md bg-discord-brand/20 text-discord-brand shrink-0"
+          >
+            <Box className="w-5 h-5" />
+          </div>
+        ) : (
+          <FileText className="w-7 h-7 text-discord-brand shrink-0" />
+        )}
         <div className="flex-1 min-w-0">
           <div
-            className="text-xs font-medium truncate"
+            className={`text-xs font-medium truncate ${
+              isStl && onPreviewStl
+                ? "cursor-pointer hover:underline text-discord-interactiveHover hover:text-white"
+                : ""
+            }`}
             title={attachment.fileName}
+            onClick={
+              isStl && onPreviewStl ? () => onPreviewStl(attachment) : undefined
+            }
           >
             {attachment.fileName}
           </div>
-          <div className="text-[10px] text-discord-textMuted">
-            {(attachment.fileSize / 1024).toFixed(1)} KB ·{" "}
-            {attachment.mimeType || "文件"}
+          <div className="text-[10px] text-discord-textMuted flex items-center gap-1">
+            <span>{(attachment.fileSize / 1024).toFixed(1)} KB</span>
+            <span>·</span>
+            <span>
+              {isStl ? t("stlPreview.tag") : attachment.mimeType || "File"}
+            </span>
           </div>
         </div>
+
+        {/* 3D 在线预览按钮 */}
+        {isStl && onPreviewStl && (
+          <button
+            type="button"
+            onClick={() => onPreviewStl(attachment)}
+            title={t("stlPreview.previewButton")}
+            aria-label={t("stlPreview.previewButtonAria")}
+            data-testid="file-stl-preview-btn"
+            className="p-1 text-discord-textMuted hover:text-white transition-colors"
+          >
+            <Eye className="w-4 h-4" />
+          </button>
+        )}
+
         {(mediaFailed || error) && (isAudio || isVideo) && (
           <button
             type="button"
             onClick={retryMedia}
-            title="重新获取预览"
-            aria-label="重新获取预览"
+            title={t("lightbox.retry")}
+            aria-label={t("lightbox.retry")}
             className="p-1 text-discord-textMuted hover:text-white"
           >
             <RefreshCw className="w-4 h-4" />
@@ -106,8 +158,8 @@ export const FileAttachment: React.FC<FileAttachmentProps> = ({
         <button
           type="button"
           onClick={download}
-          title={`下载 ${attachment.fileName}`}
-          aria-label={`下载 ${attachment.fileName}`}
+          title={`${t("lightbox.download")}: ${attachment.fileName}`}
+          aria-label={`${t("lightbox.download")}: ${attachment.fileName}`}
           className="p-1 text-discord-textMuted hover:text-white"
         >
           <Download className="w-4 h-4" />
@@ -121,3 +173,4 @@ export const FileAttachment: React.FC<FileAttachmentProps> = ({
     </div>
   );
 };
+
