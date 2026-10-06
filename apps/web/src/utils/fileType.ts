@@ -1,5 +1,3 @@
-import type { Attachment } from "@tescord/types";
-
 /**
  * 判断附件或文件名是否为 STL 3D 模型
  */
@@ -15,6 +13,19 @@ export const isStlFile = (mimeType?: string, fileName?: string): boolean => {
     mime === "application/vnd.ms-pki.stl"
   );
 };
+
+/**
+ * 判断附件或文件名是否为音频文件
+ */
+export const isAudioFile = (mimeType?: string, fileName?: string): boolean => {
+  const name = (fileName || "").toLowerCase();
+  const mime = (mimeType || "").toLowerCase();
+  return (
+    mime.startsWith("audio/") ||
+    /\.(mp3|wav|ogg|flac|aac|m4a|weba|opus|wma|aiff)$/i.test(name)
+  );
+};
+
 
 /**
  * 格式化数字（千分位）

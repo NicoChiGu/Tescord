@@ -264,5 +264,25 @@
   "attachment": {
     "loadFailed": "媒体加载失败",
     "genericFile": "文件"
+  },
+  "audioPlayer": {
+    "play": "播放",
+    "pause": "暂停",
+    "replay": "重新播放",
+    "buffering": "缓冲中...",
+    "playbackRate": "倍速: {{rate}}x",
+    "speed": "倍速",
+    "volume": "音量",
+    "mute": "静音",
+    "unmute": "取消静音",
+    "download": "下载音频",
+    "loadFailed": "音频加载失败",
+    "retry": "重试",
+    "seekTooltip": "点击或拖拽跳转进度",
+    "nowPlaying": "正在播放",
+    "miniPlayer": "音频播放器",
+    "expand": "展开",
+    "collapse": "收起",
+    "close": "关闭播放器"
   }
 }

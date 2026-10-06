@@ -7,7 +7,8 @@ import {
   getAttachmentAccess,
   openAttachmentDownload,
 } from "../../services/attachmentAccess.js";
-import { isStlFile } from "../../utils/fileType.js";
+import { isStlFile, isAudioFile } from "../../utils/fileType.js";
+import { AudioAttachment } from "./AudioAttachment.js";
 
 interface FileAttachmentProps {
   attachment: Attachment;
@@ -19,7 +20,10 @@ export const FileAttachment: React.FC<FileAttachmentProps> = ({
   onPreviewStl,
 }) => {
   const { t } = useTranslation("chat");
-  const isAudio = attachment.mimeType.startsWith("audio/");
+  const isAudio = isAudioFile(attachment.mimeType, attachment.fileName);
+  if (isAudio) {
+    return <AudioAttachment attachment={attachment} />;
+  }
   const isVideo = attachment.mimeType.startsWith("video/");
   const isStl = isStlFile(attachment.mimeType, attachment.fileName);
 
@@ -76,15 +80,6 @@ export const FileAttachment: React.FC<FileAttachmentProps> = ({
       data-testid="file-attachment-card"
       className="flex flex-col gap-2 bg-[#2b2d31] p-2.5 rounded-lg border border-[#3f4147] w-full max-w-sm text-discord-textNormal"
     >
-      {mediaUrl && !mediaFailed && isAudio && (
-        <audio
-          controls
-          preload="none"
-          src={mediaUrl}
-          onError={onMediaError}
-          className="w-full"
-        />
-      )}
       {mediaUrl && !mediaFailed && isVideo && (
         <video
           controls

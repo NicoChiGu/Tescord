@@ -56,12 +56,21 @@ const test = async (name: string, run: () => void | Promise<void>) => {
 };
 const states = new Map<string, VoiceState>(),
   activeLogin = new Map<string, string>();
+const pushedEvents: Array<{
+  userId: string;
+  sessionId: string;
+  payload: any;
+}> = [];
 const registry = new MediaEncryptionRegistry({
   hasIdentifiedLoginSession: (userId, sessionId, loginId) =>
     activeLogin.get(`${userId}:${sessionId}`) === loginId,
   getMediaVoiceState: (id) => states.get(id) || null,
   getMediaVoiceRoster: (id) =>
     [...states.values()].filter((state) => state.channelId === id),
+  sendToSession: (userId, sessionId, payload) => {
+    pushedEvents.push({ userId, sessionId, payload });
+    return true;
+  },
 });
 const keys = new Map<string, CryptoKeyPair>();
 for (const id of ["alice", "bob", "eve"]) {
@@ -278,6 +287,7 @@ await test("tampered signature and cross-recipient identity reject", async () =>
   );
 });
 await test("ciphertext envelopes deliver only to addressed device and await authenticated ack", async () => {
+  pushedEvents.length = 0;
   assert.equal(
     (
       await registry.publish(
@@ -290,6 +300,16 @@ await test("ciphertext envelopes deliver only to addressed device and await auth
     ).acknowledged,
     false,
   );
+  // Verify real-time Gateway WebSocket envelope dispatch to Bob
+  const envelopePush = pushedEvents.find(
+    (e) => e.userId === "bob" && e.payload.t === "MEDIA_KEY_ENVELOPE",
+  );
+  assert.ok(
+    envelopePush,
+    "Bob should receive real-time MEDIA_KEY_ENVELOPE via sendToSession",
+  );
+  assert.equal(envelopePush.payload.d.envelope.keyId, 123);
+
   assert.equal(
     (await registry.snapshot("bob", "login-bob", "voice", body("bob")))
       .envelopes.length,
@@ -300,7 +320,20 @@ await test("ciphertext envelopes deliver only to addressed device and await auth
       .envelopes.length,
     0,
   );
+
+  pushedEvents.length = 0;
   await registry.acknowledge("bob", "login-bob", "voice", body("bob"), 123);
+  // Verify real-time Gateway WebSocket ACK dispatch to Alice
+  const ackPush = pushedEvents.find(
+    (e) => e.userId === "alice" && e.payload.t === "MEDIA_KEY_ACK",
+  );
+  assert.ok(
+    ackPush,
+    "Alice should receive real-time MEDIA_KEY_ACK via sendToSession",
+  );
+  assert.equal(ackPush.payload.d.keyId, 123);
+  assert.equal(ackPush.payload.d.acknowledged, true);
+
   assert.deepEqual(
     (await registry.snapshot("alice", "login-alice", "voice", body("alice")))
       .acknowledgedKeyIds,

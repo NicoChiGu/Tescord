@@ -264,5 +264,25 @@
   "attachment": {
     "loadFailed": "Failed to load media",
     "genericFile": "File"
+  },
+  "audioPlayer": {
+    "play": "Play",
+    "pause": "Pause",
+    "replay": "Replay",
+    "buffering": "Buffering...",
+    "playbackRate": "Speed: {{rate}}x",
+    "speed": "Speed",
+    "volume": "Volume",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "download": "Download audio",
+    "loadFailed": "Failed to load audio",
+    "retry": "Retry",
+    "seekTooltip": "Click or drag to seek",
+    "nowPlaying": "Now Playing",
+    "miniPlayer": "Audio Player",
+    "expand": "Expand",
+    "collapse": "Collapse",
+    "close": "Close player"
   }
 }

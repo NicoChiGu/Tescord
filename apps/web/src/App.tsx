@@ -43,6 +43,7 @@ import { ForcedPasswordChangeModal } from "./components/auth/ForcedPasswordChang
 import { GlobalContextMenu } from "./components/context-menu/GlobalContextMenu.js";
 import { GlobalDialogContainer } from "./components/ui/dialog/GlobalDialogContainer.js";
 import { GlobalToastContainer } from "./components/ui/dialog/GlobalToastContainer.js";
+import { GlobalMiniPlayer } from "./components/audio/GlobalMiniPlayer.js";
 import { dialog } from "./stores/useDialogStore.js";
 import { useTranslation } from "react-i18next";
 import { installFetchInterceptor } from "./services/apiClient.js";
@@ -5807,6 +5808,9 @@ export const App: React.FC = () => {
 
       {/* 20. 全局 Toast 消息容器 */}
       <GlobalToastContainer />
+
+      {/* 21. 全局单例音频小窗播放状态栏 */}
+      <GlobalMiniPlayer />
     </div>
   );
 };

@@ -1460,13 +1460,17 @@ export class GatewayManager {
     }
   }
 
-  private sendToSession(
+  public sendToSession(
     userId: string,
     sessionId: string,
     payload: GatewayPayload,
-  ) {
+  ): boolean {
     const conn = this.userSessions.get(userId)?.get(sessionId);
-    if (conn) this.send(conn.ws, payload);
+    if (conn && conn.ws.readyState === WebSocket.OPEN) {
+      this.send(conn.ws, payload);
+      return true;
+    }
+    return false;
   }
 
   private publishCallEnd(call: DMCallSession, endedBy: string) {

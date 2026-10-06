@@ -5,6 +5,8 @@ import { dmCallService } from "./dm-call.service.js";
 import { dmService } from "./dm.service.js";
 import { permissionService } from "./permission.service.js";
 import {
+  GatewayEvents,
+  GatewayOpCode,
   MEDIA_ENCRYPTION_VERSION,
   PermissionFlags,
   mediaStreamEnvelopeSigningBytes,
@@ -15,6 +17,9 @@ import type {
   MediaEncryptionJoinRequest,
   MediaEncryptionSnapshot,
   MediaStreamKeyPublishRequest,
+  MediaKeyEnvelopePushPayload,
+  MediaKeyAckPushPayload,
+  MediaEpochUpdatePushPayload,
 } from "@tescord/types";
 
 interface Registration {
@@ -48,7 +53,10 @@ export class MediaEncryptionRegistry {
       Partial<
         Pick<
           typeof gatewayManager,
-          "confirmMediaRegistration" | "expireMediaParticipant"
+          | "confirmMediaRegistration"
+          | "expireMediaParticipant"
+          | "sendToSession"
+          | "sendToUser"
         >
       > = gatewayManager,
   ) {}
@@ -166,7 +174,22 @@ export class MediaEncryptionRegistry {
         channelId,
         body.gatewaySessionId,
       );
-    return this.snapshot(userId, loginSessionId, channelId, body);
+    const snapshot = await this.snapshot(userId, loginSessionId, channelId, body);
+    this.broadcastEpochUpdate(room, snapshot.context);
+    return snapshot;
+  }
+  private broadcastEpochUpdate(room: Room, context: MediaEncryptionContext) {
+    for (const [, entry] of room.registrations) {
+      this.gateway.sendToSession?.(entry.userId, entry.gatewaySessionId, {
+        op: GatewayOpCode.DISPATCH,
+        t: GatewayEvents.MEDIA_EPOCH_UPDATE,
+        d: {
+          channelId: room.channelId,
+          callId: room.callId,
+          context,
+        } satisfies MediaEpochUpdatePushPayload,
+      });
+    }
   }
   private async context(room: Room): Promise<MediaEncryptionContext> {
     const devices: MediaEncryptionDevice[] = [];
@@ -466,6 +489,30 @@ export class MediaEncryptionRegistry {
         }),
       ),
     ]);
+    for (const envelope of request.envelopes) {
+      const recipient = recipients.find(
+        (device) =>
+          device.userId === envelope.recipientId &&
+          device.deviceId === envelope.recipientDeviceId,
+      );
+      if (recipient) {
+        this.gateway.sendToSession?.(
+          recipient.userId,
+          recipient.gatewaySessionId,
+          {
+            op: GatewayOpCode.DISPATCH,
+            t: GatewayEvents.MEDIA_KEY_ENVELOPE,
+            d: {
+              channelId,
+              callId: body.callId,
+              contextId: context.contextId,
+              membershipVersion: context.membershipVersion,
+              envelope,
+            } satisfies MediaKeyEnvelopePushPayload,
+          },
+        );
+      }
+    }
     if (recipients.length) {
       const timer = setTimeout(() => {
         void (async () => {
@@ -546,6 +593,49 @@ export class MediaEncryptionRegistry {
       },
       data: { acknowledgedAt: new Date() },
     });
+    const unacknowledged = await prisma.streamMediaKeyEnvelope.count({
+      where: {
+        contextId: context.contextId,
+        membershipVersion: context.membershipVersion,
+        keyId,
+        acknowledgedAt: null,
+      },
+    });
+    if (unacknowledged === 0) {
+      const sample = await prisma.streamMediaKeyEnvelope.findFirst({
+        where: {
+          contextId: context.contextId,
+          membershipVersion: context.membershipVersion,
+          keyId,
+        },
+        select: { senderId: true, senderDeviceId: true },
+      });
+      if (sample) {
+        const sender = context.devices.find(
+          (device) =>
+            device.userId === sample.senderId &&
+            device.deviceId === sample.senderDeviceId,
+        );
+        if (sender) {
+          this.gateway.sendToSession?.(
+            sender.userId,
+            sender.gatewaySessionId,
+            {
+              op: GatewayOpCode.DISPATCH,
+              t: GatewayEvents.MEDIA_KEY_ACK,
+              d: {
+                channelId,
+                callId: body.callId,
+                contextId: context.contextId,
+                membershipVersion: context.membershipVersion,
+                keyId,
+                acknowledged: true,
+              } satisfies MediaKeyAckPushPayload,
+            },
+          );
+        }
+      }
+    }
   }
   async assertParticipant(
     channelId: string,
@@ -581,7 +671,15 @@ export class MediaEncryptionRegistry {
         entry.gatewaySessionId === gatewaySessionId
       )
         room.registrations.delete(id);
-    if (!room.registrations.size) this.rooms.delete(key);
+    if (!room.registrations.size) {
+      this.rooms.delete(key);
+    } else {
+      void this.context(room)
+        .then((ctx) => {
+          this.broadcastEpochUpdate(room, ctx);
+        })
+        .catch(() => {});
+    }
   }
 }
 export const mediaEncryptionRegistry = new MediaEncryptionRegistry();

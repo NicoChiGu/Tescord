@@ -62,6 +62,8 @@ import { TypingIndicator } from "./chat/TypingIndicator.js";
 import { ImageAttachment } from "./chat/ImageAttachment.js";
 import { InlineAttachmentEmbed } from "./chat/InlineAttachmentEmbed.js";
 import { FileAttachment } from "./chat/FileAttachment.js";
+import { AudioAttachment } from "./chat/AudioAttachment.js";
+import { isAudioFile } from "../utils/fileType.js";
 import { ServerInviteEmbed } from "./chat/ServerInviteEmbed.js";
 import { PinnedMessagesPopover } from "./PinnedMessagesPopover.js";
 import { SearchResultsDrawer } from "./chat/SearchResultsDrawer.js";
@@ -531,6 +533,16 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
                       key={att.id}
                       attachment={att}
                       onPreview={setLightboxImage}
+                    />
+                  );
+                }
+
+                const isAudio = isAudioFile(att.mimeType, att.fileName);
+                if (isAudio) {
+                  return (
+                    <AudioAttachment
+                      key={att.id}
+                      attachment={att}
                     />
                   );
                 }

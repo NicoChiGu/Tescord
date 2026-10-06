@@ -99,3 +99,26 @@ export interface AudioReceiveQuality {
   bytesReceived: number;
   receiverBufferTargetMs?: number;
 }
+
+export interface MediaKeyEnvelopePushPayload {
+  channelId: string;
+  callId?: string;
+  contextId: string;
+  membershipVersion: string;
+  envelope: MediaStreamKeyEnvelope;
+}
+
+export interface MediaKeyAckPushPayload {
+  channelId: string;
+  callId?: string;
+  contextId: string;
+  membershipVersion: string;
+  keyId: number;
+  acknowledged: boolean;
+}
+
+export interface MediaEpochUpdatePushPayload {
+  channelId: string;
+  callId?: string;
+  context: MediaEncryptionContext;
+}

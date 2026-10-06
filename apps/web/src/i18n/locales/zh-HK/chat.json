@@ -264,5 +264,25 @@
   "attachment": {
     "loadFailed": "媒體載入失敗",
     "genericFile": "檔案"
+  },
+  "audioPlayer": {
+    "play": "播放",
+    "pause": "暫停",
+    "replay": "重新播放",
+    "buffering": "緩衝中...",
+    "playbackRate": "倍速: {{rate}}x",
+    "speed": "倍速",
+    "volume": "音量",
+    "mute": "靜音",
+    "unmute": "取消靜音",
+    "download": "下載音訊",
+    "loadFailed": "音訊載入失敗",
+    "retry": "重試",
+    "seekTooltip": "點擊或拖曳跳轉進度",
+    "nowPlaying": "現正播放",
+    "miniPlayer": "音訊播放器",
+    "expand": "展開",
+    "collapse": "收起",
+    "close": "關閉播放器"
   }
 }

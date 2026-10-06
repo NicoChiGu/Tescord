@@ -1,13 +1,20 @@
 import { useAuthStore } from "../stores/useAuthStore.js";
 import { apiFetch } from "./apiClient.js";
 import { API_BASE } from "../config.js";
-import { MEDIA_ENCRYPTION_VERSION } from "@tescord/types";
+import {
+  GatewayEvents,
+  MEDIA_ENCRYPTION_VERSION,
+} from "@tescord/types";
 import type {
   MediaEncryptionContext,
   MediaEncryptionJoinRequest,
   MediaEncryptionSnapshot,
   MediaEncryptionState,
+  MediaStreamKeyEnvelope,
   MediaStreamKeyPublishRequest,
+  MediaKeyEnvelopePushPayload,
+  MediaKeyAckPushPayload,
+  MediaEpochUpdatePushPayload,
 } from "@tescord/types";
 import { deviceKeyService } from "./deviceKeys.js";
 import { gatewayClient } from "./gateway.js";
@@ -35,7 +42,7 @@ class MediaEncryptionService {
   private generation = 0;
   private poll: ReturnType<typeof setInterval> | null = null;
   private controller: AbortController | null = null;
-  private unbind: (() => void) | null = null;
+  private unbinds: Array<() => void> = [];
   private pending = new Map<number, PendingKey>();
   private received = new Set<number>();
   private syncing: Promise<void> | null = null;
@@ -107,54 +114,132 @@ class MediaEncryptionService {
         throw new DOMException("Cancelled", "AbortError");
       this.context = snapshot.context;
       this.lastSyncAt = Date.now();
+      // Low-frequency heartbeat to maintain server participant lease (15s eviction timeout)
       this.poll = setInterval(() => {
         void this.sync().catch((error: unknown) => {
           if (generation !== this.generation) return;
           if (
-            Date.now() - this.lastSyncAt > 8_000 ||
+            Date.now() - this.lastSyncAt > 25_000 ||
             (error instanceof Error &&
               /UNAUTHORIZED|FORBIDDEN/.test(error.message))
           )
             this.fail(error);
         });
-      }, 750);
-      this.unbind = gatewayClient.on(
-        "VOICE_STATE_UPDATE",
-        (event: {
-          userId: string;
-          channelId?: string | null;
-          previousChannelId?: string;
-          sessionId?: string;
-        }) => {
-          const context = this.context;
-          if (!context || options.callId) return;
-          if (
-            event.channelId === options.channelId ||
-            event.previousChannelId === options.channelId
-          ) {
-            const known = context.devices.find(
-              (device) => device.userId === event.userId,
-            );
+      }, 10_000);
+
+      this.unbinds.push(
+        gatewayClient.on(
+          "VOICE_STATE_UPDATE",
+          (event: {
+            userId: string;
+            channelId?: string | null;
+            previousChannelId?: string;
+            sessionId?: string;
+          }) => {
+            const context = this.context;
+            if (!context || options.callId) return;
             if (
-              !known ||
-              event.channelId !== options.channelId ||
-              known.gatewaySessionId !== event.sessionId
+              event.channelId === options.channelId ||
+              event.previousChannelId === options.channelId
             ) {
-              sframeManager.pause();
-              void this.sync().catch((error: unknown) => {
-                if (generation === this.generation) this.fail(error);
-              });
+              const known = context.devices.find(
+                (device) => device.userId === event.userId,
+              );
+              if (
+                !known ||
+                event.channelId !== options.channelId ||
+                known.gatewaySessionId !== event.sessionId
+              ) {
+                sframeManager.pause();
+                void this.sync().catch((error: unknown) => {
+                  if (generation === this.generation) this.fail(error);
+                });
+              }
             }
-          }
-        },
+          },
+        ),
       );
+
+      this.unbinds.push(
+        gatewayClient.on(
+          GatewayEvents.MEDIA_KEY_ENVELOPE,
+          (payload: MediaKeyEnvelopePushPayload) => {
+            if (generation !== this.generation) return;
+            if (
+              payload.channelId !== options.channelId ||
+              (options.callId && payload.callId !== options.callId)
+            )
+              return;
+            const context = this.context;
+            if (!context || payload.contextId !== context.contextId) return;
+            void this.consumeEnvelope(context, payload.envelope).catch(
+              (error: unknown) => {
+                if (generation === this.generation) this.fail(error);
+              },
+            );
+          },
+        ),
+      );
+
+      this.unbinds.push(
+        gatewayClient.on(
+          GatewayEvents.MEDIA_KEY_ACK,
+          (payload: MediaKeyAckPushPayload) => {
+            if (generation !== this.generation) return;
+            if (
+              payload.channelId !== options.channelId ||
+              (options.callId && payload.callId !== options.callId)
+            )
+              return;
+            const pending = this.pending.get(payload.keyId);
+            if (pending && pending.epoch === payload.membershipVersion) {
+              clearTimeout(pending.timer);
+              pending.resolve();
+              this.pending.delete(payload.keyId);
+            }
+          },
+        ),
+      );
+
+      this.unbinds.push(
+        gatewayClient.on(
+          GatewayEvents.MEDIA_EPOCH_UPDATE,
+          (payload: MediaEpochUpdatePushPayload) => {
+            if (generation !== this.generation) return;
+            if (
+              payload.channelId !== options.channelId ||
+              (options.callId && payload.callId !== options.callId)
+            )
+              return;
+            void this.applyEpochUpdate(payload.context).catch(
+              (error: unknown) => {
+                if (generation === this.generation) this.fail(error);
+              },
+            );
+          },
+        ),
+      );
+
+      this.unbinds.push(
+        gatewayClient.onConnectionStateChange((state) => {
+          if (generation !== this.generation) return;
+          if (state === "connected") {
+            void this.sync().catch((error: unknown) => {
+              if (generation === this.generation) this.fail(error);
+            });
+          }
+        }),
+      );
+
       const deadline = Date.now() + 15_000;
       while (!this.context?.complete) {
         if (generation !== this.generation)
           throw new DOMException("Cancelled", "AbortError");
         if (Date.now() > deadline) throw new Error("MEDIA_NEGOTIATION_TIMEOUT");
-        await new Promise<void>((resolve) => setTimeout(resolve, 100));
-        await this.sync();
+        await new Promise<void>((resolve) => setTimeout(resolve, 200));
+        if (!this.context?.complete) {
+          await this.sync();
+        }
       }
       this.received.clear();
       sframeManager.beginContext(
@@ -214,6 +299,56 @@ class MediaEncryptionService {
     }
     return response.json() as Promise<T>;
   }
+  private async applyEpochUpdate(
+    context: MediaEncryptionContext,
+  ): Promise<void> {
+    const generation = this.generation;
+    const changed =
+      this.context?.membershipVersion !== context.membershipVersion;
+    this.context = context;
+    if (changed && sframeManager.hasActiveContext) {
+      this.rotating = true;
+      const baseline = sframeManager.getStats();
+      this.readyFrameBaseline = {
+        encrypted: baseline.framesEncrypted,
+        decrypted: baseline.framesDecrypted,
+      };
+      this.emit({
+        ...this.state,
+        phase: "negotiating",
+        membershipVersion: context.membershipVersion,
+      });
+      sframeManager.pause();
+      this.received.clear();
+      for (const key of this.pending.values()) {
+        clearTimeout(key.timer);
+        key.reject(new Error("MEDIA_CONTEXT_STALE"));
+      }
+      this.pending.clear();
+      // Do not block polling while rotated sender keys await remote acknowledgements.
+      const expectedVersion = context.membershipVersion;
+      void sframeManager
+        .rotateSenderKeys()
+        .then(() => {
+          if (
+            generation === this.generation &&
+            this.context?.membershipVersion === expectedVersion
+          ) {
+            this.rotating = false;
+            this.emit({ ...this.state, phase: "ready" });
+          }
+        })
+        .catch((error: unknown) => {
+          if (
+            generation === this.generation &&
+            this.context?.membershipVersion === expectedVersion
+          )
+            this.fail(error);
+        });
+    }
+    if (!context.complete) sframeManager.pause();
+    else if (!changed && !this.rotating) sframeManager.resume();
+  }
   private async sync(): Promise<void> {
     if (this.syncing) return this.syncing;
     const generation = this.generation;
@@ -221,74 +356,33 @@ class MediaEncryptionService {
       const snapshot = await this.request<MediaEncryptionSnapshot>("sync");
       if (generation !== this.generation) return;
       this.lastSyncAt = Date.now();
-      const changed =
-        this.context?.membershipVersion !== snapshot.context.membershipVersion;
-      this.context = snapshot.context;
-      if (changed && sframeManager.hasActiveContext) {
-        this.rotating = true;
-        const baseline = sframeManager.getStats();
-        this.readyFrameBaseline = {
-          encrypted: baseline.framesEncrypted,
-          decrypted: baseline.framesDecrypted,
-        };
-        this.emit({
-          ...this.state,
-          phase: "negotiating",
-          membershipVersion: snapshot.context.membershipVersion,
-        });
-        sframeManager.pause();
-        this.received.clear();
-        for (const key of this.pending.values()) {
-          clearTimeout(key.timer);
-          key.reject(new Error("MEDIA_CONTEXT_STALE"));
-        }
-        this.pending.clear();
-        // Do not block polling while rotated sender keys await remote acknowledgements.
-        const expectedVersion = snapshot.context.membershipVersion;
-        void sframeManager
-          .rotateSenderKeys()
-          .then(() => {
-            if (
-              generation === this.generation &&
-              this.context?.membershipVersion === expectedVersion
-            ) {
-              this.rotating = false;
-              this.emit({ ...this.state, phase: "ready" });
-            }
-          })
-          .catch((error: unknown) => {
-            if (
-              generation === this.generation &&
-              this.context?.membershipVersion === expectedVersion
-            )
-              this.fail(error);
-          });
-      }
-      if (!snapshot.context.complete) sframeManager.pause();
-      else if (!changed && !this.rotating) sframeManager.resume();
+      await this.applyEpochUpdate(snapshot.context);
       await this.consume(snapshot);
     })().finally(() => {
       if (generation === this.generation) this.syncing = null;
     });
     return this.syncing;
   }
-  private async consume(snapshot: MediaEncryptionSnapshot): Promise<void> {
+  private async consumeEnvelope(
+    context: MediaEncryptionContext,
+    envelope: MediaStreamKeyEnvelope,
+  ): Promise<void> {
     const generation = this.generation;
+    if (!this.received.has(envelope.keyId)) {
+      const key = await deviceKeyService.openStreamKey(context, envelope);
+      if (
+        generation !== this.generation ||
+        context.membershipVersion !== this.context?.membershipVersion
+      )
+        return;
+      sframeManager.addReceiverKey(envelope.keyId, key);
+      this.received.add(envelope.keyId);
+      await this.request("acknowledge", { keyId: envelope.keyId });
+    }
+  }
+  private async consume(snapshot: MediaEncryptionSnapshot): Promise<void> {
     for (const envelope of snapshot.envelopes) {
-      if (!this.received.has(envelope.keyId)) {
-        const key = await deviceKeyService.openStreamKey(
-          snapshot.context,
-          envelope,
-        );
-        if (
-          generation !== this.generation ||
-          snapshot.context.membershipVersion !== this.context?.membershipVersion
-        )
-          return;
-        sframeManager.addReceiverKey(envelope.keyId, key);
-        this.received.add(envelope.keyId);
-        await this.request("acknowledge", { keyId: envelope.keyId });
-      }
+      await this.consumeEnvelope(snapshot.context, envelope);
     }
     for (const keyId of snapshot.acknowledgedKeyIds) {
       const pending = this.pending.get(keyId);
@@ -309,7 +403,10 @@ class MediaEncryptionService {
       if (generation !== this.generation || !this.context)
         throw new Error("MEDIA_CONTEXT_STALE");
       if (Date.now() > deadline) throw new Error("MEDIA_NEGOTIATION_TIMEOUT");
-      await new Promise<void>((resolve) => setTimeout(resolve, 100));
+      await new Promise<void>((resolve) => setTimeout(resolve, 200));
+      if (!this.context?.complete) {
+        await this.sync();
+      }
       context = this.context;
     }
     const key = crypto.getRandomValues(new Uint8Array(32));
@@ -343,6 +440,17 @@ class MediaEncryptionService {
       keyId,
       envelopes,
     };
+    let fallbackTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      if (this.pending.has(keyId) && generation === this.generation) {
+        void this.sync().catch(() => {});
+      }
+    }, 2_500);
+    const clearFallback = () => {
+      if (fallbackTimer) {
+        clearTimeout(fallbackTimer);
+        fallbackTimer = null;
+      }
+    };
     const ack = new Promise<void>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(keyId);
@@ -350,8 +458,14 @@ class MediaEncryptionService {
       }, 15_000);
       this.pending.set(keyId, {
         epoch: context!.membershipVersion,
-        resolve,
-        reject,
+        resolve: () => {
+          clearFallback();
+          resolve();
+        },
+        reject: (error) => {
+          clearFallback();
+          reject(error);
+        },
         timer,
       });
     });
@@ -368,6 +482,7 @@ class MediaEncryptionService {
         }
       }
       await ack;
+      clearFallback();
       if (
         generation !== this.generation ||
         context.membershipVersion !== this.context?.membershipVersion
@@ -375,6 +490,7 @@ class MediaEncryptionService {
         throw new Error("MEDIA_CONTEXT_STALE");
       return { key, keyId, streamId };
     } catch (error) {
+      clearFallback();
       const pending = this.pending.get(keyId);
       if (pending) {
         clearTimeout(pending.timer);
@@ -421,8 +537,8 @@ class MediaEncryptionService {
     this.controller = null;
     if (this.poll) clearInterval(this.poll);
     this.poll = null;
-    this.unbind?.();
-    this.unbind = null;
+    for (const unbind of this.unbinds) unbind();
+    this.unbinds = [];
     for (const pending of this.pending.values()) {
       clearTimeout(pending.timer);
       pending.reject(new Error("MEDIA_CONTEXT_STALE"));
