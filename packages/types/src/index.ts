@@ -683,6 +683,7 @@ export interface InvitePreviewDTO {
     name: string;
     iconUrl?: string | null;
     description?: string | null;
+    createdAt?: string;
     approximateMemberCount?: number;
     approximatePresenceCount?: number;
   };

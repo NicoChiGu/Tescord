@@ -2396,10 +2396,79 @@ export const App: React.FC = () => {
         setInviteFriendsGuild(e.detail.guild);
       }
     };
-    const handleSwitchGuild = (e: any) => {
-      if (e.detail?.guildId) {
-        setSelectedGuildId(e.detail.guildId);
-        setIsFriendsTabActive(false);
+    const handleSwitchGuild = async (e: any) => {
+      const targetGuildId = e.detail?.guildId;
+      if (!targetGuildId) return;
+
+      setIsFriendsTabActive(false);
+      setSelectedGuildId(targetGuildId);
+      useChannelNavStore.getState().recordLastSelectedGuild(targetGuildId);
+
+      // 1. 若当前 guilds 缓存中已存在该公会，立即聚焦第一条频道以提供即时响应
+      const existingGuild = guildsRef.current.find(
+        (g) => g.id === targetGuildId,
+      );
+      if (
+        existingGuild &&
+        existingGuild.channels &&
+        existingGuild.channels.length > 0
+      ) {
+        const preferFirst = e.detail?.preferFirst ?? true;
+        const targetChannel = preferFirst
+          ? getDefaultGuildChannel(existingGuild, true)
+          : resolveGuildChannel(
+              existingGuild,
+              useChannelNavStore
+                .getState()
+                .getLastVisitedChannel(existingGuild.id),
+              true,
+            );
+        if (targetChannel) {
+          setSelectedChannel(targetChannel);
+          if (targetChannel.guildId) {
+            useChannelNavStore
+              .getState()
+              .recordChannelVisit(targetChannel.guildId, targetChannel.id);
+          }
+        }
+      }
+
+      // 2. 刷新公会列表（特别是通过邀请加入的新服务器，拉取最新数据并定位至第一条频道）
+      const token = useAuthStore.getState().token;
+      try {
+        const res = await fetch(`${API_BASE}/api/guilds`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+        if (res.ok) {
+          const data: Guild[] = await res.json();
+          setGuilds(data);
+          const target = data.find((g) => g.id === targetGuildId);
+          if (target && target.channels && target.channels.length > 0) {
+            setSelectedGuildId(targetGuildId);
+            const preferFirst = e.detail?.preferFirst ?? true;
+            const targetChannel = preferFirst
+              ? getDefaultGuildChannel(target, true)
+              : resolveGuildChannel(
+                  target,
+                  useChannelNavStore
+                    .getState()
+                    .getLastVisitedChannel(target.id),
+                  true,
+                );
+            if (targetChannel) {
+              setSelectedChannel(targetChannel);
+              if (targetChannel.guildId) {
+                useChannelNavStore
+                  .getState()
+                  .recordChannelVisit(targetChannel.guildId, targetChannel.id);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to refresh guilds on switch-guild:", err);
       }
     };
     window.addEventListener(

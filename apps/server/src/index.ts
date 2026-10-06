@@ -3551,6 +3551,7 @@ server.get("/api/invites/:code", async (request, reply) => {
           name: true,
           iconUrl: true,
           description: true,
+          createdAt: true,
           _count: {
             select: { members: true },
           },
@@ -3597,6 +3598,7 @@ server.get("/api/invites/:code", async (request, reply) => {
       name: invite.guild.name,
       iconUrl: invite.guild.iconUrl,
       description: invite.guild.description,
+      createdAt: invite.guild.createdAt.toISOString(),
       approximateMemberCount: memberCount,
       approximatePresenceCount: Math.max(1, Math.floor(memberCount * 0.4)),
     },

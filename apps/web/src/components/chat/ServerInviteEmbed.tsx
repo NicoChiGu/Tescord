@@ -1,11 +1,11 @@
-import { GuildIcon } from "../ui/GuildIcon.js";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { InvitePreviewDTO } from "@tescord/types";
 import { API_BASE, resolveServerUrl } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { toast } from "../../stores/useToastStore.js";
-import { Loader2, Users, AlertCircle, Check } from "lucide-react";
+import { GuildIcon } from "../ui/GuildIcon.js";
+import { Loader2, AlertCircle } from "lucide-react";
 
 interface ServerInviteEmbedProps {
   code: string;
@@ -16,7 +16,7 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
   code,
   onJoinedServer,
 }) => {
-  const { t } = useTranslation(["chat", "common"]);
+  const { t, i18n } = useTranslation(["chat", "common"]);
   const { getAuthHeaders } = useAuthStore();
 
   const [loading, setLoading] = useState(true);
@@ -60,8 +60,61 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
     };
   }, [code]);
 
+  const isJoined = hasJoined || Boolean(invite?.isMember);
+
+  const formattedCreatedDate = useMemo(() => {
+    const createdAt = invite?.guild?.createdAt;
+    if (!createdAt) return null;
+    try {
+      const d = new Date(createdAt);
+      if (isNaN(d.getTime())) return null;
+      const lang = i18n.language || "zh-CN";
+      if (lang.startsWith("zh") || lang.startsWith("ja")) {
+        return `${d.getFullYear()}年${d.getMonth() + 1}月`;
+      } else {
+        const monthNames = [
+          "Jan",
+          "Feb",
+          "Mar",
+          "Apr",
+          "May",
+          "Jun",
+          "Jul",
+          "Aug",
+          "Sep",
+          "Oct",
+          "Nov",
+          "Dec",
+        ];
+        return `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
+      }
+    } catch {
+      return null;
+    }
+  }, [invite?.guild?.createdAt, i18n.language]);
+
+  const navigateToFirstChannel = (targetGuildId: string) => {
+    window.dispatchEvent(
+      new CustomEvent("tescord:switch-guild", {
+        detail: { guildId: targetGuildId, preferFirst: true },
+      }),
+    );
+    onJoinedServer?.(targetGuildId);
+  };
+
+  const handleGoToServer = () => {
+    if (invite?.guild?.id) {
+      navigateToFirstChannel(invite.guild.id);
+    }
+  };
+
   const handleJoin = async () => {
-    if (joining || hasJoined || invite?.isMember) return;
+    if (joining) return;
+    if (isJoined && invite?.guild?.id) {
+      handleGoToServer();
+      return;
+    }
+
     try {
       setJoining(true);
       const res = await fetch(`${API_BASE}/api/invites/${code}/join`, {
@@ -90,16 +143,10 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
         }),
       );
 
-      // 通知上层切换至该服务器
       const targetGuildId =
         result.guildId || result.guild?.id || invite?.guild.id;
       if (targetGuildId) {
-        window.dispatchEvent(
-          new CustomEvent("tescord:switch-guild", {
-            detail: { guildId: targetGuildId },
-          }),
-        );
-        onJoinedServer?.(targetGuildId);
+        navigateToFirstChannel(targetGuildId);
       }
     } catch (err: any) {
       toast.error(
@@ -113,7 +160,7 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
 
   if (loading) {
     return (
-      <div className="my-2 p-4 bg-[#2b2d31] border border-[#1f2023] rounded-lg max-w-md flex items-center space-x-3 text-discord-textMuted text-xs">
+      <div className="my-2 p-4 bg-[#2b2d31] border border-[#1f2023]/70 rounded-2xl max-w-[420px] w-full flex items-center space-x-3 text-[#949ba4] text-xs shadow-md">
         <Loader2 className="w-5 h-5 animate-spin text-discord-brand" />
         <span>
           {t("chat:invite.resolving", {
@@ -126,7 +173,7 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
 
   if (isInvalid || !invite) {
     return (
-      <div className="my-2 p-4 bg-[#2b2d31] border border-[#1f2023] rounded-lg max-w-md flex items-center space-x-3 text-discord-textMuted">
+      <div className="my-2 p-4 bg-[#2b2d31] border border-[#1f2023]/70 rounded-2xl max-w-[420px] w-full flex items-center space-x-3 text-[#949ba4] shadow-md">
         <div className="w-10 h-10 rounded-full bg-[#1e1f22] flex items-center justify-center text-rose-400 shrink-0">
           <AlertCircle className="w-6 h-6" />
         </div>
@@ -134,7 +181,7 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
           <h5 className="text-white text-xs font-bold uppercase tracking-wider">
             {t("chat:invite.invalidTitle", { defaultValue: "邀请已失效" })}
           </h5>
-          <p className="text-xs text-discord-textMuted mt-0.5">
+          <p className="text-xs text-[#949ba4] mt-0.5">
             {t("chat:invite.invalidDesc", {
               defaultValue:
                 "此邀请链接可能已过期，或者您没有加入此服务器的权限。",
@@ -145,103 +192,155 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
     );
   }
 
+  const presenceCount =
+    invite.guild.approximatePresenceCount ??
+    invite.approximatePresenceCount ??
+    0;
+  const memberCount =
+    invite.guild.approximateMemberCount ??
+    invite.approximateMemberCount ??
+    0;
+
   return (
-    <div className="my-2 p-4 bg-[#2b2d31] border border-[#1f2023] rounded-lg max-w-md shadow-md select-none transition hover:border-[#35373c]">
-      {/* 顶部标签 */}
-      <div className="text-[11px] font-bold text-discord-textMuted uppercase tracking-wider mb-3">
-        {invite.inviter
-          ? t("chat:invite.invitedByUser", {
-              user: invite.inviter.displayName || invite.inviter.username,
-              defaultValue: `${invite.inviter.displayName || invite.inviter.username} 邀请你加入服务器`,
-            })
-          : t("chat:invite.invitedPrompt", {
-              defaultValue: "你受邀加入此服务器",
-            })}
+    <div
+      className="my-3 w-full max-w-[420px] bg-[#2b2d31] border border-[#1f2023]/80 rounded-2xl shadow-xl overflow-hidden select-none transition-all hover:border-[#35373c]"
+      data-testid="server-invite-card"
+    >
+      {/* 顶部横幅 Banner */}
+      <div className="relative w-full h-20 bg-[#1e1f22] overflow-hidden">
+        {invite.guild.iconUrl ? (
+          <img
+            src={resolveServerUrl(invite.guild.iconUrl)}
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 w-full h-full object-cover blur-md scale-125 opacity-35"
+          />
+        ) : null}
+        <div className="absolute inset-0 bg-gradient-to-r from-indigo-900/40 via-purple-900/30 to-pink-900/40" />
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[#2b2d31]/30 to-[#2b2d31]" />
       </div>
 
-      <div className="flex items-center justify-between gap-3">
-        {/* 服务器图标与信息 */}
-        <div className="flex items-center space-x-3 min-w-0 flex-1">
+      {/* 头像区域 (重叠在横幅下方与内容之间) */}
+      <div className="relative px-4 flex items-end justify-between -mt-10 mb-2">
+        <div className="w-[72px] h-[72px] rounded-[22px] ring-4 ring-[#2b2d31] bg-[#1e1f22] overflow-hidden shrink-0 shadow-lg flex items-center justify-center">
           {invite.guild.iconUrl ? (
             <GuildIcon
               src={resolveServerUrl(invite.guild.iconUrl)}
               alt={invite.guild.name}
-              className="w-12 h-12 rounded-2xl object-cover shrink-0 bg-[#1e1f22]"
+              className="w-full h-full object-cover"
             />
           ) : (
-            <div className="w-12 h-12 rounded-2xl bg-discord-brand text-white font-bold text-base flex items-center justify-center shrink-0">
+            <div className="w-full h-full bg-[#5865F2] text-white font-bold text-2xl flex items-center justify-center">
               {invite.guild.name.slice(0, 2).toUpperCase()}
             </div>
           )}
+        </div>
+      </div>
 
-          <div className="min-w-0 flex-1">
-            <h4 className="text-white font-bold text-sm truncate">
-              {invite.guild.name}
-            </h4>
-            <div className="flex items-center space-x-3 mt-1 text-xs text-discord-textMuted">
-              {/* 在线人数 */}
-              <span className="flex items-center space-x-1">
-                <span className="w-2 h-2 rounded-full bg-discord-green inline-block shrink-0" />
-                <span>
-                  {t("chat:invite.onlineCount", {
-                    count:
-                      invite.guild.approximatePresenceCount ??
-                      invite.approximatePresenceCount ??
-                      0,
-                    defaultValue: `${invite.guild.approximatePresenceCount ?? invite.approximatePresenceCount ?? 0} 在线`,
-                  })}
-                </span>
-              </span>
-              {/* 总成员数 */}
-              <span className="flex items-center space-x-1">
-                <span className="w-2 h-2 rounded-full bg-zinc-500 inline-block shrink-0" />
-                <span>
-                  {t("chat:invite.memberCount", {
-                    count:
-                      invite.guild.approximateMemberCount ??
-                      invite.approximateMemberCount ??
-                      0,
-                    defaultValue: `${invite.guild.approximateMemberCount ?? invite.approximateMemberCount ?? 0} 成员`,
-                  })}
-                </span>
-              </span>
-            </div>
-          </div>
+      {/* 主体信息区 */}
+      <div className="px-4 pb-4 space-y-2.5">
+        {/* 服务器名称与认证绿色徽章 */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <h4
+            className="text-white font-bold text-base leading-snug truncate max-w-[340px]"
+            title={invite.guild.name}
+          >
+            {invite.guild.name}
+          </h4>
+          <span
+            className="inline-flex items-center justify-center text-[#23a55a] shrink-0"
+            title="Verified"
+          >
+            <svg
+              className="w-4 h-4 fill-current"
+              viewBox="0 0 24 24"
+              aria-label="Verified"
+            >
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1.2 15-4.3-4.3 1.4-1.4 2.9 2.9 6.9-6.9 1.4 1.4-8.3 8.3z" />
+            </svg>
+          </span>
         </div>
 
-        {/* 加入按钮 */}
-        <div className="shrink-0">
-          {hasJoined || invite.isMember ? (
-            <button
-              type="button"
-              onClick={() => {
-                if (invite.guild?.id) {
-                  window.dispatchEvent(
-                    new CustomEvent("tescord:switch-guild", {
-                      detail: { guildId: invite.guild.id },
-                    }),
-                  );
-                  onJoinedServer?.(invite.guild.id);
-                }
-              }}
-              className="px-4 py-2 bg-[#23a55a]/20 hover:bg-[#23a55a]/30 text-[#23a55a] rounded font-semibold text-xs flex items-center space-x-1 cursor-pointer transition"
-              data-testid="server-invite-joined-btn"
-            >
-              <Check className="w-3.5 h-3.5" />
-              <span>{t("chat:invite.joined", { defaultValue: "已加入" })}</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleJoin}
-              disabled={joining}
-              className="px-5 py-2 bg-discord-green hover:bg-discord-greenHover text-white rounded font-semibold text-xs transition flex items-center space-x-1.5 shadow cursor-pointer"
-              data-testid="server-invite-join-btn"
-            >
-              {joining && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              <span>{t("chat:invite.join", { defaultValue: "加入" })}</span>
-            </button>
-          )}
+        {/* 在线人数与总成员统计 */}
+        <div className="flex items-center gap-3 text-xs text-[#b5bac1] font-medium flex-wrap">
+          <span className="flex items-center gap-1.5 shrink-0">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#23a55a] inline-block shrink-0" />
+            <span>
+              {t("chat:invite.richOnlineCount", {
+                count: presenceCount.toLocaleString(),
+                defaultValue: `${presenceCount.toLocaleString()} 位在线`,
+              })}
+            </span>
+          </span>
+          <span className="flex items-center gap-1.5 shrink-0">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#80848e] inline-block shrink-0" />
+            <span>
+              {t("chat:invite.richMemberCount", {
+                count: memberCount.toLocaleString(),
+                defaultValue: `${memberCount.toLocaleString()} 位成员`,
+              })}
+            </span>
+          </span>
+        </div>
+
+        {/* 建立日期 (按现有数据若返回了则展示) */}
+        {formattedCreatedDate && (
+          <div className="text-xs text-[#949ba4] font-normal">
+            {t("chat:invite.createdDate", {
+              date: formattedCreatedDate,
+              defaultValue: `建立日期：${formattedCreatedDate}`,
+            })}
+          </div>
+        )}
+
+        {/* 服务器描述简介 */}
+        {invite.guild.description ? (
+          <p className="text-xs text-[#dbdee1] leading-relaxed line-clamp-3 break-words whitespace-pre-wrap">
+            {invite.guild.description}
+          </p>
+        ) : null}
+
+        {/* 附属归属小标 (小图标 + 服务器名称) */}
+        <div className="flex items-center gap-2 pt-0.5">
+          <div className="relative shrink-0 w-5 h-5 rounded-md overflow-hidden bg-[#1e1f22] flex items-center justify-center">
+            {invite.guild.iconUrl ? (
+              <GuildIcon
+                src={resolveServerUrl(invite.guild.iconUrl)}
+                alt={invite.guild.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span className="text-[10px] font-bold text-white">
+                {invite.guild.name.slice(0, 1).toUpperCase()}
+              </span>
+            )}
+            <span className="absolute -top-0.5 -right-0.5 text-[8px] leading-none select-none">
+              🔥
+            </span>
+          </div>
+          <span className="text-xs font-semibold text-white truncate max-w-[300px]">
+            {invite.guild.name}
+          </span>
+        </div>
+
+        {/* 底部全宽按钮：已加入为“前往服务器”，未加入为“加入” */}
+        <div className="pt-1">
+          <button
+            type="button"
+            onClick={isJoined ? handleGoToServer : handleJoin}
+            disabled={joining}
+            className="w-full py-2.5 px-4 bg-[#23a55a] hover:bg-[#209652] active:bg-[#1a7f45] disabled:opacity-75 text-white font-medium text-sm rounded-lg transition-colors flex items-center justify-center gap-2 shadow cursor-pointer select-none"
+            data-testid={
+              isJoined ? "server-invite-joined-btn" : "server-invite-join-btn"
+            }
+          >
+            {joining && <Loader2 className="w-4 h-4 animate-spin shrink-0" />}
+            <span>
+              {isJoined
+                ? t("chat:invite.goToGuild", { defaultValue: "前往服务器" })
+                : t("chat:invite.join", { defaultValue: "加入" })}
+            </span>
+          </button>
         </div>
       </div>
     </div>
