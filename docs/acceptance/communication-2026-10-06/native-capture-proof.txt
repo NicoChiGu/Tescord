@@ -1,0 +1,5 @@
+
+PASS application process-tree isolation {"frames":89280,"hz220":0.000007692554786299083,"hz440":0.01249875343132857,"hz880":0.000005119228916987727}
+PASS system capture excludes Tescord {"frames":89280,"hz220":0.000007334412683712372,"hz440":0.012500137912693492,"hz880":0.012499808994479493}
+PASS invalid HWND rejected; native stop completed
+Native capture fixture: C:\Users\94886\AppData\Local\Temp\tescord-native-capture-cNHhl4

@@ -165,6 +165,19 @@ export class StorageManager {
     return result;
   }
 
+  public async hasRememberedSession(): Promise<boolean> {
+    const tokens = await this.sendWorkerRequest<{
+      remember?: boolean;
+      encryptedAccessToken?: string | null;
+      encryptedRefreshToken?: string | null;
+    } | null>("tokens-get");
+    return Boolean(
+      SafeStorageCipher.isAvailable() &&
+      tokens?.remember &&
+      (tokens.encryptedAccessToken || tokens.encryptedRefreshToken),
+    );
+  }
+
   private registerIpcHandlers(): void {
     // 1. Preferences
     ipcMain.handle(

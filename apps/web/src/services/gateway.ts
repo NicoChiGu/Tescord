@@ -11,6 +11,7 @@ import {
   User,
   UserStatus,
   MaintenanceUpdatePayload,
+  MEDIA_ENCRYPTION_VERSION,
 } from "@tescord/types";
 import { GATEWAY_URL } from "../config.js";
 import { useAuthStore } from "../stores/useAuthStore.js";
@@ -492,6 +493,7 @@ export class GatewayClient {
         guildId,
         channelId,
         sessionId: this.sessionId,
+        mediaEncryptionVersion: MEDIA_ENCRYPTION_VERSION,
         ...extra,
       },
     });
@@ -519,8 +521,7 @@ export class GatewayClient {
         if (!settled) {
           settled = true;
           cleanup();
-          // 超时兜底允许继续
-          resolve(true);
+          resolve(false);
         }
       }, timeoutMs);
 

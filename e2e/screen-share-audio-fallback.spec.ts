@@ -1,3 +1,4 @@
+import { installEncryptedVoiceUi } from "./helpers/encrypted-voice-ui";
 import { test, expect } from "@playwright/test";
 
 test.describe("屏幕分享伴音异常与自动优雅降级 (NotReadableError Audio Fallback) E2E 验收", () => {
@@ -107,6 +108,7 @@ test.describe("屏幕分享伴音异常与自动优雅降级 (NotReadableError A
     });
 
     // 2. 访问首页并进入语音频道
+    await installEncryptedVoiceUi(page);
     await page.goto("/");
     await expect(page).toHaveTitle(/Tescord/i);
 
@@ -148,16 +150,19 @@ test.describe("屏幕分享伴音异常与自动优雅降级 (NotReadableError A
     await expect(audioCheckbox).toBeChecked();
 
     // 4. 点击“开始直播”，触发 getDisplayMedia
+    await page.getByTestId("mode-p2p-btn").click();
     const confirmLiveBtn = page.getByTestId("start-screen-share-confirm-btn");
     await expect(confirmLiveBtn).toBeVisible({ timeout: 5000 });
     await confirmLiveBtn.click();
 
     // 5. 验证自动优雅降级机制生效：
     // (1) 页面上出现全局 Toast 警告通知
-    const globalToast = page.locator('[data-testid="global-toast"]');
+    const globalToast = page
+      .getByTestId("progress-toast")
+      .filter({ hasText: "共享声音捕获已中断" });
     await expect(globalToast).toBeVisible({ timeout: 5000 });
-    await expect(globalToast).toContainText("系统伴音未能启动");
-    await expect(globalToast).toContainText("已自动降级为纯画面推流");
+    await expect(globalToast).toContainText("共享声音捕获已中断");
+    await expect(globalToast).toContainText("画面共享仍继续");
 
     // (2) 验证 getDisplayMedia 被连续调用了两次：
     // 第一次带有 audio 约束（抛错），第二次自动降级为 audio: false 成功

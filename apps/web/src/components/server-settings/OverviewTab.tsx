@@ -1,5 +1,9 @@
+import { GuildIcon } from "../ui/GuildIcon.js";
 import React, { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { getErrorMessage } from "../../i18n/index.js";
+import { GifIconEditor } from "./GifIconEditor.js";
+import type { PresignedUploadResponse } from "@tescord/types";
 import { Guild } from "@tescord/types";
 import { Camera, Copy, Check, UploadCloud } from "lucide-react";
 import { API_BASE, resolveServerUrl } from "../../config.js";
@@ -35,6 +39,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const [isUploading, setIsUploading] = useState(false);
   const [cropSrc, setCropSrc] = useState<string | null>(null);
   const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+  const [gifFile, setGifFile] = useState<File>();
+  const uploadController = useRef<AbortController>();
+  const uploadRevision = useRef(0);
   const pendingUploadRef = useRef<string | null>(null);
 
   const discardPendingUpload = (fileUrl: string): void => {
@@ -54,6 +61,8 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
 
   useEffect(() => {
     return () => {
+      uploadRevision.current++;
+      uploadController.current?.abort();
       if (pendingUploadRef.current) {
         discardPendingUpload(pendingUploadRef.current);
         pendingUploadRef.current = null;
@@ -66,11 +75,14 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       if (previewBlobUrl) {
         URL.revokeObjectURL(previewBlobUrl);
       }
-      if (cropSrc) {
-        URL.revokeObjectURL(cropSrc);
-      }
     };
-  }, [previewBlobUrl, cropSrc]);
+  }, [previewBlobUrl]);
+  useEffect(
+    () => () => {
+      if (cropSrc) URL.revokeObjectURL(cropSrc);
+    },
+    [cropSrc],
+  );
 
   const hasChanges =
     name.trim() !== (guild.name || "").trim() ||
@@ -81,6 +93,9 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     isPublic !== Boolean(guild.isPublic);
 
   const handleReset = () => {
+    uploadRevision.current++;
+    uploadController.current?.abort();
+    setIsUploading(false);
     if (previewBlobUrl) {
       URL.revokeObjectURL(previewBlobUrl);
       setPreviewBlobUrl(null);
@@ -105,6 +120,21 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    uploadRevision.current++;
+    uploadController.current?.abort();
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error(t("errors:FILE_TOO_LARGE"));
+      e.target.value = "";
+      return;
+    }
+    if (file.type === "image/gif" || /\.gif$/i.test(file.name)) {
+      setGifFile(file);
+      setIsCropModalOpen(false);
+      setCropSrc(null);
+      e.target.value = "";
+      return;
+    }
+    setGifFile(undefined);
     if (cropSrc) URL.revokeObjectURL(cropSrc);
     const objectUrl = URL.createObjectURL(file);
     setCropSrc(objectUrl);
@@ -117,27 +147,29 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     const mimeType = rawType.includes("png")
       ? "image/png"
       : rawType.includes("jpeg") || rawType.includes("jpg")
-      ? "image/jpeg"
-      : "image/webp";
-    const ext = mimeType === "image/png" ? ".png" : mimeType === "image/jpeg" ? ".jpg" : ".webp";
+        ? "image/jpeg"
+        : "image/webp";
+    const ext =
+      mimeType === "image/png"
+        ? ".png"
+        : mimeType === "image/jpeg"
+          ? ".jpg"
+          : ".webp";
     const fileName = `guild_icon_${Date.now()}${ext}`;
 
     // 本地即时生成 Blob 预览，避免在点击保存前向 CDN/服务端发起 GET 请求产生 404
     const localBlob = URL.createObjectURL(croppedBlob);
-    setPreviewBlobUrl((prev) => {
-      if (prev) URL.revokeObjectURL(prev);
-      return localBlob;
-    });
+    let previewCommitted = false;
 
+    const controller = new AbortController();
+    uploadController.current = controller;
+    const revision = ++uploadRevision.current;
+    let grantUrl: string | undefined;
     setIsUploading(true);
     try {
-      // 1. 获取预签名上传链接
       const res = await fetch(`${API_BASE}/api/attachments/presigned-url`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...getAuthHeaders(),
-        },
+        headers: { "Content-Type": "application/json", ...getAuthHeaders() },
         body: JSON.stringify({
           fileName,
           fileSize: croppedBlob.size,
@@ -145,49 +177,47 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           purpose: "guild-icon",
           guildId: guild.id,
         }),
+        signal: controller.signal,
       });
-
       if (!res.ok)
-        throw new Error(
-          t("errors:UPLOAD_FAILED", { defaultValue: "获取上传凭证失败" }),
-        );
-      const { uploadUrl, fileUrl, requiresAuth } = await res.json();
-
-      // 2. 直传文件 (经 resolveServerUrl 自愈相对路径走 Vite 代理)
-      const targetUploadUrl = resolveServerUrl(uploadUrl);
-      const uploadRes = await fetch(targetUploadUrl, {
+        throw await res.json().catch(() => ({ code: "UPLOAD_FAILED" }));
+      const grant = (await res.json()) as PresignedUploadResponse;
+      grantUrl = grant.fileUrl;
+      if (controller.signal.aborted || revision !== uploadRevision.current)
+        throw new DOMException("Cancelled", "AbortError");
+      const uploadRes = await fetch(resolveServerUrl(grant.uploadUrl), {
         method: "PUT",
         headers: {
           "Content-Type": mimeType,
-          ...(requiresAuth ? getAuthHeaders() : {}),
+          ...(grant.requiresAuth ? getAuthHeaders() : {}),
         },
         body: croppedBlob,
+        signal: controller.signal,
       });
-
       if (!uploadRes.ok)
-        throw new Error(
-          t("errors:UPLOAD_FAILED", {
-            defaultValue: "上传文件到存储服务失败",
-          }),
-        );
+        throw await uploadRes.json().catch(() => ({ code: "UPLOAD_FAILED" }));
+      if (controller.signal.aborted || revision !== uploadRevision.current)
+        throw new DOMException("Cancelled", "AbortError");
       const previousPending = pendingUploadRef.current;
-      pendingUploadRef.current = fileUrl;
-      setPendingUploadUrl(fileUrl);
-      if (previousPending && previousPending !== fileUrl) {
+      pendingUploadRef.current = grant.fileUrl;
+      setPendingUploadUrl(grant.fileUrl);
+      if (previousPending && previousPending !== grant.fileUrl)
         discardPendingUpload(previousPending);
-      }
-      toast.success(
-        t("server:overview.iconUploadSuccess", {
-          defaultValue: "图标已裁剪压缩并上传",
-        }),
-      );
-    } catch (err: any) {
-      toast.error(
-        err.message ||
-          t("errors:UPLOAD_FAILED", { defaultValue: "上传图标失败" }),
-      );
+      grantUrl = undefined;
+      setPreviewBlobUrl((previous) => {
+        if (previous) URL.revokeObjectURL(previous);
+        return localBlob;
+      });
+      previewCommitted = true;
+      toast.success(t("server:overview.iconUploadSuccess"));
+    } catch (err: unknown) {
+      if (!(err instanceof DOMException && err.name === "AbortError"))
+        toast.error(getErrorMessage(err));
+      throw err;
     } finally {
-      setIsUploading(false);
+      if (grantUrl) discardPendingUpload(grantUrl);
+      if (!previewCommitted) URL.revokeObjectURL(localBlob);
+      if (revision === uploadRevision.current) setIsUploading(false);
     }
   };
 
@@ -243,7 +273,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           </label>
           <div className="relative group cursor-pointer w-28 h-28 rounded-full bg-[#1e1f22] border-2 border-dashed border-white/20 hover:border-[#5865f2] flex items-center justify-center overflow-hidden transition-all shadow-lg">
             {previewBlobUrl || iconUrl ? (
-              <img
+              <GuildIcon
                 src={previewBlobUrl || resolveServerUrl(iconUrl)}
                 alt={name}
                 className="w-full h-full object-cover"
@@ -381,7 +411,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             </button>
             <button
               onClick={handleSave}
-              disabled={isSaving}
+              disabled={isSaving || isUploading}
               className="px-4 py-1.5 rounded-md bg-[#248046] hover:bg-[#1a6334] text-white text-xs font-semibold shadow transition-colors"
             >
               {isSaving
@@ -399,11 +429,33 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         )}
       </div>
 
+      {gifFile && (
+        <GifIconEditor
+          file={gifFile}
+          guildId={guild.id}
+          onClose={() => setGifFile(undefined)}
+          onConfirm={(fileUrl, preview) => {
+            const previous = pendingUploadRef.current;
+            pendingUploadRef.current = fileUrl;
+            setPendingUploadUrl(fileUrl);
+            if (previous && previous !== fileUrl)
+              discardPendingUpload(previous);
+            setPreviewBlobUrl((old) => {
+              if (old) URL.revokeObjectURL(old);
+              return URL.createObjectURL(preview);
+            });
+            toast.success(t("server:overview.iconUploadSuccess"));
+          }}
+        />
+      )}
       {/* 图标裁剪与压缩 Modal */}
       <ImageCropModal
         isOpen={isCropModalOpen}
         imageSrc={cropSrc}
         onClose={() => {
+          uploadRevision.current++;
+          uploadController.current?.abort();
+          setIsUploading(false);
           setIsCropModalOpen(false);
           if (cropSrc) {
             URL.revokeObjectURL(cropSrc);

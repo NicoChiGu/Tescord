@@ -311,8 +311,8 @@ export class P2PStreamManager {
       const alreadyAdded = senders.some((s) => s.track?.id === track.id);
       if (!alreadyAdded) {
         const sender = pc.addTrack(track, streamToOffer);
-        if (sframeManager.getStats().enabled)
-          sframeManager.attachSender(sender);
+        sframeManager.assertReady();
+        sframeManager.attachSender(sender);
       }
     }
 
@@ -509,6 +509,7 @@ export class P2PStreamManager {
 
     for (const pc of this.peerConnections.values()) {
       try {
+        sframeManager.detachPeerConnection(pc);
         pc.close();
       } catch {}
     }
@@ -589,7 +590,7 @@ export class P2PStreamManager {
               const lost = report.packetsLost || 0;
               const total = (report.packetsReceived || 0) + lost;
               if (total > 0) {
-                packetLoss = Number((lost / total).toFixed(3));
+                packetLoss = Number(((lost / total) * 100).toFixed(3));
               }
             }
             if (
@@ -630,6 +631,7 @@ export class P2PStreamManager {
     let pc = this.peerConnections.get(peerId);
     if (pc) return pc;
 
+    sframeManager.assertReady();
     pc = new RTCPeerConnection({
       iceServers: this.currentIceServers,
       iceCandidatePoolSize: 2,
@@ -666,8 +668,16 @@ export class P2PStreamManager {
     };
 
     pc.ontrack = (event) => {
-      if (sframeManager.getStats().enabled)
+      try {
         sframeManager.attachReceiver(event.receiver);
+      } catch {
+        event.track.stop();
+        if (pc) {
+          sframeManager.detachPeerConnection(pc);
+          pc.close();
+        }
+        return;
+      }
       console.info("🎉 收到远程媒体轨:", event.track.kind);
       const incomingStream = event.streams[0] || new MediaStream([event.track]);
       this.remoteStream = incomingStream;
@@ -803,6 +813,7 @@ export class P2PStreamManager {
     const pc = this.peerConnections.get(peerId);
     if (pc) {
       try {
+        sframeManager.detachPeerConnection(pc);
         pc.close();
       } catch {}
       this.peerConnections.delete(peerId);

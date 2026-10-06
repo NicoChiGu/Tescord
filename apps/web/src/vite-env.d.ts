@@ -8,6 +8,13 @@ interface ElectronAPI {
   ) => void;
   closeAudioInferencePort?: (requestId: string) => void;
   getDesktopSources: () => Promise<import("@tescord/types").DesktopSource[]>;
+  prepareDisplayCapture?: (
+    request: import("@tescord/types").DisplayCaptureRequest,
+  ) => Promise<import("@tescord/types").DesktopDisplayCaptureGrant>;
+  openDisplayAudioPort?: (
+    request: import("@tescord/types").DesktopCaptureAudioStart,
+  ) => void;
+  stopDisplayCapture?: (requestId: string) => void;
   showNotification: (
     payload: import("@tescord/types").DesktopNotificationPayload,
   ) => Promise<boolean>;

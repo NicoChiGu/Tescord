@@ -325,6 +325,32 @@ test.describe("消息滚动记忆、新消息红线消除与多类型附件上�
   });
 
   test("5. 阅读历史时发送自己的消息后回到最新消息", async ({ page }) => {
+    // History and newly sent messages must use the same fixture sequence space.
+    await page.route(
+      "**/api/channels/chn_default_text_01/messages*",
+      async (route) => {
+        if (route.request().method() !== "POST") return route.fallback();
+        const message = {
+          ...mockMessagesGeneral[mockMessagesGeneral.length - 1],
+          id: `self-scroll-${Date.now()}`,
+          sequence: 36,
+          content: route.request().postDataJSON().content,
+          createdAt: new Date().toISOString(),
+        };
+        await route.fulfill({ json: message });
+        await page.evaluate(
+          (message) =>
+            (
+              window as unknown as {
+                __gatewayClient: {
+                  emit(event: string, payload: unknown): void;
+                };
+              }
+            ).__gatewayClient.emit("MESSAGE_CREATE", message),
+          message,
+        );
+      },
+    );
     await page.goto("/");
     await page
       .getByRole("button", { name: /Tescord 极客总部|极客/i })

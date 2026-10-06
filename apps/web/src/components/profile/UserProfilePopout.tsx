@@ -235,6 +235,7 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
+        e.stopImmediatePropagation();
         if (isEditingStatus) {
           setIsEditingStatus(false);
           setCustomStatusInput(currentUser.customStatus || "");
@@ -250,7 +251,7 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
     };
 
     // 键盘关闭必须立即可用；仅点击外部事件需要避开打开弹窗的当前指针事件。
-    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown, true);
     const timer = setTimeout(() => {
       document.addEventListener("pointerdown", handlePointerDown);
     }, 10);
@@ -258,7 +259,7 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
     return () => {
       clearTimeout(timer);
       document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown, true);
     };
   }, [
     isOpen,
@@ -400,8 +401,8 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
       }
       className={`${
         isMobile
-          ? "relative w-full max-w-[330px] mx-4"
-          : "fixed z-50 w-[320px] transition-[top,left] duration-150 ease-out"
+          ? "relative w-full max-w-[330px] max-h-[calc(100dvh-2rem-env(safe-area-inset-top)-env(safe-area-inset-bottom))] overflow-y-auto"
+          : "fixed z-[70] w-[320px] transition-[top,left] duration-150 ease-out"
       } select-none text-[#dbdee1] animate-in fade-in zoom-in-95 duration-100 font-sans`}
       onClick={(e) => e.stopPropagation()}
     >
@@ -1011,7 +1012,8 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
   if (isMobile) {
     return ReactDOM.createPortal(
       <div
-        className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+        data-testid="user-profile-backdrop"
+        className="fixed inset-0 z-[70] flex items-center justify-center bg-black/65 backdrop-blur-sm px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] animate-in fade-in duration-150"
         onClick={onClose}
       >
         {popoutContent}

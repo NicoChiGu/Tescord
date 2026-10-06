@@ -39,7 +39,7 @@ export function useSwipeGesture(
 
       // 检查是否发生在应忽略横向手势的区域（输入框、横向滚动条、滑块等）
       const isHorizontalScrollable = target?.closest(
-        'input, textarea, select, [contenteditable="true"], .overflow-x-auto, [data-swipe-ignore="true"]',
+        'input, textarea, select, [contenteditable="true"], .overflow-x-auto, [data-swipe-ignore="true"], [data-drag-handle]',
       );
 
       startRef.current = {

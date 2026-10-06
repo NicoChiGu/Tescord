@@ -185,7 +185,9 @@
     "loadFailed": "Failed to load image",
     "retry": "Click to retry",
     "originalBadge": "Original",
-    "zoomBadge": "Zoom {{percent}}%"
+    "zoomBadge": "Zoom {{percent}}%",
+    "decoding": "Decoding the original image…",
+    "downloadProgress": "{{loaded}} / {{total}} MB"
   },
   "searchEmoji": "Search emojis...",
   "emojiCategoryRecent": "Recently Used",
@@ -212,5 +214,17 @@
     "welcomeDesc": "Search full history with keywords and filters like from: and has:.",
     "imageAttachment": "Image attachment",
     "fileAttachment": "File attachment"
+  },
+  "loadingOlder": "Loading earlier messages…",
+  "loadingNewer": "Loading newer messages…",
+  "loadOlder": "Load earlier messages",
+  "loadNewer": "Load newer messages",
+  "history": {
+    "loadFailed": "Could not load messages. Try again.",
+    "unread": "You have unread messages",
+    "viewingOlder": "You are viewing older messages",
+    "jumpUnread": "Jump to unread",
+    "jumpLatest": "Jump to latest",
+    "jumpLatestTitle": "Jump to latest messages"
   }
 }

@@ -1,4 +1,5 @@
 {
+  "AUDIO_PROCESSING_UNSUPPORTED": "このブラウザーは必要な音声処理機能に対応していません。AudioWorklet 対応のブラウザーまたはデスクトップアプリをご利用ください。",
   "INTERNAL_ERROR": "システム内部エラーが発生しました。しばらくしてからもう一度お試しください。",
   "INVALID_PARAMS": "リクエストパラメータが無効です。入力内容をご確認ください。",
   "NOT_FOUND": "指定されたリソースが見つかりませんでした。",
@@ -48,5 +49,11 @@
   "EMOJI_NOT_FOUND": "指定されたカスタム絵文字が見つかりません",
   "EMOJI_LIMIT_REACHED": "カスタム絵文字の上限に達しました",
   "EMOJI_NAME_INVALID": "絵文字名は2〜32文字の英数字またはアンダースコアである必要があります",
-  "EMOJI_FILE_TOO_LARGE": "絵文字のファイルサイズが制限を超えています（GIFは2MB以下、静止画は1MB以下）"
+  "EMOJI_FILE_TOO_LARGE": "絵文字のファイルサイズが制限を超えています（GIFは2MB以下、静止画は1MB以下）",
+  "MEDIA_E2EE_UNSUPPORTED": "この端末はメディアのエンドツーエンド暗号化に対応していないため、通話に参加できません",
+  "MEDIA_KEY_UNAVAILABLE": "メディア暗号鍵の準備ができていません。再試行してください",
+  "MEDIA_CONTEXT_STALE": "通話メンバーが変わりました。暗号化セッションを更新しています",
+  "MEDIA_KEY_INVALID": "メディア暗号鍵の検証に失敗しました。接続を拒否しました",
+  "MEDIA_NEGOTIATION_TIMEOUT": "メディア暗号化の確立がタイムアウトしました。再参加してください",
+  "ICON_PROCESS_TIMEOUT": "アイコンの処理がタイムアウトしました。より小さい GIF で再試行してください"
 }

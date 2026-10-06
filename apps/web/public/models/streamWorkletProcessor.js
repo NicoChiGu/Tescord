@@ -12,6 +12,10 @@ class StreamDenoiseProcessor extends AudioWorkletProcessor {
     this.nextInputSequence = 0;
     this.inputSampleCount = 0;
     this.lastOutputSequence = -1;
+    this.outputReady = false;
+    this.underruns = 0;
+    this.renderedSamples = 0;
+    this.lastSample = 0;
     this.port.onmessage = ({ data, ports }) => {
       if (data?.type === "CONNECT" && ports?.[0]) {
         this.workerPort?.close();
@@ -21,6 +25,9 @@ class StreamDenoiseProcessor extends AudioWorkletProcessor {
         this.primed = false;
         this.nextInputSequence = this.inputSampleCount = 0;
         this.lastOutputSequence = -1;
+        this.outputReady = false;
+        this.underruns = this.renderedSamples = 0;
+        this.lastSample = 0;
         this.workerPort = ports[0];
         this.workerPort.onmessage = ({ data: reply }) => {
           if (generation !== this.generation) return;
@@ -58,7 +65,13 @@ class StreamDenoiseProcessor extends AudioWorkletProcessor {
             this.available += pcm.length;
           } else if (reply?.type === "ERROR") this.port.postMessage(reply);
           else if (reply?.type === "READY") this.port.postMessage(reply);
-          else if (reply?.type === "STATS") this.port.postMessage(reply);
+          else if (reply?.type === "STATS")
+            this.port.postMessage({
+              ...reply,
+              underruns: this.underruns,
+              renderedSamples: this.renderedSamples,
+              outputQueueMs: (this.available / sampleRate) * 1000,
+            });
         };
         this.workerPort.start();
       } else if (data?.type === "STOP") {
@@ -84,11 +97,23 @@ class StreamDenoiseProcessor extends AudioWorkletProcessor {
         sampleCount: this.inputSampleCount,
       });
     }
-    if (!this.primed && this.available >= 2400) this.primed = true;
+    // First start needs a full inference window; a short scheduling hiccup
+    // should not force another 50 ms silence on every refill.
+    if (!this.primed && this.available >= (this.outputReady ? 960 : 2400))
+      this.primed = true;
     if (!this.primed || this.available < output.length) {
       output.fill(0);
       if (this.primed && this.available < output.length) {
+        let i = 0;
+        while (i < output.length && this.available > 0) {
+          output[i++] = this.queue[this.read];
+          this.read = (this.read + 1) % this.queue.length;
+          this.available--;
+        }
+        if (i) this.lastSample = output[i - 1];
+        for (; i < output.length; i++) output[i] = this.lastSample *= 0.95;
         this.primed = false;
+        this.underruns++;
         this.port.postMessage({ type: "UNDERFLOW" });
       }
       return true;
@@ -98,6 +123,12 @@ class StreamDenoiseProcessor extends AudioWorkletProcessor {
       this.read = (this.read + 1) % this.queue.length;
     }
     this.available -= output.length;
+    this.lastSample = output[output.length - 1];
+    this.renderedSamples += output.length;
+    if (!this.outputReady) {
+      this.outputReady = true;
+      this.port.postMessage({ type: "OUTPUT_READY" });
+    }
     return true;
   }
 }

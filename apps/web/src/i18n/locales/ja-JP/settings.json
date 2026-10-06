@@ -288,5 +288,13 @@
   "globalFontSizeDesc": "アプリ全体の文字およびUIレイアウトの基準サイズを調整します（13px〜20px）",
   "resetFontSize": "フォントサイズをリセット",
   "myEmojis": "マイ絵文字",
-  "myEmojisDesc": "すべてのチャンネルやダイレクトメッセージで自由に送信できる個人絵文字を管理します"
+  "myEmojisDesc": "すべてのチャンネルやダイレクトメッセージで自由に送信できる個人絵文字を管理します",
+  "noiseLoad": {
+    "downloading": "{{model}} モデルをダウンロード中",
+    "verifying": "{{model}} モデルを検証中",
+    "initializing": "{{model}} ノイズ抑制を初期化中",
+    "complete": "{{model}} ノイズ抑制に切り替えました",
+    "downloaded": "{{model}} をダウンロードしました。マイク使用時に読み込みます",
+    "failed": "{{model}} を読み込めませんでした。{{effective}} を継続します"
+  }
 }

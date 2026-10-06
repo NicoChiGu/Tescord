@@ -185,7 +185,9 @@
     "loadFailed": "圖片載入失敗",
     "retry": "點擊重試",
     "originalBadge": "原圖",
-    "zoomBadge": "縮放 {{percent}}%"
+    "zoomBadge": "縮放 {{percent}}%",
+    "decoding": "正在解碼原圖…",
+    "downloadProgress": "{{loaded}} / {{total}} MB"
   },
   "searchEmoji": "搜尋表情...",
   "emojiCategoryRecent": "常用表情",
@@ -212,5 +214,17 @@
     "welcomeDesc": "支援關鍵字全文搜尋及 from:、has: 等進階語法過濾。",
     "imageAttachment": "圖片附件",
     "fileAttachment": "檔案附件"
+  },
+  "loadingOlder": "正在載入較早的訊息…",
+  "loadingNewer": "正在載入較新的訊息…",
+  "loadOlder": "載入較早的訊息",
+  "loadNewer": "載入較新的訊息",
+  "history": {
+    "loadFailed": "無法載入訊息，請重試",
+    "unread": "你有未讀訊息",
+    "viewingOlder": "你正在查看較舊的訊息",
+    "jumpUnread": "跳至未讀",
+    "jumpLatest": "跳至最新",
+    "jumpLatestTitle": "跳至最新訊息"
   }
 }

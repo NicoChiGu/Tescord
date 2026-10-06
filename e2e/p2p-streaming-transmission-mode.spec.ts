@@ -1,3 +1,4 @@
+import { installEncryptedVoiceUi } from "./helpers/encrypted-voice-ui";
 import { test, expect } from "@playwright/test";
 
 test.describe("P2P 直连与智能接力直播传输模式端到端自动化验收", () => {
@@ -206,6 +207,7 @@ test.describe("P2P 直连与智能接力直播传输模式端到端自动化验�
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
+    await installEncryptedVoiceUi(page);
     await page.goto("/");
 
     // 1. 进入服务器
@@ -276,6 +278,7 @@ test.describe("P2P 直连与智能接力直播传输模式端到端自动化验�
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
+    await installEncryptedVoiceUi(page);
     await page.goto("/");
 
     // 1. 进入服务器
@@ -336,6 +339,7 @@ test.describe("P2P 直连与智能接力直播传输模式端到端自动化验�
     page.on("pageerror", (err) => console.log(`[PAGE ERROR]: ${err.message}`));
 
     await page.setViewportSize({ width: 1280, height: 800 });
+    await installEncryptedVoiceUi(page);
     await page.goto("/");
 
     // 1. 进入服务器与语音频道并双击加入通话
@@ -386,6 +390,7 @@ test.describe("P2P 直连与智能接力直播传输模式端到端自动化验�
 
   test("P2P 成员徽标呈现连接中、TURN 延迟和失败重试状态", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
+    await installEncryptedVoiceUi(page);
     await page.goto("/");
     await page
       .getByRole("button", { name: /P2P 极客实验室|极客/i })
@@ -464,6 +469,7 @@ test.describe("P2P 直连与智能接力直播传输模式端到端自动化验�
   });
 
   test("P2P 语音与直播共享服务端下发的 STUN/TURN 配置", async ({ page }) => {
+    await installEncryptedVoiceUi(page);
     await page.goto("/");
     await expect
       .poll(() =>

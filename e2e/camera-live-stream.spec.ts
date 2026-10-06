@@ -1,3 +1,4 @@
+import { installEncryptedVoiceUi } from "./helpers/encrypted-voice-ui";
 import { test, expect } from "@playwright/test";
 
 test.describe("语音频道摄像头直播（Webcam Live Streaming）与舞台聚焦验收", () => {
@@ -62,6 +63,7 @@ test.describe("语音频道摄像头直播（Webcam Live Streaming）与舞台�
       });
     });
 
+    await installEncryptedVoiceUi(page);
     await page.goto("/");
     await expect(page).toHaveTitle(/Tescord/i);
 

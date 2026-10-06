@@ -10,8 +10,8 @@ test("real Electron keeps remembered credentials in native storage", async ({}, 
   test.setTimeout(120_000);
   const userData = testInfo.outputPath("user-data");
   await mkdir(userData, { recursive: true });
-  const launchApp = () =>
-    electron.launch({
+  const launchApp = async () => {
+    const launched = await electron.launch({
       executablePath: desktopRequire("electron"),
       args: [desktopRoot],
       env: {
@@ -23,6 +23,8 @@ test("real Electron keeps remembered credentials in native storage", async ({}, 
       },
       timeout: 45000,
     });
+    return launched;
+  };
   let app = await launchApp();
   try {
     const window = await app.firstWindow();
@@ -108,6 +110,13 @@ test("real Electron keeps remembered credentials in native storage", async ({}, 
       )
       .toBe(true);
 
+    await expect
+      .poll(() =>
+        restoredMain.evaluate(
+          () => (window as any).useAuthStore.getState().isLoading,
+        ),
+      )
+      .toBe(false);
     await restoredMain.evaluate(async () => {
       await (window as any).useAuthStore.getState().login({
         emailOrUsername: "admin@tescord.local",
@@ -132,6 +141,18 @@ test("real Electron keeps remembered credentials in native storage", async ({}, 
         localRefresh: null,
         sessionRefresh: true,
       });
+    await expect
+      .poll(() =>
+        restoredMain.evaluate(async () =>
+          (await (window as any).electronAPI.storage.getSavedAccounts()).map(
+            (account: any) => ({
+              remember: account.rememberPassword,
+              hasRefresh: Boolean(account.refreshToken),
+            }),
+          ),
+        ),
+      )
+      .toEqual([{ remember: false, hasRefresh: false }]);
 
     await app.close();
     app = await launchApp();
@@ -147,6 +168,18 @@ test("real Electron keeps remembered credentials in native storage", async ({}, 
     const freshAuth = (await app.windows()).find((page) =>
       page.url().includes("window=auth"),
     )!;
+    await freshAuth.waitForLoadState("domcontentloaded");
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows().some(
+            (win) =>
+              win.webContents.getURL().includes("window=auth") &&
+              win.isVisible(),
+          ),
+        ),
+      )
+      .toBe(true);
     await expect
       .poll(() =>
         freshAuth.evaluate(
@@ -157,11 +190,12 @@ test("real Electron keeps remembered credentials in native storage", async ({}, 
     await expect
       .poll(() =>
         freshAuth.evaluate(async () =>
-          (window as any).electronAPI.storage.getActiveTokens(),
+          Boolean(await (window as any).electronAPI.storage.getActiveTokens()),
         ),
       )
-      .toBeNull();
+      .toBe(false);
 
+    await expect(freshAuth.getByTestId("use-other-account-btn")).toBeVisible();
     await freshAuth.getByTestId("use-other-account-btn").click();
     await freshAuth.getByTestId("auth-email-input").fill("admin@tescord.local");
     await freshAuth.getByTestId("auth-submit-btn").click();
@@ -180,22 +214,29 @@ test("real Electron keeps remembered credentials in native storage", async ({}, 
     await expect
       .poll(
         async () =>
-          (await app.windows()).some((page) =>
-            page.url().includes("window=auth"),
+          (await app.windows()).some(
+            (page) => page !== freshAuth && page.url().includes("window=auth"),
           ),
         { timeout: 30_000 },
       )
       .toBe(true);
-    const afterLogout = (await app.windows()).find((page) =>
-      page.url().includes("window=auth"),
+    const afterLogout = (await app.windows()).find(
+      (page) => page !== freshAuth && page.url().includes("window=auth"),
     )!;
     await expect
       .poll(() =>
-        afterLogout.evaluate(async () =>
-          (window as any).electronAPI.storage.getActiveTokens(),
+        afterLogout.evaluate(
+          () => (window as any).useAuthStore?.getState().isLoading,
         ),
       )
-      .toBeNull();
+      .toBe(false);
+    await expect
+      .poll(() =>
+        afterLogout.evaluate(async () =>
+          Boolean(await (window as any).electronAPI.storage.getActiveTokens()),
+        ),
+      )
+      .toBe(false);
     await expect
       .poll(() =>
         afterLogout.evaluate(
@@ -203,6 +244,22 @@ test("real Electron keeps remembered credentials in native storage", async ({}, 
         ),
       )
       .toBe(false);
+    await expect(afterLogout.getByTestId("account-picker")).toBeVisible();
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) => {
+          const windows = BrowserWindow.getAllWindows();
+          return (
+            windows.length === 1 &&
+            windows[0].isVisible() &&
+            windows[0].webContents.getURL().includes("window=auth")
+          );
+        }),
+      )
+      .toBe(true);
+  } catch (error) {
+    console.error("Credential scenario failed before cleanup", String(error));
+    throw error;
   } finally {
     await app.close();
   }

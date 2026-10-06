@@ -1,5 +1,17 @@
+import { ErrorCode, type ModelLoadProgress } from "@tescord/types";
+
+// Keep unsupported browsers able to import the application. Construction still
+// fails explicitly; this local base does not install or emulate an AudioWorklet.
+const WorkletBase =
+  globalThis.AudioWorkletNode ??
+  (class {
+    constructor() {
+      throw new Error(ErrorCode.AUDIO_PROCESSING_UNSUPPORTED);
+    }
+  } as unknown as typeof AudioWorkletNode);
+
 /** Real DTLN ONNX inference runs in a dedicated Worker. */
-export class DtlnWorkletNode extends AudioWorkletNode {
+export class DtlnWorkletNode extends WorkletBase {
   private worker: Worker | null = null;
   private readyPromise: Promise<void>;
   private rejectReady: ((reason: Error) => void) | null = null;
@@ -10,8 +22,13 @@ export class DtlnWorkletNode extends AudioWorkletNode {
   private desktopExitListener: ((event: MessageEvent) => void) | null = null;
   private desktopRequestId: string | null = null;
   private underflows = 0;
+  private underflowTimes: number[] = [];
+  private outputReady = false;
+  private outputWaiters = new Set<() => void>();
+  public continuity = { underruns: 0, outputQueueMs: 0, renderedSamples: 0 };
   readonly backend: "web-wasm" | "desktop-native";
   onFailure?: (reason: string) => void;
+  onProgress?: (progress: ModelLoadProgress) => void;
   onStats?: (stats: {
     processedFrames: number;
     queueMs: number;
@@ -40,7 +57,7 @@ export class DtlnWorkletNode extends AudioWorkletNode {
       this.rejectReady = reject;
       this.readyTimeout = setTimeout(
         () => fail(`${mode} model load timed out`),
-        20_000,
+        60_000,
       );
       const fail = (reason: string) => {
         if (this.failed || this.destroyed) return;
@@ -53,7 +70,19 @@ export class DtlnWorkletNode extends AudioWorkletNode {
         this.rejectReady = null;
         reject(new Error(reason));
       };
-      const handleStatus = (data: { type?: string; reason?: string }) => {
+      const handleStatus = (data: {
+        type?: string;
+        reason?: string;
+        progress?: ModelLoadProgress;
+      }) => {
+        if (data?.type === "PROGRESS" && data.progress) {
+          this.onProgress?.(data.progress);
+          if (this.readyTimeout) clearTimeout(this.readyTimeout);
+          this.readyTimeout = setTimeout(
+            () => fail(`${mode} initialization stalled`),
+            data.progress.phase === "downloading" ? 35_000 : 60_000,
+          );
+        }
         if (data?.type === "READY") {
           if (this.readyTimeout) clearTimeout(this.readyTimeout);
           this.readyTimeout = null;
@@ -66,10 +95,28 @@ export class DtlnWorkletNode extends AudioWorkletNode {
       };
       this.port.onmessage = ({ data }) => {
         handleStatus(data);
-        if (data?.type === "UNDERFLOW" && ++this.underflows >= 3)
-          fail("Repeated inference underflow");
+        if (data?.type === "OUTPUT_READY") {
+          this.outputReady = true;
+          for (const resolve of this.outputWaiters) resolve();
+          this.outputWaiters.clear();
+        }
+        if (data?.type === "UNDERFLOW") {
+          this.continuity.underruns = ++this.underflows;
+          const now = performance.now();
+          this.underflowTimes = this.underflowTimes.filter(
+            (time) => now - time < 2000,
+          );
+          this.underflowTimes.push(now);
+          if (this.underflowTimes.length >= 3)
+            fail("Repeated inference underflow");
+        }
         if (data?.type === "OVERFLOW") fail("Inference output overflow");
-        if (data?.type === "STATS")
+        if (data?.type === "STATS") {
+          this.continuity = {
+            underruns: this.underflows,
+            outputQueueMs: Number(data.outputQueueMs) || 0,
+            renderedSamples: Number(data.renderedSamples) || 0,
+          };
           this.onStats?.({
             processedFrames: Number(data.processedFrames),
             queueMs: Number(data.queueMs),
@@ -78,6 +125,7 @@ export class DtlnWorkletNode extends AudioWorkletNode {
             processingP95Ms: Number(data.processingP95Ms),
             processingP99Ms: Number(data.processingP99Ms),
           });
+        }
       };
       if (desktop) {
         const requestId = Array.from(
@@ -144,6 +192,24 @@ export class DtlnWorkletNode extends AudioWorkletNode {
   async ready(): Promise<void> {
     await this.readyPromise;
     if (this.failed) throw new Error("DTLN worker failed");
+  }
+
+  async waitForOutput(timeoutMs = 5000): Promise<void> {
+    if (this.outputReady) return;
+    await new Promise<void>((resolve, reject) => {
+      const finish = () => {
+        clearTimeout(timer);
+        this.outputWaiters.delete(finish);
+        resolve();
+      };
+      const timer = setTimeout(() => {
+        this.outputWaiters.delete(finish);
+        reject(new Error("Inference output timed out"));
+      }, timeoutMs);
+      this.outputWaiters.add(finish);
+    });
+    if (this.failed || this.destroyed)
+      throw new Error("Inference output unavailable");
   }
 
   destroy() {

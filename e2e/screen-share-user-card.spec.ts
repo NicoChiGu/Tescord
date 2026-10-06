@@ -1,3 +1,4 @@
+import { installEncryptedVoiceUi } from "./helpers/encrypted-voice-ui";
 import { test, expect } from "@playwright/test";
 
 test.describe("直播屏幕分享与摄像头画面融合（画中画自由切换）E2E 验收", () => {
@@ -91,6 +92,7 @@ test.describe("直播屏幕分享与摄像头画面融合（画中画自由切�
       });
     });
 
+    await installEncryptedVoiceUi(page);
     await page.goto("/");
     await expect(page).toHaveTitle(/Tescord/i);
 
@@ -131,6 +133,7 @@ test.describe("直播屏幕分享与摄像头画面融合（画中画自由切�
     await expect(centerScreenBtn).toHaveAttribute("title", "屏幕共享");
 
     await centerScreenBtn.click();
+    await page.getByTestId("mode-p2p-btn").click();
     const confirmLiveBtn = page.getByTestId("start-screen-share-confirm-btn");
     await expect(confirmLiveBtn).toBeVisible({ timeout: 5000 });
     await confirmLiveBtn.click();

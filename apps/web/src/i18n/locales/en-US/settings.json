@@ -288,5 +288,13 @@
   "globalFontSizeDesc": "Scale typography and UI layout across the entire application (13px - 20px)",
   "resetFontSize": "Reset Font Size",
   "myEmojis": "My Emojis",
-  "myEmojisDesc": "Manage your personal emojis to use freely in any channel or direct message"
+  "myEmojisDesc": "Manage your personal emojis to use freely in any channel or direct message",
+  "noiseLoad": {
+    "downloading": "Downloading the {{model}} model",
+    "verifying": "Verifying the {{model}} model",
+    "initializing": "Initializing {{model}} noise suppression",
+    "complete": "Switched to {{model}} noise suppression",
+    "downloaded": "{{model}} downloaded; it will load when the microphone starts",
+    "failed": "Could not load {{model}}; continuing with {{effective}}"
+  }
 }

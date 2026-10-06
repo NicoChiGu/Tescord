@@ -1,0 +1,90 @@
+{
+  "date": "2026-10-06",
+  "scope": "code and local validation; production acceptance pending",
+  "checks": [
+    {
+      "command": "pnpm build",
+      "passed": 4,
+      "failed": 0
+    },
+    {
+      "command": "pnpm test:e2e",
+      "passed": 310,
+      "failed": 0
+    },
+    {
+      "command": "pnpm exec playwright test --config playwright.communication-webkit.config.ts",
+      "passed": 11,
+      "failed": 0,
+      "note": "iPhone 13 viewport; not physical iOS"
+    },
+    {
+      "command": "pnpm test:e2e:electron",
+      "passed": 3,
+      "failed": 0,
+      "skipped": 1,
+      "reason": "TESCORD_E2E_PACKAGED_EXE not supplied"
+    },
+    {
+      "command": "pnpm exec playwright test e2e/media-encryption-device-mesh.spec.ts --repeat-each=3 --output test-results/final-mesh-validation",
+      "passed": 4,
+      "failed": 0,
+      "repetitions": 3,
+      "note": "final late retry cancellation and cryptographic counters"
+    },
+    {
+      "command": "pnpm exec playwright test e2e/media-encryption-real-rtp.spec.ts --grep impairment --output test-results/audio-recording-validation",
+      "passed": 5,
+      "failed": 0,
+      "recordings": 8,
+      "note": "encoded-frame impairment, not network packet loss"
+    },
+    {
+      "command": "pnpm test:security-media",
+      "result": "PASS"
+    },
+    {
+      "command": "pnpm --filter @tescord/server exec tsx ../../scripts/test-media-encryption-crypto.mts",
+      "passed": 9,
+      "failed": 0
+    },
+    {
+      "command": "pnpm --filter @tescord/server exec tsx scripts/test-media-encryption.mts",
+      "passed": 7,
+      "failed": 0,
+      "database": "isolated temporary SQLite"
+    },
+    {
+      "command": "pnpm --filter @tescord/server exec tsx ../../scripts/test-guild-icon-processor.ts",
+      "passedAssertions": 46,
+      "failedAssertions": 0
+    },
+    {
+      "command": "node scripts/test-display-capture-security.mjs",
+      "passedAssertions": 20,
+      "failedAssertions": 0
+    },
+    {
+      "command": "apps/desktop/node_modules/electron/dist/electron.exe scripts/test-display-capture-native.cjs",
+      "passed": 3,
+      "failed": 0
+    },
+    {
+      "command": "pnpm format:check",
+      "result": "PASS",
+      "additionalMts": "PASS"
+    },
+    {
+      "command": "pnpm --filter @tescord/server exec prisma migrate diff --from-empty --to-schema-datamodel prisma-postgres/schema.prisma --script",
+      "result": "PASS offline schema diff; target migration not executed"
+    }
+  ],
+  "pending": [
+    "Cloudflare SFU/TURN/public fallback and reconnect with v2 media protocol",
+    "real network loss/jitter and four denoiser speech/latency comparison",
+    "physical iOS",
+    "PostgreSQL migration and backup/restore",
+    "signed packaged Windows installer and non-Windows capture"
+  ],
+  "logs": "../../../test-results/communication-validation"
+}

@@ -1,3 +1,4 @@
+import { installEncryptedVoiceUi } from "./helpers/encrypted-voice-ui";
 import { test, expect } from "@playwright/test";
 
 test.describe("多设备语音互斥接管与会话状态自动化验收 (Multi-device Voice Exclusivity)", () => {
@@ -41,6 +42,7 @@ test.describe("多设备语音互斥接管与会话状态自动化验收 (Multi-
     });
 
     // 2. 访问主界面
+    await installEncryptedVoiceUi(page);
     await page.goto("/");
     await expect(page).toHaveTitle(/Tescord/i);
 

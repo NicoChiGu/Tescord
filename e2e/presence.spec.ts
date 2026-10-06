@@ -78,7 +78,9 @@ test.describe("真实用户在线状态 (Online Presence / Status) 端到端全�
         });
       }
     });
-    await expect(jackeyItem.locator(".bg-emerald-500")).toBeVisible({
+    await expect(
+      jackeyItem.locator('[aria-label="Status: ONLINE"]'),
+    ).toBeVisible({
       timeout: 5000,
     });
   });
@@ -118,7 +120,7 @@ test.describe("真实用户在线状态 (Online Presence / Status) 端到端全�
     await page.getByRole("menuitemradio", { name: /请勿打扰/i }).click();
 
     // 验证状态指示灯变红 (rose-500)
-    await expect(jackeyItem.locator(".bg-rose-500")).toBeVisible({
+    await expect(jackeyItem.locator('[aria-label="Status: DND"]')).toBeVisible({
       timeout: 5000,
     });
 
@@ -127,9 +129,12 @@ test.describe("真实用户在线状态 (Online Presence / Status) 端到端全�
     await page.getByRole("menuitemradio", { name: /隐身/i }).click();
 
     // 验证自身端显示“隐身 (仅自己可见)”的空心灰色小圆圈
-    const invisibleDot = jackeyItem.locator('[title="隐身 (仅自己可见)"]');
+    const invisibleDot = jackeyItem.locator('[aria-label="Status: INVISIBLE"]');
     await expect(invisibleDot).toBeVisible({ timeout: 5000 });
-    await expect(invisibleDot).toHaveClass(/border-gray-400/);
+    await expect(invisibleDot.locator("svg > circle")).toHaveAttribute(
+      "fill",
+      "#80848e",
+    );
   });
 
   test("验证接收网关 PRESENCE_UPDATE 广播后成员列表即时响应式联动", async ({
@@ -164,9 +169,11 @@ test.describe("真实用户在线状态 (Online Presence / Status) 端到端全�
     });
 
     // 验证成员项实时变为黄色 (amber-500)，且签名即时刷新为“离开片刻 ☕”
-    await expect(jackeyItem.locator(".bg-amber-500")).toBeVisible({
-      timeout: 5000,
-    });
+    await expect(jackeyItem.locator('[aria-label="Status: IDLE"]')).toBeVisible(
+      {
+        timeout: 5000,
+      },
+    );
     await expect(jackeyItem.getByText("离开片刻 ☕")).toBeVisible();
 
     // 再次下发 PRESENCE_UPDATE：恢复为 ONLINE
@@ -182,7 +189,9 @@ test.describe("真实用户在线状态 (Online Presence / Status) 端到端全�
     });
 
     // 验证指示灯恢复为绿色
-    await expect(jackeyItem.locator(".bg-emerald-500")).toBeVisible({
+    await expect(
+      jackeyItem.locator('[aria-label="Status: ONLINE"]'),
+    ).toBeVisible({
       timeout: 5000,
     });
     await expect(jackeyItem.getByText("重回战线 🚀")).toBeVisible();
@@ -253,7 +262,9 @@ test.describe("真实用户在线状态 (Online Presence / Status) 端到端全�
     await expect(aliceDmItem).toBeVisible({ timeout: 10000 });
 
     // 验证初始状态灯为在线绿色 (bg-discord-green)
-    await expect(aliceDmItem.locator(".bg-discord-green")).toBeVisible({
+    await expect(
+      aliceDmItem.locator('[aria-label="Status: ONLINE"]'),
+    ).toBeVisible({
       timeout: 5000,
     });
 
@@ -270,9 +281,11 @@ test.describe("真实用户在线状态 (Online Presence / Status) 端到端全�
     });
 
     // 验证私信列表中的 Alice 状态灯秒级变为红色 (bg-rose-500)
-    await expect(aliceDmItem.locator(".bg-rose-500")).toBeVisible({
-      timeout: 5000,
-    });
+    await expect(aliceDmItem.locator('[aria-label="Status: DND"]')).toBeVisible(
+      {
+        timeout: 5000,
+      },
+    );
 
     // 模拟服务端广播 PRESENCE_UPDATE：将 Alice 置为 OFFLINE (离线)
     await page.evaluate(() => {
@@ -286,7 +299,9 @@ test.describe("真实用户在线状态 (Online Presence / Status) 端到端全�
     });
 
     // 验证私信列表中的 Alice 状态灯秒级变为离线灰色 (bg-zinc-500)
-    await expect(aliceDmItem.locator(".bg-zinc-500")).toBeVisible({
+    await expect(
+      aliceDmItem.locator('[aria-label="Status: OFFLINE"]'),
+    ).toBeVisible({
       timeout: 5000,
     });
   });

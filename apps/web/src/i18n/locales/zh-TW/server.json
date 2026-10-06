@@ -219,5 +219,16 @@
   "emojiUploadHint": "支援 JPEG、PNG、WebP、GIF。GIF 大小限制在 2MB 以下，靜態圖限制在 1MB 以下，建議尺寸 128x128 像素。",
   "emojiNamePlaceholder": "表情代碼 (如 cat_dance)",
   "deleteEmojiConfirm": "確定要刪除此表情嗎？此操作無法復原。",
-  "emojiSlotsAvailable": "可用表情欄位: {{count}}/50"
+  "emojiSlotsAvailable": "可用表情欄位: {{count}}/50",
+  "dragChannel": "拖曳排序頻道 {{name}}",
+  "dragCategory": "拖曳排序分類 {{name}}",
+  "gifIcon": {
+    "title": "編輯 GIF 伺服器圖示",
+    "preparing": "正在上傳並解析 GIF…",
+    "keepAnimation": "保留動畫",
+    "useFrame": "使用所選影格",
+    "play": "播放 GIF",
+    "pause": "暫停 GIF",
+    "selectFrame": "選擇 GIF 影格"
+  }
 }

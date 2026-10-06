@@ -1,3 +1,4 @@
+import { installEncryptedVoiceUi } from "./helpers/encrypted-voice-ui";
 import { test, expect } from "@playwright/test";
 
 test.describe("视频编码格式（H.264 / AV1 / VP9 / VP8 / HEVC）与硬件加速 E2E 验收", () => {
@@ -91,6 +92,7 @@ test.describe("视频编码格式（H.264 / AV1 / VP9 / VP8 / HEVC）与硬件�
       });
     });
 
+    await installEncryptedVoiceUi(page);
     await page.goto("/");
 
     // 2. 进入首个可用服务器
@@ -180,30 +182,31 @@ test.describe("视频编码格式（H.264 / AV1 / VP9 / VP8 / HEVC）与硬件�
     await expect(modalBitrateLabel).toContainText("5000 kbps");
 
     // 8. 点击开始直播
+    await page.getByTestId("mode-p2p-btn").click();
     const startConfirmBtn = page.getByTestId("start-screen-share-confirm-btn");
     await expect(startConfirmBtn).toBeVisible();
     await startConfirmBtn.click();
 
-    // 9. 验证直播流启动成功，用户视频卡片上呈现 [H264] 编码格式角标
-    const codecBadge = page.getByTestId("video-codec-badge-usr_default_admin");
-    await expect(codecBadge).toBeVisible({ timeout: 8000 });
-    await expect(codecBadge).toContainText("H264");
-
-    // 验证房间顶部直播指示器
+    // A room without viewers has no negotiated outbound video codec. Check the
+    // requested codec separately; actual encrypted video/RTP is a dedicated test.
+    await expect(page.getByText(/直播中/i).first()).toBeVisible();
+    await expect
+      .poll(() =>
+        page
+          .getByTestId("voice-room-area")
+          .locator("video")
+          .first()
+          .evaluate((video: HTMLVideoElement) => video.videoWidth),
+      )
+      .toBeGreaterThan(0);
+    expect(
+      await page.evaluate(
+        () => (window as any).p2pStreamManager.targetVideoCodec,
+      ),
+    ).toBe("h264");
     await expect(
-      page.getByText(/\[H264\]\s*Simulcast 屏幕直播中/i),
-    ).toBeVisible();
-
-    // 10. 打开网络质量看板，确认动态视频编码指标展示
-    const netStatsBtn = page.getByTestId("network-stats-btn");
-    if (await netStatsBtn.isVisible()) {
-      await netStatsBtn.click();
-      await expect(
-        page.getByText(/WebRTC 媒体引擎与网络健康看板/i),
-      ).toBeVisible();
-      await expect(page.getByText(/H264/i)).toBeVisible();
-      await page.keyboard.press("Escape");
-    }
+      page.getByTestId("video-codec-badge-usr_default_admin"),
+    ).not.toBeVisible();
 
     // 11. 校验控制台未抛出致命未捕获错误
     const criticalErrors = consoleErrors.filter(

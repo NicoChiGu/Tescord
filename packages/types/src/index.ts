@@ -875,6 +875,7 @@ export interface IdentifyPayload {
 export type StreamTransmissionMode = "sfu" | "p2p_direct" | "p2p_relay";
 
 export interface VoiceStateUpdatePayload {
+  mediaEncryptionVersion?: number;
   guildId: string;
   channelId: string | null; // null 代表退出语音频道
   previousChannelId?: string | null;
@@ -903,7 +904,11 @@ export interface VoiceState {
 }
 
 export interface VoiceServerDisconnectPayload {
-  reason: "VOICE_TRANSFER" | "KICKED" | "CHANNEL_DELETED";
+  reason:
+    | "VOICE_TRANSFER"
+    | "KICKED"
+    | "CHANNEL_DELETED"
+    | "MEDIA_NEGOTIATION_TIMEOUT";
   newChannelId?: string | null;
   targetPlatform?: string;
 }
@@ -1123,6 +1128,7 @@ export interface ICEServerConfigResponse {
 
 // 详细媒体属性与实时统计报告契约 (Stats for nerds)
 export interface StreamDetailedStats {
+  audioReceiveQuality?: import("./media-encryption.js").AudioReceiveQuality[];
   participantIdentity: string;
   isLocal: boolean;
   mimeType: string;
@@ -1192,7 +1198,7 @@ export interface PeerLatencyReport {
   targetUserId: string;
   rtt: number; // 毫秒往返物理延迟
   jitter?: number; // 抖动毫秒
-  packetLoss?: number; // 丢包率 (0.0 - 1.0)
+  packetLoss?: number; // 丢包率百分比 (0 - 100)，与 NetworkStats 一致
   connectionType: "LAN" | "P2P" | "RELAY" | "SFU";
   status: "connecting" | "connected" | "failed";
   updatedAt: number;
@@ -1455,7 +1461,12 @@ export interface PresignedUploadRequest {
   fileName: string;
   fileSize: number;
   mimeType: string;
-  purpose?: "attachment" | "guild-icon" | "user-avatar" | "user-banner" | "custom-emoji";
+  purpose?:
+    | "attachment"
+    | "guild-icon"
+    | "user-avatar"
+    | "user-banner"
+    | "custom-emoji";
   channelId?: string;
   guildId?: string;
   width?: number;
@@ -1544,11 +1555,13 @@ export type GatewayEventType =
   (typeof GatewayEvents)[keyof typeof GatewayEvents];
 
 export interface DMCallOfferPayload {
+  mediaEncryptionVersion?: number;
   channelId: string;
   hasVideo: boolean;
 }
 
 export interface DMCallActionPayload {
+  mediaEncryptionVersion?: number;
   callId: string;
   reason?: string;
 }
@@ -1589,6 +1602,8 @@ export type NATType =
   | "Unknown";
 
 export interface P2PSignalPayload {
+  /** Voice offer/answer correlation; echoes the initiating offer through retries. */
+  negotiationId?: string;
   guildId: string;
   channelId: string;
   callId?: string;
@@ -2207,7 +2222,7 @@ export function validateDtlsSrtpParameters(config: DtlsSrtpConfig): {
   };
 }
 
-// 11.2 SFrame WebRTC 语音端到端加密规范 (IETF draft-ietf-sframe-enc)
+// 11.2 SFrame WebRTC 语音端到端加密规范 (RFC 9605)
 export interface SFrameConfig {
   enabled: boolean;
   keyId: number;
@@ -2215,151 +2230,176 @@ export interface SFrameConfig {
 }
 
 export interface SFrameHeader {
-  kid: number; // Key ID (0 - 15)
-  counter: bigint; // 48-bit 单调递增帧序列号
+  kid: number; // RFC 9605 KID, restricted to safe unsigned JavaScript integers
+  counter: bigint; // Unsigned 64-bit monotonic frame counter
   headerLength: number; // 头部总字节数
 }
 
+/** RFC 9605 section 4.3 compact, unsigned, big-endian header. */
 export function encodeSFrameHeader(
   kid: number,
   counter: bigint | number,
 ): Uint8Array {
-  const ctrBig = BigInt(counter);
-  let ctrBytes: number[] = [];
-  let temp = ctrBig;
-  while (temp > 0n) {
-    ctrBytes.unshift(Number(temp & 0xffn));
-    temp >>= 8n;
-  }
-  if (ctrBytes.length === 0) ctrBytes = [0];
-  const ctrLen = Math.min(15, ctrBytes.length);
-  const safeKid = kid & 0x0f;
-  const header = new Uint8Array(1 + ctrLen);
-  header[0] = (safeKid << 4) | (ctrLen & 0x0f);
-  for (let i = 0; i < ctrLen; i++) {
-    header[1 + i] = ctrBytes[i];
-  }
-  return header;
-}
-
-export function decodeSFrameHeader(buffer: Uint8Array): SFrameHeader {
-  if (buffer.length < 2) {
-    throw new Error("SFrame 数据包长度过短，无法解析头部");
-  }
-  const firstByte = buffer[0];
-  const kid = (firstByte >> 4) & 0x0f;
-  const ctrLen = firstByte & 0x0f;
-  if (buffer.length < 1 + ctrLen) {
-    throw new Error("SFrame 数据包截断异常");
-  }
-  let counter = 0n;
-  for (let i = 0; i < ctrLen; i++) {
-    counter = (counter << 8n) | BigInt(buffer[1 + i]);
-  }
-  return {
-    kid,
-    counter,
-    headerLength: 1 + ctrLen,
+  if (!Number.isSafeInteger(kid) || kid < 0)
+    throw new Error("MEDIA_KEY_INVALID");
+  const ctr = BigInt(counter);
+  if (ctr < 0n || ctr > 0xffffffffffffffffn)
+    throw new Error("MEDIA_KEY_INVALID");
+  const encode = (value: bigint): number[] => {
+    if (value <= 7n) return [];
+    const bytes: number[] = [];
+    do {
+      bytes.unshift(Number(value & 255n));
+      value >>= 8n;
+    } while (value);
+    return bytes;
   };
+  const k = encode(BigInt(kid)),
+    c = encode(ctr);
+  const config =
+    (k.length ? 0x80 | ((k.length - 1) << 4) : kid << 4) |
+    (c.length ? 0x08 | (c.length - 1) : Number(ctr));
+  return Uint8Array.from([config, ...k, ...c]);
 }
-
+export function decodeSFrameHeader(buffer: Uint8Array): SFrameHeader {
+  if (!buffer.length) throw new Error("MEDIA_KEY_INVALID");
+  const config = buffer[0];
+  let offset = 1;
+  const read = (length: number): bigint => {
+    if (offset + length > buffer.length) throw new Error("MEDIA_KEY_INVALID");
+    let value = 0n;
+    for (let i = 0; i < length; i++)
+      value = (value << 8n) | BigInt(buffer[offset++]);
+    if (value <= 7n || (length > 1 && buffer[offset - length] === 0))
+      throw new Error("MEDIA_KEY_INVALID");
+    return value;
+  };
+  const kidBig =
+    config & 0x80 ? read(((config >> 4) & 7) + 1) : BigInt((config >> 4) & 7);
+  const counter = config & 8 ? read((config & 7) + 1) : BigInt(config & 7);
+  if (kidBig > BigInt(Number.MAX_SAFE_INTEGER))
+    throw new Error("MEDIA_KEY_INVALID");
+  return { kid: Number(kidBig), counter, headerLength: offset };
+}
+interface SFrameDerivedKey {
+  key: CryptoKey;
+  salt: Uint8Array;
+}
+const sframeDerivedKeys = new WeakMap<
+  Uint8Array,
+  Map<number, Promise<SFrameDerivedKey>>
+>();
+/** AES_256_GCM_SHA512_128 (0x0005), RFC 9605 section 4.4.2. */
+export function deriveSFrameKey(
+  keyBuffer: Uint8Array,
+  kid: number,
+): Promise<SFrameDerivedKey> {
+  if (keyBuffer.length !== 16 && keyBuffer.length !== 32)
+    return Promise.reject(new Error("MEDIA_KEY_INVALID"));
+  let keys = sframeDerivedKeys.get(keyBuffer);
+  if (!keys) {
+    keys = new Map();
+    sframeDerivedKeys.set(keyBuffer, keys);
+  }
+  const existing = keys.get(kid);
+  if (existing) return existing;
+  const promise = (async () => {
+    const material = await globalThis.crypto.subtle.importKey(
+      "raw",
+      keyBuffer,
+      "HKDF",
+      false,
+      ["deriveBits"],
+    );
+    const suffix = new Uint8Array(10);
+    const view = new DataView(suffix.buffer);
+    view.setBigUint64(0, BigInt(kid));
+    view.setUint16(8, 5);
+    const derive = async (label: string, size: number) => {
+      const prefix = new TextEncoder().encode(label);
+      const info = new Uint8Array(prefix.length + suffix.length);
+      info.set(prefix);
+      info.set(suffix, prefix.length);
+      return globalThis.crypto.subtle.deriveBits(
+        { name: "HKDF", hash: "SHA-512", salt: new Uint8Array(0), info },
+        material,
+        size * 8,
+      );
+    };
+    const [rawKey, rawSalt] = await Promise.all([
+      derive("SFrame 1.0 Secret key ", 32),
+      derive("SFrame 1.0 Secret salt ", 12),
+    ]);
+    const key = await globalThis.crypto.subtle.importKey(
+      "raw",
+      rawKey,
+      "AES-GCM",
+      false,
+      ["encrypt", "decrypt"],
+    );
+    return { key, salt: new Uint8Array(rawSalt) };
+  })();
+  keys.set(kid, promise);
+  return promise;
+}
+function sframeNonce(salt: Uint8Array, counter: bigint): Uint8Array {
+  const nonce = salt.slice();
+  for (let i = 0; i < 8; i++)
+    nonce[11 - i] ^= Number((counter >> BigInt(i * 8)) & 255n);
+  return nonce;
+}
 export async function encryptSFramePacket(
   rawPcmOrOpus: Uint8Array,
   keyBuffer: Uint8Array,
   kid: number,
   counter: bigint | number,
+  metadata = new Uint8Array(0),
 ): Promise<Uint8Array> {
   const header = encodeSFrameHeader(kid, counter);
-  const cryptoObj = globalThis.crypto;
-  if (!cryptoObj?.subtle) {
-    throw new Error("当前环境不支持 Web Crypto API");
-  }
-  let safeKeyBuf = keyBuffer;
-  if (keyBuffer.length !== 32) {
-    const padded = new Uint8Array(32);
-    padded.set(keyBuffer.slice(0, 32));
-    safeKeyBuf = padded;
-  }
-  const key = await cryptoObj.subtle.importKey(
-    "raw",
-    safeKeyBuf,
-    { name: "AES-GCM" },
-    false,
-    ["encrypt"],
+  const derived = await deriveSFrameKey(keyBuffer, kid);
+  const aad = new Uint8Array(header.length + metadata.length);
+  aad.set(header);
+  aad.set(metadata, header.length);
+  const ciphertext = new Uint8Array(
+    await globalThis.crypto.subtle.encrypt(
+      {
+        name: "AES-GCM",
+        iv: sframeNonce(derived.salt, BigInt(counter)),
+        additionalData: aad,
+        tagLength: 128,
+      },
+      derived.key,
+      rawPcmOrOpus,
+    ),
   );
-
-  const iv = new Uint8Array(12);
-  const ctrBig = BigInt(counter);
-  for (let i = 0; i < 8; i++) {
-    iv[11 - i] = Number((ctrBig >> BigInt(i * 8)) & 0xffn);
-  }
-  iv[0] = (kid ^ 0xa5) & 0xff;
-
-  const encryptedBuffer = await cryptoObj.subtle.encrypt(
-    {
-      name: "AES-GCM",
-      iv,
-      additionalData: header,
-    },
-    key,
-    rawPcmOrOpus,
-  );
-
-  const ciphertextWithTag = new Uint8Array(encryptedBuffer);
-  const result = new Uint8Array(header.length + ciphertextWithTag.length);
-  result.set(header, 0);
-  result.set(ciphertextWithTag, header.length);
+  const result = new Uint8Array(header.length + ciphertext.length);
+  result.set(header);
+  result.set(ciphertext, header.length);
   return result;
 }
-
 export async function decryptSFramePacket(
   sframePacket: Uint8Array,
   keyBuffer: Uint8Array,
+  metadata = new Uint8Array(0),
 ): Promise<{ decryptedPayload: Uint8Array; header: SFrameHeader }> {
   const header = decodeSFrameHeader(sframePacket);
-  const headerBytes = sframePacket.slice(0, header.headerLength);
-  const ciphertextWithTag = sframePacket.slice(header.headerLength);
-
-  const cryptoObj = globalThis.crypto;
-  if (!cryptoObj?.subtle) {
-    throw new Error("当前环境不支持 Web Crypto API");
-  }
-
-  let safeKeyBuf = keyBuffer;
-  if (keyBuffer.length !== 32) {
-    const padded = new Uint8Array(32);
-    padded.set(keyBuffer.slice(0, 32));
-    safeKeyBuf = padded;
-  }
-  const key = await cryptoObj.subtle.importKey(
-    "raw",
-    safeKeyBuf,
-    { name: "AES-GCM" },
-    false,
-    ["decrypt"],
-  );
-
-  const iv = new Uint8Array(12);
-  const ctrBig = header.counter;
-  for (let i = 0; i < 8; i++) {
-    iv[11 - i] = Number((ctrBig >> BigInt(i * 8)) & 0xffn);
-  }
-  iv[0] = (header.kid ^ 0xa5) & 0xff;
-
-  const decryptedBuffer = await cryptoObj.subtle.decrypt(
+  if (sframePacket.length < header.headerLength + 16)
+    throw new Error("MEDIA_KEY_INVALID");
+  const derived = await deriveSFrameKey(keyBuffer, header.kid);
+  const aad = new Uint8Array(header.headerLength + metadata.length);
+  aad.set(sframePacket.slice(0, header.headerLength));
+  aad.set(metadata, header.headerLength);
+  const decrypted = await globalThis.crypto.subtle.decrypt(
     {
       name: "AES-GCM",
-      iv,
-      additionalData: headerBytes,
+      iv: sframeNonce(derived.salt, header.counter),
+      additionalData: aad,
+      tagLength: 128,
     },
-    key,
-    ciphertextWithTag,
+    derived.key,
+    sframePacket.slice(header.headerLength),
   );
-
-  return {
-    decryptedPayload: new Uint8Array(decryptedBuffer),
-    header,
-  };
+  return { decryptedPayload: new Uint8Array(decrypted), header };
 }
 
 export class SFrameReplayFilter {
@@ -3158,6 +3198,7 @@ export const SUPPORTED_LOCALES: LocaleOption[] = [
 export enum ErrorCode {
   // 通用错误
   INTERNAL_ERROR = "INTERNAL_ERROR",
+  AUDIO_PROCESSING_UNSUPPORTED = "AUDIO_PROCESSING_UNSUPPORTED",
   INVALID_PARAMS = "INVALID_PARAMS",
   NOT_FOUND = "NOT_FOUND",
   UNAUTHORIZED = "UNAUTHORIZED",
@@ -3205,6 +3246,7 @@ export enum ErrorCode {
   MESSAGE_TOO_LARGE = "MESSAGE_TOO_LARGE",
   FILE_TOO_LARGE = "FILE_TOO_LARGE",
   FILE_TYPE_UNSUPPORTED = "FILE_TYPE_UNSUPPORTED",
+  ICON_PROCESS_TIMEOUT = "ICON_PROCESS_TIMEOUT",
   UPLOAD_FAILED = "UPLOAD_FAILED",
 
   // 自定义表情 (Emoji)
@@ -3214,6 +3256,11 @@ export enum ErrorCode {
   EMOJI_FILE_TOO_LARGE = "EMOJI_FILE_TOO_LARGE",
 
   // 语音与媒体
+  MEDIA_E2EE_UNSUPPORTED = "MEDIA_E2EE_UNSUPPORTED",
+  MEDIA_KEY_UNAVAILABLE = "MEDIA_KEY_UNAVAILABLE",
+  MEDIA_CONTEXT_STALE = "MEDIA_CONTEXT_STALE",
+  MEDIA_KEY_INVALID = "MEDIA_KEY_INVALID",
+  MEDIA_NEGOTIATION_TIMEOUT = "MEDIA_NEGOTIATION_TIMEOUT",
   VOICE_ROOM_FULL = "VOICE_ROOM_FULL",
   VOICE_JOIN_FAILED = "VOICE_JOIN_FAILED",
   VOICE_PERMISSION_DENIED = "VOICE_PERMISSION_DENIED",
@@ -3810,3 +3857,8 @@ export interface WhatsNewModalOptions {
   changelogOverride?: string;
   onRestartApply?: () => void | Promise<void>;
 }
+export * from "./communication.js";
+export * from "./desktop-capture.js";
+
+export * from "./media-encryption.js";
+export * from "./media-frame.js";

@@ -417,7 +417,7 @@ export const ContextMenuSubContent = React.forwardRef<
           opacity: isReady ? undefined : 0,
           pointerEvents: isReady ? "auto" : "none",
         }}
-        className={`z-50 min-w-[180px] overflow-hidden rounded-md border border-[#2b2d31]/80 bg-[#111214] p-1 text-[#dbdee1] shadow-2xl outline-none ${
+        className={`z-[80] min-w-[180px] overflow-hidden rounded-md border border-[#2b2d31]/80 bg-[#111214] p-1 text-[#dbdee1] shadow-2xl outline-none ${
           isReady
             ? "data-[state=open]:animate-context-menu-in pointer-events-auto"
             : "!animate-none pointer-events-none"
@@ -461,7 +461,7 @@ export const ContextMenuContent = React.forwardRef<
           opacity: isReady ? undefined : 0,
           pointerEvents: isReady ? "auto" : "none",
         }}
-        className={`z-50 min-w-[190px] overflow-hidden rounded-md border border-[#2b2d31]/80 bg-[#111214] p-1.5 text-[#dbdee1] shadow-2xl select-none outline-none ${
+        className={`z-[80] min-w-[190px] overflow-hidden rounded-md border border-[#2b2d31]/80 bg-[#111214] p-1.5 text-[#dbdee1] shadow-2xl select-none outline-none ${
           isReady
             ? "data-[state=open]:animate-context-menu-in pointer-events-auto"
             : "!animate-none pointer-events-none"

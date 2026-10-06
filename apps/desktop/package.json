@@ -5,7 +5,7 @@
   "main": "dist/main.js",
   "scripts": {
     "copy-assets": "node scripts/copy-assets.mjs",
-    "build:native": "node scripts/build-rnnoise.mjs",
+    "build:native": "node scripts/build-rnnoise.mjs && node scripts/build-loopback.mjs",
     "build:sqlite": "electron-builder install-app-deps",
     "build": "node ../../scripts/generate-build-config.mjs && pnpm run build:native && pnpm run build:sqlite && tsc && pnpm run copy-assets",
     "start": "electron .",

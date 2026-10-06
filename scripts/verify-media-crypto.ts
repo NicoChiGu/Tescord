@@ -43,7 +43,7 @@ void (async () => {
   sender.disable();
   await assert.rejects(
     () => sender.encryptFrame(clear),
-    /密钥未就绪/,
+    /MEDIA_KEY_UNAVAILABLE/,
     "missing keys must fail closed",
   );
 

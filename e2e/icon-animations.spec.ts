@@ -47,7 +47,9 @@ test.describe("Discord 风格图标微动效与手风琴交互专项验收", () 
     await expect(textCatHeader).toBeVisible({ timeout: 5000 });
 
     // 检查 ChevronDown 图标存在且初始为展开状态 (rotate-0)
-    const chevronIcon = textCatHeader.locator("svg").first();
+    const chevronIcon = textCatHeader
+      .locator("svg.lucide-chevron-down")
+      .first();
     await expect(chevronIcon).toBeVisible();
     await expect(chevronIcon).toHaveClass(/rotate-0/);
 

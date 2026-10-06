@@ -1,3 +1,4 @@
+import { GuildIcon } from "./ui/GuildIcon.js";
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Guild } from "@tescord/types";
@@ -107,9 +108,7 @@ const SortableServerItem: React.FC<SortableServerItemProps> = ({
           onClick={() => onSelectGuild(guild.id)}
           className={`group relative flex items-center justify-center w-12 h-12 rounded-[24px] hover:rounded-[16px] transition-all duration-200 ease-out overflow-visible shrink-0 select-none active:scale-95 ${
             isDragging ? "opacity-25" : ""
-          } ${
-            isSelected ? "!rounded-[16px]" : ""
-          }`}
+          } ${isSelected ? "!rounded-[16px]" : ""}`}
           title={guild.name}
           aria-label={guild.name}
         >
@@ -124,7 +123,7 @@ const SortableServerItem: React.FC<SortableServerItemProps> = ({
           />
           <div className="w-12 h-12 rounded-[24px] group-hover:rounded-[16px] overflow-hidden transition-all duration-200 ease-out flex items-center justify-center">
             {guild.iconUrl ? (
-              <img
+              <GuildIcon
                 src={resolveServerUrl(guild.iconUrl)}
                 alt={guild.name}
                 draggable={false}
@@ -362,7 +361,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             {activeGuild ? (
               <div className="w-12 h-12 rounded-[16px] overflow-hidden shadow-2xl bg-discord-channelList flex items-center justify-center ring-2 ring-discord-brand/80 scale-105 select-none pointer-events-none">
                 {activeGuild.iconUrl ? (
-                  <img
+                  <GuildIcon
                     src={resolveServerUrl(activeGuild.iconUrl)}
                     alt={activeGuild.name}
                     className="w-full h-full object-cover"

@@ -66,7 +66,6 @@
   "downstreamPeers": "Downstream Relay Peers",
   "treeRelayMode": "P2P Tree Relay Mode",
   "peerCount": "Direct Peer Count",
-
   "pip": {
     "streamingTitle": "{{name}}'s Stream",
     "returnToRoom": "Return to Voice Room",
@@ -228,5 +227,40 @@
     "expand": "Expand",
     "collapseStage": "Collapse Stage",
     "returnToCall": "Return to Call"
+  },
+  "capture": {
+    "unsupported": "This system cannot capture the selected application audio. Sharing video only.",
+    "no_audio": "No shared audio was captured. Check the browser audio-sharing option.",
+    "capture_failed": "Shared audio capture stopped. Video sharing continues."
+  },
+  "mediaEncryption": {
+    "inactive": "Media encryption is disconnected",
+    "negotiating": "Negotiating end-to-end encryption",
+    "ready": "Encryption ready; waiting for media",
+    "active": "Media is end-to-end encrypted",
+    "failed": "Media encryption failed; transmission stopped",
+    "counts": "{{encrypted}} frames encrypted · {{decrypted}} frames decrypted"
+  },
+  "audioQuality": {
+    "unknown": "No data yet",
+    "loss": "Interval packet loss",
+    "jitter": "Jitter",
+    "buffer": "Actual jitter buffer",
+    "concealment": "Audio concealment",
+    "received": "Interval RTP bytes received",
+    "targetBuffer": "Receiver buffer target",
+    "pipeline": "Local audio continuity",
+    "context": "AudioContext state",
+    "queue": "Inference queue",
+    "outputQueue": "Playback output queue",
+    "underruns": "Playback underruns",
+    "sampleRate": "Sample rate",
+    "rendered": "Samples rendered",
+    "contextStates": {
+      "running": "Running",
+      "suspended": "Suspended",
+      "closed": "Closed",
+      "interrupted": "Interrupted"
+    }
   }
 }

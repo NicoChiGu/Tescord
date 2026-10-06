@@ -66,7 +66,6 @@
   "downstreamPeers": "下流リレーノード",
   "treeRelayMode": "P2P ツリーリレーモード",
   "peerCount": "直接接続ピア数",
-
   "pip": {
     "streamingTitle": "{{name}} の配信",
     "returnToRoom": "ボイスチャンネルに戻る",
@@ -228,5 +227,40 @@
     "expand": "展開",
     "collapseStage": "ステージを折りたたむ",
     "returnToCall": "通話画面に戻る"
+  },
+  "capture": {
+    "unsupported": "このシステムでは選択したアプリの音声を取得できません。映像のみ共有します",
+    "no_audio": "共有音声を取得できませんでした。ブラウザーの音声共有設定を確認してください",
+    "capture_failed": "共有音声の取得が停止しました。映像の共有は続行します"
+  },
+  "mediaEncryption": {
+    "inactive": "メディア暗号化は未接続です",
+    "negotiating": "エンドツーエンド暗号化を確立中",
+    "ready": "暗号化の準備完了。メディアを待機中",
+    "active": "実際のメディアをエンドツーエンドで暗号化中",
+    "failed": "メディア暗号化に失敗しました。送信を停止しました",
+    "counts": "暗号化 {{encrypted}} フレーム · 復号 {{decrypted}} フレーム"
+  },
+  "audioQuality": {
+    "unknown": "データなし",
+    "loss": "区間パケット損失率",
+    "jitter": "ジッター",
+    "buffer": "実際のジッターバッファー",
+    "concealment": "音声補間率",
+    "received": "区間 RTP 受信バイト",
+    "targetBuffer": "受信バッファー目標",
+    "pipeline": "ローカル音声の連続性",
+    "context": "AudioContext の状態",
+    "queue": "推論キュー",
+    "outputQueue": "再生出力キュー",
+    "underruns": "再生アンダーラン回数",
+    "sampleRate": "サンプリングレート",
+    "rendered": "再生済みサンプル数",
+    "contextStates": {
+      "running": "実行中",
+      "suspended": "一時停止中",
+      "closed": "終了",
+      "interrupted": "中断"
+    }
   }
 }

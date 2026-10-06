@@ -1,0 +1,314 @@
+{
+  "forcedGlare": true,
+  "delayedIceSetupMs": 3500,
+  "staleAnswersInjected": 5,
+  "missingIdAnswersInjected": 5,
+  "unansweredOfferRetryAttempts": 2,
+  "before": [
+    {
+      "phase": "active",
+      "counters": "实际媒体已端到端加密",
+      "crypto": {
+        "encrypted": 129,
+        "decrypted": 167
+      },
+      "peers": [
+        {
+          "id": "cmuwpeofz0051rozkjbigznqm",
+          "sent": 16806,
+          "received": 20700,
+          "codec": "audio/opus",
+          "pair": {
+            "local": "host",
+            "remote": "host"
+          },
+          "rms": 0.03713113777646879,
+          "connection": "connected",
+          "transceivers": [
+            {
+              "mid": "0",
+              "direction": "sendrecv",
+              "kind": "audio",
+              "sending": "audio",
+              "trackState": "live"
+            },
+            {
+              "mid": "1",
+              "direction": "sendonly",
+              "kind": "video",
+              "sending": null,
+              "trackState": null
+            }
+          ]
+        },
+        {
+          "id": "cmuwpeohy0055rozkvigpbryd",
+          "sent": 1434,
+          "received": 3330,
+          "codec": "audio/opus",
+          "pair": {
+            "local": "host",
+            "remote": "host"
+          },
+          "rms": 0.038586964091416084,
+          "connection": "connected",
+          "transceivers": [
+            {
+              "mid": "0",
+              "direction": "sendrecv",
+              "kind": "audio",
+              "sending": "audio",
+              "trackState": "live"
+            },
+            {
+              "mid": "1",
+              "direction": "sendonly",
+              "kind": "video",
+              "sending": null,
+              "trackState": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "phase": "active",
+      "counters": "实际媒体已端到端加密",
+      "crypto": {
+        "encrypted": 172,
+        "decrypted": 167
+      },
+      "peers": [
+        {
+          "id": "cmuwpeodw004xrozk59ze7rux",
+          "sent": 20803,
+          "received": 16909,
+          "codec": "audio/opus",
+          "pair": {
+            "local": "host",
+            "remote": "host"
+          },
+          "rms": 0.03899706084042383,
+          "connection": "connected",
+          "transceivers": [
+            {
+              "mid": "0",
+              "direction": "sendrecv",
+              "kind": "audio",
+              "sending": "audio",
+              "trackState": "live"
+            },
+            {
+              "mid": null,
+              "direction": null,
+              "kind": "video",
+              "sending": null,
+              "trackState": null
+            },
+            {
+              "mid": "1",
+              "direction": "recvonly",
+              "kind": "video",
+              "sending": null,
+              "trackState": null
+            }
+          ]
+        },
+        {
+          "id": "cmuwpeohy0055rozkvigpbryd",
+          "sent": 2155,
+          "received": 3425,
+          "codec": "audio/opus",
+          "pair": {
+            "local": "host",
+            "remote": "host"
+          },
+          "rms": 0.03784653874343118,
+          "connection": "connected",
+          "transceivers": [
+            {
+              "mid": "0",
+              "direction": "sendrecv",
+              "kind": "audio",
+              "sending": "audio",
+              "trackState": "live"
+            },
+            {
+              "mid": "1",
+              "direction": "sendonly",
+              "kind": "video",
+              "sending": null,
+              "trackState": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "phase": "active",
+      "counters": "实际媒体已端到端加密",
+      "crypto": {
+        "encrypted": 38,
+        "decrypted": 10
+      },
+      "peers": [
+        {
+          "id": "cmuwpeodw004xrozk59ze7rux",
+          "sent": 3433,
+          "received": 1537,
+          "codec": "audio/opus",
+          "pair": {
+            "local": "host",
+            "remote": "host"
+          },
+          "rms": 0.03696730824615644,
+          "connection": "connected",
+          "transceivers": [
+            {
+              "mid": "0",
+              "direction": "sendrecv",
+              "kind": "audio",
+              "sending": "audio",
+              "trackState": "live"
+            },
+            {
+              "mid": null,
+              "direction": null,
+              "kind": "video",
+              "sending": null,
+              "trackState": null
+            },
+            {
+              "mid": "1",
+              "direction": "recvonly",
+              "kind": "video",
+              "sending": null,
+              "trackState": null
+            }
+          ]
+        },
+        {
+          "id": "cmuwpeofz0051rozkjbigznqm",
+          "sent": 3528,
+          "received": 2258,
+          "codec": "audio/opus",
+          "pair": {
+            "local": "host",
+            "remote": "host"
+          },
+          "rms": 0.0368570033078164,
+          "connection": "connected",
+          "transceivers": [
+            {
+              "mid": "0",
+              "direction": "sendrecv",
+              "kind": "audio",
+              "sending": "audio",
+              "trackState": "live"
+            },
+            {
+              "mid": null,
+              "direction": null,
+              "kind": "video",
+              "sending": null,
+              "trackState": null
+            },
+            {
+              "mid": "1",
+              "direction": "recvonly",
+              "kind": "video",
+              "sending": null,
+              "trackState": null
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "after": [
+    {
+      "phase": "active",
+      "counters": "实际媒体已端到端加密",
+      "crypto": {
+        "encrypted": 502,
+        "decrypted": 506
+      },
+      "peers": [
+        {
+          "id": "cmuwpeofz0051rozkjbigznqm",
+          "sent": 51564,
+          "received": 44456,
+          "codec": "audio/opus",
+          "pair": {
+            "local": "host",
+            "remote": "host"
+          },
+          "rms": 0.03795503343698145,
+          "connection": "connected",
+          "transceivers": [
+            {
+              "mid": "0",
+              "direction": "sendrecv",
+              "kind": "audio",
+              "sending": "audio",
+              "trackState": "live"
+            },
+            {
+              "mid": "1",
+              "direction": "sendonly",
+              "kind": "video",
+              "sending": null,
+              "trackState": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "phase": "active",
+      "counters": "实际媒体已端到端加密",
+      "crypto": {
+        "encrypted": 585,
+        "decrypted": 513
+      },
+      "peers": [
+        {
+          "id": "cmuwpeodw004xrozk59ze7rux",
+          "sent": 44456,
+          "received": 51564,
+          "codec": "audio/opus",
+          "pair": {
+            "local": "host",
+            "remote": "host"
+          },
+          "rms": 0.03695648580224392,
+          "connection": "connected",
+          "transceivers": [
+            {
+              "mid": "0",
+              "direction": "sendrecv",
+              "kind": "audio",
+              "sending": "audio",
+              "trackState": "live"
+            },
+            {
+              "mid": null,
+              "direction": null,
+              "kind": "video",
+              "sending": null,
+              "trackState": null
+            },
+            {
+              "mid": "1",
+              "direction": "recvonly",
+              "kind": "video",
+              "sending": null,
+              "trackState": null
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": []
+}

@@ -1,4 +1,5 @@
 {
+  "AUDIO_PROCESSING_UNSUPPORTED": "当前浏览器不支持所需的音频处理接口，请使用支持 AudioWorklet 的浏览器或桌面客户端。",
   "INTERNAL_ERROR": "系统内部错误，请稍后重试",
   "INVALID_PARAMS": "请求参数不合法，请检查输入",
   "NOT_FOUND": "请求的资源未找到",
@@ -48,5 +49,11 @@
   "EMOJI_NOT_FOUND": "未找到指定的自定义表情",
   "EMOJI_LIMIT_REACHED": "自定义表情数量已达到上限",
   "EMOJI_NAME_INVALID": "表情名称必须为 2-32 位的字母、数字或下划线",
-  "EMOJI_FILE_TOO_LARGE": "表情图片大小超出限制（GIF必须小于2MB，静态图必须小于1MB）"
+  "EMOJI_FILE_TOO_LARGE": "表情图片大小超出限制（GIF必须小于2MB，静态图必须小于1MB）",
+  "MEDIA_E2EE_UNSUPPORTED": "此设备不支持媒体端到端加密，无法连接语音",
+  "MEDIA_KEY_UNAVAILABLE": "媒体加密密钥尚未就绪，请重试",
+  "MEDIA_CONTEXT_STALE": "语音成员已变化，正在更新加密会话",
+  "MEDIA_KEY_INVALID": "媒体密钥校验失败，已拒绝连接",
+  "MEDIA_NEGOTIATION_TIMEOUT": "媒体加密协商超时，请重新加入",
+  "ICON_PROCESS_TIMEOUT": "图标处理超时，请选择较小的 GIF 后重试"
 }

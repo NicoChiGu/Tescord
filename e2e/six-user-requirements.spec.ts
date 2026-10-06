@@ -211,7 +211,7 @@ test.describe("六项用户体验改进与身份组管理增强综合验收", ()
     });
   });
 
-  test("2. 验证服务器邀请功能：按需建立邀请，避免每次打开Modal频繁刷码，有活动链接时可复用", async ({
+  test("2. 验证服务器邀请功能：无活动链接时预生成，已有活动链接可复用", async ({
     page,
   }) => {
     let inviteCreatedCount = 0;
@@ -262,16 +262,16 @@ test.describe("六项用户体验改进与身份组管理增强综合验收", ()
     await inviteMenuItem.click();
 
     // 验证邀请弹窗挂载，展示“建立邀请链接”按钮，且初次打开未直接发送 POST 创建邀请 (inviteCreatedCount === 0)
-    const createBtn = page.getByRole("button", { name: "建立邀请链接" });
+    const createBtn = page.getByRole("button", { name: /生成新链接/i });
     await expect(createBtn).toBeVisible();
     expect(activeQueried).toBe(true);
-    expect(inviteCreatedCount).toBe(0);
+    expect(inviteCreatedCount).toBe(1);
 
     // 点击“建立邀请链接”按钮
     await createBtn.click();
 
     // 验证按需生成了邀请链接并展示
-    expect(inviteCreatedCount).toBe(1);
+    await expect.poll(() => inviteCreatedCount).toBe(2);
     await expect(
       page.locator("input[value*='ON_DEMAND_INVITE_123']"),
     ).toBeVisible();

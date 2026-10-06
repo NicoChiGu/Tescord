@@ -72,6 +72,7 @@ type RtcRecord = RTCStats & {
  */
 export class CloudflareRealtimeService {
   private pc: RTCPeerConnection | null = null;
+  private mediaOperationEpoch = 0;
   private sessionId: string | null = null;
   private pendingSessionLeaves = new Set<string>();
   private currentChannelId: string | null = null;
@@ -612,8 +613,8 @@ export class CloudflareRealtimeService {
   public get isE2EEActive(): boolean {
     return Boolean(
       this.connectionStatus === "connected" &&
-      this.negotiatedE2EEKey &&
-      sframeManager.getStats().enabled,
+      sframeManager.hasActiveContext &&
+      sframeManager.getStats().framesEncrypted > 0,
     );
   }
 
@@ -657,15 +658,21 @@ export class CloudflareRealtimeService {
 
   private async createMediaSession(): Promise<string> {
     if (!this.currentChannelId) throw new Error("No media channel selected");
+    const epoch = this.mediaOperationEpoch;
+    const channelId = this.currentChannelId;
+    const callContext = this.callContext;
+    const headers = this.authHeaders;
     await this.flushPendingSessionLeaves();
+    if (epoch !== this.mediaOperationEpoch)
+      throw new Error("MEDIA_CONTEXT_STALE");
     const sessionRes = await apiFetch(
       `${API_BASE}/api/cloudflare-realtime/session/new`,
       {
         method: "POST",
         headers: this.authHeaders,
         body: JSON.stringify({
-          channelId: this.currentChannelId,
-          ...this.callContext,
+          channelId,
+          ...callContext,
         } satisfies CfCallsCreateSessionRequest),
       },
     );
@@ -677,12 +684,21 @@ export class CloudflareRealtimeService {
       (await sessionRes.json()) as CfCallsCreateSessionResponse;
     if (!sessionData?.sessionId)
       throw new Error("Invalid Cloudflare media session");
+    if (
+      epoch !== this.mediaOperationEpoch ||
+      channelId !== this.currentChannelId
+    ) {
+      void apiFetch(`${API_BASE}/api/cloudflare-realtime/session/leave`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({ sessionId: sessionData.sessionId }),
+        signal: AbortSignal.timeout(3_000),
+      }).catch(() => {});
+      throw new Error("MEDIA_CONTEXT_STALE");
+    }
     this.sessionId = sessionData.sessionId;
     this.initialPublications = sessionData.tracks || [];
-    if (
-      sessionData.requiresE2EE &&
-      (!this.negotiatedE2EEKey || !sframeManager.getStats().enabled)
-    ) {
+    if (sessionData.requiresE2EE && !sframeManager.hasActiveContext) {
       throw new Error("E2EE media key unavailable");
     }
     this.startHeartbeat();
@@ -738,6 +754,7 @@ export class CloudflareRealtimeService {
    * 配置房间协商的端到端加密密钥 (SFrame / 256 位)
    */
   public setNegotiatedE2EEKey(key: Uint8Array | null): void {
+    if (sframeManager.hasActiveContext) return;
     if (!key) {
       this.negotiatedE2EEKey = null;
       sframeManager.disable();
@@ -771,13 +788,27 @@ export class CloudflareRealtimeService {
       await this.disconnect();
     }
 
+    if (
+      options?.audioStream &&
+      !options.audioStream
+        .getAudioTracks()
+        .some((track) => track.readyState === "live")
+    )
+      throw new Error("MEDIA_CONTEXT_STALE");
+    sframeManager.assertReady();
+    const epoch = ++this.mediaOperationEpoch;
+    const checkCurrent = () => {
+      if (
+        epoch !== this.mediaOperationEpoch ||
+        this.currentChannelId !== channelId
+      )
+        throw new Error("MEDIA_CONTEXT_STALE");
+    };
     this.currentChannelId = channelId;
-    this.callContext = options?.callId
-      ? {
-          callId: options.callId,
-          gatewaySessionId: options.gatewaySessionId,
-        }
-      : null;
+    this.callContext = {
+      ...(options?.callId ? { callId: options.callId } : {}),
+      gatewaySessionId: options?.gatewaySessionId,
+    };
     this.audioBitrate = options?.audioBitrate || 64000;
     this.setStatus("connecting");
 
@@ -822,16 +853,21 @@ export class CloudflareRealtimeService {
         }
       }
 
+      checkCurrent();
       // 2. 初始化原生 RTCPeerConnection
       const pc = new RTCPeerConnection({
         iceServers: iceServers || [{ urls: "stun:stun.cloudflare.com:3478" }],
         bundlePolicy: "max-bundle",
-        encodedInsertableStreams: Boolean(this.negotiatedE2EEKey),
+        encodedInsertableStreams: true,
       } as RTCConfiguration);
       this.pc = pc;
 
       // 3. 监听远端流到达事件
       pc.ontrack = (event) => {
+        if (epoch !== this.mediaOperationEpoch || pc !== this.pc) {
+          event.track.stop();
+          return;
+        }
         console.log(
           "[CF Realtime] 收到远端音轨:",
           event.track.id,
@@ -840,7 +876,7 @@ export class CloudflareRealtimeService {
         );
 
         // 若当前房间开启了 E2EE，挂接 SFrame 解密管线 (在扬声器播放前还原明文)
-        if (this.negotiatedE2EEKey && event.receiver) {
+        if (event.receiver) {
           try {
             sframeManager.attachReceiver(event.receiver);
             console.log("[CF Realtime] SFrame 解密管线成功挂接至接收音轨");
@@ -924,6 +960,7 @@ export class CloudflareRealtimeService {
 
       // 4. 监听网络连接状态
       pc.onconnectionstatechange = () => {
+        if (epoch !== this.mediaOperationEpoch || pc !== this.pc) return;
         console.log(
           "[CF Realtime] PeerConnection 状态变更:",
           pc.connectionState,
@@ -945,15 +982,20 @@ export class CloudflareRealtimeService {
         await this.publishMicrophoneStream(options.audioStream);
       else await this.createMediaSession();
 
+      checkCurrent();
       if (options?.audioStream) {
         await this.waitForConnected(pc, 30_000);
+        checkCurrent();
         await this.announceTracks();
       }
+      checkCurrent();
       await this.syncPublications(this.initialPublications);
+      checkCurrent();
       if (!this.sessionId)
         throw new Error("Media session lost during connection");
       return this.sessionId;
     } catch (err: any) {
+      if (epoch !== this.mediaOperationEpoch) throw err;
       console.error("[CF Realtime] 连接建立异常:", err);
       const shouldRetry =
         retryCount === 0 &&
@@ -1021,8 +1063,17 @@ export class CloudflareRealtimeService {
     stream: MediaStream,
     source: CfMediaPublication["source"],
   ): Promise<void> {
+    const epoch = this.mediaOperationEpoch;
+    const expectedPc = this.pc;
+    const channelId = this.currentChannelId;
     await this.queue(async () => {
       const pc = this.pc;
+      if (
+        epoch !== this.mediaOperationEpoch ||
+        pc !== expectedPc ||
+        track.readyState !== "live"
+      )
+        throw new Error("MEDIA_CONTEXT_STALE");
       let sessionId = this.sessionId;
       if (
         !pc ||
@@ -1030,15 +1081,14 @@ export class CloudflareRealtimeService {
         (!sessionId && source !== "microphone")
       )
         throw new Error("No Cloudflare media session");
-      if (this.negotiatedE2EEKey && !sframeManager.getStats().enabled)
-        throw new Error("E2EE key unavailable");
+      sframeManager.assertReady();
       const transceiver = pc.addTransceiver(track, {
         direction: "sendonly",
         streams: [stream],
       });
       const sender = transceiver.sender;
       try {
-        if (this.negotiatedE2EEKey) sframeManager.attachSender(sender);
+        sframeManager.attachSender(sender);
         if (source === "microphone") {
           const parameters = sender.getParameters();
           parameters.encodings = parameters.encodings?.length
@@ -1050,6 +1100,12 @@ export class CloudflareRealtimeService {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         await this.waitForIceGathering(pc);
+        if (
+          epoch !== this.mediaOperationEpoch ||
+          pc !== this.pc ||
+          track.readyState !== "live"
+        )
+          throw new Error("MEDIA_CONTEXT_STALE");
         if (!sessionId) sessionId = await this.createMediaSession();
         const mid = transceiver.mid;
         if (!mid) throw new Error("Missing track MID");
@@ -1073,6 +1129,13 @@ export class CloudflareRealtimeService {
         if (!response.ok)
           throw new Error(`Publish failed (${response.status})`);
         const data = (await response.json()) as CfCallsPublishTrackResponse;
+        if (
+          epoch !== this.mediaOperationEpoch ||
+          pc !== this.pc ||
+          channelId !== this.currentChannelId ||
+          track.readyState !== "live"
+        )
+          throw new Error("MEDIA_CONTEXT_STALE");
         if (!data.sessionDescription?.sdp)
           throw new Error("Missing Cloudflare answer");
         await pc.setRemoteDescription({
@@ -2067,6 +2130,8 @@ export class CloudflareRealtimeService {
    */
   public async disconnect(stopLocalAudio = true): Promise<void> {
     console.log("[CF Realtime] 正在断开 Cloudflare 语音连接...");
+    this.mediaOperationEpoch++;
+    const pendingCleanup: Promise<unknown>[] = [];
 
     this.unbindTracks?.();
     this.unbindTracks = null;
@@ -2082,7 +2147,7 @@ export class CloudflareRealtimeService {
     if (this.turnRefreshTimer) clearTimeout(this.turnRefreshTimer);
     this.turnRefreshTimer = null;
     const oldSessionId = this.sessionId;
-    if (oldSessionId) await this.leaveMediaSession(oldSessionId);
+    if (oldSessionId) pendingCleanup.push(this.leaveMediaSession(oldSessionId));
     // 释放远端播放 Audio 元素
     for (const trackId of [...this.audioElements.keys()])
       this.releaseRemoteTrack(trackId);
@@ -2092,7 +2157,7 @@ export class CloudflareRealtimeService {
         "statechange",
         this.handlePlaybackContextStateChange,
       );
-      await this.playbackContext.close().catch(() => undefined);
+      pendingCleanup.push(this.playbackContext.close().catch(() => undefined));
     }
     this.playbackContext = null;
     this.masterGain = null;
@@ -2140,6 +2205,7 @@ export class CloudflareRealtimeService {
     // 关闭 PeerConnection
     if (this.pc) {
       try {
+        sframeManager.detachPeerConnection(this.pc);
         this.pc.close();
       } catch {}
       this.pc = null;
@@ -2149,6 +2215,7 @@ export class CloudflareRealtimeService {
     this.currentChannelId = null;
     this.callContext = null;
     this.setStatus("disconnected");
+    await Promise.allSettled(pendingCleanup);
   }
 
   private async waitForIceGathering(

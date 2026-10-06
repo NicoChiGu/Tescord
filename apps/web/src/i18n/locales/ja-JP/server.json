@@ -219,5 +219,16 @@
   "emojiUploadHint": "JPEG、PNG、WebP、GIFに対応。GIFは2MB以下、静止画は1MB以下、推奨サイズは128x128ピクセルです。",
   "emojiNamePlaceholder": "絵文字コード（例: cat_dance）",
   "deleteEmojiConfirm": "この絵文字を削除してもよろしいですか？この操作は取り消せません。",
-  "emojiSlotsAvailable": "利用可能なスロット: {{count}}/50"
+  "emojiSlotsAvailable": "利用可能なスロット: {{count}}/50",
+  "dragChannel": "チャンネル {{name}} をドラッグして並べ替え",
+  "dragCategory": "カテゴリー {{name}} をドラッグして並べ替え",
+  "gifIcon": {
+    "title": "GIF サーバーアイコンを編集",
+    "preparing": "GIF をアップロードして解析中…",
+    "keepAnimation": "アニメーションを保持",
+    "useFrame": "選択したフレームを使用",
+    "play": "GIF を再生",
+    "pause": "GIF を一時停止",
+    "selectFrame": "GIF フレームを選択"
+  }
 }

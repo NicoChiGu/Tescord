@@ -1,0 +1,32 @@
+{
+  "repair": {
+    "codec": true,
+    "separateSsrc": true
+  },
+  "sender": {
+    "enabled": true,
+    "keyId": 6006,
+    "framesEncrypted": 25,
+    "framesDecrypted": 0,
+    "framesDroppedReplay": 0,
+    "lastError": null
+  },
+  "receiver": {
+    "enabled": true,
+    "keyId": 1,
+    "framesEncrypted": 0,
+    "framesDecrypted": 30,
+    "framesDroppedReplay": 8,
+    "lastError": null
+  },
+  "received": 11426,
+  "framesDecoded": 48,
+  "codec": "video/AV1",
+  "pair": {
+    "local": "host",
+    "remote": "host"
+  },
+  "width": 320,
+  "height": 180,
+  "pixel": [36, 163, 91, 255]
+}

@@ -1,5 +1,12 @@
 import { API_BASE } from "../config.js";
-import { DevicePublicKey, MediaKeyEnvelopePayload } from "@tescord/types";
+import {
+  DevicePublicKey,
+  MediaKeyEnvelopePayload,
+  MediaEncryptionContext,
+  MediaEncryptionDevice,
+  MediaStreamKeyEnvelope,
+  mediaStreamEnvelopeSigningBytes,
+} from "@tescord/types";
 
 interface StoredDeviceKeys {
   id: string;
@@ -49,11 +56,13 @@ const base64UrlToBytes = (value: string) => {
 };
 
 class DeviceKeyService {
+  private registrationGeneration = 0;
   private current: StoredDeviceKeys | null = null;
   async ensureAndRegister(
     userId: string,
     token: string,
   ): Promise<StoredDeviceKeys> {
+    const generation = ++this.registrationGeneration;
     const deviceStorageKey = `tescord_device_id:${userId}`;
     let deviceId = localStorage.getItem(deviceStorageKey);
     if (!deviceId) {
@@ -61,57 +70,9 @@ class DeviceKeyService {
       localStorage.setItem(deviceStorageKey, deviceId);
     }
     const id = `${userId}:${deviceId}`;
-    const db = await openDatabase();
-    let stored = await new Promise<StoredDeviceKeys | undefined>(
-      (resolve, reject) => {
-        const request = db
-          .transaction("keys", "readonly")
-          .objectStore("keys")
-          .get(id);
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error);
-      },
-    );
-    if (!stored) {
-      const [signing, agreement] = await Promise.all([
-        crypto.subtle.generateKey(
-          { name: "ECDSA", namedCurve: "P-256" },
-          false,
-          ["sign", "verify"],
-        ),
-        crypto.subtle.generateKey(
-          { name: "ECDH", namedCurve: "P-256" },
-          false,
-          ["deriveKey", "deriveBits"],
-        ),
-      ]);
-      const [signingPublicJwk, agreementPublicJwk] = await Promise.all([
-        crypto.subtle.exportKey("jwk", signing.publicKey),
-        crypto.subtle.exportKey("jwk", agreement.publicKey),
-      ]);
-      const canonicalPublicIdentity = new TextEncoder().encode(
-        JSON.stringify({ signingPublicJwk, agreementPublicJwk }),
-      );
-      const digest = await crypto.subtle.digest(
-        "SHA-256",
-        canonicalPublicIdentity,
-      );
-      stored = {
-        id,
-        signingPrivateKey: signing.privateKey,
-        agreementPrivateKey: agreement.privateKey,
-        signingPublicJwk,
-        agreementPublicJwk,
-        fingerprint: bytesToBase64Url(new Uint8Array(digest)),
-      };
-      await new Promise<void>((resolve, reject) => {
-        const transaction = db.transaction("keys", "readwrite");
-        transaction.objectStore("keys").put(stored!);
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = () => reject(transaction.error);
-      });
-    }
-    db.close();
+    const stored = await this.loadDeviceKeys(id);
+    if (generation !== this.registrationGeneration)
+      throw new Error("MEDIA_CONTEXT_STALE");
 
     const response = await fetch(`${API_BASE}/api/e2ee/devices`, {
       method: "POST",
@@ -130,8 +91,73 @@ class DeviceKeyService {
       throw new Error(
         (await response.json().catch(() => null))?.error || "设备密钥注册失败",
       );
+    if (generation !== this.registrationGeneration)
+      throw new Error("MEDIA_CONTEXT_STALE");
     this.current = stored;
     return stored;
+  }
+
+  private loadingKeys = new Map<string, Promise<StoredDeviceKeys>>();
+  private loadDeviceKeys(id: string): Promise<StoredDeviceKeys> {
+    const active = this.loadingKeys.get(id);
+    if (active) return active;
+    const operation = (async () => {
+      const db = await openDatabase();
+      let stored = await new Promise<StoredDeviceKeys | undefined>(
+        (resolve, reject) => {
+          const request = db
+            .transaction("keys", "readonly")
+            .objectStore("keys")
+            .get(id);
+          request.onsuccess = () => resolve(request.result);
+          request.onerror = () => reject(request.error);
+        },
+      );
+      if (!stored) {
+        const [signing, agreement] = await Promise.all([
+          crypto.subtle.generateKey(
+            { name: "ECDSA", namedCurve: "P-256" },
+            false,
+            ["sign", "verify"],
+          ),
+          crypto.subtle.generateKey(
+            { name: "ECDH", namedCurve: "P-256" },
+            false,
+            ["deriveKey", "deriveBits"],
+          ),
+        ]);
+        const [signingPublicJwk, agreementPublicJwk] = await Promise.all([
+          crypto.subtle.exportKey("jwk", signing.publicKey),
+          crypto.subtle.exportKey("jwk", agreement.publicKey),
+        ]);
+        const canonicalPublicIdentity = new TextEncoder().encode(
+          JSON.stringify({ signingPublicJwk, agreementPublicJwk }),
+        );
+        const digest = await crypto.subtle.digest(
+          "SHA-256",
+          canonicalPublicIdentity,
+        );
+        stored = {
+          id,
+          signingPrivateKey: signing.privateKey,
+          agreementPrivateKey: agreement.privateKey,
+          signingPublicJwk,
+          agreementPublicJwk,
+          fingerprint: bytesToBase64Url(new Uint8Array(digest)),
+        };
+        await new Promise<void>((resolve, reject) => {
+          const transaction = db.transaction("keys", "readwrite");
+          transaction.objectStore("keys").put(stored!);
+          transaction.oncomplete = () => resolve();
+          transaction.onerror = () => reject(transaction.error);
+        });
+      }
+      db.close();
+
+      return stored;
+    })().finally(() => this.loadingKeys.delete(id));
+    this.loadingKeys.set(id, operation);
+    return operation;
   }
 
   getDeviceId(): string | null {
@@ -355,6 +381,182 @@ class DeviceKeyService {
       trust: known ? "trusted" : "tofu",
       fingerprint: envelope.senderFingerprint,
     };
+  }
+
+  async wrapStreamKey(
+    context: MediaEncryptionContext,
+    streamId: string,
+    keyId: number,
+    key: Uint8Array,
+    recipient: MediaEncryptionDevice,
+  ): Promise<MediaStreamKeyEnvelope> {
+    const local = this.current;
+    if (!local || key.byteLength !== 32)
+      throw new Error("MEDIA_KEY_UNAVAILABLE");
+    const senderDeviceId = this.getDeviceId()!;
+    const senderId = local.id.slice(0, -(senderDeviceId.length + 1));
+    if (
+      (await this.calculateDeviceFingerprint(
+        recipient.signingPublicKey,
+        recipient.agreementPublicKey,
+      )) !== recipient.fingerprint
+    )
+      throw new Error("MEDIA_KEY_INVALID");
+    await this.rememberPeerDevice(
+      recipient.userId,
+      recipient.deviceId,
+      recipient.fingerprint,
+      recipient.signingPublicKey,
+    );
+    const ephemeral = await crypto.subtle.generateKey(
+      { name: "ECDH", namedCurve: "P-256" },
+      true,
+      ["deriveBits"],
+    );
+    const recipientKey = await crypto.subtle.importKey(
+      "jwk",
+      JSON.parse(recipient.agreementPublicKey),
+      { name: "ECDH", namedCurve: "P-256" },
+      false,
+      [],
+    );
+    const shared = await crypto.subtle.deriveBits(
+      { name: "ECDH", public: recipientKey },
+      ephemeral.privateKey,
+      256,
+    );
+    const wrapping = await this.deriveWrappingKey(
+      shared,
+      context.contextId,
+      JSON.stringify([context.membershipVersion, streamId, keyId]),
+      JSON.stringify([senderId, senderDeviceId]),
+      JSON.stringify([recipient.userId, recipient.deviceId]),
+      ["encrypt"],
+    );
+    const iv = crypto.getRandomValues(new Uint8Array(12));
+    const ciphertext = await crypto.subtle.encrypt(
+      { name: "AES-GCM", iv },
+      wrapping,
+      key,
+    );
+    const unsigned: Omit<MediaStreamKeyEnvelope, "signature"> = {
+      version: 2,
+      contextId: context.contextId,
+      membershipVersion: context.membershipVersion,
+      streamId,
+      keyId,
+      senderId,
+      senderDeviceId,
+      recipientId: recipient.userId,
+      recipientDeviceId: recipient.deviceId,
+      ephemeralPublicKey: JSON.stringify(
+        await crypto.subtle.exportKey("jwk", ephemeral.publicKey),
+      ),
+      iv: bytesToBase64Url(iv),
+      ciphertext: bytesToBase64Url(new Uint8Array(ciphertext)),
+      createdAt: new Date().toISOString(),
+    };
+    const signature = await crypto.subtle.sign(
+      { name: "ECDSA", hash: "SHA-256" },
+      local.signingPrivateKey,
+      mediaStreamEnvelopeSigningBytes(unsigned),
+    );
+    return {
+      ...unsigned,
+      signature: bytesToBase64Url(new Uint8Array(signature)),
+    };
+  }
+  async openStreamKey(
+    context: MediaEncryptionContext,
+    envelope: MediaStreamKeyEnvelope,
+  ): Promise<Uint8Array> {
+    const local = this.current,
+      deviceId = this.getDeviceId();
+    const localUserId =
+      local && deviceId ? local.id.slice(0, -(deviceId.length + 1)) : null;
+    if (
+      !local ||
+      envelope.recipientDeviceId !== deviceId ||
+      envelope.recipientId !== localUserId ||
+      envelope.version !== 2 ||
+      envelope.contextId !== context.contextId ||
+      envelope.membershipVersion !== context.membershipVersion ||
+      Math.abs(Date.now() - Date.parse(envelope.createdAt)) > 120_000
+    )
+      throw new Error("MEDIA_KEY_INVALID");
+    const sender = context.devices.find(
+      (device) =>
+        device.userId === envelope.senderId &&
+        device.deviceId === envelope.senderDeviceId,
+    );
+    if (
+      !sender ||
+      (await this.calculateDeviceFingerprint(
+        sender.signingPublicKey,
+        sender.agreementPublicKey,
+      )) !== sender.fingerprint
+    )
+      throw new Error("MEDIA_KEY_INVALID");
+    const signingKey = await crypto.subtle.importKey(
+      "jwk",
+      JSON.parse(sender.signingPublicKey),
+      { name: "ECDSA", namedCurve: "P-256" },
+      false,
+      ["verify"],
+    );
+    if (
+      !(await crypto.subtle.verify(
+        { name: "ECDSA", hash: "SHA-256" },
+        signingKey,
+        base64UrlToBytes(envelope.signature),
+        mediaStreamEnvelopeSigningBytes(envelope),
+      ))
+    )
+      throw new Error("MEDIA_KEY_INVALID");
+    // Commit TOFU only after the signed envelope is authenticated.
+    await this.rememberPeerDevice(
+      sender.userId,
+      sender.deviceId,
+      sender.fingerprint,
+      sender.signingPublicKey,
+    );
+    const ephemeralKey = await crypto.subtle.importKey(
+      "jwk",
+      JSON.parse(envelope.ephemeralPublicKey),
+      { name: "ECDH", namedCurve: "P-256" },
+      false,
+      [],
+    );
+    const shared = await crypto.subtle.deriveBits(
+      { name: "ECDH", public: ephemeralKey },
+      local.agreementPrivateKey,
+      256,
+    );
+    const wrapping = await this.deriveWrappingKey(
+      shared,
+      context.contextId,
+      JSON.stringify([
+        context.membershipVersion,
+        envelope.streamId,
+        envelope.keyId,
+      ]),
+      JSON.stringify([sender.userId, sender.deviceId]),
+      JSON.stringify([envelope.recipientId, envelope.recipientDeviceId]),
+      ["decrypt"],
+    );
+    const key = new Uint8Array(
+      await crypto.subtle.decrypt(
+        { name: "AES-GCM", iv: base64UrlToBytes(envelope.iv) },
+        wrapping,
+        base64UrlToBytes(envelope.ciphertext),
+      ),
+    );
+    if (key.byteLength !== 32) throw new Error("MEDIA_KEY_INVALID");
+    return key;
+  }
+  clear(): void {
+    this.registrationGeneration++;
+    this.current = null;
   }
 
   private async calculateDeviceFingerprint(

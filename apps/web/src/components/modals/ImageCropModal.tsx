@@ -1,6 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { X, ZoomIn, ZoomOut, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { getErrorMessage } from "../../i18n/index.js";
+import type { GuildIconCrop } from "@tescord/types";
 
 interface ImageCropModalProps {
   isOpen: boolean;
@@ -9,6 +11,10 @@ interface ImageCropModalProps {
   onConfirm: (croppedBlob: Blob) => Promise<void> | void;
   aspectRatio?: number;
   isCircular?: boolean;
+  onConfirmCrop?: (crop: GuildIconCrop) => Promise<void>;
+  controls?: React.ReactNode;
+  resetKey?: string;
+  busy?: boolean;
 }
 
 export const ImageCropModal: React.FC<ImageCropModalProps> = ({
@@ -18,6 +24,10 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
   onConfirm,
   aspectRatio = 1,
   isCircular = true,
+  onConfirmCrop,
+  controls,
+  resetKey,
+  busy = false,
 }) => {
   const { t } = useTranslation(["modals", "common"]);
   const [zoom, setZoom] = useState(1);
@@ -25,6 +35,14 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState<string>();
+  const active = useRef(false);
+  useEffect(() => {
+    active.current = isOpen;
+    return () => {
+      active.current = false;
+    };
+  }, [isOpen]);
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
 
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -36,8 +54,9 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
       setZoom(1);
       setPan({ x: 0, y: 0 });
       setIsProcessing(false);
+      setError(undefined);
     }
-  }, [isOpen, imageSrc]);
+  }, [isOpen, resetKey ?? imageSrc]);
 
   const viewportSize = 256;
   const baseScale =
@@ -125,16 +144,40 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
   // 生成裁切并压缩后的 WebP Blob (512x512)
   const handleCropAndSave = async () => {
     if (!imgRef.current) return;
+    if (busy || isProcessing || !imageSize.width) return;
     setIsProcessing(true);
+    setError(undefined);
     try {
       const img = imgRef.current;
+      if (onConfirmCrop) {
+        const size = viewportSize / (baseScale * zoom);
+        await onConfirmCrop({
+          left: Math.max(
+            0,
+            Math.min(
+              img.naturalWidth - size,
+              (img.naturalWidth - size) / 2 - pan.x / (baseScale * zoom),
+            ),
+          ),
+          top: Math.max(
+            0,
+            Math.min(
+              img.naturalHeight - size,
+              (img.naturalHeight - size) / 2 - pan.y / (baseScale * zoom),
+            ),
+          ),
+          size,
+        });
+        if (active.current) onClose();
+        return;
+      }
       const targetSize = 512;
       const canvas = document.createElement("canvas");
       canvas.width = targetSize;
       canvas.height = targetSize;
       const ctx = canvas.getContext("2d");
 
-      if (!ctx) throw new Error("无法创建画布上下文");
+      if (!ctx) throw new Error(t("modals:cropModal.processingFailed"));
 
       // 计算缩放比例与居中基准
       const naturalWidth = img.naturalWidth || 512;
@@ -179,50 +222,39 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
         exportQuality = 0.9;
       }
 
-      canvas.toBlob(
-        async (blob) => {
-          if (!blob) {
-            // 若 WebP 导出完全为空，尝试降级为 JPEG 重新导出
-            canvas.toBlob(
-              async (fallbackBlob) => {
-                if (!fallbackBlob) {
-                  setIsProcessing(false);
-                  return;
-                }
-                try {
-                  await onConfirm(fallbackBlob);
-                  onClose();
-                } finally {
-                  setIsProcessing(false);
-                }
-              },
-              "image/jpeg",
-              0.9,
-            );
-            return;
-          }
-          try {
-            await onConfirm(blob);
-            onClose();
-          } finally {
-            setIsProcessing(false);
-          }
-        },
-        exportType,
-        exportQuality,
-      );
-    } catch (err) {
-      console.error("图片裁剪压缩失败:", err);
-      setIsProcessing(false);
+      const encode = (type: string, quality: number) =>
+        new Promise<Blob | null>((resolve) =>
+          canvas.toBlob(resolve, type, quality),
+        );
+      const blob =
+        (await encode(exportType, exportQuality)) ||
+        (await encode("image/png", 1));
+      if (!blob) throw new Error(t("modals:cropModal.processingFailed"));
+      if (!active.current) return;
+      await onConfirm(blob);
+      if (active.current) onClose();
+    } catch (err: unknown) {
+      if (
+        active.current &&
+        !(err instanceof DOMException && err.name === "AbortError")
+      )
+        setError(getErrorMessage(err));
+    } finally {
+      if (active.current) setIsProcessing(false);
     }
   };
 
   if (!isOpen || !imageSrc) return null;
 
   return (
-    <div className="fixed inset-0 z-[70] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={t("modals:cropModal.title")}
+      className="fixed inset-0 z-[90] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+    >
       <div
-        className="bg-[#313338] w-full max-w-md rounded-2xl overflow-hidden shadow-2xl border border-white/10 flex flex-col animate-in zoom-in-95 duration-200"
+        className="bg-[#313338] w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl overflow-hidden shadow-2xl border border-white/10 flex flex-col animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* 顶部标题 */}
@@ -232,12 +264,18 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
           </h3>
           <button
             onClick={onClose}
-            disabled={isProcessing}
+            aria-label={t("common:cancel")}
             className="text-gray-400 hover:text-white transition p-1 rounded-lg hover:bg-white/5 cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {controls && (
+          <div className="px-6 pt-4" aria-busy={busy}>
+            {controls}
+          </div>
+        )}
 
         {/* 提示文案 */}
         <div className="px-6 pt-3 text-xs text-discord-textMuted">
@@ -307,12 +345,16 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
           </div>
         </div>
 
+        {error && (
+          <div role="alert" className="px-6 pb-3 text-sm text-red-300">
+            {error}
+          </div>
+        )}
         {/* 底部操作按钮 */}
         <div className="px-6 py-4 bg-[#2b2d31] flex items-center justify-end gap-3 border-t border-white/5">
           <button
             type="button"
             onClick={onClose}
-            disabled={isProcessing}
             className="px-4 py-2 rounded-lg text-xs font-semibold text-gray-300 hover:text-white hover:underline transition"
           >
             {t("common:cancel", { defaultValue: "取消" })}
@@ -320,7 +362,7 @@ export const ImageCropModal: React.FC<ImageCropModalProps> = ({
           <button
             type="button"
             onClick={handleCropAndSave}
-            disabled={isProcessing}
+            disabled={isProcessing || busy || !imageSize.width}
             className="px-5 py-2 rounded-lg text-xs font-semibold bg-discord-brand hover:bg-discord-brand/90 text-white flex items-center gap-2 shadow-lg transition disabled:opacity-50 cursor-pointer"
           >
             {isProcessing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}

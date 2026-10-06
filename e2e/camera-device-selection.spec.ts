@@ -1,3 +1,4 @@
+import { installEncryptedVoiceUi } from "./helpers/encrypted-voice-ui";
 import { test, expect } from "@playwright/test";
 
 test.describe("Discord 风格摄像头设备选择与视频预览全链路验收", () => {
@@ -104,6 +105,7 @@ test.describe("Discord 风格摄像头设备选择与视频预览全链路验收
       });
     });
 
+    await installEncryptedVoiceUi(page);
     await page.goto("/");
     await expect(page).toHaveTitle(/Tescord/i);
 

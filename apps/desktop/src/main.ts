@@ -41,6 +41,11 @@ import { ProxyManager } from "./updater/proxy-manager.js";
 import { BUILD_CONFIG } from "./build-config.js";
 import { ToastManager } from "./toastManager.js";
 import { StorageManager } from "./storage/storageManager.js";
+import {
+  attachDisplayCapture,
+  clearDisplayCapture,
+  installDisplayCapture,
+} from "./displayCapture.js";
 
 if (process.env.TESCORD_E2E_USER_DATA_DIR) {
   app.setPath("userData", process.env.TESCORD_E2E_USER_DATA_DIR);
@@ -222,6 +227,7 @@ ipcMain.on("audio-inference-stop", (event, request: unknown) => {
 let authWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 let isQuitting = false;
+let windowTransitionGeneration = 0;
 let isSwitchingToMain = false;
 let isSwitchingToAuth = false;
 let currentPTTKey: string | null = null;
@@ -473,7 +479,10 @@ const isTrustedIpcSender = (event: IpcMainInvokeEvent | IpcMainEvent) => {
   }
 };
 
+installDisplayCapture(() => mainWindow, isTrustedIpcSender);
+
 function setupWindowHandlers(win: BrowserWindow, _isAuth: boolean) {
+  if (!_isAuth) attachDisplayCapture(win);
   win.webContents.on("context-menu", (_event, params) => {
     const t = getDesktopLocale(currentLocale);
     const menuTemplate: Electron.MenuItemConstructorOptions[] = [];
@@ -727,8 +736,9 @@ function createAuthWindow(targetEntryPath?: string): BrowserWindow {
     }
   });
 
+  const createdAuthWindow = authWindow;
   authWindow.on("closed", () => {
-    authWindow = null;
+    if (authWindow === createdAuthWindow) authWindow = null;
     updateTrayContextMenu();
   });
 
@@ -888,8 +898,9 @@ function createMainWindow(targetEntryPath?: string): BrowserWindow {
     }
   });
 
+  const createdMainWindow = mainWindow;
   mainWindow.on("closed", () => {
-    mainWindow = null;
+    if (mainWindow === createdMainWindow) mainWindow = null;
     updateTrayContextMenu();
   });
 
@@ -899,31 +910,38 @@ function createMainWindow(targetEntryPath?: string): BrowserWindow {
 }
 
 async function switchToMainWindow(): Promise<void> {
+  if (isQuitting) return;
+  // The newly loaded renderer also reports its current mode. Let the existing
+  // ready-to-show transition complete instead of destroying the previous window
+  // from inside that renderer's initialization IPC.
+  if (currentWindowMode === "main" && mainWindow && !mainWindow.isDestroyed())
+    return;
+  const generation = ++windowTransitionGeneration;
   saveHasAuthSession(true);
   currentWindowMode = "main";
 
   if (mainWindow && !mainWindow.isDestroyed()) {
-    mainWindow.show();
-    mainWindow.focus();
-    if (savedMainBounds?.isMaximized) mainWindow.maximize();
-    if (authWindow && !authWindow.isDestroyed()) {
-      isSwitchingToMain = true;
-      try {
-        authWindow.destroy();
-      } finally {
-        isSwitchingToMain = false;
-        authWindow = null;
-      }
+    // An opposite transition can leave this renderer alive until ready-to-show.
+    // Its auth store belongs to the previous session and cannot be reused.
+    isSwitchingToAuth = true;
+    try {
+      mainWindow.close();
+    } finally {
+      isSwitchingToAuth = false;
+      mainWindow = null;
     }
-    updateTrayContextMenu();
-    mainWindow.webContents.send("window-mode-changed", "main");
-    return;
   }
 
   const win = createMainWindow();
 
   let hasSwitched = false;
   const finishSwitch = () => {
+    if (
+      isQuitting ||
+      generation !== windowTransitionGeneration ||
+      currentWindowMode !== "main"
+    )
+      return;
     if (hasSwitched) return;
     hasSwitched = true;
     if (win && !win.isDestroyed()) {
@@ -937,7 +955,7 @@ async function switchToMainWindow(): Promise<void> {
     if (authWindow && !authWindow.isDestroyed()) {
       isSwitchingToMain = true;
       try {
-        authWindow.destroy();
+        authWindow.close();
       } finally {
         isSwitchingToMain = false;
         authWindow = null;
@@ -951,6 +969,10 @@ async function switchToMainWindow(): Promise<void> {
 }
 
 async function switchToAuthWindow(): Promise<void> {
+  if (isQuitting) return;
+  if (currentWindowMode === "auth" && authWindow && !authWindow.isDestroyed())
+    return;
+  const generation = ++windowTransitionGeneration;
   saveHasAuthSession(false);
   currentWindowMode = "auth";
   setTrayBadge(false);
@@ -975,26 +997,27 @@ async function switchToAuthWindow(): Promise<void> {
   }
 
   if (authWindow && !authWindow.isDestroyed()) {
-    authWindow.show();
-    authWindow.focus();
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      isSwitchingToAuth = true;
-      try {
-        mainWindow.destroy();
-      } finally {
-        isSwitchingToAuth = false;
-        mainWindow = null;
-      }
+    // Never revive the just-authenticated login renderer on a rapid logout.
+    // Its sessionStorage and focus refresh handler still own the old tokens.
+    isSwitchingToMain = true;
+    try {
+      authWindow.close();
+    } finally {
+      isSwitchingToMain = false;
+      authWindow = null;
     }
-    updateTrayContextMenu();
-    authWindow.webContents.send("window-mode-changed", "auth");
-    return;
   }
 
   const win = createAuthWindow();
 
   let hasSwitched = false;
   const finishSwitch = () => {
+    if (
+      isQuitting ||
+      generation !== windowTransitionGeneration ||
+      currentWindowMode !== "auth"
+    )
+      return;
     if (hasSwitched) return;
     hasSwitched = true;
     if (win && !win.isDestroyed()) {
@@ -1005,7 +1028,7 @@ async function switchToAuthWindow(): Promise<void> {
     if (mainWindow && !mainWindow.isDestroyed()) {
       isSwitchingToAuth = true;
       try {
-        mainWindow.destroy();
+        mainWindow.close();
       } finally {
         isSwitchingToAuth = false;
         mainWindow = null;
@@ -1493,6 +1516,7 @@ ipcMain.handle("auth-success", async (event, _payload) => {
 
 ipcMain.handle("auth-logout", async (event) => {
   if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+  if (mainWindow) clearDisplayCapture(mainWindow.webContents.id);
   await switchToAuthWindow();
   return true;
 });
@@ -1729,7 +1753,13 @@ async function startApplicationWithSplash(): Promise<void> {
 
   // 获取最终生效路径并根据会话状态创建目标窗口 (对齐 Discord 原生逻辑)
   const finalEntry = updateManager.getActiveWebEntry();
-  const hasSession = loadHasAuthSession();
+  // The cached window mode is a UI preference, not a durable login session.
+  // Non-remembered credentials exist only in the previous process's memory.
+  const hasSession =
+    loadHasAuthSession() &&
+    (await StorageManager.getInstance()
+      .hasRememberedSession()
+      .catch(() => false));
   currentWindowMode = hasSession ? "main" : "auth";
 
   const targetWin = hasSession
@@ -1741,6 +1771,12 @@ async function startApplicationWithSplash(): Promise<void> {
       splashWindow.close();
       splashWindow = null;
     }
+    if (
+      isQuitting ||
+      targetWin.isDestroyed() ||
+      targetWin !== (currentWindowMode === "main" ? mainWindow : authWindow)
+    )
+      return;
     targetWin.show();
     targetWin.focus();
     if (targetWin === mainWindow && savedMainBounds?.isMaximized) {
@@ -1755,7 +1791,12 @@ async function startApplicationWithSplash(): Promise<void> {
       splashWindow.close();
       splashWindow = null;
     }
-    if (targetWin && !targetWin.isDestroyed() && !targetWin.isVisible()) {
+    if (
+      !isQuitting &&
+      targetWin === (currentWindowMode === "main" ? mainWindow : authWindow) &&
+      !targetWin.isDestroyed() &&
+      !targetWin.isVisible()
+    ) {
       targetWin.show();
       targetWin.focus();
       if (targetWin === mainWindow && savedMainBounds?.isMaximized) {
@@ -1822,10 +1863,14 @@ app.whenReady().then(async () => {
     mainWindow?.webContents.send("toggle-global-mute");
   });
 
-  app.on("activate", () => {
+  app.on("activate", async () => {
     const activeWin = mainWindow || authWindow;
     if (!activeWin || activeWin.isDestroyed()) {
-      const hasSession = loadHasAuthSession();
+      const hasSession =
+        loadHasAuthSession() &&
+        (await StorageManager.getInstance()
+          .hasRememberedSession()
+          .catch(() => false));
       const newWin = hasSession ? createMainWindow() : createAuthWindow();
       newWin.once("ready-to-show", () => {
         newWin.show();
@@ -1845,6 +1890,7 @@ app.whenReady().then(async () => {
 
 app.on("before-quit", () => {
   isQuitting = true;
+  windowTransitionGeneration++;
   StorageManager.getInstance().destroy();
 });
 

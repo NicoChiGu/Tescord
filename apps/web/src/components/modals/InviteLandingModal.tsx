@@ -1,3 +1,4 @@
+import { GuildIcon } from "../ui/GuildIcon.js";
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { InvitePreviewDTO } from "@tescord/types";
@@ -215,7 +216,7 @@ export const InviteLandingModal: React.FC<InviteLandingModalProps> = ({
             {/* 服务器大图标 */}
             <div className="relative mb-4 group">
               {invite.guild.iconUrl ? (
-                <img
+                <GuildIcon
                   src={resolveServerUrl(invite.guild.iconUrl)}
                   alt={invite.guild.name}
                   className="w-20 h-20 rounded-3xl object-cover shadow-xl border-2 border-white/10 bg-[#1e1f22]"

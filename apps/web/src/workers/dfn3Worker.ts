@@ -2,15 +2,7 @@ import * as ort from "onnxruntime-web/wasm";
 import { Dfn3Processor } from "../../../../packages/audio-dsp/dfn3-core.mjs";
 import { fetchVerifiedAsset } from "./verifyModelAsset.js";
 
-export type Dfn3ComparisonInput = {
-  type: "COMPARE";
-  base: string;
-  pcm: Float32Array;
-  sampleRate: number;
-};
-export type Dfn3ComparisonOutput =
-  | { type: "COMPARED"; pcm: Float32Array; processedFrames: number }
-  | { type: "ERROR"; reason: string };
+import type { Dfn3ComparisonInput, Dfn3ComparisonOutput } from "@tescord/types";
 type WorkerInput =
   | { type: "START"; port: MessagePort; base: string }
   | Dfn3ComparisonInput

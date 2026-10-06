@@ -233,7 +233,9 @@ test("RNNoise 无法加载时明确直通且保留用户选择", async ({ page }
     backend: "bypass",
     phase: "failed",
   });
-  expect(result.status.reason).toContain("RNNoise WASM checksum mismatch");
+  expect(result.status.reason).toContain(
+    "Model asset unavailable: /rnnoise/rnnoise_simd.wasm",
+  );
   expect(result.savedMode).toBe("rnnoise");
 });
 

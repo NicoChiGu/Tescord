@@ -1,0 +1,50 @@
+{
+  "impairment": "synthetic encoded-frame dropping and bounded transform delay; not network packet loss",
+  "source": "noisy_2s_48k.wav (same fixture loop)",
+  "cipher": {
+    "enabled": true,
+    "keyId": 3003,
+    "framesEncrypted": 278,
+    "framesDecrypted": 0,
+    "framesDroppedReplay": 0,
+    "lastError": null
+  },
+  "decoder": {
+    "enabled": true,
+    "keyId": 1,
+    "framesEncrypted": 0,
+    "framesDecrypted": 284,
+    "framesDroppedReplay": 0,
+    "lastError": null
+  },
+  "codec": "audio/opus",
+  "pair": {
+    "local": "host",
+    "remote": "host"
+  },
+  "inbound": {
+    "bytesReceived": 28638,
+    "packetsReceived": 288,
+    "packetsLost": 0,
+    "jitterMs": 4,
+    "concealedSamples": 14930,
+    "totalSamplesReceived": 287040,
+    "concealmentEvents": 15,
+    "jitterBufferDelayMs": 25.47368421052632
+  },
+  "latencyMs": 49,
+  "correlation": 0.179401597124135,
+  "diagnostic": {
+    "sourceLength": 297728,
+    "receivedLength": 298752,
+    "start": 128704,
+    "sourceEnergy": 3621.319797063865,
+    "receivedEnergy": 3515.383307704387,
+    "sourceTimes": [6.141333333333334, 6.1626666666666665, 6.181333333333333],
+    "receivedTimes": [6.16, 6.1786666666666665, 6.2026666666666666],
+    "contextTime": 6.192,
+    "base": 0
+  },
+  "dropPercent": 5,
+  "transformJitterMaxMs": 8
+}

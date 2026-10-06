@@ -1,3 +1,4 @@
+import { CURRENT_APP_VERSION } from "../apps/web/src/data/changelogs";
 import { test, expect } from "@playwright/test";
 
 test.describe("版本更新公告模态框 (What's New Modal) 自动化验收", () => {
@@ -36,11 +37,11 @@ test.describe("版本更新公告模态框 (What's New Modal) 自动化验收", 
     const versionBadge = page.locator(
       '[data-testid="whats-new-version-badge"]',
     );
-    await expect(versionBadge).toHaveText("v0.3.0");
+    await expect(versionBadge).toHaveText(`v${CURRENT_APP_VERSION}`);
 
     // 验证分类条目包含“新增功能”
     await expect(modal).toContainText("新增功能");
-    await expect(modal).toContainText("频道未读状态同步");
+    await expect(modal).toContainText("Discord 原生级搜索引擎");
 
     // 点击“我知道了”关闭弹窗
     const gotItBtn = page.locator('[data-testid="whats-new-got-it-btn"]');
@@ -51,7 +52,7 @@ test.describe("版本更新公告模态框 (What's New Modal) 自动化验收", 
     const savedVersion = await page.evaluate(() => {
       return localStorage.getItem("tescord_last_seen_changelog_version");
     });
-    expect(savedVersion).toBe("0.3.0");
+    expect(savedVersion).toBe(CURRENT_APP_VERSION);
 
     // 设置 sessionStorage 标记并在刷新后验证不会再次弹出
     await page.evaluate(() => {
@@ -66,9 +67,9 @@ test.describe("版本更新公告模态框 (What's New Modal) 自动化验收", 
     page,
   }) => {
     // 预先标记当前版本已读，避免自弹窗干扰
-    await page.addInitScript(() => {
-      localStorage.setItem("tescord_last_seen_changelog_version", "0.3.0");
-    });
+    await page.addInitScript((version) => {
+      localStorage.setItem("tescord_last_seen_changelog_version", version);
+    }, CURRENT_APP_VERSION);
 
     await page.goto("/");
     await page.waitForLoadState("domcontentloaded");
@@ -101,7 +102,7 @@ test.describe("版本更新公告模态框 (What's New Modal) 自动化验收", 
     await expect(modal).toBeVisible();
     await expect(
       page.locator('[data-testid="whats-new-version-badge"]'),
-    ).toHaveText("v0.3.0");
+    ).toHaveText(`v${CURRENT_APP_VERSION}`);
 
     // 5. 点击“我知道了”关闭弹窗
     const gotItBtn = page.locator('[data-testid="whats-new-got-it-btn"]');
@@ -113,7 +114,7 @@ test.describe("版本更新公告模态框 (What's New Modal) 自动化验收", 
     page,
   }) => {
     // 注入模拟的 electronAPI 对象
-    await page.addInitScript(() => {
+    await page.addInitScript((version) => {
       let readyCallback: ((data: { version: string }) => void) | null = null;
 
       (window as any).electronAPI = {
@@ -174,7 +175,7 @@ test.describe("版本更新公告模态框 (What's New Modal) 自动化验收", 
       };
 
       // 预设版本已读
-      localStorage.setItem("tescord_last_seen_changelog_version", "0.3.0");
+      localStorage.setItem("tescord_last_seen_changelog_version", version);
 
       // 延时模拟后台增量更新下载就绪广播
       setTimeout(() => {
@@ -182,7 +183,7 @@ test.describe("版本更新公告模态框 (What's New Modal) 自动化验收", 
           readyCallback({ version: "0.2.0" });
         }
       }, 500);
-    });
+    }, CURRENT_APP_VERSION);
 
     await page.goto("/");
     await page.waitForLoadState("domcontentloaded");
@@ -216,9 +217,9 @@ test.describe("版本更新公告模态框 (What's New Modal) 自动化验收", 
   });
 
   test("4. 5 种官方语言即时热切换无破损与文案对称性", async ({ page }) => {
-    await page.addInitScript(() => {
-      localStorage.setItem("tescord_last_seen_changelog_version", "0.3.0");
-    });
+    await page.addInitScript((version) => {
+      localStorage.setItem("tescord_last_seen_changelog_version", version);
+    }, CURRENT_APP_VERSION);
 
     await page.goto("/");
     await page.waitForLoadState("domcontentloaded");

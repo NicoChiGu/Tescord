@@ -12,6 +12,13 @@ import { audioEngine } from "../audioEngine.js";
 import { livekitService } from "../livekit.js";
 import { bitrateCalculator } from "../stats/BitrateCalculator.js";
 import { sframeManager } from "../sframe.js";
+import {
+  AudioQualitySampler,
+  tuneOpusDescription,
+  adaptReceiverBuffer,
+  adaptOpusSender,
+} from "./audioQuality.js";
+import type { AudioReceiveQuality } from "@tescord/types";
 import { getP2PIceServers } from "./iceServers.js";
 
 export type LatencyUpdateCallback = (
@@ -25,12 +32,26 @@ export type VoiceFallbackCallback = (context: {
 }) => void;
 export type ActiveSpeakersChangeCallback = (speakers: string[]) => void;
 
+interface VoiceNegotiationState {
+  pc: RTCPeerConnection;
+  queue: Promise<void>;
+  pendingOfferId?: string;
+  acceptedOfferId?: string;
+  ignoreOffer: boolean;
+}
+
 export class VoiceMeshManager {
+  private audioQualitySampler = new AudioQualitySampler();
+  private audioQuality = new Map<string, AudioReceiveQuality[]>();
+  public getAudioQuality(peerId: string): AudioReceiveQuality[] {
+    return [...(this.audioQuality.get(peerId) || [])];
+  }
   private activeChannelId: string | null = null;
   private activeGuildId: string | null = null;
   private activeCallId: string | null = null;
   private currentUserId: string | null = null;
   private isMeshActive: boolean = false;
+  private meshGeneration = 0;
   private hasConnectedPeer = false;
   private isFallbackToSFU: boolean = false;
   private fallbackReason: string = "";
@@ -87,6 +108,81 @@ export class VoiceMeshManager {
   private cameraTracksCallbacks: Set<
     (tracks: Map<string, MediaStreamTrack>) => void
   > = new Set();
+  private negotiations = new Map<string, VoiceNegotiationState>();
+
+  private isCurrentPeer(peerId: string, pc: RTCPeerConnection): boolean {
+    return this.isMeshActive && this.peerConnections.get(peerId) === pc;
+  }
+
+  private clearHandshake(peerId: string): void {
+    const timer = this.handshakeTimers.get(peerId);
+    if (timer) clearTimeout(timer);
+    this.handshakeTimers.delete(peerId);
+  }
+
+  private armHandshake(
+    peerId: string,
+    pc: RTCPeerConnection,
+    offerId: string,
+  ): void {
+    this.clearHandshake(peerId);
+    const timer = setTimeout(() => {
+      if (this.handshakeTimers.get(peerId) !== timer) return;
+      this.handshakeTimers.delete(peerId);
+      if (
+        this.isCurrentPeer(peerId, pc) &&
+        this.channelMemberIds.has(peerId) &&
+        this.negotiations.get(peerId)?.pendingOfferId === offerId &&
+        pc.connectionState !== "connected"
+      ) {
+        this.scheduleHolePunchRetry(peerId);
+      }
+    }, 5000);
+    this.handshakeTimers.set(peerId, timer);
+  }
+
+  // SDP and ICE for one PC are serialized, including locally initiated offers.
+  // This prevents createOffer/setLocalDescription racing a received offer.
+  private negotiatePeer(
+    peerId: string,
+    pc: RTCPeerConnection,
+    operation: (state: VoiceNegotiationState) => Promise<void>,
+  ): Promise<void> {
+    let state = this.negotiations.get(peerId);
+    if (!state || state.pc !== pc) {
+      state = { pc, queue: Promise.resolve(), ignoreOffer: false };
+      this.negotiations.set(peerId, state);
+    }
+    const current = state;
+    const pending = current.queue.then(async () => {
+      if (this.isCurrentPeer(peerId, pc)) await operation(current);
+    });
+    current.queue = pending.catch(() => {});
+    return pending;
+  }
+
+  private candidateMatchesRemote(
+    pc: RTCPeerConnection,
+    candidate: RTCIceCandidateInit,
+  ): boolean {
+    const fragment =
+      candidate.usernameFragment ||
+      /(?:^| )ufrag ([^ ]+)/.exec(candidate.candidate || "")?.[1];
+    if (!fragment) return true;
+    return (pc.remoteDescription?.sdp || "")
+      .split(/\r?\n/)
+      .some((line) => line === `a=ice-ufrag:${fragment}`);
+  }
+
+  private bufferCandidate(
+    peerId: string,
+    candidate: RTCIceCandidateInit,
+  ): void {
+    const queue = this.pendingCandidatesMap.get(peerId) || [];
+    queue.push(candidate);
+    this.pendingCandidatesMap.set(peerId, queue.slice(-128));
+  }
+
   private handshakeTimers: Map<string, ReturnType<typeof setTimeout>> =
     new Map();
   private memberJoinTimers: Map<string, ReturnType<typeof setTimeout>> =
@@ -273,8 +369,9 @@ export class VoiceMeshManager {
     options?: { allowFallbackToSFU?: boolean },
   ): Promise<void> {
     this.stopAll();
+    const generation = this.meshGeneration;
 
-    if (callId && !sframeManager.getStats().enabled) {
+    if (!sframeManager.hasActiveContext) {
       throw new Error("E2EE 密钥未就绪，禁止建立私信音视频连接");
     }
 
@@ -282,14 +379,6 @@ export class VoiceMeshManager {
     this.activeGuildId = guildId;
     this.activeCallId = callId || null;
     this.allowFallbackToSFU = options?.allowFallbackToSFU ?? true;
-    this.isMeshActive = true;
-    this.hasConnectedPeer = false;
-    this.isFallbackToSFU = false;
-    this.fallbackReason = "";
-
-    await this.fetchIceServers();
-    if (!this.isMeshActive || this.activeChannelId !== channelId) return;
-
     const audioTrack = localStream.getAudioTracks()[0];
     if (audioTrack) {
       this.localAudioTrack = audioTrack;
@@ -299,6 +388,19 @@ export class VoiceMeshManager {
       this.localVideoTrack = videoTrack;
     }
 
+    this.isMeshActive = true;
+    this.hasConnectedPeer = false;
+    this.isFallbackToSFU = false;
+    this.fallbackReason = "";
+
+    await this.fetchIceServers();
+    if (
+      !this.isMeshActive ||
+      this.activeChannelId !== channelId ||
+      this.meshGeneration !== generation
+    )
+      return;
+
     const effectiveOtherMembers = (otherUserIds || []).filter(
       (id) => id && id !== this.currentUserId,
     );
@@ -306,7 +408,12 @@ export class VoiceMeshManager {
 
     // 与房间内已存在的其他成员主动建立点对点呼叫 (PeerConnection Offer)
     for (const targetId of otherUserIds) {
-      if (!this.isMeshActive || this.activeChannelId !== channelId) return;
+      if (
+        !this.isMeshActive ||
+        this.activeChannelId !== channelId ||
+        this.meshGeneration !== generation
+      )
+        return;
       if (targetId && targetId !== this.currentUserId) {
         if (
           this.activeCallId &&
@@ -319,6 +426,7 @@ export class VoiceMeshManager {
       }
     }
 
+    if (this.meshGeneration !== generation || !this.isMeshActive) return;
     // 启动 1.5s 周期性 getStats 独立延迟监控
     this.startStatsMonitoring();
   }
@@ -327,6 +435,7 @@ export class VoiceMeshManager {
    * 停止并释放所有 P2P 语音链路
    */
   public stopAll(): void {
+    this.meshGeneration++;
     this.isMeshActive = false;
     this.hasConnectedPeer = false;
     this.isFallbackToSFU = false;
@@ -361,10 +470,12 @@ export class VoiceMeshManager {
     // 关闭所有 PeerConnection
     for (const [peerId, pc] of this.peerConnections.entries()) {
       try {
+        sframeManager.detachPeerConnection(pc);
         pc.close();
       } catch {}
     }
     this.peerConnections.clear();
+    this.negotiations.clear();
     this.videoSenders.clear();
     this.remoteCameraTracks.clear();
     this.localVideoTrack = null;
@@ -531,6 +642,7 @@ export class VoiceMeshManager {
     )
       return;
 
+    const generation = this.meshGeneration;
     this.isFallbackToSFU = false;
     this.fallbackReason = "";
     this.closePeer(peerId, { preserveReport: true });
@@ -542,6 +654,7 @@ export class VoiceMeshManager {
       status: "connecting",
     });
     await this.fetchIceServers(true);
+    if (generation !== this.meshGeneration || !this.isMeshActive) return;
     await this.initiateCallToPeer(peerId);
   }
 
@@ -620,21 +733,41 @@ export class VoiceMeshManager {
         }
         try {
           const pc = this.getOrCreatePeerConnection(senderId);
-          await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-          // 排空已缓冲的 ICE
-          await this.flushPendingCandidates(senderId, pc);
-
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-
-          this.sendSignal({
-            guildId: this.activeGuildId || "",
-            channelId: this.activeChannelId || "",
-            senderId: this.currentUserId || "",
-            targetId: senderId,
-            streamOwnerId: this.currentUserId || "",
-            type: "VOICE_ANSWER",
-            sdp: answer,
+          await this.negotiatePeer(senderId, pc, async (state) => {
+            if (
+              signal.negotiationId &&
+              signal.negotiationId === state.acceptedOfferId
+            )
+              return;
+            const collision = pc.signalingState !== "stable";
+            const polite = (this.currentUserId || "") > senderId;
+            state.ignoreOffer = collision && !polite;
+            if (state.ignoreOffer) return;
+            if (collision) {
+              await pc.setLocalDescription({ type: "rollback" });
+              if (!this.isCurrentPeer(senderId, pc)) return;
+            }
+            state.pendingOfferId = undefined;
+            this.clearHandshake(senderId);
+            await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+            if (!this.isCurrentPeer(senderId, pc)) return;
+            await this.flushPendingCandidates(senderId, pc);
+            if (!this.isCurrentPeer(senderId, pc)) return;
+            const answer = await pc.createAnswer();
+            if (!this.isCurrentPeer(senderId, pc)) return;
+            await pc.setLocalDescription(tuneOpusDescription(answer));
+            if (!this.isCurrentPeer(senderId, pc)) return;
+            state.acceptedOfferId = signal.negotiationId;
+            this.sendSignal({
+              guildId: this.activeGuildId || "",
+              channelId: this.activeChannelId || "",
+              senderId: this.currentUserId || "",
+              targetId: senderId,
+              streamOwnerId: this.currentUserId || "",
+              type: "VOICE_ANSWER",
+              negotiationId: signal.negotiationId,
+              sdp: pc.localDescription?.toJSON() || answer,
+            });
           });
         } catch (e) {
           console.error(`[VoiceMesh] 处理来自 ${senderId} 的 OFFER 失败:`, e);
@@ -644,16 +777,23 @@ export class VoiceMeshManager {
 
       case "VOICE_ANSWER": {
         if (!sdp) return;
-        const hsTimer = this.handshakeTimers.get(senderId);
-        if (hsTimer) {
-          clearTimeout(hsTimer);
-          this.handshakeTimers.delete(senderId);
-        }
         const pc = this.peerConnections.get(senderId);
         if (pc) {
           try {
-            await pc.setRemoteDescription(new RTCSessionDescription(sdp));
-            await this.flushPendingCandidates(senderId, pc);
+            await this.negotiatePeer(senderId, pc, async (state) => {
+              if (
+                pc.signalingState !== "have-local-offer" ||
+                !state.pendingOfferId ||
+                signal.negotiationId !== state.pendingOfferId
+              )
+                return;
+              await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+              if (!this.isCurrentPeer(senderId, pc)) return;
+              state.pendingOfferId = undefined;
+              state.ignoreOffer = false;
+              this.clearHandshake(senderId);
+              await this.flushPendingCandidates(senderId, pc);
+            });
           } catch (e) {
             console.error(
               `[VoiceMesh] 处理来自 ${senderId} 的 ANSWER 失败:`,
@@ -667,21 +807,26 @@ export class VoiceMeshManager {
       case "VOICE_ICE_CANDIDATE": {
         if (!candidate) return;
         const pc = this.peerConnections.get(senderId);
-        if (pc && pc.remoteDescription && pc.remoteDescription.type) {
-          try {
-            await pc.addIceCandidate(new RTCIceCandidate(candidate));
-          } catch (e) {
-            console.warn(
-              `[VoiceMesh] 添加来自 ${senderId} 的 ICE candidate 失败:`,
-              e,
-            );
-          }
-        } else {
-          // 暂存到 buffer 队列
-          const queue = this.pendingCandidatesMap.get(senderId) || [];
-          queue.push(candidate);
-          this.pendingCandidatesMap.set(senderId, queue);
-        }
+        if (pc) {
+          await this.negotiatePeer(senderId, pc, async (state) => {
+            if (state.ignoreOffer || !pc.remoteDescription) {
+              this.bufferCandidate(senderId, candidate);
+              return;
+            }
+            if (!this.candidateMatchesRemote(pc, candidate)) {
+              this.bufferCandidate(senderId, candidate);
+              return;
+            }
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(candidate));
+            } catch (e) {
+              console.warn(
+                `[VoiceMesh] 添加来自 ${senderId} 的 ICE candidate 失败:`,
+                e,
+              );
+            }
+          });
+        } else this.bufferCandidate(senderId, candidate);
         break;
       }
 
@@ -702,40 +847,30 @@ export class VoiceMeshManager {
     const pc = this.getOrCreatePeerConnection(targetId);
 
     try {
-      const offer = await pc.createOffer({
-        offerToReceiveAudio: true,
-        offerToReceiveVideo: true,
-      });
-      await pc.setLocalDescription(offer);
+      await this.negotiatePeer(targetId, pc, async (state) => {
+        if (pc.signalingState !== "stable") return;
+        state.pendingOfferId = crypto.randomUUID();
+        state.ignoreOffer = false;
+        const offer = await pc.createOffer({
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: true,
+        });
+        if (!this.isCurrentPeer(targetId, pc)) return;
+        await pc.setLocalDescription(tuneOpusDescription(offer));
+        if (!this.isCurrentPeer(targetId, pc)) return;
 
-      const existingHsTimer = this.handshakeTimers.get(targetId);
-      if (existingHsTimer) clearTimeout(existingHsTimer);
+        this.armHandshake(targetId, pc, state.pendingOfferId);
 
-      const hsTimer = setTimeout(() => {
-        this.handshakeTimers.delete(targetId);
-        const currentPc = this.peerConnections.get(targetId);
-        if (
-          this.isMeshActive &&
-          this.channelMemberIds.has(targetId) &&
-          currentPc &&
-          currentPc.connectionState !== "connected"
-        ) {
-          console.warn(
-            `[VoiceMesh] 与节点 ${targetId} 的 Offer-Answer 握手 5 秒超时，触发 ICE Restart 自愈...`,
-          );
-          this.scheduleHolePunchRetry(targetId);
-        }
-      }, 5000);
-      this.handshakeTimers.set(targetId, hsTimer);
-
-      this.sendSignal({
-        guildId: this.activeGuildId || "",
-        channelId: this.activeChannelId || "",
-        senderId: this.currentUserId || "",
-        targetId,
-        streamOwnerId: this.currentUserId || "",
-        type: "VOICE_OFFER",
-        sdp: offer,
+        this.sendSignal({
+          guildId: this.activeGuildId || "",
+          channelId: this.activeChannelId || "",
+          senderId: this.currentUserId || "",
+          targetId,
+          streamOwnerId: this.currentUserId || "",
+          type: "VOICE_OFFER",
+          negotiationId: state.pendingOfferId,
+          sdp: pc.localDescription?.toJSON() || offer,
+        });
       });
     } catch (e) {
       console.error(`[VoiceMesh] 发起呼叫至 ${targetId} 失败:`, e);
@@ -746,8 +881,9 @@ export class VoiceMeshManager {
     let pc = this.peerConnections.get(peerId);
     if (pc) return pc;
 
+    sframeManager.assertReady();
     const e2eeEnabled = sframeManager.getStats().enabled;
-    if (this.activeCallId && !e2eeEnabled) {
+    if (!e2eeEnabled || !sframeManager.hasActiveContext) {
       throw new Error("E2EE 密钥未就绪，禁止建立私信音视频连接");
     }
 
@@ -786,6 +922,7 @@ export class VoiceMeshManager {
           void videoTransceiver.sender
             .replaceTrack(this.localVideoTrack)
             .catch((err) => {
+              if (!this.isCurrentPeer(peerId, pc!)) return;
               console.error(
                 `[VoiceMesh] 初始视频轨道绑定失败 (${peerId}):`,
                 err,
@@ -795,8 +932,10 @@ export class VoiceMeshManager {
         }
       }
     } catch (err) {
+      this.audioQuality.delete(peerId);
       this.videoSenders.delete(peerId);
       if (e2eeEnabled) {
+        sframeManager.detachPeerConnection(pc);
         pc.close();
         throw err;
       }
@@ -805,6 +944,7 @@ export class VoiceMeshManager {
 
     // 处理 ICE candidate (包含 IPv4 与 IPv6 双栈候选)
     pc.onicecandidate = (event) => {
+      if (!this.isCurrentPeer(peerId, pc!)) return;
       if (event.candidate) {
         this.sendSignal({
           guildId: this.activeGuildId || "",
@@ -820,7 +960,8 @@ export class VoiceMeshManager {
 
     // 监听远端音视频流
     pc.ontrack = (event) => {
-      if (this.activeCallId && !sframeManager.getStats().enabled) {
+      if (!this.isCurrentPeer(peerId, pc!)) return;
+      if (!sframeManager.hasActiveContext) {
         this.closePeer(peerId);
         return;
       }
@@ -850,19 +991,23 @@ export class VoiceMeshManager {
         this.remoteCameraTracks.set(peerId, event.track);
         this.notifyCameraTracksChange();
         event.track.onended = () => {
+          if (!this.isCurrentPeer(peerId, pc!)) return;
           this.remoteCameraTracks.delete(peerId);
           this.notifyCameraTracksChange();
         };
         event.track.onmute = () => {
+          if (!this.isCurrentPeer(peerId, pc!)) return;
           this.notifyCameraTracksChange();
         };
         event.track.onunmute = () => {
+          if (!this.isCurrentPeer(peerId, pc!)) return;
           this.notifyCameraTracksChange();
         };
       }
     };
 
     pc.onconnectionstatechange = () => {
+      if (!this.isCurrentPeer(peerId, pc!)) return;
       const state = pc?.connectionState;
       if (state === "connected") {
         this.hasConnectedPeer = true;
@@ -883,6 +1028,7 @@ export class VoiceMeshManager {
     };
 
     pc.oniceconnectionstatechange = () => {
+      if (!this.isCurrentPeer(peerId, pc!)) return;
       const iceState = pc?.iceConnectionState;
       if (iceState === "failed" || iceState === "disconnected") {
         this.scheduleHolePunchRetry(peerId);
@@ -980,24 +1126,39 @@ export class VoiceMeshManager {
       console.info(
         `[VoiceMesh] 正在执行针对 ${peerId} 的打洞重试 (第 ${attempt}/3 次 ICE Restart)...`,
       );
-      if (typeof pc.restartIce === "function") {
-        pc.restartIce();
-      }
-      const offer = await pc.createOffer({
-        iceRestart: true,
-        offerToReceiveAudio: true,
-        offerToReceiveVideo: true,
-      });
-      await pc.setLocalDescription(offer);
+      await this.negotiatePeer(peerId, pc, async (state) => {
+        if (pc.connectionState === "connected") return;
+        if (pc.signalingState === "have-local-offer") {
+          await pc.setLocalDescription({ type: "rollback" });
+          if (!this.isCurrentPeer(peerId, pc)) return;
+        }
+        if (pc.signalingState !== "stable") return;
+        state.pendingOfferId = crypto.randomUUID();
+        state.ignoreOffer = false;
+        if (typeof pc.restartIce === "function") {
+          pc.restartIce();
+        }
+        const offer = await pc.createOffer({
+          iceRestart: true,
+          offerToReceiveAudio: true,
+          offerToReceiveVideo: true,
+        });
+        if (!this.isCurrentPeer(peerId, pc)) return;
+        await pc.setLocalDescription(tuneOpusDescription(offer));
+        if (!this.isCurrentPeer(peerId, pc)) return;
 
-      this.sendSignal({
-        guildId: this.activeGuildId || "",
-        channelId: this.activeChannelId || "",
-        senderId: this.currentUserId || "",
-        targetId: peerId,
-        streamOwnerId: this.currentUserId || "",
-        type: "VOICE_OFFER",
-        sdp: offer,
+        this.armHandshake(peerId, pc, state.pendingOfferId);
+
+        this.sendSignal({
+          guildId: this.activeGuildId || "",
+          channelId: this.activeChannelId || "",
+          senderId: this.currentUserId || "",
+          targetId: peerId,
+          streamOwnerId: this.currentUserId || "",
+          type: "VOICE_OFFER",
+          negotiationId: state.pendingOfferId,
+          sdp: pc.localDescription?.toJSON() || offer,
+        });
       });
     } catch (e) {
       console.warn(`[VoiceMesh] 对节点 ${peerId} 执行 ICE Restart 失败:`, e);
@@ -1032,18 +1193,21 @@ export class VoiceMeshManager {
   ): Promise<void> {
     const queue = this.pendingCandidatesMap.get(peerId);
     if (queue && queue.length > 0) {
+      this.pendingCandidatesMap.delete(peerId);
       for (const cand of queue) {
+        if (!this.isCurrentPeer(peerId, pc)) return;
+        if (!this.candidateMatchesRemote(pc, cand)) continue;
         try {
           await pc.addIceCandidate(new RTCIceCandidate(cand));
         } catch (e) {
           console.warn("[VoiceMesh] 排空 ICE candidate 失败:", e);
         }
       }
-      this.pendingCandidatesMap.delete(peerId);
     }
   }
 
   public closePeer(peerId: string, options: { preserveReport?: boolean } = {}) {
+    this.negotiations.delete(peerId);
     const retryInfo = this.peerRetries.get(peerId);
     if (retryInfo?.timer) clearTimeout(retryInfo.timer);
     this.peerRetries.delete(peerId);
@@ -1058,6 +1222,7 @@ export class VoiceMeshManager {
       clearTimeout(joinTimer);
       this.memberJoinTimers.delete(peerId);
     }
+    this.audioQuality.delete(peerId);
     this.videoSenders.delete(peerId);
     if (this.remoteCameraTracks.has(peerId)) {
       this.remoteCameraTracks.delete(peerId);
@@ -1068,6 +1233,7 @@ export class VoiceMeshManager {
     if (pc) {
       this.peerConnections.delete(peerId);
       try {
+        sframeManager.detachPeerConnection(pc);
         pc.close();
       } catch {}
     }
@@ -1358,8 +1524,9 @@ export class VoiceMeshManager {
           if (stat.bytesReceived) totalBytesReceived += stat.bytesReceived;
           if (typeof stat.jitter === "number")
             jitter = `${(stat.jitter * 1000).toFixed(1)}ms`;
-          if (typeof stat.fractionLost === "number")
-            packetLoss = `${(stat.fractionLost * 100).toFixed(1)}%`;
+          const quality = this.audioQualitySampler.sample(stat);
+          if (quality.packetLossPercent !== undefined)
+            packetLoss = `${quality.packetLossPercent.toFixed(1)}%`;
         }
 
         if (
@@ -1397,7 +1564,11 @@ export class VoiceMeshManager {
       connectionMode,
       topology: "P2P_MESH" as ConnectionTopology,
       protocol,
-      bufferLength: "未知",
+      bufferLength:
+        this.audioQuality.get(peerId)?.[0]?.jitterBufferDelayMs !== undefined
+          ? `${this.audioQuality.get(peerId)![0].jitterBufferDelayMs!.toFixed(1)}ms`
+          : "未知",
+      audioReceiveQuality: this.getAudioQuality(peerId),
       decodedFrames: "N/A",
       downloadBitrate:
         totalBytesSent + totalBytesReceived > 0
@@ -1437,6 +1608,7 @@ export class VoiceMeshManager {
           let rttMs = 0;
           let jitterMs: number | undefined;
           let packetLoss: number | undefined;
+          const trackQuality: AudioReceiveQuality[] = [];
           let connectionType: "LAN" | "P2P" | "RELAY" = "P2P";
 
           let selectedPairId = "";
@@ -1463,11 +1635,42 @@ export class VoiceMeshManager {
               if (typeof report.jitter === "number") {
                 jitterMs = Math.round(report.jitter * 1000);
               }
-              const totalPackets =
-                (report.packetsReceived || 0) + (report.packetsLost || 0);
-              if (totalPackets > 0) {
-                packetLoss = (report.packetsLost || 0) / totalPackets;
-              }
+              const quality = this.audioQualitySampler.sample(report);
+              trackQuality.push(quality);
+              packetLoss = quality.packetLossPercent;
+              const receiver = pc
+                .getReceivers()
+                .find(
+                  (item) =>
+                    item.track.kind === "audio" &&
+                    (!report.trackIdentifier ||
+                      item.track.id === report.trackIdentifier),
+                );
+              if (receiver) adaptReceiverBuffer(receiver, quality);
+            }
+            if (
+              report.type === "remote-inbound-rtp" &&
+              report.kind === "audio"
+            ) {
+              // Adapt the uplink from the peer's feedback, never from unrelated downlink loss.
+              let uplinkLoss: number | undefined;
+              const outbound = report.localId
+                ? stats.get(report.localId)
+                : undefined;
+              if (outbound && typeof report.packetsLost === "number") {
+                const sent = outbound.packetsSent || 0;
+                uplinkLoss = this.audioQualitySampler.sample({
+                  id: `uplink:${peerId}:${report.id}`,
+                  timestamp: report.timestamp,
+                  packetsReceived: Math.max(0, sent - report.packetsLost),
+                  packetsLost: report.packetsLost,
+                  bytesReceived: outbound.bytesSent || 0,
+                }).packetLossPercent;
+              } else if (typeof report.fractionLost === "number")
+                uplinkLoss =
+                  Math.max(0, Math.min(1, report.fractionLost)) * 100;
+              for (const sender of pc.getSenders())
+                void adaptOpusSender(sender, uplinkLoss);
             }
           });
 
@@ -1491,6 +1694,7 @@ export class VoiceMeshManager {
             }
           }
 
+          this.audioQuality.set(peerId, trackQuality);
           this.latencyReports.set(peerId, {
             targetUserId: peerId,
             rtt: rttMs,

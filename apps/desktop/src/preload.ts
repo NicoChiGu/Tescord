@@ -11,6 +11,8 @@ import type {
   Message,
   ChannelMetaRecord,
   StorageSearchMessagesQuery,
+  DisplayCaptureRequest,
+  DesktopCaptureAudioStart,
 } from "@tescord/types";
 
 // The sandboxed preload can require Electron only. Keep IPC literals checked
@@ -84,6 +86,24 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // 屏幕与窗口采集
   getDesktopSources: () => ipcRenderer.invoke("get-desktop-sources"),
+  prepareDisplayCapture: (request: DisplayCaptureRequest) =>
+    ipcRenderer.invoke("display-capture-prepare", request),
+  openDisplayAudioPort: (request: DesktopCaptureAudioStart) => {
+    if (
+      !/^[a-f0-9]{32}$/.test(request.requestId) ||
+      !/^[a-f0-9]{32}$/.test(request.grantId)
+    )
+      return;
+    const channel = new MessageChannel();
+    ipcRenderer.postMessage("display-audio-start", request, [channel.port2]);
+    window.postMessage(
+      { type: "tescord-display-audio-port", requestId: request.requestId },
+      "*",
+      [channel.port1],
+    );
+  },
+  stopDisplayCapture: (requestId: string) =>
+    ipcRenderer.send("display-capture-stop", requestId),
 
   // 原生系统通知
   showNotification: (payload: DesktopNotificationPayload) =>

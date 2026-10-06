@@ -23,7 +23,7 @@ import {
   PeerLatencyReport,
 } from "@tescord/types";
 import { useNetworkStats } from "../../hooks/useNetworkStats.js";
-import { sframeManager } from "../../services/sframe.js";
+import { MediaEncryptionIndicator } from "../MediaEncryptionIndicator.js";
 import { audioEngine } from "../../services/audioEngine.js";
 import { p2pStreamManager } from "../../services/p2p/P2PStreamManager.js";
 import { voiceMeshManager } from "../../services/p2p/VoiceMeshManager.js";
@@ -47,9 +47,6 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
   const localStats = useNetworkStats();
   const [currentTab, setCurrentTab] = useState<TabType>("overview");
 
-  const [sframeStats, setSframeStats] = useState(() =>
-    sframeManager.getStats(),
-  );
   const [p2pDiagnostics, setP2PDiagnostics] =
     useState<P2PNetworkDiagnostics | null>(null);
 
@@ -89,13 +86,6 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
       setFallbackReason(voiceMeshManager.getFallbackReason());
     });
     return () => unbindMesh();
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    setSframeStats(sframeManager.getStats());
-    const unbind = sframeManager.onStatsChange((s) => setSframeStats(s));
-    return () => unbind();
   }, [isOpen]);
 
   // 支持按下 Escape 键退出
@@ -147,6 +137,11 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
   };
 
   const badge = getQualityBadge(localStats?.quality);
+  const continuity = audioEngine.getContinuityDiagnostics();
+  const measured = (value: number | undefined, unit = "") =>
+    typeof value === "number" && Number.isFinite(value)
+      ? `${value.toFixed(1)}${unit}`
+      : t("voice:audioQuality.unknown");
 
   // 视频状态判断
   const isBroadcastingVideo = p2pStreamManager.isBroadcasting(channel?.id);
@@ -457,9 +452,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                     <span>传输加密协议</span>
                   </span>
                   <span className="text-discord-green font-mono">
-                    {channel?.isE2EE
-                      ? "WebRTC SFrame (AES-256-GCM 盲中继)"
-                      : "DTLS 1.2 / SRTP AES-128-GCM"}
+                    <MediaEncryptionIndicator />
                   </span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-[#35373c]">
@@ -662,26 +655,41 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                     <span>{t("voice:cryptoProtocol")}</span>
                   </span>
                   <span className="text-discord-green font-mono">
-                    {channel?.isE2EE
-                      ? "WebRTC SFrame (AES-256-GCM 盲中继)"
-                      : "DTLS 1.2 / SRTP AES-128-GCM"}
+                    <MediaEncryptionIndicator />
                   </span>
                 </div>
-
-                {channel?.isE2EE && (
-                  <div className="flex justify-between py-1">
-                    <span className="text-discord-textMuted">
-                      {t("voice:sframeStream")}
-                    </span>
-                    <span className="text-emerald-400 font-mono text-[11px]">
-                      已加密 {sframeStats.framesEncrypted} 帧 / 已解密{" "}
-                      {sframeStats.framesDecrypted} 帧 (拦截:{" "}
-                      {sframeStats.framesDroppedReplay})
-                    </span>
-                  </div>
-                )}
               </div>
 
+              <div
+                className="bg-[#2b2d31] p-4 rounded-xl border border-[#383a40]"
+                data-testid="audio-continuity-diagnostics"
+              >
+                <h5 className="text-sm font-semibold mb-2">
+                  {t("voice:audioQuality.pipeline")}
+                </h5>
+                <dl className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+                  {[
+                    [
+                      "context",
+                      t(
+                        `voice:audioQuality.contextStates.${continuity.contextState}`,
+                      ),
+                    ],
+                    ["queue", measured(continuity.queueMs, " ms")],
+                    ["outputQueue", measured(continuity.outputQueueMs, " ms")],
+                    ["underruns", String(continuity.underruns)],
+                    ["sampleRate", `${continuity.sampleRate} Hz`],
+                    ["rendered", String(continuity.renderedSamples)],
+                  ].map(([label, value]) => (
+                    <div key={label}>
+                      <dt className="text-discord-textMuted">
+                        {t(`voice:audioQuality.${label}`)}
+                      </dt>
+                      <dd className="tabular-nums">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </div>
               {/* 若处于 Mesh 模式，展示直连各成员独立延迟 */}
               {isMeshActive && peerLatencies.size > 0 && (
                 <div className="bg-[#2b2d31] p-4 rounded-xl border border-[#383a40] space-y-2 text-xs">
@@ -701,19 +709,66 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                       ([peerId, rep]) => (
                         <div
                           key={peerId}
-                          className="flex items-center justify-between bg-[#1e1f22] px-3 py-1.5 rounded-lg border border-[#2b2d31]"
+                          className="bg-[#1e1f22] px-3 py-2 rounded-lg border border-[#2b2d31] space-y-2"
                         >
-                          <span className="text-discord-textNormal font-mono text-[11px]">
-                            Peer: {peerId.slice(0, 8)}...
-                          </span>
-                          <div className="flex items-center gap-3 font-mono text-[11px]">
-                            <span className="text-discord-green font-bold">
-                              {rep.rtt > 0 ? `${rep.rtt} ms` : "未知"}
+                          <div className="flex items-center justify-between">
+                            <span className="text-discord-textNormal font-mono text-[11px]">
+                              Peer: {peerId.slice(0, 8)}...
                             </span>
-                            <span className="text-discord-textMuted text-[10px]">
-                              {rep.connectionType}
-                            </span>
+                            <div className="flex items-center gap-3 font-mono text-[11px]">
+                              <span className="text-discord-green font-bold">
+                                {rep.rtt > 0 ? `${rep.rtt} ms` : "未知"}
+                              </span>
+                              <span className="text-discord-textMuted text-[10px]">
+                                {rep.connectionType}
+                              </span>
+                            </div>
                           </div>
+                          {voiceMeshManager
+                            .getAudioQuality(peerId)
+                            .map((quality) => (
+                              <dl
+                                key={quality.trackId}
+                                data-testid="peer-audio-quality"
+                                className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[10px]"
+                              >
+                                {[
+                                  [
+                                    "loss",
+                                    measured(quality.packetLossPercent, "%"),
+                                  ],
+                                  ["jitter", measured(quality.jitterMs, " ms")],
+                                  [
+                                    "buffer",
+                                    measured(
+                                      quality.jitterBufferDelayMs,
+                                      " ms",
+                                    ),
+                                  ],
+                                  [
+                                    "concealment",
+                                    measured(quality.concealmentPercent, "%"),
+                                  ],
+                                  ["received", `${quality.bytesReceived} B`],
+                                  [
+                                    "targetBuffer",
+                                    measured(
+                                      quality.receiverBufferTargetMs,
+                                      " ms",
+                                    ),
+                                  ],
+                                ].map(([label, value]) => (
+                                  <div key={label}>
+                                    <dt className="text-discord-textMuted">
+                                      {t(`voice:audioQuality.${label}`)}
+                                    </dt>
+                                    <dd className="text-discord-textNormal tabular-nums">
+                                      {value}
+                                    </dd>
+                                  </div>
+                                ))}
+                              </dl>
+                            ))}
                         </div>
                       ),
                     )}

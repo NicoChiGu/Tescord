@@ -1,3 +1,4 @@
+import { GuildIcon } from "../ui/GuildIcon.js";
 import React, { useState, useEffect } from "react";
 import {
   X,
@@ -267,7 +268,7 @@ export const DiscoveryModal: React.FC<DiscoveryModalProps> = ({
                       >
                         <div className="flex items-start gap-3">
                           {resolvedIcon ? (
-                            <img
+                            <GuildIcon
                               src={resolvedIcon}
                               alt={g.name}
                               className="w-12 h-12 rounded-2xl object-cover bg-[#1e1f22] flex-shrink-0"

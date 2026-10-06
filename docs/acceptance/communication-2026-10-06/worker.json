@@ -1,0 +1,47 @@
+{
+  "a": {
+    "enabled": true,
+    "keyId": 1001,
+    "framesEncrypted": 91,
+    "framesDecrypted": 100,
+    "framesDroppedReplay": 0,
+    "lastError": null
+  },
+  "b": {
+    "enabled": true,
+    "keyId": 2002,
+    "framesEncrypted": 91,
+    "framesDecrypted": 99,
+    "framesDroppedReplay": 0,
+    "lastError": null
+  },
+  "pa": {
+    "sent": 13007,
+    "received": 12956,
+    "codec": "audio/opus",
+    "pair": {
+      "local": "host",
+      "remote": "host"
+    }
+  },
+  "pb": {
+    "sent": 12956,
+    "received": 13007,
+    "codec": "audio/opus",
+    "pair": {
+      "local": "host",
+      "remote": "host"
+    }
+  },
+  "samples": [
+    {
+      "id": "b",
+      "rms": 0.14161396564646617
+    },
+    {
+      "id": "a",
+      "rms": 0.1414588285966207
+    }
+  ],
+  "legacy": false
+}

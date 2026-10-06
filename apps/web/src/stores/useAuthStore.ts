@@ -26,6 +26,7 @@ let desktopAccountsCache: SavedAccount[] | null = null;
 let desktopRememberActive = false;
 let desktopAccountsWrite: Promise<void> = Promise.resolve();
 let desktopMigrationSucceeded: boolean | null = null;
+let authInitialization: Promise<void> | null = null;
 
 function isDesktopStorage(): boolean {
   return typeof window !== "undefined" && Boolean(window.electronAPI?.storage);
@@ -350,174 +351,191 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     return headers;
   },
 
-  initAuth: async () => {
-    set({ isLoading: true, error: null });
-    try {
-      if (isDesktopStorage()) {
-        desktopMigrationSucceeded = await waitForStorageMigration();
-      }
-      let accounts = getStoredSavedAccounts();
-      let nativeActive: Awaited<
-        ReturnType<ReturnType<typeof getStorageAdapter>["getActiveTokens"]>
-      > = null;
-      if (isDesktopStorage() && desktopMigrationSucceeded) {
-        try {
-          const nativeAccounts = await getStorageAdapter().getSavedAccounts();
-          if (nativeAccounts && nativeAccounts.length > 0) {
-            accounts = nativeAccounts;
-          }
-          desktopAccountsCache = accounts;
-          nativeActive = await getStorageAdapter().getActiveTokens();
-          desktopRememberActive = Boolean(nativeActive?.remember);
-        } catch {}
-      }
-      set({ savedAccounts: accounts });
-
-      let accessToken =
-        sessionStorage.getItem(ACCESS_KEY) || localStorage.getItem(ACCESS_KEY);
-      let refreshToken = currentRefreshToken();
-
-      if (isDesktopStorage() && desktopMigrationSucceeded) {
-        // Migration has completed before adapter reads resolve. Remove the old
-        // renderer plaintext copies while retaining this window's session.
-        if (accessToken) sessionStorage.setItem(ACCESS_KEY, accessToken);
-        if (refreshToken) sessionStorage.setItem(REFRESH_KEY, refreshToken);
-        localStorage.removeItem(ACCESS_KEY);
-        localStorage.removeItem(REFRESH_KEY);
-        localStorage.setItem(
-          SAVED_ACCOUNTS_STORAGE_KEY,
-          JSON.stringify(
-            accounts.map(
-              ({ refreshToken: _refreshToken, ...account }) => account,
-            ),
-          ),
-        );
-      }
-
-      // 如果浏览器缓存被清除，尝试从桌面端 safeStorage + SQLite 恢复活跃会话
-      if (
-        !accessToken &&
-        !refreshToken &&
-        typeof window !== "undefined" &&
-        window.electronAPI?.storage
-      ) {
-        try {
-          const active = nativeActive;
-          if (active && (active.accessToken || active.refreshToken)) {
-            accessToken = active.accessToken;
-            refreshToken = active.refreshToken;
-            await storeActiveTokens(
-              {
-                accessToken: active.accessToken,
-                refreshToken: active.refreshToken,
-                user: active.user,
-                expiresIn: 3600,
-              },
-              active.remember,
-            );
-          }
-        } catch {}
-      }
-
-      // 1. 优先尝试本地活跃的 access/refresh token
-      if (accessToken || refreshToken) {
-        try {
-          if (accessToken) {
-            const res = await fetch(`${API_BASE}/api/auth/me`, {
-              headers: { Authorization: `Bearer ${accessToken}` },
-            });
-
-            if (res.ok) {
-              const user: User = await res.json();
-              await getStorageAdapter().switchUser(user.id);
-              localStorage.setItem("tescord_last_user", JSON.stringify(user));
-              const remember =
-                isDesktopStorage() && desktopMigrationSucceeded
-                  ? desktopRememberActive
-                  : Boolean(localStorage.getItem(REFRESH_KEY));
-              const updated = upsertSavedAccount(
-                user,
-                { refreshToken: refreshToken || undefined },
-                remember,
-              );
-              await waitForDesktopAccountSave();
-              set({
-                user,
-                lastActiveUser: user,
-                accessToken,
-                token: accessToken,
-                refreshToken,
-                isAuthenticated: true,
-                isLoading: false,
-                savedAccounts: updated,
-              });
-              syncDesktopWindowMode("main");
-              scheduleProactiveRefresh(() => get().refreshAuth());
-              return;
-            }
-          }
-
-          if (refreshToken) {
-            const refreshed = await get().refreshAuth();
-            if (refreshed) {
-              syncDesktopWindowMode("main");
-              return;
-            }
-          }
-        } catch {
-          // 出错继续尝试免密账号检查
+  initAuth: () => {
+    if (authInitialization) return authInitialization;
+    authInitialization = (async () => {
+      set({ isLoading: true, error: null });
+      try {
+        if (isDesktopStorage()) {
+          desktopMigrationSucceeded = await waitForStorageMigration();
         }
-      }
+        let accounts = getStoredSavedAccounts();
+        let nativeActive: Awaited<
+          ReturnType<ReturnType<typeof getStorageAdapter>["getActiveTokens"]>
+        > = null;
+        if (isDesktopStorage() && desktopMigrationSucceeded) {
+          try {
+            const nativeAccounts = await getStorageAdapter().getSavedAccounts();
+            if (nativeAccounts && nativeAccounts.length > 0) {
+              accounts = nativeAccounts;
+            }
+            desktopAccountsCache = accounts;
+            nativeActive = await getStorageAdapter().getActiveTokens();
+            desktopRememberActive = Boolean(nativeActive?.remember);
+          } catch {}
+        }
+        set({ savedAccounts: accounts });
 
-      if (get().refreshFailure === "transient") {
-        set({ isLoading: false });
-        return;
-      }
+        let accessToken =
+          sessionStorage.getItem(ACCESS_KEY) ||
+          localStorage.getItem(ACCESS_KEY);
+        let refreshToken = currentRefreshToken();
 
-      // 2. 检查已保存的免密账号
-      const autoLoginAccount = accounts.find(
-        (a) => a.rememberPassword && Boolean(a.refreshToken),
-      );
-      if (autoLoginAccount) {
-        const ok = await get().loginWithSavedAccount(autoLoginAccount);
-        if (ok) {
+        if (isDesktopStorage() && desktopMigrationSucceeded) {
+          // Chromium may restore file:// sessionStorage after an application restart.
+          // Native storage owns the process-lifetime session, including non-remembered
+          // tokens in memory. A missing native session must never revive renderer tokens.
+          accessToken = nativeActive?.accessToken || null;
+          refreshToken = nativeActive?.refreshToken || null;
+          if (!nativeActive) {
+            sessionStorage.removeItem(ACCESS_KEY);
+            sessionStorage.removeItem(REFRESH_KEY);
+          }
+          // Migration has completed before adapter reads resolve. Remove the old
+          // renderer plaintext copies while retaining this window's session.
+          if (accessToken) sessionStorage.setItem(ACCESS_KEY, accessToken);
+          if (refreshToken) sessionStorage.setItem(REFRESH_KEY, refreshToken);
+          localStorage.removeItem(ACCESS_KEY);
+          localStorage.removeItem(REFRESH_KEY);
+          localStorage.setItem(
+            SAVED_ACCOUNTS_STORAGE_KEY,
+            JSON.stringify(
+              accounts.map(
+                ({ refreshToken: _refreshToken, ...account }) => account,
+              ),
+            ),
+          );
+        }
+
+        // 如果浏览器缓存被清除，尝试从桌面端 safeStorage + SQLite 恢复活跃会话
+        if (
+          !accessToken &&
+          !refreshToken &&
+          typeof window !== "undefined" &&
+          window.electronAPI?.storage
+        ) {
+          try {
+            const active = nativeActive;
+            if (active && (active.accessToken || active.refreshToken)) {
+              accessToken = active.accessToken;
+              refreshToken = active.refreshToken;
+              await storeActiveTokens(
+                {
+                  accessToken: active.accessToken,
+                  refreshToken: active.refreshToken,
+                  user: active.user,
+                  expiresIn: 3600,
+                },
+                active.remember,
+              );
+            }
+          } catch {}
+        }
+
+        // 1. 优先尝试本地活跃的 access/refresh token
+        if (accessToken || refreshToken) {
+          try {
+            if (accessToken) {
+              const res = await fetch(`${API_BASE}/api/auth/me`, {
+                headers: { Authorization: `Bearer ${accessToken}` },
+              });
+
+              if (res.ok) {
+                const user: User = await res.json();
+                await getStorageAdapter().switchUser(user.id);
+                localStorage.setItem("tescord_last_user", JSON.stringify(user));
+                const remember =
+                  isDesktopStorage() && desktopMigrationSucceeded
+                    ? desktopRememberActive
+                    : Boolean(localStorage.getItem(REFRESH_KEY));
+                const updated = upsertSavedAccount(
+                  user,
+                  { refreshToken: refreshToken || undefined },
+                  remember,
+                );
+                await waitForDesktopAccountSave();
+                set({
+                  user,
+                  lastActiveUser: user,
+                  accessToken,
+                  token: accessToken,
+                  refreshToken,
+                  isAuthenticated: true,
+                  isLoading: false,
+                  savedAccounts: updated,
+                });
+                syncDesktopWindowMode("main");
+                scheduleProactiveRefresh(() => get().refreshAuth());
+                return;
+              }
+            }
+
+            if (refreshToken) {
+              const refreshed = await get().refreshAuth();
+              if (refreshed) {
+                syncDesktopWindowMode("main");
+                return;
+              }
+            }
+          } catch {
+            // 出错继续尝试免密账号检查
+          }
+        }
+
+        if (get().refreshFailure === "transient") {
+          set({ isLoading: false });
           return;
         }
-      }
 
-      // 3. 无有效令牌或免密失败，停留在未登录态并进入账号选择
-      clearProactiveRefreshTimer();
-      cancelPendingRequests("会话未授权或已失效");
-      if (get().refreshFailure !== "transient")
+        // 2. 检查已保存的免密账号
+        const autoLoginAccount = accounts.find(
+          (a) => a.rememberPassword && Boolean(a.refreshToken),
+        );
+        if (autoLoginAccount) {
+          const ok = await get().loginWithSavedAccount(autoLoginAccount);
+          if (ok) {
+            return;
+          }
+        }
+
+        // 3. 无有效令牌或免密失败，停留在未登录态并进入账号选择
+        clearProactiveRefreshTimer();
+        cancelPendingRequests("会话未授权或已失效");
+        if (get().refreshFailure !== "transient")
+          await clearActiveTokens().catch(() => {});
+        set({
+          user: null,
+          accessToken: null,
+          token: null,
+          refreshToken: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
+        syncDesktopWindowMode("auth");
+      } catch {
+        clearProactiveRefreshTimer();
+        cancelPendingRequests("初始化认证失败");
         await clearActiveTokens().catch(() => {});
-      set({
-        user: null,
-        accessToken: null,
-        token: null,
-        refreshToken: null,
-        isAuthenticated: false,
-        isLoading: false,
-      });
-      syncDesktopWindowMode("auth");
-    } catch {
-      clearProactiveRefreshTimer();
-      cancelPendingRequests("初始化认证失败");
-      await clearActiveTokens().catch(() => {});
-      set({
-        user: null,
-        accessToken: null,
-        token: null,
-        refreshToken: null,
-        isAuthenticated: false,
-        isLoading: false,
-      });
-      syncDesktopWindowMode("auth");
-    } finally {
-      set({ isLoading: false });
-    }
+        set({
+          user: null,
+          accessToken: null,
+          token: null,
+          refreshToken: null,
+          isAuthenticated: false,
+          isLoading: false,
+        });
+        syncDesktopWindowMode("auth");
+      } finally {
+        set({ isLoading: false });
+      }
+    })().finally(() => {
+      authInitialization = null;
+    });
+    return authInitialization;
   },
 
   login: async (dto: LoginDTO) => {
+    await authInitialization;
     set({ error: null });
     try {
       const res = await fetch(`${API_BASE}/api/auth/login`, {
@@ -1099,6 +1117,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
 if (typeof window !== "undefined") {
   (window as any).useAuthStore = useAuthStore;
+  window.addEventListener("beforeunload", () => {
+    if (isDesktopStorage() && !desktopRememberActive) {
+      sessionStorage.removeItem(ACCESS_KEY);
+      sessionStorage.removeItem(REFRESH_KEY);
+    }
+  });
   const refreshOnResume = () => {
     const state = useAuthStore.getState();
     if (

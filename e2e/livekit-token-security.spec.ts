@@ -71,6 +71,9 @@ test("LiveKit tokens require an authorized voice channel and identified session"
     headers,
     data: body,
   });
-  expect(allowed.status()).toBe(200);
-  expect((await allowed.json()).token).toBeTruthy();
+  expect(allowed.status()).toBe(403);
+  expect(await allowed.json()).toMatchObject({
+    code: "MEDIA_E2EE_UNSUPPORTED",
+  });
+  expect((await allowed.json()).token).toBeUndefined();
 });

@@ -1,12 +1,16 @@
 import { create } from "zustand";
 import { tGlobal, getErrorMessage } from "../i18n/index.js";
+import type { DownloadProgress } from "@tescord/types";
 
-export type ToastType = "info" | "success" | "error";
+export type ToastType = "info" | "success" | "error" | "warning";
 
 export interface ToastItem {
   id: string;
   message: string;
   type: ToastType;
+  key?: string;
+  params?: Record<string, string | number>;
+  progress?: DownloadProgress;
 }
 
 export type ToastMessageInput =
@@ -39,7 +43,17 @@ interface ToastState {
     duration?: number,
   ) => void;
   removeToast: (id: string) => void;
+  updateToast: (
+    id: string,
+    key: string,
+    params: Record<string, string | number>,
+    type?: ToastType,
+    progress?: DownloadProgress,
+    duration?: number,
+  ) => void;
 }
+
+const progressTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 export const useToastStore = create<ToastState>((set) => ({
   toasts: [],
@@ -60,9 +74,29 @@ export const useToastStore = create<ToastState>((set) => ({
     }, duration);
   },
   removeToast: (id: string) => {
+    clearTimeout(progressTimers.get(id));
+    progressTimers.delete(id);
     set((state) => ({
       toasts: state.toasts.filter((t) => t.id !== id),
     }));
+  },
+  updateToast: (id, key, params, type = "info", progress, duration) => {
+    clearTimeout(progressTimers.get(id));
+    progressTimers.delete(id);
+    const item: ToastItem = { id, message: "", key, params, type, progress };
+    set((state) => ({
+      toasts: [...state.toasts.filter((toast) => toast.id !== id), item],
+    }));
+    if (duration)
+      progressTimers.set(
+        id,
+        setTimeout(() => {
+          set((state) => ({
+            toasts: state.toasts.filter((toast) => toast.id !== id),
+          }));
+          progressTimers.delete(id);
+        }, duration),
+      );
   },
 }));
 

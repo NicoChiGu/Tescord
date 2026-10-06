@@ -24,6 +24,10 @@ import { dmService } from "./services/dm.service.js";
 import { dmCallService } from "./services/dm-call.service.js";
 import { registrationInviteService } from "./services/registration-invite.service.js";
 import { cloudflareRealtimeService } from "./services/cloudflare-realtime.service.js";
+import { registerGuildIconRoutes } from "./guild-icon.routes.js";
+import { guildIconProcessor } from "./services/guild-icon.service.js";
+import { registerMediaEncryptionRoutes } from "./services/media-encryption.routes.js";
+import { mediaEncryptionRegistry } from "./services/media-encryption.service.js";
 import type {
   CfCallsPublishTrackRequest,
   CfCallsSubscribeTrackRequest,
@@ -257,6 +261,34 @@ async function getUserIdFromRequest(
   }
 }
 
+// Expensive image jobs must revalidate the session after processing, too.
+async function getActiveUserIdFromRequest(
+  request: FastifyRequest,
+): Promise<string | null> {
+  try {
+    await request.jwtVerify();
+    const claims = request.user as {
+      sub?: string;
+      sessionId?: string;
+      sessionVersion?: number;
+    };
+    if (!claims.sub || !claims.sessionId) return null;
+    const [user, session] = await Promise.all([
+      prisma.user.findUnique({ where: { id: claims.sub } }),
+      prisma.refreshToken.findUnique({ where: { id: claims.sessionId } }),
+    ]);
+    return user &&
+      !user.isBanned &&
+      Number(user.sessionVersion ?? 0) === Number(claims.sessionVersion ?? 0) &&
+      session?.userId === user.id &&
+      session.expiresAt > new Date()
+      ? user.id
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 // 7. 鉴权守卫中间件
 server.decorate(
   "authenticate",
@@ -362,6 +394,9 @@ server.addHook("preHandler", async (request, reply) => {
     });
   }
 });
+
+registerGuildIconRoutes(server, getActiveUserIdFromRequest, sendApiError);
+registerMediaEncryptionRoutes(server, getActiveUserIdFromRequest, sendApiError);
 
 server.decorate(
   "requireSuperAdmin",
@@ -4412,15 +4447,61 @@ server.delete(
 // ==========================================
 
 server.get("/api/channels/:channelId/messages", async (request, reply) => {
-  const { channelId } = request.params as any;
-  const { limit: queryLimit, before, after } = (request.query || {}) as any;
+  const { channelId } = request.params as { channelId: string };
+  const {
+    limit: queryLimit,
+    before,
+    after,
+    format,
+  } = (request.query || {}) as {
+    limit?: string;
+    before?: string;
+    after?: string;
+    format?: string;
+  };
+  const parseCursor = (value: string | undefined) =>
+    value === undefined ||
+    (typeof value === "string" &&
+      /^\d+$/.test(value) &&
+      Number.isSafeInteger(Number(value)) &&
+      Number(value) <= 2147483647);
+  if (
+    !parseCursor(before) ||
+    !parseCursor(after) ||
+    (before !== undefined && after !== undefined) ||
+    (format !== undefined && format !== "page") ||
+    (queryLimit !== undefined &&
+      (typeof queryLimit !== "string" ||
+        !/^\d+$/.test(queryLimit) ||
+        Number(queryLimit) < 1 ||
+        Number(queryLimit) > 100))
+  ) {
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.INVALID_PARAMS,
+      ErrorCode.INVALID_PARAMS,
+    );
+  }
   const currentUserId = await getUserIdFromRequest(request);
-  if (!currentUserId) return reply.status(401).send({ error: "需要登录" });
+  if (!currentUserId)
+    return sendApiError(
+      reply,
+      401,
+      ErrorCode.UNAUTHORIZED,
+      ErrorCode.UNAUTHORIZED,
+    );
   const channel = await prisma.channel.findUnique({
     where: { id: channelId },
     include: { recipients: true },
   });
-  if (!channel) return reply.status(404).send({ error: "频道不存在" });
+  if (!channel)
+    return sendApiError(
+      reply,
+      404,
+      ErrorCode.CHANNEL_NOT_FOUND,
+      ErrorCode.CHANNEL_NOT_FOUND,
+    );
   const canRead = channel.guildId
     ? (await permissionService.hasChannelPermission(
         currentUserId,
@@ -4436,7 +4517,8 @@ server.get("/api/channels/:channelId/messages", async (request, reply) => {
       channel.recipients.some(
         (recipient) => recipient.userId === currentUserId,
       );
-  if (!canRead) return reply.status(403).send({ error: "无权读取该频道" });
+  if (!canRead)
+    return sendApiError(reply, 403, ErrorCode.FORBIDDEN, ErrorCode.FORBIDDEN);
   const attachmentScope = getAttachmentScope(request);
 
   const take = queryLimit
@@ -4490,7 +4572,7 @@ server.get("/api/channels/:channelId/messages", async (request, reply) => {
   >();
   if (replyToIds.length > 0) {
     const repliedMessages = await prisma.message.findMany({
-      where: { id: { in: replyToIds } },
+      where: { channelId, id: { in: replyToIds } },
       include: { author: { select: { username: true, displayName: true } } },
     });
     for (const rm of repliedMessages) {
@@ -4502,7 +4584,7 @@ server.get("/api/channels/:channelId/messages", async (request, reply) => {
     }
   }
 
-  return Promise.all(
+  const responseMessages = await Promise.all(
     messages.map(async (m) => {
       const reactionMap = new Map<
         string,
@@ -4579,6 +4661,39 @@ server.get("/api/channels/:channelId/messages", async (request, reply) => {
       };
     }),
   );
+  if (format !== "page") return responseMessages;
+  // Preserve an explicitly requested boundary even when deletions or stale cursors yield an empty page.
+  const requestedBoundary =
+    before !== undefined
+      ? Number(before)
+      : after !== undefined
+        ? Number(after)
+        : undefined;
+  const first = responseMessages[0]?.sequence ?? requestedBoundary;
+  const last =
+    responseMessages[responseMessages.length - 1]?.sequence ??
+    requestedBoundary;
+  const [older, newer] = await Promise.all([
+    first !== undefined
+      ? prisma.message.findFirst({
+          where: { channelId, sequence: { lt: first } },
+          select: { id: true },
+        })
+      : null,
+    last !== undefined
+      ? prisma.message.findFirst({
+          where: { channelId, sequence: { gt: last } },
+          select: { id: true },
+        })
+      : null,
+  ]);
+  return {
+    messages: responseMessages,
+    before: first,
+    after: last,
+    hasOlder: Boolean(older),
+    hasNewer: Boolean(newer),
+  } satisfies import("@tescord/types").MessagePage;
 });
 
 // 消息全局搜索 (Discord Search Engine: Guild 范围搜索)
@@ -4807,214 +4922,229 @@ server.get("/api/guilds/:guildId/messages/search", async (request, reply) => {
 });
 
 // 单频道消息搜索 (Channel 范围搜索，支持 DM 与普通频道)
-server.get("/api/channels/:channelId/messages/search", async (request, reply) => {
-  const { channelId } = request.params as any;
-  const {
-    query,
-    from,
-    has,
-    pinned,
-    before,
-    after,
-    limit = 25,
-    offset = 0,
-  } = (request.query || {}) as any;
+server.get(
+  "/api/channels/:channelId/messages/search",
+  async (request, reply) => {
+    const { channelId } = request.params as any;
+    const {
+      query,
+      from,
+      has,
+      pinned,
+      before,
+      after,
+      limit = 25,
+      offset = 0,
+    } = (request.query || {}) as any;
 
-  const userId = await getUserIdFromRequest(request);
-  const user = userId
-    ? await prisma.user.findUnique({ where: { id: userId } })
-    : null;
-  if (!user) {
-    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录后搜索");
-  }
-
-  const channel = await prisma.channel.findUnique({
-    where: { id: channelId },
-    include: { recipients: true },
-  });
-  if (!channel) {
-    return sendApiError(reply, 404, ErrorCode.NOT_FOUND, "频道不存在");
-  }
-
-  if (channel.isE2EE) {
-    return reply.send({ total: 0, messages: [], hasMore: false });
-  }
-
-  const isDM = channel.type === "DM" || channel.type === "GROUP_DM";
-  if (isDM) {
-    const isParticipant = channel.recipients.some((r) => r.userId === user.id);
-    if (!isParticipant) {
-      return sendApiError(reply, 403, ErrorCode.FORBIDDEN, "无权访问此私信频道");
+    const userId = await getUserIdFromRequest(request);
+    const user = userId
+      ? await prisma.user.findUnique({ where: { id: userId } })
+      : null;
+    if (!user) {
+      return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录后搜索");
     }
-  } else {
-    const canView = await permissionService.hasChannelPermission(
-      user.id,
-      channelId,
-      PermissionFlags.VIEW_CHANNEL,
-    );
-    const canReadHistory = await permissionService.hasChannelPermission(
-      user.id,
-      channelId,
-      PermissionFlags.READ_MESSAGE_HISTORY,
-    );
-    if (!canView || !canReadHistory) {
-      return sendApiError(reply, 403, ErrorCode.FORBIDDEN, "无权访问此频道消息");
+
+    const channel = await prisma.channel.findUnique({
+      where: { id: channelId },
+      include: { recipients: true },
+    });
+    if (!channel) {
+      return sendApiError(reply, 404, ErrorCode.NOT_FOUND, "频道不存在");
     }
-  }
 
-  const whereClause: any = {
-    channelId,
-    isEncrypted: false,
-  };
+    if (channel.isE2EE) {
+      return reply.send({ total: 0, messages: [], hasMore: false });
+    }
 
-  const parsedLimit = Math.min(50, Math.max(1, parseInt(limit, 10) || 25));
-  const parsedOffset = Math.max(0, parseInt(offset, 10) || 0);
-
-  if (query && typeof query === "string" && query.trim()) {
-    whereClause.content = { contains: query.trim() };
-  }
-
-  if (from && typeof from === "string" && from.trim()) {
-    const cleanFrom = from.trim().replace(/^@/, "");
-    whereClause.author = {
-      OR: [
-        { username: { contains: cleanFrom } },
-        { displayName: { contains: cleanFrom } },
-      ],
-    };
-  }
-
-  if (pinned === "true" || pinned === true) {
-    whereClause.isPinned = true;
-  }
-
-  if (has) {
-    if (has === "link") {
-      whereClause.content = {
-        ...(whereClause.content || {}),
-        contains: "http",
-      };
-    } else if (["file", "image", "video", "sound"].includes(has)) {
-      if (has === "image") {
-        whereClause.attachments = {
-          some: { mimeType: { startsWith: "image/" } },
-        };
-      } else if (has === "video") {
-        whereClause.attachments = {
-          some: { mimeType: { startsWith: "video/" } },
-        };
-      } else if (has === "sound") {
-        whereClause.attachments = {
-          some: { mimeType: { startsWith: "audio/" } },
-        };
-      } else {
-        whereClause.attachments = { some: {} };
+    const isDM = channel.type === "DM" || channel.type === "GROUP_DM";
+    if (isDM) {
+      const isParticipant = channel.recipients.some(
+        (r) => r.userId === user.id,
+      );
+      if (!isParticipant) {
+        return sendApiError(
+          reply,
+          403,
+          ErrorCode.FORBIDDEN,
+          "无权访问此私信频道",
+        );
+      }
+    } else {
+      const canView = await permissionService.hasChannelPermission(
+        user.id,
+        channelId,
+        PermissionFlags.VIEW_CHANNEL,
+      );
+      const canReadHistory = await permissionService.hasChannelPermission(
+        user.id,
+        channelId,
+        PermissionFlags.READ_MESSAGE_HISTORY,
+      );
+      if (!canView || !canReadHistory) {
+        return sendApiError(
+          reply,
+          403,
+          ErrorCode.FORBIDDEN,
+          "无权访问此频道消息",
+        );
       }
     }
-  }
 
-  if (before) {
-    const beforeDate = new Date(before);
-    if (!isNaN(beforeDate.getTime())) {
-      whereClause.createdAt = {
-        ...(whereClause.createdAt || {}),
-        lt: beforeDate,
+    const whereClause: any = {
+      channelId,
+      isEncrypted: false,
+    };
+
+    const parsedLimit = Math.min(50, Math.max(1, parseInt(limit, 10) || 25));
+    const parsedOffset = Math.max(0, parseInt(offset, 10) || 0);
+
+    if (query && typeof query === "string" && query.trim()) {
+      whereClause.content = { contains: query.trim() };
+    }
+
+    if (from && typeof from === "string" && from.trim()) {
+      const cleanFrom = from.trim().replace(/^@/, "");
+      whereClause.author = {
+        OR: [
+          { username: { contains: cleanFrom } },
+          { displayName: { contains: cleanFrom } },
+        ],
       };
     }
-  }
 
-  if (after) {
-    const afterDate = new Date(after);
-    if (!isNaN(afterDate.getTime())) {
-      whereClause.createdAt = {
-        ...(whereClause.createdAt || {}),
-        gt: afterDate,
-      };
+    if (pinned === "true" || pinned === true) {
+      whereClause.isPinned = true;
     }
-  }
 
-  const [total, rawMessages] = await Promise.all([
-    prisma.message.count({ where: whereClause }),
-    prisma.message.findMany({
-      where: whereClause,
-      include: {
-        author: {
-          select: {
-            id: true,
-            username: true,
-            displayName: true,
-            avatarUrl: true,
+    if (has) {
+      if (has === "link") {
+        whereClause.content = {
+          ...(whereClause.content || {}),
+          contains: "http",
+        };
+      } else if (["file", "image", "video", "sound"].includes(has)) {
+        if (has === "image") {
+          whereClause.attachments = {
+            some: { mimeType: { startsWith: "image/" } },
+          };
+        } else if (has === "video") {
+          whereClause.attachments = {
+            some: { mimeType: { startsWith: "video/" } },
+          };
+        } else if (has === "sound") {
+          whereClause.attachments = {
+            some: { mimeType: { startsWith: "audio/" } },
+          };
+        } else {
+          whereClause.attachments = { some: {} };
+        }
+      }
+    }
+
+    if (before) {
+      const beforeDate = new Date(before);
+      if (!isNaN(beforeDate.getTime())) {
+        whereClause.createdAt = {
+          ...(whereClause.createdAt || {}),
+          lt: beforeDate,
+        };
+      }
+    }
+
+    if (after) {
+      const afterDate = new Date(after);
+      if (!isNaN(afterDate.getTime())) {
+        whereClause.createdAt = {
+          ...(whereClause.createdAt || {}),
+          gt: afterDate,
+        };
+      }
+    }
+
+    const [total, rawMessages] = await Promise.all([
+      prisma.message.count({ where: whereClause }),
+      prisma.message.findMany({
+        where: whereClause,
+        include: {
+          author: {
+            select: {
+              id: true,
+              username: true,
+              displayName: true,
+              avatarUrl: true,
+            },
           },
+          attachments: true,
         },
-        attachments: true,
-      },
-      orderBy: { createdAt: "desc" },
-      take: parsedLimit,
-      skip: parsedOffset,
-    }),
-  ]);
+        orderBy: { createdAt: "desc" },
+        take: parsedLimit,
+        skip: parsedOffset,
+      }),
+    ]);
 
-  const attachmentScope = getAttachmentScope(request);
-  const formattedMessages = await Promise.all(
-    rawMessages.map(async (m) => ({
-      id: m.id,
-      channelId: m.channelId,
-      channelName: channel.name,
-      authorId: m.authorId,
-      author: {
-        id: m.author.id,
-        username: m.author.username,
-        displayName: m.author.displayName,
-        avatarUrl: m.author.avatarUrl,
-      },
-      content: m.content,
-      isEncrypted: m.isEncrypted,
-      replyToId: m.replyToId,
-      isPinned: m.isPinned,
-      attachments: await Promise.all(
-        m.attachments.map(async (a: any) => ({
-          id: a.id,
-          url: await storageService.createDownloadUrl(
-            a.url,
-            m.channelId,
-            attachmentScope,
-            "original",
-          ),
-          previewUrl: a.previewUrl
-            ? await storageService.createDownloadUrl(
-                a.url,
-                m.channelId,
-                attachmentScope,
-                "preview",
-              )
-            : undefined,
-          downloadUrl: await storageService.createDownloadUrl(
-            a.url,
-            m.channelId,
-            attachmentScope,
-            "original",
-            true,
-          ),
-          expiresAt: storageService.getDownloadExpiry(),
-          fileName: a.fileName,
-          fileSize: a.fileSize,
-          mimeType: a.mimeType,
-          width: a.width ?? a.previewWidth ?? undefined,
-          height: a.height ?? a.previewHeight ?? undefined,
-        })),
-      ),
-      createdAt: m.createdAt.toISOString(),
-      updatedAt: m.updatedAt.toISOString(),
-      sequence: m.sequence,
-    })),
-  );
+    const attachmentScope = getAttachmentScope(request);
+    const formattedMessages = await Promise.all(
+      rawMessages.map(async (m) => ({
+        id: m.id,
+        channelId: m.channelId,
+        channelName: channel.name,
+        authorId: m.authorId,
+        author: {
+          id: m.author.id,
+          username: m.author.username,
+          displayName: m.author.displayName,
+          avatarUrl: m.author.avatarUrl,
+        },
+        content: m.content,
+        isEncrypted: m.isEncrypted,
+        replyToId: m.replyToId,
+        isPinned: m.isPinned,
+        attachments: await Promise.all(
+          m.attachments.map(async (a: any) => ({
+            id: a.id,
+            url: await storageService.createDownloadUrl(
+              a.url,
+              m.channelId,
+              attachmentScope,
+              "original",
+            ),
+            previewUrl: a.previewUrl
+              ? await storageService.createDownloadUrl(
+                  a.url,
+                  m.channelId,
+                  attachmentScope,
+                  "preview",
+                )
+              : undefined,
+            downloadUrl: await storageService.createDownloadUrl(
+              a.url,
+              m.channelId,
+              attachmentScope,
+              "original",
+              true,
+            ),
+            expiresAt: storageService.getDownloadExpiry(),
+            fileName: a.fileName,
+            fileSize: a.fileSize,
+            mimeType: a.mimeType,
+            width: a.width ?? a.previewWidth ?? undefined,
+            height: a.height ?? a.previewHeight ?? undefined,
+          })),
+        ),
+        createdAt: m.createdAt.toISOString(),
+        updatedAt: m.updatedAt.toISOString(),
+        sequence: m.sequence,
+      })),
+    );
 
-  return {
-    total,
-    messages: formattedMessages,
-    hasMore: parsedOffset + formattedMessages.length < total,
-  };
-});
+    return {
+      total,
+      messages: formattedMessages,
+      hasMore: parsedOffset + formattedMessages.length < total,
+    };
+  },
+);
 
 server.post("/api/channels/:channelId/messages", async (request, reply) => {
   const { channelId } = request.params as any;
@@ -6026,6 +6156,13 @@ server.post("/api/attachments/presigned-url", async (request, reply) => {
     };
 
     if (body.purpose === "guild-icon") {
+      if (body.fileSize > 10 * 1024 * 1024)
+        return sendApiError(
+          reply,
+          400,
+          ErrorCode.FILE_TOO_LARGE,
+          ErrorCode.FILE_TOO_LARGE,
+        );
       if (
         !body.guildId ||
         !(await permissionService.hasGuildPermission(
@@ -6146,20 +6283,8 @@ server.delete("/api/guilds/:guildId/pending-icon", async (request, reply) => {
   if (!userId) {
     return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
   }
-  if (
-    !(await permissionService.hasGuildPermission(
-      userId,
-      guildId,
-      PermissionFlags.MANAGE_GUILD,
-    ))
-  ) {
-    return sendApiError(
-      reply,
-      403,
-      ErrorCode.GUILD_PERMISSION_DENIED,
-      "缺少管理服务器权限",
-    );
-  }
+  // An uploader may cancel their own unbound grant after losing management
+  // permission; storage still enforces exact owner/guild and unclaimed state.
   const body = (request.body || {}) as DiscardGuildIconUploadDTO;
   if (!body.fileUrl) {
     return sendApiError(
@@ -6280,6 +6405,24 @@ server.put("/api/attachments/upload/:fileName", async (request, reply) => {
     );
   }
 
+  if (scope.purpose === "guild-icon") {
+    try {
+      await guildIconProcessor.run(() =>
+        guildIconProcessor.validateUpload(buffer),
+      );
+    } catch (cause) {
+      const code =
+        cause instanceof Error && cause.message === ErrorCode.RATE_LIMITED
+          ? ErrorCode.RATE_LIMITED
+          : ErrorCode.FILE_TYPE_UNSUPPORTED;
+      return sendApiError(
+        reply,
+        code === ErrorCode.RATE_LIMITED ? 429 : 415,
+        code,
+        code,
+      );
+    }
+  }
   try {
     await storageService.storeObject(decodedFileName, buffer);
     return { success: true };
@@ -6556,6 +6699,29 @@ server.get("/public-assets/:fileName", async (request, reply) => {
   reply.header("X-Content-Type-Options", "nosniff");
   try {
     const stream = await storageService.openObject(fileUrl);
+    if (
+      guild &&
+      ext === "gif" &&
+      (request.query as { static?: string }).static === "1"
+    ) {
+      const chunks: Buffer[] = [];
+      let size = 0;
+      for await (const chunk of stream) {
+        const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        size += bytes.length;
+        if (size > 10 * 1024 * 1024)
+          return sendPublicAssetError(413, ErrorCode.FILE_TYPE_UNSUPPORTED);
+        chunks.push(bytes);
+      }
+      const png = await guildIconProcessor.run(() =>
+        guildIconProcessor.frame(Buffer.concat(chunks), 0, true),
+      );
+      return reply
+        .type("image/png")
+        .header("Cache-Control", "public, max-age=31536000, immutable")
+        .header("ETag", `"${decoded}-static-0"`)
+        .send(png);
+    }
     reply.header("Cache-Control", "public, max-age=31536000, immutable");
     reply.header("ETag", `"${decoded}"`);
     return reply.send(stream);
@@ -7209,36 +7375,13 @@ server.post("/api/livekit/token", async (request, reply) => {
       "Voice permission denied",
     );
 
-  const wantsPublish = body.isPublisher !== false;
-  let isPublisher = wantsPublish;
-  let publishSources: LiveKitPublishSource[] | undefined;
-  if (wantsPublish && channel.guildId) {
-    const canSpeak = await permissionService.hasChannelPermission(
-      reqUserId,
-      channel.id,
-      PermissionFlags.SPEAK,
-    );
-    const canStream = await permissionService.hasChannelPermission(
-      reqUserId,
-      channel.id,
-      PermissionFlags.STREAM,
-    );
-    publishSources = [
-      ...(canSpeak ? (["microphone", "camera"] as const) : []),
-      ...(canStream ? (["screen_share", "screen_share_audio"] as const) : []),
-    ];
-    isPublisher = publishSources.length > 0;
-  }
-
-  return await generateLiveKitToken({
-    roomName: body.roomName,
-    identity: body.identity,
-    gatewaySessionId,
-    name: typeof body.name === "string" ? body.name.slice(0, 128) : undefined,
-    isPublisher,
-    publishSources,
-    bitrate: body.bitrate,
-  });
+  // The former room-key adapter is incompatible with per-stream SFrame v2.
+  return sendApiError(
+    reply,
+    403,
+    ErrorCode.MEDIA_E2EE_UNSUPPORTED,
+    ErrorCode.MEDIA_E2EE_UNSUPPORTED,
+  );
 });
 
 // LiveKit Webhook 权威状态收敛回调
@@ -7420,6 +7563,16 @@ async function cfSessionForRequest(
   } else if (session.callId) {
     return null;
   }
+  try {
+    await mediaEncryptionRegistry.assertParticipant(
+      session.channelId,
+      userId,
+      session.gatewaySessionId || "",
+      session.callId,
+    );
+  } catch {
+    return null;
+  }
   return { ...session, sessionId };
 }
 
@@ -7541,13 +7694,29 @@ server.post("/api/cloudflare-realtime/session/new", async (request, reply) => {
       )
     )
       return sendApiError(reply, 403, ErrorCode.FORBIDDEN, ErrorCode.FORBIDDEN);
-  } else if (callId || gatewaySessionId) {
+  } else if (callId) {
     return sendApiError(
       reply,
       400,
       ErrorCode.INVALID_PARAMS,
       ErrorCode.INVALID_PARAMS,
     );
+  }
+
+  try {
+    await mediaEncryptionRegistry.assertParticipant(
+      channelId,
+      userId,
+      gatewaySessionId || "",
+      callId,
+    );
+  } catch (cause) {
+    const code =
+      cause instanceof Error &&
+      Object.values(ErrorCode).includes(cause.message as ErrorCode)
+        ? (cause.message as ErrorCode)
+        : ErrorCode.MEDIA_KEY_UNAVAILABLE;
+    return sendApiError(reply, 403, code, code);
   }
 
   try {
@@ -7564,10 +7733,7 @@ server.post("/api/cloudflare-realtime/session/new", async (request, reply) => {
     return {
       ...session,
       tracks: cloudflareRealtimeService.getTracks(channelId),
-      requiresE2EE:
-        channel?.type === "DM" ||
-        channel?.type === "GROUP_DM" ||
-        Boolean(channel?.isE2EE),
+      requiresE2EE: true,
     };
   } catch (err: any) {
     server.log.error(err, "Failed to create Cloudflare Calls session");
@@ -8533,20 +8699,12 @@ server.post(
       });
     }
 
-    const roomName = `dm_${channelId}_${body.callId}`;
-    const token = await generateLiveKitToken({
-      roomName,
-      identity: userPayload.sub,
-      name: userPayload.username,
-      isPublisher: true,
-    });
-
-    return {
-      ...token,
-      callId: body.callId,
-      roomName,
-      serverUrl: process.env.LIVEKIT_URL || "ws://localhost:7880",
-    };
+    return sendApiError(
+      reply,
+      403,
+      ErrorCode.MEDIA_E2EE_UNSUPPORTED,
+      ErrorCode.MEDIA_E2EE_UNSUPPORTED,
+    );
   },
 );
 

@@ -1,3 +1,4 @@
+import { installEncryptedVoiceUi } from "./helpers/encrypted-voice-ui";
 import { test, expect } from "@playwright/test";
 
 test.describe("远端与本地活跃说话者绿色指示器自动化验收 (Active Speaker Indicator E2E)", () => {
@@ -58,6 +59,7 @@ test.describe("远端与本地活跃说话者绿色指示器自动化验收 (Act
     });
 
     // 2. 访问主页面并进入首个公会
+    await installEncryptedVoiceUi(page);
     await page.goto("/");
     await expect(page).toHaveTitle(/Tescord/i);
 
@@ -126,12 +128,10 @@ test.describe("远端与本地活跃说话者绿色指示器自动化验收 (Act
 
     // 6. 模拟远端用户 A 触发活跃说话 (Active Speakers)
     await page.evaluate((remoteUserId) => {
-      const lk = (window as any).__livekitService;
+      const lk = (window as any).voiceMeshManager;
       if (lk) {
         lk.activeSpeakers = new Set([remoteUserId]);
-        lk.onActiveSpeakersChangedCallbacks?.forEach((cb: any) =>
-          cb([remoteUserId]),
-        );
+        lk.activeSpeakersCallbacks?.forEach((cb: any) => cb([remoteUserId]));
       }
     }, remoteUserId);
 
@@ -153,10 +153,10 @@ test.describe("远端与本地活跃说话者绿色指示器自动化验收 (Act
 
     // 7. 模拟远端用户 A 停止说话
     await page.evaluate(() => {
-      const lk = (window as any).__livekitService;
+      const lk = (window as any).voiceMeshManager;
       if (lk) {
         lk.activeSpeakers = new Set([]);
-        lk.onActiveSpeakersChangedCallbacks?.forEach((cb: any) => cb([]));
+        lk.activeSpeakersCallbacks?.forEach((cb: any) => cb([]));
       }
     });
 

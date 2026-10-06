@@ -32,6 +32,7 @@ import {
   ChevronDown,
   FolderPlus,
   BellOff,
+  GripVertical,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { VOICE_ENGINE, resolveServerUrl } from "../config.js";
@@ -76,6 +77,8 @@ import { voiceMeshManager } from "../services/p2p/VoiceMeshManager.js";
 import { p2pStreamManager } from "../services/p2p/P2PStreamManager.js";
 import { DirectMessageList } from "./dm/DirectMessageList.js";
 import { CurrentUserPopout } from "./profile/CurrentUserPopout.js";
+import { MediaEncryptionIndicator } from "./MediaEncryptionIndicator.js";
+import { useTouchContextMenu } from "../hooks/useTouchContextMenu.js";
 import { getUserDisplayName } from "../utils/userDisplay.js";
 
 export interface VoiceTransferNotice {
@@ -195,7 +198,6 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
   onOpenSettings,
   onKickMember,
   onBanMember,
-  onCancelDrag,
 }) => {
   const isSelected = selectedChannelId === channel.id;
   const isConnected = activeVoiceChannelId === channel.id;
@@ -206,82 +208,20 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
   // 静音时普通未读不显示白条，仅在有 mention 时显示（对齐 Discord 经典规范）
   const showPill = hasUnread && (!isChannelMuted || mentionCount > 0);
 
-  // 触屏长按 1.5 秒且位移不超过 8px 时呼出菜单并锁定拖拽
-  const touchStartPosRef = React.useRef<{ x: number; y: number } | null>(null);
-  const touchTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
-  const [isDragLocked, setIsDragLocked] = React.useState(false);
-  const itemContainerRef = React.useRef<HTMLDivElement | null>(null);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    if (e.touches.length !== 1) return;
-    const touch = e.touches[0];
-    touchStartPosRef.current = { x: touch.clientX, y: touch.clientY };
-
-    if (touchTimerRef.current) clearTimeout(touchTimerRef.current);
-    touchTimerRef.current = setTimeout(() => {
-      if (touchStartPosRef.current) {
-        setIsDragLocked(true);
-        onCancelDrag?.();
-        if (typeof navigator !== "undefined" && navigator.vibrate) {
-          navigator.vibrate(40);
-        }
-        const elem = itemContainerRef.current;
-        if (elem) {
-          const evt = new MouseEvent("contextmenu", {
-            bubbles: true,
-            cancelable: true,
-            view: window,
-            clientX: touchStartPosRef.current.x,
-            clientY: touchStartPosRef.current.y,
-            button: 2,
-          });
-          elem.dispatchEvent(evt);
-        }
-      }
-    }, 1500);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchStartPosRef.current || e.touches.length !== 1) return;
-    const touch = e.touches[0];
-    const dist = Math.hypot(
-      touch.clientX - touchStartPosRef.current.x,
-      touch.clientY - touchStartPosRef.current.y,
-    );
-    if (dist > 8) {
-      if (touchTimerRef.current) {
-        clearTimeout(touchTimerRef.current);
-        touchTimerRef.current = null;
-      }
-    }
-  };
-
-  const handleTouchEndOrCancel = () => {
-    if (touchTimerRef.current) {
-      clearTimeout(touchTimerRef.current);
-      touchTimerRef.current = null;
-    }
-    touchStartPosRef.current = null;
-    if (isDragLocked) {
-      setTimeout(() => {
-        setIsDragLocked(false);
-      }, 100);
-    }
-  };
+  const touchMenu = useTouchContextMenu();
 
   const {
     attributes: { role: _role, tabIndex: _tabIndex, ...sortableAttributes },
     listeners,
     setNodeRef,
+    setActivatorNodeRef,
     transform,
     transition,
     isDragging,
   } = useSortable({
     id: `chn_${channel.id}`,
     data: { type: "channel", channel },
-    disabled: !canManageChannels || isDragLocked,
+    disabled: !canManageChannels,
   });
 
   const style: React.CSSProperties = {
@@ -293,16 +233,11 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
 
   return (
     <div
-      ref={(el) => {
-        setNodeRef(el);
-        itemContainerRef.current = el;
-      }}
+      ref={setNodeRef}
       style={style}
       className="space-y-[2px]"
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEndOrCancel}
-      onTouchCancel={handleTouchEndOrCancel}
+      data-testid={`channel-sortable-${channel.id}`}
+      data-dragging={isDragging}
     >
       <ChannelContextMenu
         channel={channel}
@@ -314,11 +249,32 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
         onMarkAsRead={onMarkChannelAsRead}
       >
         <div
-          {...(canManageChannels && !isDragLocked ? sortableAttributes : {})}
-          {...(canManageChannels && !isDragLocked ? listeners : {})}
+          {...touchMenu}
+          onMouseDown={
+            canManageChannels
+              ? (event) => listeners?.onMouseDown?.(event)
+              : undefined
+          }
           data-channel-id={channel.id}
           className="relative group w-full flex items-center"
         >
+          {canManageChannels && (
+            <button
+              type="button"
+              data-drag-handle
+              data-testid={`channel-drag-handle-${channel.id}`}
+              ref={setActivatorNodeRef}
+              {...sortableAttributes}
+              {...listeners}
+              onPointerDown={(event) => event.stopPropagation()}
+              onContextMenu={(event) => event.preventDefault()}
+              onClick={(event) => event.stopPropagation()}
+              aria-label={t("server:dragChannel", { name: channel.name })}
+              className="shrink-0 w-11 h-11 flex items-center justify-center touch-none text-discord-textMuted lg:hidden"
+            >
+              <GripVertical className="w-4 h-4" />
+            </button>
+          )}
           {/* Discord 经典左边缘未读白色胶囊指示条 */}
           {showPill && (
             <span
@@ -1321,6 +1277,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
       {/* 底部连接控制面板 (接入语音连接中或已连接时显示) */}
       {activeVoiceChannel && voiceConnectionStatus !== "disconnected" && (
         <div className="bg-[#202225] border-b border-[#2b2d31] p-2.5 flex flex-col space-y-2 animate-fadeIn relative">
+          <MediaEncryptionIndicator showCounters={false} />
           <VoiceConnectionStatusPopover
             isOpen={isConnectionPopoverOpen}
             onClose={() => setIsConnectionPopoverOpen(false)}
@@ -1743,11 +1700,13 @@ const SortableCategorySection: React.FC<SortableCategorySectionProps> = ({
   onDeleteCategory,
   children,
 }) => {
-  const { t } = useTranslation(["contextMenu", "voice"]);
+  const { t } = useTranslation(["contextMenu", "voice", "server"]);
+  const touchMenu = useTouchContextMenu();
   const {
     attributes: { role: _role, tabIndex: _tabIndex, ...sortableAttributes },
     listeners,
     setNodeRef,
+    setActivatorNodeRef,
     transform,
     transition,
     isDragging,
@@ -1764,7 +1723,12 @@ const SortableCategorySection: React.FC<SortableCategorySectionProps> = ({
   };
 
   return (
-    <div ref={setNodeRef} style={style}>
+    <div
+      ref={setNodeRef}
+      style={style}
+      data-testid={`category-sortable-${category.id}`}
+      data-dragging={isDragging}
+    >
       <CategoryContextMenu
         category={category}
         guild={guild}
@@ -1775,13 +1739,34 @@ const SortableCategorySection: React.FC<SortableCategorySectionProps> = ({
         onDeleteCategory={onDeleteCategory}
       >
         <div
-          {...(canManageChannels ? sortableAttributes : {})}
-          {...(canManageChannels ? listeners : {})}
+          {...touchMenu}
+          onMouseDown={
+            canManageChannels
+              ? (event) => listeners?.onMouseDown?.(event)
+              : undefined
+          }
           className={`text-[11px] font-bold text-discord-textMuted uppercase tracking-wider px-2 py-1 mb-0.5 flex items-center justify-between group select-none hover:text-discord-textNormal rounded ${
             canManageChannels ? "cursor-grab" : "cursor-pointer"
           }`}
           data-testid={`category-header-${category.id}`}
         >
+          {canManageChannels && (
+            <button
+              type="button"
+              data-drag-handle
+              data-testid={`category-drag-handle-${category.id}`}
+              ref={setActivatorNodeRef}
+              {...sortableAttributes}
+              {...listeners}
+              onPointerDown={(event) => event.stopPropagation()}
+              onContextMenu={(event) => event.preventDefault()}
+              onClick={(event) => event.stopPropagation()}
+              aria-label={t("server:dragCategory", { name: category.name })}
+              className="shrink-0 w-11 h-11 flex items-center justify-center touch-none text-discord-textMuted lg:hidden"
+            >
+              <GripVertical className="w-4 h-4" />
+            </button>
+          )}
           <div
             onClick={onToggleCollapse}
             className="flex items-center space-x-1 min-w-0 flex-1 cursor-pointer"

@@ -185,7 +185,9 @@
     "loadFailed": "画像の読み込みに失敗しました",
     "retry": "再試行",
     "originalBadge": "原寸",
-    "zoomBadge": "ズーム {{percent}}%"
+    "zoomBadge": "ズーム {{percent}}%",
+    "decoding": "元の画像をデコード中…",
+    "downloadProgress": "{{loaded}} / {{total}} MB"
   },
   "searchEmoji": "絵文字を検索...",
   "emojiCategoryRecent": "よく使う絵文字",
@@ -212,5 +214,17 @@
     "welcomeDesc": "キーワード全文検索や from:、has: などの高度な構文フィルターに対応。",
     "imageAttachment": "画像添付",
     "fileAttachment": "ファイル添付"
+  },
+  "loadingOlder": "以前のメッセージを読み込み中…",
+  "loadingNewer": "新しいメッセージを読み込み中…",
+  "loadOlder": "以前のメッセージを読み込む",
+  "loadNewer": "新しいメッセージを読み込む",
+  "history": {
+    "loadFailed": "メッセージを読み込めませんでした。再試行してください",
+    "unread": "未読メッセージがあります",
+    "viewingOlder": "以前のメッセージを表示しています",
+    "jumpUnread": "未読へ移動",
+    "jumpLatest": "最新へ移動",
+    "jumpLatestTitle": "最新のメッセージへ移動"
   }
 }

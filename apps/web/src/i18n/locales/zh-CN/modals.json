@@ -241,7 +241,8 @@
     "title": "编辑图标尺寸",
     "description": "拖拽以平移取景位置，使用滑块调整缩放尺寸。",
     "confirmBtn": "确认并上传",
-    "previewAlt": "图标裁剪预览"
+    "previewAlt": "图标裁剪预览",
+    "processingFailed": "无法处理图片，请重试"
   },
   "whatsNew": {
     "title": "更新公告与新功能",

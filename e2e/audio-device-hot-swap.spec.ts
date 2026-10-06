@@ -1,3 +1,4 @@
+import { installEncryptedVoiceUi } from "./helpers/encrypted-voice-ui";
 import { test, expect } from "@playwright/test";
 
 test.describe("语音输入配置热切换与无缝推流验收 (Audio Input Hot Swap E2E)", () => {
@@ -105,6 +106,7 @@ test.describe("语音输入配置热切换与无缝推流验收 (Audio Input Hot
       });
     });
 
+    await installEncryptedVoiceUi(page);
     await page.goto("/");
 
     // 2. 进入服务器与语音频道

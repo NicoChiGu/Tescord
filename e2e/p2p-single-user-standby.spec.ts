@@ -1,4 +1,49 @@
 import { test, expect } from "@playwright/test";
+import { createRequire } from "node:module";
+import path from "node:path";
+const webRoot = path.resolve(process.cwd(), "apps/web");
+const webRequire = createRequire(path.join(webRoot, "package.json"));
+let server: {
+  listen(): Promise<void>;
+  close(): Promise<void>;
+  resolvedUrls?: { local: string[] };
+};
+let origin: string;
+test.beforeAll(async () => {
+  const { createServer } = await import(webRequire.resolve("vite"));
+  server = await createServer({
+    root: webRoot,
+    server: { host: "127.0.0.1", port: 0 },
+  });
+  await server.listen();
+  origin = server.resolvedUrls!.local[0];
+});
+test.afterAll(async () => {
+  await server?.close();
+});
+async function openStateHarness(
+  page: import("@playwright/test").Page,
+  encrypted = true,
+) {
+  await page.route(`${origin}mesh-state`, (route) =>
+    route.fulfill({ contentType: "text/html", body: "<html></html>" }),
+  );
+  await page.goto(`${origin}mesh-state`);
+  await page.evaluate(async (encrypted) => {
+    const { voiceMeshManager } =
+      await import("/src/services/p2p/VoiceMeshManager.ts");
+    const { sframeManager } = await import("/src/services/sframe.ts");
+    (window as any).voiceMeshManager = voiceMeshManager;
+    // State-machine isolation only. Production authentication/key exchange is covered
+    // independently by media-encryption-device-mesh.spec.ts using real accounts.
+    if (encrypted)
+      sframeManager.beginContext(async (streamId) => ({
+        streamId,
+        keyId: crypto.getRandomValues(new Uint32Array(1))[0] || 1,
+        key: crypto.getRandomValues(new Uint8Array(32)),
+      }));
+  }, encrypted);
+}
 
 test.describe("VoiceMesh 对端离开防重试与单人待命防降级验收测试", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
@@ -109,7 +154,7 @@ test.describe("VoiceMesh 对端离开防重试与单人待命防降级验收测�
       logs.push(msg.text());
     });
 
-    await page.goto("/");
+    await openStateHarness(page);
     await page.waitForLoadState("domcontentloaded");
     await page.waitForFunction(
       () => Boolean((window as any).voiceMeshManager),
@@ -192,7 +237,7 @@ test.describe("VoiceMesh 对端离开防重试与单人待命防降级验收测�
       logs.push(msg.text());
     });
 
-    await page.goto("/");
+    await openStateHarness(page);
     await page.waitForLoadState("domcontentloaded");
     await page.waitForFunction(
       () => Boolean((window as any).voiceMeshManager),
@@ -247,7 +292,7 @@ test.describe("VoiceMesh 对端离开防重试与单人待命防降级验收测�
   });
 
   test("旧频道的离开信令不会关闭新频道中的同一对端", async ({ page }) => {
-    await page.goto("/");
+    await openStateHarness(page);
     await page.waitForFunction(() => Boolean((window as any).voiceMeshManager));
 
     const counts = await page.evaluate(async () => {
@@ -282,7 +327,7 @@ test.describe("VoiceMesh 对端离开防重试与单人待命防降级验收测�
   });
 
   test("私信通话离开信令定向发送给对端并携带 callId", async ({ page }) => {
-    await page.goto("/");
+    await openStateHarness(page, false);
     await page.waitForFunction(() => Boolean((window as any).voiceMeshManager));
 
     const result = await page.evaluate(async () => {
@@ -303,9 +348,19 @@ test.describe("VoiceMesh 对端离开防重试与单人待命防降级验收测�
           error instanceof Error && error.message.includes("E2EE 密钥未就绪");
       }
 
-      // 信令序列化与密钥协商彼此独立。在此只建立非私信的本地测试状态，
-      // 再设置 callId 验证离开消息的定向路由；真实私信媒体由 E2EE 用例验收。
-      await mesh.startVoiceMesh("dm_voice", "", stream, ["usr_mesh_tester_b"]);
+      const { sframeManager } = await import("/src/services/sframe.ts");
+      sframeManager.beginContext(async (streamId) => ({
+        streamId,
+        keyId: 1,
+        key: crypto.getRandomValues(new Uint8Array(32)),
+      }));
+      await mesh.startVoiceMesh(
+        "dm_voice",
+        "",
+        stream,
+        ["usr_mesh_tester_b"],
+        "call_1",
+      );
       mesh.activeCallId = "call_1";
       const sent: Array<{ callId?: string; targetId?: string; type: string }> =
         [];

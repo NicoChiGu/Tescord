@@ -1,3 +1,4 @@
+import { GuildIcon } from "../ui/GuildIcon.js";
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { InvitePreviewDTO } from "@tescord/types";
@@ -162,7 +163,7 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
         {/* 服务器图标与信息 */}
         <div className="flex items-center space-x-3 min-w-0 flex-1">
           {invite.guild.iconUrl ? (
-            <img
+            <GuildIcon
               src={resolveServerUrl(invite.guild.iconUrl)}
               alt={invite.guild.name}
               className="w-12 h-12 rounded-2xl object-cover shrink-0 bg-[#1e1f22]"

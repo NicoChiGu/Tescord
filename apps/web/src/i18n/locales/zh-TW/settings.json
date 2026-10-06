@@ -288,5 +288,13 @@
   "globalFontSizeDesc": "按比例動態縮放全軟體文字與介面排版大小（基準 13px - 20px）",
   "resetFontSize": "重設預設字級",
   "myEmojis": "我的表情",
-  "myEmojisDesc": "管理您上傳的個人表情包，可在任何頻道或私訊中自由發送"
+  "myEmojisDesc": "管理您上傳的個人表情包，可在任何頻道或私訊中自由發送",
+  "noiseLoad": {
+    "downloading": "正在下載 {{model}} 模型",
+    "verifying": "正在驗證 {{model}} 模型",
+    "initializing": "正在初始化 {{model}} 降噪",
+    "complete": "已切換至 {{model}} 降噪",
+    "downloaded": "{{model}} 已下載，將在麥克風啟用時載入",
+    "failed": "{{model}} 載入失敗，繼續使用 {{effective}}"
+  }
 }

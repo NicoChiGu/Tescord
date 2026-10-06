@@ -1,4 +1,5 @@
 {
+  "AUDIO_PROCESSING_UNSUPPORTED": "This browser does not support the required audio processing interface. Use a browser with AudioWorklet support or the desktop app.",
   "INTERNAL_ERROR": "Internal server error. Please try again later.",
   "INVALID_PARAMS": "Invalid request parameters. Please verify your input.",
   "NOT_FOUND": "The requested resource was not found.",
@@ -48,5 +49,11 @@
   "EMOJI_NOT_FOUND": "Custom emoji not found",
   "EMOJI_LIMIT_REACHED": "Custom emoji limit reached",
   "EMOJI_NAME_INVALID": "Emoji name must be 2-32 alphanumeric characters or underscores",
-  "EMOJI_FILE_TOO_LARGE": "Emoji file size exceeds limit (GIF must be under 2MB, static under 1MB)"
+  "EMOJI_FILE_TOO_LARGE": "Emoji file size exceeds limit (GIF must be under 2MB, static under 1MB)",
+  "MEDIA_E2EE_UNSUPPORTED": "This device does not support media end-to-end encryption and cannot join voice",
+  "MEDIA_KEY_UNAVAILABLE": "Media encryption keys are not ready. Try again.",
+  "MEDIA_CONTEXT_STALE": "Voice membership changed; refreshing the encrypted session",
+  "MEDIA_KEY_INVALID": "Media key verification failed; connection refused",
+  "MEDIA_NEGOTIATION_TIMEOUT": "Media encryption negotiation timed out. Rejoin to retry.",
+  "ICON_PROCESS_TIMEOUT": "Icon processing timed out. Try a smaller GIF."
 }

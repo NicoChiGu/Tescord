@@ -1,3 +1,4 @@
+import { GuildIcon } from "../ui/GuildIcon.js";
 import React, { useState, useEffect } from "react";
 import {
   AdminOverviewStats,
@@ -1009,7 +1010,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     >
                       <div className="flex items-center space-x-3">
                         {g.iconUrl ? (
-                          <img
+                          <GuildIcon
                             src={resolveServerUrl(g.iconUrl)}
                             alt={g.name}
                             className="w-10 h-10 rounded-xl object-cover"
@@ -1378,7 +1379,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     <label className="relative inline-flex items-center cursor-pointer">
                       <input
                         type="checkbox"
-                        checked={settings.allowNonSuperAdminCreateGuild !== false}
+                        checked={
+                          settings.allowNonSuperAdminCreateGuild !== false
+                        }
                         onChange={(e) =>
                           setSettings({
                             ...settings,

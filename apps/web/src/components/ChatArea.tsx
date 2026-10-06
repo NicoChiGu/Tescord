@@ -1,4 +1,10 @@
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useLayoutEffect,
+  useCallback,
+} from "react";
 import {
   Channel,
   Message,
@@ -12,6 +18,7 @@ import {
   TypingIndicatorPayload,
   MAX_MESSAGE_CONTENT_LENGTH,
   MAX_ENCRYPTED_ENVELOPE_LENGTH,
+  MessageHistoryState,
 } from "@tescord/types";
 import {
   Hash,
@@ -80,6 +87,9 @@ interface ChatAreaProps {
   guild?: Guild | null;
   messages: Message[];
   isLoadingMessages?: boolean;
+  history?: MessageHistoryState;
+  onLoadOlderMessages?: () => Promise<void>;
+  onLoadNewerMessages?: () => Promise<void>;
   currentUser: User;
   onSendMessage: (
     content: string,
@@ -552,7 +562,9 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
                     }
                   >
                     {(() => {
-                      const customMatch = r.emoji.match(/^<a?:([a-zA-Z0-9_]+):([a-zA-Z0-9_-]+)>/);
+                      const customMatch = r.emoji.match(
+                        /^<a?:([a-zA-Z0-9_]+):([a-zA-Z0-9_-]+)>/,
+                      );
                       if (customMatch) {
                         const [, name, id] = customMatch;
                         return (
@@ -718,6 +730,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   guild,
   messages,
   isLoadingMessages = false,
+  history,
+  onLoadOlderMessages,
+  onLoadNewerMessages,
   currentUser,
   onSendMessage,
   onReactionAdd,
@@ -1108,6 +1123,150 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     overscan: dynamicOverscan,
   });
 
+  const historyRequests = useRef({ older: false, newer: false });
+  const historyPageAppend = useRef(false);
+  const historyAnchor = useRef<{
+    id: string;
+    offset: number;
+    channelId: string;
+  }>();
+  const requestHistory = useCallback(
+    async (direction: "older" | "newer") => {
+      const load =
+        direction === "older" ? onLoadOlderMessages : onLoadNewerMessages;
+      if (!load || historyRequests.current[direction]) return;
+      const requests = historyRequests.current;
+      requests[direction] = true;
+      if (direction === "newer") historyPageAppend.current = true;
+      if (direction === "older") {
+        const container = scrollContainerRef.current;
+        if (container) {
+          const top = container.getBoundingClientRect().top;
+          const first = Array.from(
+            container.querySelectorAll<HTMLElement>(
+              "[data-history-message-id]",
+            ),
+          ).find((row) => row.getBoundingClientRect().bottom > top);
+          if (first)
+            historyAnchor.current = {
+              id: first.dataset.historyMessageId!,
+              offset: first.getBoundingClientRect().top - top,
+              channelId: channel.id,
+            };
+        }
+        isNearBottomRef.current = false;
+        setIsNearBottom(false);
+      }
+      try {
+        await load();
+      } catch {
+        /* The parent exposes a localized edge error. */
+      } finally {
+        requests[direction] = false;
+        if (direction === "newer")
+          requestAnimationFrame(() => {
+            historyPageAppend.current = false;
+          });
+      }
+    },
+    [onLoadOlderMessages, onLoadNewerMessages, channel.id],
+  );
+
+  useEffect(() => {
+    historyRequests.current = { older: false, newer: false };
+    historyPageAppend.current = false;
+    historyAnchor.current = undefined;
+  }, [channel.id]);
+
+  useLayoutEffect(() => {
+    const anchor = historyAnchor.current;
+    const container = scrollContainerRef.current;
+    if (!anchor || !container || anchor.channelId !== channel.id) return;
+    const restore = () => {
+      if (historyAnchor.current !== anchor) return false;
+      const row = Array.from(
+        container.querySelectorAll<HTMLElement>("[data-history-message-id]"),
+      ).find((item) => item.dataset.historyMessageId === anchor.id);
+      if (row) {
+        container.scrollTop +=
+          row.getBoundingClientRect().top -
+          container.getBoundingClientRect().top -
+          anchor.offset;
+        currentScrollTopRef.current = container.scrollTop;
+      }
+      return Boolean(row);
+    };
+    if (!restore()) {
+      const index = displayedMessages.findIndex(
+        (message) => message.id === anchor.id,
+      );
+      if (index >= 0) rowVirtualizer.scrollToIndex(index, { align: "start" });
+    }
+    let frame = requestAnimationFrame(restore);
+    const observer = new ResizeObserver(() => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(restore);
+    });
+    const list = container.querySelector(
+      '[data-testid="virtual-message-list-container"]',
+    );
+    if (list) observer.observe(list);
+    const release = setTimeout(() => {
+      restore();
+      if (
+        !history?.loadingOlder &&
+        !historyRequests.current.older &&
+        historyAnchor.current === anchor
+      )
+        historyAnchor.current = undefined;
+    }, 300);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(release);
+      observer.disconnect();
+    };
+  }, [displayedMessages, history?.loadingOlder, channel.id, rowVirtualizer]);
+
+  const checkHistoryEdges = useCallback(() => {
+    if (
+      !history ||
+      matchingMessageIds ||
+      !isInitialPositionedRef.current ||
+      !displayedMessages.length
+    )
+      return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const visible = Array.from(
+      container.querySelectorAll<HTMLElement>("[data-history-message-id]"),
+    ).filter((row) => {
+      const box = row.getBoundingClientRect();
+      return box.bottom > rect.top && box.top < rect.bottom;
+    });
+    if (!visible.length) return;
+    const first = Number(visible[0].dataset.index);
+    const last = Number(visible[visible.length - 1].dataset.index);
+    if (
+      first < 3 &&
+      history.hasOlder &&
+      !history.loadingOlder &&
+      !history.olderError
+    )
+      void requestHistory("older");
+    if (
+      last >= displayedMessages.length - 3 &&
+      history.hasNewer &&
+      !history.loadingNewer &&
+      !history.newerError
+    )
+      void requestHistory("newer");
+  }, [history, matchingMessageIds, displayedMessages.length, requestHistory]);
+  useEffect(() => {
+    const timer = setTimeout(checkHistoryEdges, 100);
+    return () => clearTimeout(timer);
+  }, [checkHistoryEdges]);
+
   useEffect(() => {
     rowVirtualizer.measure();
   }, [messageDisplayMode, rowVirtualizer]);
@@ -1291,6 +1450,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       }
 
       checkUnreadDividerVisibility();
+      checkHistoryEdges();
     });
   }, [
     channel.id,
@@ -1298,6 +1458,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     initialUnreadSequence,
     markDividerAsRead,
     checkUnreadDividerVisibility,
+    checkHistoryEdges,
   ]);
 
   const scrollJumpTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -1423,7 +1584,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         setIsSearchDrawerOpen(false);
       }
     },
-    [channel.id, guild?.channels, onSelectChannel, isMobile, isTablet, handleJumpToMessage],
+    [
+      channel.id,
+      guild?.channels,
+      onSelectChannel,
+      isMobile,
+      isTablet,
+      handleJumpToMessage,
+    ],
   );
 
   const [isJumping, setIsJumping] = useState(false);
@@ -1731,7 +1899,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     const latestMsg = messages[messages.length - 1];
     if (latestMsg && latestMsg.id !== lastMessageIdRef.current) {
       lastMessageIdRef.current = latestMsg.id;
-      if (latestMsg.authorId === currentUser.id || isNearBottomRef.current) {
+      if (
+        (latestMsg.authorId === currentUser.id && !historyPageAppend.current) ||
+        isNearBottomRef.current
+      ) {
         // Sending a message always returns to the latest one. A measured image
         // or virtual row can grow after this render, so use the same follow-up
         // alignment as the explicit jump-to-latest action.
@@ -1865,19 +2036,21 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       let localImageHeight: number | undefined;
       if (file.type?.startsWith("image/")) {
         try {
-          const dims = await new Promise<{ width: number; height: number }>((resolve, reject) => {
-            const img = new Image();
-            const url = URL.createObjectURL(file);
-            img.onload = () => {
-              URL.revokeObjectURL(url);
-              resolve({ width: img.naturalWidth, height: img.naturalHeight });
-            };
-            img.onerror = () => {
-              URL.revokeObjectURL(url);
-              reject();
-            };
-            img.src = url;
-          });
+          const dims = await new Promise<{ width: number; height: number }>(
+            (resolve, reject) => {
+              const img = new Image();
+              const url = URL.createObjectURL(file);
+              img.onload = () => {
+                URL.revokeObjectURL(url);
+                resolve({ width: img.naturalWidth, height: img.naturalHeight });
+              };
+              img.onerror = () => {
+                URL.revokeObjectURL(url);
+                reject();
+              };
+              img.src = url;
+            },
+          );
           localImageWidth = dims.width;
           localImageHeight = dims.height;
         } catch {
@@ -2387,7 +2560,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
       {/* 消息视口区域主容器：包含吸顶历史提示横幅与上下边缘渐变模糊遮罩 */}
       <div className="flex-1 relative min-h-0 overflow-hidden flex flex-col">
         {/* 顶部悬浮“正在查看较旧的消息” / “您有未读消息”横幅 (Discord 经典 Full-width Top Banner) */}
-        {!isNearBottom &&
+        {(!isNearBottom || history?.hasNewer) &&
           isInitialPositionedRef.current &&
           messages.length > 0 && (
             <div
@@ -2413,13 +2586,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                       : "text-discord-textHeader"
                   }`}
                 >
-                  {firstUnreadMessageId
-                    ? "您有未读消息"
-                    : "您正在查看较旧的消息"}
+                  {t(
+                    firstUnreadMessageId
+                      ? "chat:history.unread"
+                      : "chat:history.viewingOlder",
+                  )}
                 </span>
               </div>
               <button
                 type="button"
+                disabled={isJumping}
                 onClick={(e) => {
                   e.stopPropagation();
                   void handleSmartJumpToLatestOrUnread();
@@ -2430,8 +2606,20 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                     : "bg-discord-brand hover:bg-[#4752c4]"
                 }`}
               >
-                <span>{firstUnreadMessageId ? "跳转至未读" : "跳到最新"}</span>
-                <ChevronDown className="w-3.5 h-3.5 transition-transform group-hover:translate-y-0.5" />
+                <span>
+                  {t(
+                    isJumping
+                      ? "common:loading"
+                      : firstUnreadMessageId
+                        ? "chat:history.jumpUnread"
+                        : "chat:history.jumpLatestTitle",
+                  )}
+                </span>
+                {isJumping ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <ChevronDown className="w-3.5 h-3.5 transition-transform group-hover:translate-y-0.5" />
+                )}
               </button>
             </div>
           )}
@@ -2448,76 +2636,118 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           ref={scrollContainerRef}
           data-testid="chat-scroll-container"
           onScroll={handleScroll}
+          onWheel={() => {
+            historyAnchor.current = undefined;
+          }}
+          onTouchStart={() => {
+            historyAnchor.current = undefined;
+          }}
           className="flex-1 overflow-y-auto p-4 space-y-3"
           style={{
             transform: "translateZ(0)",
             willChange: "scroll-position",
           }}
         >
-          {/* 欢迎卡片 */}
-          {channel.type === "DM" ? (
-            <div
-              data-testid="dm-welcome-banner"
-              className="pt-6 pb-4 border-b border-[#35373c] mb-4 select-none"
-            >
-              <div className="relative mb-3">
-                {otherRecipient?.avatarUrl ? (
-                  <img
-                    src={resolveServerUrl(otherRecipient.avatarUrl)}
-                    alt={displayChannelName}
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src =
-                        `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(otherRecipient.username || "user")}`;
-                    }}
-                    className="w-20 h-20 rounded-full object-cover shadow-md"
-                  />
-                ) : (
-                  <div className="w-20 h-20 rounded-full bg-discord-brand text-white text-2xl font-bold flex items-center justify-center shadow-md">
-                    {displayChannelName.slice(0, 2).toUpperCase()}
-                  </div>
-                )}
-              </div>
-              <h2
-                data-testid="dm-welcome-displayname"
-                className="text-2xl sm:text-3xl font-bold text-discord-textHeader"
+          {/* The beginning banner only belongs to the actual history boundary. */}
+          {!history?.hasOlder &&
+            (channel.type === "DM" ? (
+              <div
+                data-testid="dm-welcome-banner"
+                className="pt-6 pb-4 border-b border-[#35373c] mb-4 select-none"
               >
-                {displayChannelName}
-              </h2>
-              {otherRecipient?.username && (
-                <p className="text-sm font-medium text-discord-textMuted mt-0.5">
-                  @{otherRecipient.username.replace(/^@/, "")}
-                </p>
-              )}
-              <p className="text-sm text-discord-textMuted mt-2">
-                {t("chat:dm.welcomePrompt", {
-                  name: displayChannelName,
-                  defaultValue: `这是你与 ${displayChannelName} 私信历史记录的起点。`,
-                })}
-              </p>
-            </div>
-          ) : (
-            <div className="pt-4 pb-2 border-b border-[#35373c] mb-4">
-              <div className="w-16 h-16 rounded-full bg-[#2b2d31] flex items-center justify-center mb-2">
-                {channel.isE2EE ? (
-                  <div className="relative">
-                    <Hash className="w-8 h-8 text-discord-textHeader" />
-                    <Lock className="w-4 h-4 text-discord-green absolute -top-1 -right-1" />
-                  </div>
-                ) : (
-                  <Hash className="w-8 h-8 text-discord-textHeader" />
+                <div className="relative mb-3">
+                  {otherRecipient?.avatarUrl ? (
+                    <img
+                      src={resolveServerUrl(otherRecipient.avatarUrl)}
+                      alt={displayChannelName}
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src =
+                          `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(otherRecipient.username || "user")}`;
+                      }}
+                      className="w-20 h-20 rounded-full object-cover shadow-md"
+                    />
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-discord-brand text-white text-2xl font-bold flex items-center justify-center shadow-md">
+                      {displayChannelName.slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                </div>
+                <h2
+                  data-testid="dm-welcome-displayname"
+                  className="text-2xl sm:text-3xl font-bold text-discord-textHeader"
+                >
+                  {displayChannelName}
+                </h2>
+                {otherRecipient?.username && (
+                  <p className="text-sm font-medium text-discord-textMuted mt-0.5">
+                    @{otherRecipient.username.replace(/^@/, "")}
+                  </p>
                 )}
+                <p className="text-sm text-discord-textMuted mt-2">
+                  {t("chat:dm.welcomePrompt", {
+                    name: displayChannelName,
+                    defaultValue: `这是你与 ${displayChannelName} 私信历史记录的起点。`,
+                  })}
+                </p>
               </div>
-              <h2 className="text-2xl font-bold text-discord-textHeader">
-                欢迎来到 #{channel.name}!
-              </h2>
-              <p className="text-sm text-discord-textMuted mt-1">
-                {channel.isE2EE
-                  ? "这是一个实验性端到端双棘轮加密绝密频道 (Beta)。所有消息均在客户端本地密文封装，服务器仅充当盲中继，零明文存储。"
-                  : `这是 #${channel.name} 频道的起点。畅所欲言吧！`}
-              </p>
+            ) : (
+              <div className="pt-4 pb-2 border-b border-[#35373c] mb-4">
+                <div className="w-16 h-16 rounded-full bg-[#2b2d31] flex items-center justify-center mb-2">
+                  {channel.isE2EE ? (
+                    <div className="relative">
+                      <Hash className="w-8 h-8 text-discord-textHeader" />
+                      <Lock className="w-4 h-4 text-discord-green absolute -top-1 -right-1" />
+                    </div>
+                  ) : (
+                    <Hash className="w-8 h-8 text-discord-textHeader" />
+                  )}
+                </div>
+                <h2 className="text-2xl font-bold text-discord-textHeader">
+                  欢迎来到 #{channel.name}!
+                </h2>
+                <p className="text-sm text-discord-textMuted mt-1">
+                  {channel.isE2EE
+                    ? "这是一个实验性端到端双棘轮加密绝密频道 (Beta)。所有消息均在客户端本地密文封装，服务器仅充当盲中继，零明文存储。"
+                    : `这是 #${channel.name} 频道的起点。畅所欲言吧！`}
+                </p>
+              </div>
+            ))}
+
+          {(history?.hasOlder ||
+            history?.loadingOlder ||
+            history?.olderError) && (
+            <div
+              data-testid="history-older-state"
+              className="min-h-10 flex items-center justify-center gap-2 text-xs text-discord-textMuted"
+              role="status"
+              aria-live="polite"
+            >
+              {history.loadingOlder ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {t("chat:loadingOlder")}
+                </>
+              ) : history.olderError ? (
+                <>
+                  <span>{history.olderError}</span>
+                  <button
+                    type="button"
+                    className="text-discord-brand"
+                    onClick={() => void requestHistory("older")}
+                  >
+                    {t("common:retry")}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void requestHistory("older")}
+                >
+                  {t("chat:loadOlder")}
+                </button>
+              )}
             </div>
           )}
-
           {/* 骨架屏加载状态 (延迟 100ms 显示防瞬闪) vs 虚拟化消息流 */}
           {showSkeleton && displayedMessages.length === 0 ? (
             <MessageSkeletonList />
@@ -2541,6 +2771,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   <div
                     key={virtualRow.key}
                     data-index={virtualRow.index}
+                    data-history-message-id={msg.id}
                     ref={rowVirtualizer.measureElement}
                     style={{
                       position: "absolute",
@@ -2598,6 +2829,41 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   </div>
                 );
               })}
+            </div>
+          )}
+          {(history?.hasNewer ||
+            history?.loadingNewer ||
+            history?.newerError) && (
+            <div
+              data-testid="history-newer-state"
+              className="min-h-10 flex items-center justify-center gap-2 text-xs text-discord-textMuted"
+              role="status"
+              aria-live="polite"
+            >
+              {history.loadingNewer ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {t("chat:loadingNewer")}
+                </>
+              ) : history.newerError ? (
+                <>
+                  <span>{history.newerError}</span>
+                  <button
+                    type="button"
+                    className="text-discord-brand"
+                    onClick={() => void requestHistory("newer")}
+                  >
+                    {t("common:retry")}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void requestHistory("newer")}
+                >
+                  {t("chat:loadNewer")}
+                </button>
+              )}
             </div>
           )}
           <div ref={messagesEndRef} />

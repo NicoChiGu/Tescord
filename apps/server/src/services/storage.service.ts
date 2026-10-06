@@ -24,7 +24,14 @@ export class StorageService {
       expiresAt: number;
       claimed: boolean;
       uploaded: boolean;
-      purpose: "attachment" | "guild-icon" | "user-avatar" | "user-banner" | "custom-emoji";
+      uploading?: boolean;
+      processedGuildIcon?: boolean;
+      purpose:
+        | "attachment"
+        | "guild-icon"
+        | "user-avatar"
+        | "user-banner"
+        | "custom-emoji";
       channelId?: string;
       guildId?: string;
       width?: number;
@@ -487,7 +494,6 @@ export class StorageService {
     const grant = this.uploadGrants.get(key);
     if (
       !grant ||
-      !grant.uploaded ||
       grant.claimed ||
       grant.userId !== userId ||
       grant.guildId !== guildId ||
@@ -496,9 +502,100 @@ export class StorageService {
     )
       return false;
 
-    await this.removeStoredObject(key);
     this.uploadGrants.delete(key);
+    await this.removeStoredObject(key);
     return true;
+  }
+
+  /** Pending icon processing never accepts arbitrary URLs or claimed/public objects. */
+  public assertPendingGuildIcon(
+    userId: string,
+    guildId: string,
+    fileUrl: string,
+  ): void {
+    const key = this.getPublicAssetKey(fileUrl);
+    const grant = key ? this.uploadGrants.get(key) : undefined;
+    if (
+      !key ||
+      !grant ||
+      grant.userId !== userId ||
+      grant.guildId !== guildId ||
+      grant.purpose !== "guild-icon" ||
+      grant.fileUrl !== fileUrl ||
+      !grant.uploaded ||
+      grant.claimed ||
+      grant.expiresAt < Date.now()
+    )
+      throw new Error("FORBIDDEN");
+  }
+  public async readPendingGuildIcon(
+    userId: string,
+    guildId: string,
+    fileUrl: string,
+  ): Promise<{ bytes: Buffer; mimeType: string; processed: boolean }> {
+    this.assertPendingGuildIcon(userId, guildId, fileUrl);
+    const key = this.getPublicAssetKey(fileUrl);
+    const grant = key ? this.uploadGrants.get(key) : undefined;
+    if (
+      !key ||
+      !grant ||
+      grant.userId !== userId ||
+      grant.guildId !== guildId ||
+      grant.purpose !== "guild-icon" ||
+      grant.fileUrl !== fileUrl ||
+      !grant.uploaded ||
+      grant.claimed ||
+      grant.expiresAt < Date.now()
+    )
+      throw new Error("FORBIDDEN");
+    if (grant.fileSize > 10 * 1024 * 1024) throw new Error("FILE_TOO_LARGE");
+    const source = await this.openObject(fileUrl);
+    const chunks: Buffer[] = [];
+    let size = 0;
+    for await (const chunk of source as AsyncIterable<Buffer>) {
+      size += chunk.length;
+      if (size > 10 * 1024 * 1024) {
+        (source as import("node:stream").Readable).destroy();
+        throw new Error("FILE_TOO_LARGE");
+      }
+      chunks.push(Buffer.from(chunk));
+    }
+    return {
+      bytes: Buffer.concat(chunks),
+      mimeType: grant.mimeType,
+      processed: grant.processedGuildIcon === true,
+    };
+  }
+
+  public async createProcessedGuildIcon(
+    userId: string,
+    guildId: string,
+    bytes: Buffer,
+    animated: boolean,
+  ): Promise<string> {
+    if (bytes.length > 10 * 1024 * 1024) throw new Error("FILE_TOO_LARGE");
+    const grant = await this.getPresignedUploadUrl(
+      {
+        fileName: animated ? "guild_icon.gif" : "guild_icon.png",
+        fileSize: bytes.length,
+        mimeType: animated ? "image/gif" : "image/png",
+        purpose: "guild-icon",
+        guildId,
+      },
+      userId,
+    );
+    const key = this.getPublicAssetKey(grant.fileUrl);
+    if (!key) throw new Error("INVALID_PARAMS");
+    try {
+      await this.storeObject(key, bytes);
+    } catch (error) {
+      this.uploadGrants.delete(key);
+      await this.removeStoredObject(key).catch(() => {});
+      throw error;
+    }
+    const storedGrant = this.uploadGrants.get(key);
+    if (storedGrant) storedGrant.processedGuildIcon = true;
+    return grant.fileUrl;
   }
 
   public async removePublicAsset(fileUrl: string): Promise<void> {
@@ -600,8 +697,14 @@ export class StorageService {
   ): boolean {
     const grant = this.uploadGrants.get(fileKey);
     if (!grant) return false;
-    const cleanContentType = (contentType || "").split(";")[0].trim().toLowerCase();
-    const cleanGrantMime = (grant.mimeType || "").split(";")[0].trim().toLowerCase();
+    const cleanContentType = (contentType || "")
+      .split(";")[0]
+      .trim()
+      .toLowerCase();
+    const cleanGrantMime = (grant.mimeType || "")
+      .split(";")[0]
+      .trim()
+      .toLowerCase();
     return Boolean(
       !grant.claimed &&
       !grant.uploaded &&
@@ -626,23 +729,39 @@ export class StorageService {
     ) {
       return false;
     }
-    const cleanGrantMime = (grant.mimeType || "").split(";")[0].trim().toLowerCase();
-    const expectedFormat = ({
-      "image/png": "png",
-      "image/jpeg": "jpeg",
-      "image/jpg": "jpeg",
-      "image/webp": "webp",
-      "image/gif": "gif",
-    } as Record<string, string>)[cleanGrantMime];
+    const cleanGrantMime = (grant.mimeType || "")
+      .split(";")[0]
+      .trim()
+      .toLowerCase();
+    const expectedFormat = (
+      {
+        "image/png": "png",
+        "image/jpeg": "jpeg",
+        "image/jpg": "jpeg",
+        "image/webp": "webp",
+        "image/gif": "gif",
+      } as Record<string, string>
+    )[cleanGrantMime];
     if (!expectedFormat) return false;
     try {
+      if (grant.purpose === "guild-icon" && bytes.length > 10 * 1024 * 1024)
+        return false;
       const metadata = await sharp(bytes, {
+        animated: grant.purpose === "guild-icon",
         limitInputPixels: 40_000_000,
         failOn: "error",
       }).metadata();
       const matchesFormat = metadata.format === expectedFormat;
       return Boolean(
-        matchesFormat && metadata.width && metadata.height,
+        matchesFormat &&
+        metadata.width &&
+        metadata.height &&
+        (grant.purpose !== "guild-icon" ||
+          ((metadata.pages || 1) <= 300 &&
+            metadata.width *
+              (metadata.pageHeight || metadata.height) *
+              (metadata.pages || 1) <=
+              40_000_000)),
       );
     } catch {
       return false;
@@ -653,7 +772,12 @@ export class StorageService {
     fileKey: string,
     userId: string,
   ): {
-    purpose: "attachment" | "guild-icon" | "user-avatar" | "user-banner" | "custom-emoji";
+    purpose:
+      | "attachment"
+      | "guild-icon"
+      | "user-avatar"
+      | "user-banner"
+      | "custom-emoji";
     channelId?: string;
     guildId?: string;
   } | null {
@@ -676,27 +800,48 @@ export class StorageService {
 
   public async storeObject(fileKey: string, bytes: Buffer): Promise<void> {
     const grant = this.uploadGrants.get(fileKey);
-    if (!grant || grant.claimed || grant.uploaded)
+    if (
+      !grant ||
+      grant.claimed ||
+      grant.uploaded ||
+      grant.uploading ||
+      grant.expiresAt < Date.now()
+    )
       throw new Error("Upload grant is not active");
-    if (this.isMinioAvailable && this.minioClient) {
-      await this.minioClient.putObject(
-        this.bucketName,
-        fileKey,
-        bytes,
-        bytes.length,
-        { "Content-Type": grant.mimeType },
-      );
-    } else {
-      if (process.env.NODE_ENV === "production")
-        throw new Error("MinIO is unavailable");
-      const filePath = this.resolveLocalUploadPath(fileKey);
-      if (!filePath) throw new Error("Invalid upload path");
-      await fs.promises.writeFile(filePath, bytes, { flag: "wx" });
+    grant.uploading = true;
+    try {
+      if (this.isMinioAvailable && this.minioClient) {
+        await this.minioClient.putObject(
+          this.bucketName,
+          fileKey,
+          bytes,
+          bytes.length,
+          { "Content-Type": grant.mimeType },
+        );
+      } else {
+        if (process.env.NODE_ENV === "production")
+          throw new Error("MinIO is unavailable");
+        const filePath = this.resolveLocalUploadPath(fileKey);
+        if (!filePath) throw new Error("Invalid upload path");
+        await fs.promises.writeFile(filePath, bytes, { flag: "wx" });
+      }
+      if (
+        this.uploadGrants.get(fileKey) !== grant ||
+        grant.claimed ||
+        grant.expiresAt < Date.now()
+      ) {
+        await this.removeStoredObject(fileKey);
+        throw new Error("Upload grant cancelled");
+      }
+      grant.uploaded = true;
+    } finally {
+      grant.uploading = false;
     }
-    grant.uploaded = true;
     if (
       grant.purpose === "attachment" &&
-      /^(image\/jpeg|image\/png|image\/webp|image\/avif|image\/gif)$/i.test(grant.mimeType)
+      /^(image\/jpeg|image\/png|image\/webp|image\/avif|image\/gif)$/i.test(
+        grant.mimeType,
+      )
     ) {
       try {
         const meta = await sharp(bytes, {

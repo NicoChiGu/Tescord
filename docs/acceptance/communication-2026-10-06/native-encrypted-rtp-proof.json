@@ -1,0 +1,48 @@
+{
+  "sourceId": "window:2361770:0",
+  "scope": "application",
+  "send": {
+    "crypto": {
+      "enabled": true,
+      "keyId": 4455,
+      "framesEncrypted": 87,
+      "framesDecrypted": 0,
+      "framesDroppedReplay": 0,
+      "lastError": null
+    },
+    "sent": 9223,
+    "received": 0,
+    "codec": "",
+    "pair": {
+      "local": "host",
+      "remote": "host"
+    },
+    "rms": 0,
+    "hz440": -200,
+    "hz880": -200,
+    "connection": "connected",
+    "playing": false
+  },
+  "receive": {
+    "crypto": {
+      "enabled": true,
+      "keyId": 1,
+      "framesEncrypted": 0,
+      "framesDecrypted": 46,
+      "framesDroppedReplay": 0,
+      "lastError": null
+    },
+    "sent": 0,
+    "received": 9223,
+    "codec": "audio/opus",
+    "pair": {
+      "local": "host",
+      "remote": "host"
+    },
+    "rms": 0.009012157526678981,
+    "hz440": -57.55483627319336,
+    "hz880": -122.19322204589844,
+    "connection": "connected",
+    "playing": true
+  }
+}

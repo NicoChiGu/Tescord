@@ -1,3 +1,4 @@
+import { installEncryptedVoiceUi } from "./helpers/encrypted-voice-ui";
 import { test, expect } from "@playwright/test";
 
 test.describe("三引擎降噪与四轨 A/B 录音试听全链路验收", () => {
@@ -44,6 +45,7 @@ test.describe("三引擎降噪与四轨 A/B 录音试听全链路验收", () => 
       });
     });
 
+    await installEncryptedVoiceUi(page);
     await page.goto("/");
     await expect(page).toHaveTitle(/Tescord/i);
 
@@ -112,7 +114,7 @@ test.describe("三引擎降噪与四轨 A/B 录音试听全链路验收", () => 
     await expect(startABBtn).toBeVisible();
 
     // 11. 关闭弹窗并通过快捷方式验证语音频道内的降噪表现
-    const closeBtn = page.getByRole("button", { name: "关闭", exact: true });
+    const closeBtn = page.getByTestId("close-user-settings-btn");
     await closeBtn.click();
     await expect(modalHeading).not.toBeVisible();
 

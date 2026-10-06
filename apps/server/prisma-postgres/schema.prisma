@@ -425,3 +425,24 @@ model CustomEmoji {
   @@index([guildId])
   @@index([userId])
 }
+
+// Versioned per-stream media key envelopes. Never stores clear media keys.
+model StreamMediaKeyEnvelope {
+  id String @id @default(cuid())
+  contextId String
+  membershipVersion String
+  channelId String
+  streamId String
+  keyId Int
+  senderId String
+  senderDeviceId String
+  recipientId String
+  recipientDeviceId String
+  envelopeJson String
+  acknowledgedAt DateTime?
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+  @@unique([contextId, membershipVersion, keyId, recipientId, recipientDeviceId])
+  @@index([contextId, membershipVersion, recipientId, recipientDeviceId])
+  @@index([expiresAt])
+}

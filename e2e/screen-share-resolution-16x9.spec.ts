@@ -1,3 +1,4 @@
+import { installEncryptedVoiceUi } from "./helpers/encrypted-voice-ui";
 import { test, expect } from "@playwright/test";
 
 test.describe("屏幕分享 16:9 自适应分辨率与屏幕尺寸硬性禁用 E2E 验收", () => {
@@ -126,6 +127,7 @@ test.describe("屏幕分享 16:9 自适应分辨率与屏幕尺寸硬性禁用 E
       });
     });
 
+    await installEncryptedVoiceUi(page);
     await page.goto("/");
 
     // 2. 进入首个服务器并加入语音频道
@@ -229,14 +231,25 @@ test.describe("屏幕分享 16:9 自适应分辨率与屏幕尺寸硬性禁用 E
     await expect(page.getByText(/推荐码率:\s*16\.0\s*Mbps/i)).toBeVisible();
 
     // 8. 点击开始直播
+    await page.getByTestId("mode-p2p-btn").click();
     const startConfirmBtn = page.getByTestId("start-screen-share-confirm-btn");
     await expect(startConfirmBtn).toBeVisible();
     await startConfirmBtn.click();
 
     // 9. 验证直播流启动成功，卡片上呈现直播指示器
-    await expect(page.getByText(/Simulcast 屏幕直播中/i)).toBeVisible({
+    await expect(page.getByText(/直播中/i).first()).toBeVisible({
       timeout: 8000,
     });
+
+    await expect
+      .poll(() =>
+        page
+          .getByTestId("voice-room-area")
+          .locator("video")
+          .first()
+          .evaluate((video: HTMLVideoElement) => video.videoWidth),
+      )
+      .toBeGreaterThan(0);
 
     // 10. 检查控制台无致命未捕获错误
     const criticalErrors = consoleErrors.filter(

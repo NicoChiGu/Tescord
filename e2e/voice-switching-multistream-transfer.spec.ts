@@ -1,3 +1,4 @@
+import { installEncryptedVoiceUi } from "./helpers/encrypted-voice-ui";
 import { test, expect } from "@playwright/test";
 
 test.describe("语音多端互斥接管、频道顺滑切换与多路直播自适应网格验收", () => {
@@ -49,6 +50,7 @@ test.describe("语音多端互斥接管、频道顺滑切换与多路直播自�
   test("1. 多端登录互斥：新设备接管语音后，旧设备必须彻底退出并呈现转移横幅", async ({
     page,
   }) => {
+    await installEncryptedVoiceUi(page);
     await page.goto("/");
     await expect(page).toHaveTitle(/Tescord/i);
 
@@ -95,6 +97,7 @@ test.describe("语音多端互斥接管、频道顺滑切换与多路直播自�
   test("2. 语音频道顺滑切换：在已连接语音状态下，双击另一语音频道可直接原子切换", async ({
     page,
   }) => {
+    await installEncryptedVoiceUi(page);
     await page.goto("/");
     const serverBtn = page
       .getByRole("button", { name: /Tescord 极客总部|极客/i })
@@ -148,6 +151,7 @@ test.describe("语音多端互斥接管、频道顺滑切换与多路直播自�
   test("3. 多直播同时观看 & 主播边播边看自适应舞台网格呈现", async ({
     page,
   }) => {
+    await installEncryptedVoiceUi(page);
     await page.goto("/");
     const serverBtn = page
       .getByRole("button", { name: /Tescord 极客总部|极客/i })
@@ -215,6 +219,7 @@ test.describe("语音多端互斥接管、频道顺滑切换与多路直播自�
   test("4. 快速切频与过渡离线信令防脑裂：收到旧频道过渡离开信令时绝不误退入未连入大厅", async ({
     page,
   }) => {
+    await installEncryptedVoiceUi(page);
     await page.goto("/");
     const serverBtn = page
       .getByRole("button", { name: /Tescord 极客总部|极客/i })

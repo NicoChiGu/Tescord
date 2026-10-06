@@ -241,7 +241,8 @@
     "title": "アイコンサイズの編集",
     "description": "ドラッグして位置を調整し、スライダーで拡大縮小できます。",
     "confirmBtn": "確定してアップロード",
-    "previewAlt": "アイコンの切り抜きプレビュー"
+    "previewAlt": "アイコンの切り抜きプレビュー",
+    "processingFailed": "画像を処理できませんでした。再試行してください"
   },
   "whatsNew": {
     "title": "Tescord の新機能とお知らせ",

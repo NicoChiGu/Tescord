@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import type { Attachment } from "@tescord/types";
+import type { Attachment, DownloadProgress } from "@tescord/types";
 import {
   Download,
   Loader2,
@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import {
   loadAttachmentBlob,
+  discardAttachmentBlob,
   openAttachmentDownload,
 } from "../../services/attachmentAccess.js";
 
@@ -60,6 +61,10 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({
   const [error, setError] = useState<string>();
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [loadProgress, setLoadProgress] = useState<DownloadProgress>();
+  const [originalReady, setOriginalReady] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const activeObjectUrl = useRef<string>();
 
   // 缩放与平移状态
   const [scale, setScale] = useState(1);
@@ -151,8 +156,20 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({
   // 切换附件时重置状态
   useEffect(() => {
     setShowOriginal(false);
+    setOriginalReady(false);
+    setImageUrl(fallbackUrl);
+    setLoadProgress(undefined);
+    if (activeObjectUrl.current) URL.revokeObjectURL(activeObjectUrl.current);
+    activeObjectUrl.current = undefined;
     resetZoom();
   }, [attachment?.id, resetZoom]);
+
+  useEffect(
+    () => () => {
+      if (activeObjectUrl.current) URL.revokeObjectURL(activeObjectUrl.current);
+    },
+    [],
+  );
 
   // 加载图片资源（支持本地 fallbackUrl 秒开）
   useEffect(() => {
@@ -169,34 +186,68 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({
       return;
     }
 
-    setImageUrl(undefined);
+    setLoadProgress({ loaded: 0, phase: "downloading" });
     void loadAttachmentBlob(
       attachment,
       showOriginal ? "original" : "preview",
       controller.signal,
+      undefined,
+      (progress) => {
+        if (!cancelled) setLoadProgress(progress);
+      },
     )
-      .then((blob) => {
+      .then(async (blob) => {
         if (cancelled) return;
         objectUrl = URL.createObjectURL(blob);
+        setLoadProgress({
+          loaded: blob.size,
+          total: blob.size,
+          phase: "decoding",
+        });
+        const decoded = new Image();
+        decoded.src = objectUrl;
+        try {
+          await decoded.decode();
+        } catch {
+          throw new Error(t("lightbox.loadFailed"));
+        }
+        if (cancelled) {
+          URL.revokeObjectURL(objectUrl);
+          return;
+        }
+        if (activeObjectUrl.current)
+          URL.revokeObjectURL(activeObjectUrl.current);
+        activeObjectUrl.current = objectUrl;
         setImageUrl(objectUrl);
+        setOriginalReady(showOriginal);
+        setLoadProgress(undefined);
       })
       .catch((cause: unknown) => {
-        if (cancelled) return;
-        if (fallbackUrl) {
-          setImageUrl(fallbackUrl);
-        } else {
-          setError(
-            cause instanceof Error ? cause.message : t("lightbox.loadFailed"),
-          );
+        if (cancelled) {
+          if (objectUrl && objectUrl !== activeObjectUrl.current)
+            URL.revokeObjectURL(objectUrl);
+          return;
         }
+        if (objectUrl)
+          discardAttachmentBlob(
+            attachment,
+            showOriginal ? "original" : "preview",
+          );
+        if (objectUrl && objectUrl !== activeObjectUrl.current)
+          URL.revokeObjectURL(objectUrl);
+        setLoadProgress(undefined);
+        setError(
+          cause instanceof Error ? cause.message : t("lightbox.loadFailed"),
+        );
       });
 
     return () => {
       cancelled = true;
       controller.abort();
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      if (objectUrl && objectUrl !== activeObjectUrl.current)
+        URL.revokeObjectURL(objectUrl);
     };
-  }, [attachment?.id, showOriginal, fallbackUrl, t]);
+  }, [attachment?.id, showOriginal, fallbackUrl, t, loadAttempt]);
 
   // 以指定屏幕坐标为锚点进行缩放 (Point-Centered Zoom)
   const zoomToPoint = useCallback(
@@ -643,8 +694,11 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({
         {/* 查看原图 */}
         <button
           type="button"
-          onClick={() => setShowOriginal(true)}
-          disabled={showOriginal}
+          onClick={() => {
+            setShowOriginal(true);
+            setLoadAttempt((n) => n + 1);
+          }}
+          disabled={originalReady || Boolean(loadProgress)}
           className="px-2 py-1.5 rounded hover:bg-white/10 hover:text-white disabled:opacity-50 inline-flex gap-1 items-center text-xs transition"
           title={t("lightbox.viewOriginalTitle")}
         >
@@ -737,8 +791,67 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({
           </div>
         )}
 
+        {(loadProgress || error) && (
+          <div
+            data-testid="lightbox-load-status"
+            role="status"
+            aria-live="polite"
+            className="absolute bottom-16 left-1/2 -translate-x-1/2 max-w-[90vw] bg-black/80 rounded-lg px-4 py-3 text-sm text-white flex flex-col gap-2"
+            onClick={(event) => event.stopPropagation()}
+          >
+            {loadProgress ? (
+              <>
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  {t(
+                    loadProgress.phase === "decoding"
+                      ? "lightbox.decoding"
+                      : "lightbox.loading",
+                  )}
+                </span>
+                {loadProgress.phase === "downloading" && (
+                  <>
+                    <progress
+                      aria-label={t("lightbox.loading")}
+                      className="w-full"
+                      max={loadProgress.total || 1}
+                      value={
+                        loadProgress.total
+                          ? Math.min(loadProgress.loaded, loadProgress.total)
+                          : undefined
+                      }
+                    />
+                    <span>
+                      {t("lightbox.downloadProgress", {
+                        loaded: (loadProgress.loaded / 1048576).toFixed(1),
+                        total: loadProgress.total
+                          ? (loadProgress.total / 1048576).toFixed(1)
+                          : "?",
+                      })}
+                      {loadProgress.total
+                        ? ` · ${Math.min(100, Math.round((loadProgress.loaded / loadProgress.total) * 100))}%`
+                        : ""}
+                    </span>
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                <span>{error}</span>
+                <button
+                  type="button"
+                  onClick={() => setLoadAttempt((n) => n + 1)}
+                  className="rounded bg-discord-brand px-3 py-1"
+                >
+                  {t("common:retry")}
+                </button>
+              </>
+            )}
+          </div>
+        )}
         {/* 底部信息条 */}
         <div
+          data-testid="lightbox-image-info"
           style={{
             opacity: dismissOpacity,
             transition: dismissOffset > 0 ? "none" : "opacity 0.18s ease-out",
@@ -746,7 +859,7 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({
           className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none text-xs text-white/60 bg-black/60 px-3 py-1 rounded-full truncate max-w-[90vw]"
         >
           {attachment.fileName}
-          {showOriginal ? ` · ${t("lightbox.originalBadge")}` : ""}
+          {originalReady ? ` · ${t("lightbox.originalBadge")}` : ""}
           {scale !== 1
             ? ` · ${t("lightbox.zoomBadge", { percent: Math.round(scale * 100) })}`
             : ""}

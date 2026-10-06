@@ -2,11 +2,16 @@ import {
   AudioProcessingConfig,
   NoiseSuppressionMode,
   NoiseEngineStatus,
+  ModelLoadProgress,
+  ErrorCode,
 } from "@tescord/types";
-import {
-  RnnoiseWorkletNode,
-  loadRnnoise,
-} from "@sapphi-red/web-noise-suppressor";
+import type { RnnoiseWorkletNode } from "@sapphi-red/web-noise-suppressor";
+let rnnoiseConstructor: typeof RnnoiseWorkletNode | undefined;
+async function loadRnnoiseModule() {
+  const module = await import("@sapphi-red/web-noise-suppressor");
+  rnnoiseConstructor = module.RnnoiseWorkletNode;
+  return module;
+}
 import { DtlnWorkletNode, loadDtlnWorklet } from "./dtlnNode.js";
 import { Dfn3WorkletNode, loadDfn3Worklet } from "./dfn3Node.js";
 import {
@@ -16,10 +21,11 @@ import {
   wavBlob,
 } from "./audioComparison.js";
 import { useSettingsStore } from "../stores/useSettingsStore.js";
-import type {
-  Dfn3ComparisonInput,
-  Dfn3ComparisonOutput,
-} from "../workers/dfn3Worker.js";
+import { useToastStore } from "../stores/useToastStore.js";
+import { downloadNoiseModel, supportsWasmSimd } from "./noiseModelDownload.js";
+import { fetchVerifiedAsset } from "../workers/verifyModelAsset.js";
+import { tGlobal } from "../i18n/index.js";
+import type { Dfn3ComparisonInput, Dfn3ComparisonOutput } from "@tescord/types";
 
 export interface ABTestResult {
   rawUrl: string;
@@ -80,6 +86,7 @@ async function processDfn3Comparison(
       );
       worker.onerror = (event) => reject(new Error(event.message));
       worker.onmessage = ({ data }: MessageEvent<Dfn3ComparisonOutput>) => {
+        if (data.type === "PROGRESS") return;
         if (data.type === "ERROR") reject(new Error(data.reason));
         else if (
           data.type === "COMPARED" &&
@@ -114,6 +121,49 @@ type NoiseRoute = {
 };
 
 export class AudioEngine {
+  private modelDownloadController: AbortController | null = null;
+  private modelToastGeneration = 0;
+  private modelToastMode: NoiseSuppressionMode | null = null;
+  private modelAssetProgress = new Map<string, ModelLoadProgress>();
+  private modelLabel(mode: NoiseSuppressionMode) {
+    return mode === "dfn3"
+      ? "DeepFilterNet3"
+      : mode === "rnnoise"
+        ? "RNNoise"
+        : mode === "dtln"
+          ? "DTLN"
+          : tGlobal("settings:audioVideo.noiseOffTitle");
+  }
+  private reportModelProgress(
+    mode: NoiseSuppressionMode,
+    progress: ModelLoadProgress,
+  ) {
+    if (this.modelToastMode !== mode) return;
+    this.modelAssetProgress.set(progress.asset, progress);
+    const assets = [...this.modelAssetProgress.values()];
+    const downloading = assets.some((asset) => asset.phase === "downloading");
+    const phase = downloading
+      ? "downloading"
+      : assets.some((asset) => asset.phase === "verifying")
+        ? "verifying"
+        : "initializing";
+    const expected = mode === "dtln" ? 2 : mode === "dfn3" ? 4 : 1;
+    const loaded = assets.reduce((total, asset) => total + asset.loaded, 0);
+    const total =
+      assets.length === expected &&
+      assets.every((asset) => asset.total !== undefined)
+        ? assets.reduce((sum, asset) => sum + (asset.total || 0), 0)
+        : undefined;
+    useToastStore
+      .getState()
+      .updateToast(
+        "noise-model-switch",
+        `settings:noiseLoad.${phase}`,
+        { model: this.modelLabel(mode) },
+        "info",
+        { loaded, total, phase },
+      );
+  }
   private audioContext: AudioContext | null = null;
   private rawMediaStream: MediaStream | null = null;
   private processedStream: MediaStream | null = null;
@@ -172,6 +222,7 @@ export class AudioEngine {
     sampleRate: 48000,
   };
   private routingGeneration = 0;
+  private captureGeneration = 0;
   private desiredNoiseMode: NoiseSuppressionMode = "rnnoise";
   private pendingRnnoise: Promise<boolean> | null = null;
   private pendingDtln: Promise<boolean> | null = null;
@@ -270,18 +321,32 @@ export class AudioEngine {
 
   // 1. 初始化麦克风与 Web Audio 核心管线
   async initMicrophone(): Promise<MediaStream | null> {
+    this.stop();
+    const generation = this.captureGeneration;
     try {
       this.lastError = null;
-      this.stop();
+      if (typeof AudioWorkletNode === "undefined")
+        throw new Error(
+          tGlobal(`errors:${ErrorCode.AUDIO_PROCESSING_UNSUPPORTED}`),
+        );
 
       const AudioContextClass =
         window.AudioContext || (window as any).webkitAudioContext;
       // RNNoise 与 WebRTC Opus 标准均采用 48000Hz 采样率
-      this.audioContext = new AudioContextClass({ sampleRate: 48000 });
-
-      if (this.audioContext.state === "suspended") {
-        await this.audioContext.resume().catch(() => {});
-      }
+      const context: AudioContext = new AudioContextClass({
+        sampleRate: 48000,
+      });
+      this.audioContext = context;
+      if (!context.audioWorklet)
+        throw new Error(
+          tGlobal(`errors:${ErrorCode.AUDIO_PROCESSING_UNSUPPORTED}`),
+        );
+      if (context.state === "suspended") await context.resume().catch(() => {});
+      if (
+        generation !== this.captureGeneration ||
+        context !== this.audioContext
+      )
+        return null;
 
       const constraints: MediaStreamConstraints = {
         audio: {
@@ -297,10 +362,22 @@ export class AudioEngine {
         video: false,
       };
 
-      this.rawMediaStream =
-        await navigator.mediaDevices.getUserMedia(constraints);
+      const captured = await navigator.mediaDevices.getUserMedia(constraints);
+      if (
+        generation !== this.captureGeneration ||
+        context !== this.audioContext
+      ) {
+        captured.getTracks().forEach((track) => track.stop());
+        return null;
+      }
+      this.rawMediaStream = captured;
       this.reportCaptureSettings();
-      await this.setupAudioGraph(this.rawMediaStream);
+      await this.setupAudioGraph(captured);
+      if (
+        generation !== this.captureGeneration ||
+        context !== this.audioContext
+      )
+        return null;
       this.startVADLoop();
 
       const stream = this.getStream();
@@ -308,15 +385,19 @@ export class AudioEngine {
         this.notifyStreamChange(stream);
       }
       return stream;
-    } catch (err: any) {
+    } catch (err: unknown) {
+      if (generation !== this.captureGeneration) return null;
+      const failure = err instanceof Error ? err : new Error(String(err));
       const msg =
-        err?.name === "NotAllowedError" || err?.name === "PermissionDeniedError"
+        failure.name === "NotAllowedError" ||
+        failure.name === "PermissionDeniedError"
           ? "麦克风权限被拒绝，请在浏览器地址栏允许麦克风权限"
-          : err?.name === "NotFoundError" ||
-              err?.name === "DevicesNotFoundError"
+          : failure.name === "NotFoundError" ||
+              failure.name === "DevicesNotFoundError"
             ? "未找到可用的麦克风硬件输入设备"
-            : err?.message || "无法访问麦克风设备";
+            : failure.message || "无法访问麦克风设备";
 
+      this.stop();
       this.lastError = msg;
       console.warn("Microphone access denied or unavailable:", msg, err);
       this.onErrorCallbacks.forEach((cb) => cb(msg));
@@ -367,11 +448,25 @@ export class AudioEngine {
           video: false,
         };
 
+        const context = this.audioContext,
+          generation = this.captureGeneration;
         const replacement =
           await navigator.mediaDevices.getUserMedia(constraints);
-
-        if (this.audioContext.state === "suspended") {
-          await this.audioContext.resume().catch(() => {});
+        if (
+          context !== this.audioContext ||
+          generation !== this.captureGeneration
+        ) {
+          replacement.getTracks().forEach((track) => track.stop());
+          return null;
+        }
+        if (context.state === "suspended")
+          await context.resume().catch(() => {});
+        if (
+          context !== this.audioContext ||
+          generation !== this.captureGeneration
+        ) {
+          replacement.getTracks().forEach((track) => track.stop());
+          return null;
         }
 
         const replacementSource =
@@ -414,15 +509,17 @@ export class AudioEngine {
 
   // 2. 搭建 Web Audio 图元与 RNNoise WASM / VAD / AGC 门限管线
   private async setupAudioGraph(stream: MediaStream) {
-    if (!this.audioContext) return;
+    const context = this.audioContext,
+      generation = this.captureGeneration;
+    if (!context) return;
 
-    this.sourceNode = this.audioContext.createMediaStreamSource(stream);
+    this.sourceNode = context.createMediaStreamSource(stream);
 
     // 2.1 手动输入增益节点 (0% ~ 200% 可调)
-    this.inputGainNode = this.audioContext.createGain();
+    this.inputGainNode = context.createGain();
 
     // Keep the VAD input independent of the manual transmit gain.
-    this.analyser = this.audioContext.createAnalyser();
+    this.analyser = context.createAnalyser();
     this.analyser.fftSize = 512;
     this.analyser.smoothingTimeConstant = 0.3;
 
@@ -430,22 +527,22 @@ export class AudioEngine {
     this.sourceNode.connect(this.inputGainNode);
 
     // 2.3 AGC 动态压限控制节点 (用于在自动增益模式下压制过高底噪提升)
-    this.agcCompressorNode = this.audioContext.createDynamicsCompressor();
-    this.postGainNode = this.audioContext.createGain();
+    this.agcCompressorNode = context.createDynamicsCompressor();
+    this.postGainNode = context.createGain();
     this.postGainNode.connect(this.agcCompressorNode);
 
     // 2.4 VAD 门限音量增益控制器 (未达灵敏度或松开 PTT 时静音以阻断上行网络包)
     // 显式声明为双声道 stereo，杜绝单耳偏音
-    this.vadGainNode = this.audioContext.createGain();
+    this.vadGainNode = context.createGain();
     this.vadGainNode.channelCount = 2;
     this.vadGainNode.channelCountMode = "explicit";
-    this.vadGainNode.gain.setValueAtTime(1, this.audioContext.currentTime);
+    this.vadGainNode.gain.setValueAtTime(1, context.currentTime);
 
     this.agcCompressorNode.connect(this.vadGainNode);
 
     // 2.5 最终目标流输出节点 (作为推流给 LiveKit 的干净流)
-    this.destinationNode = this.audioContext.createMediaStreamDestination();
-    this.outputAnalyser = this.audioContext.createAnalyser();
+    this.destinationNode = context.createMediaStreamDestination();
+    this.outputAnalyser = context.createAnalyser();
     this.outputAnalyser.fftSize = 512;
     this.outputAnalyser.smoothingTimeConstant = 0.3;
     this.outputAnalyser.connect(this.destinationNode);
@@ -453,18 +550,16 @@ export class AudioEngine {
       import.meta.env.BASE_URL || "./",
       window.location.href,
     );
-    await this.audioContext.audioWorklet.addModule(
+    await context.audioWorklet.addModule(
       new URL("models/voicePostProcessor.js", base),
     );
-    this.voicePostNode = new AudioWorkletNode(
-      this.audioContext,
-      "tescord-voice-post",
-      {
-        numberOfInputs: 1,
-        numberOfOutputs: 1,
-        outputChannelCount: [1],
-      },
-    );
+    if (context !== this.audioContext || generation !== this.captureGeneration)
+      return;
+    this.voicePostNode = new AudioWorkletNode(context, "tescord-voice-post", {
+      numberOfInputs: 1,
+      numberOfOutputs: 1,
+      outputChannelCount: [1],
+    });
     this.vadGainNode.connect(this.voicePostNode);
     this.voicePostNode.connect(this.outputAnalyser);
     this.processedStream = this.destinationNode.stream;
@@ -474,8 +569,11 @@ export class AudioEngine {
 
     // 2.6 初始化加载神经网络降噪节点并应用路由
     await this.initNoiseEngines();
+    if (context !== this.audioContext || generation !== this.captureGeneration)
+      return;
     await this.applyNoiseSuppressionRouting();
-
+    if (context !== this.audioContext || generation !== this.captureGeneration)
+      return;
     this.updateGating();
   }
 
@@ -494,8 +592,10 @@ export class AudioEngine {
 
   // 3. 加载与管理 RNNoise / DTLN / DFNv3 多引擎 AudioWorklet
   private async initNoiseEngines() {
-    if (!this.audioContext) return;
+    const context = this.audioContext;
+    if (!context) return;
     await this.ensureRnnoiseInitialized();
+    if (context !== this.audioContext) return;
     if (this.config.noiseSuppressionMode === "dtln") {
       await this.ensureDtlnInitialized();
     } else if (this.config.noiseSuppressionMode === "dfn3") {
@@ -551,6 +651,7 @@ export class AudioEngine {
     }
 
     try {
+      const { RnnoiseWorkletNode } = await loadRnnoiseModule();
       const base = import.meta.env.BASE_URL || "./";
       const workletUrl = new URL(
         `${base}rnnoise/rnnoise/workletProcessor.js`,
@@ -567,7 +668,13 @@ export class AudioEngine {
 
       await context.audioWorklet.addModule(workletUrl);
       const wasmBinary = await verifyRnnoiseWasm(
-        await loadRnnoise({ url: wasmUrl, simdUrl: simdWasmUrl }),
+        await fetchVerifiedAsset(
+          new URL(supportsWasmSimd() ? simdWasmUrl : wasmUrl),
+          supportsWasmSimd()
+            ? "378fd17c294db15ee4e818ba5ef072242a21c8ad7445b483f7f46d7dc4f2c253"
+            : "8b60a2ab88fdae2d1a9f940249d0eb072f28ba8e796f7304347b4e07839c8853",
+          (progress) => this.reportModelProgress("rnnoise", progress),
+        ),
       );
 
       if (context !== this.audioContext) return false;
@@ -607,6 +714,8 @@ export class AudioEngine {
       if (!loaded || context !== this.audioContext) return false;
 
       node = new DtlnWorkletNode(context);
+      node.onProgress = (progress) =>
+        this.reportModelProgress("dtln", progress);
       await node.ready();
       if (context !== this.audioContext) {
         node.destroy();
@@ -652,6 +761,8 @@ export class AudioEngine {
       await loadDfn3Worklet(context);
       if (context !== this.audioContext) return false;
       node = new Dfn3WorkletNode(context);
+      node.onProgress = (progress) =>
+        this.reportModelProgress("dfn3", progress);
       await node.ready();
       if (context !== this.audioContext) {
         node.destroy();
@@ -761,6 +872,20 @@ export class AudioEngine {
       gain.connect(this.postGainNode);
       const next = { mode: effective, input, output, gain };
       this.routes.add(next);
+      if (engine instanceof DtlnWorkletNode) {
+        try {
+          await engine.waitForOutput();
+        } catch (error) {
+          this.releaseRoute(next);
+          this.noiseStatus.phase = "failed";
+          this.noiseStatus.reason =
+            error instanceof Error
+              ? error.message
+              : "Inference output unavailable";
+          this.noiseStatus.effectiveMode = this.activeRoute?.mode ?? "off";
+          return;
+        }
+      }
       if (this.activeRoute) {
         // Feed the new stream long enough to fill its analysis window and output queue.
         await new Promise((resolve) => setTimeout(resolve, engine ? 120 : 20));
@@ -856,9 +981,9 @@ export class AudioEngine {
     if (stillUsed) return;
     if (
       route.output instanceof DtlnWorkletNode ||
-      route.output instanceof RnnoiseWorkletNode
+      (rnnoiseConstructor && route.output instanceof rnnoiseConstructor)
     )
-      route.output.destroy();
+      (route.output as DtlnWorkletNode | RnnoiseWorkletNode).destroy();
     if (route.output === this.rnnoiseNode) {
       this.rnnoiseNode = null;
       this.isRnnoiseReady = false;
@@ -871,10 +996,69 @@ export class AudioEngine {
     }
   }
 
-  public setNoiseSuppressionMode(mode: NoiseSuppressionMode) {
+  public async setNoiseSuppressionMode(mode: NoiseSuppressionMode) {
+    this.routingGeneration++;
     this.config.noiseSuppressionMode = mode;
     this.config.noiseSuppression = mode !== "off";
-    this.applyNoiseSuppressionRouting(mode);
+    useSettingsStore.getState().setAudioConfig({
+      noiseSuppressionMode: mode,
+      noiseSuppression: mode !== "off",
+    });
+    const generation = ++this.modelToastGeneration;
+    this.modelDownloadController?.abort();
+    const controller = new AbortController();
+    this.modelDownloadController = controller;
+    this.modelToastMode = mode;
+    this.modelAssetProgress.clear();
+    this.reportModelProgress(mode, {
+      asset: "prepare",
+      loaded: 0,
+      phase: "initializing",
+    });
+    this.modelAssetProgress.clear();
+    try {
+      if (!window.electronAPI?.openAudioInferencePort) {
+        await downloadNoiseModel(
+          mode,
+          (progress) => {
+            if (generation === this.modelToastGeneration)
+              this.reportModelProgress(mode, progress);
+          },
+          controller.signal,
+        );
+      }
+      if (generation !== this.modelToastGeneration) return;
+      if (this.audioContext) await this.applyNoiseSuppressionRouting(mode);
+      if (generation !== this.modelToastGeneration) return;
+      const failed = this.audioContext && this.noiseStatus.phase === "failed";
+      useToastStore.getState().updateToast(
+        "noise-model-switch",
+        `settings:noiseLoad.${failed ? "failed" : this.audioContext ? "complete" : "downloaded"}`,
+        {
+          model: this.modelLabel(mode),
+          effective: this.modelLabel(this.noiseStatus.effectiveMode),
+        },
+        failed ? "error" : "success",
+        undefined,
+        failed ? 6000 : 3000,
+      );
+    } catch (error) {
+      if (generation !== this.modelToastGeneration || controller.signal.aborted)
+        return;
+      useToastStore.getState().updateToast(
+        "noise-model-switch",
+        "settings:noiseLoad.failed",
+        {
+          model: this.modelLabel(mode),
+          effective: this.modelLabel(this.noiseStatus.effectiveMode),
+        },
+        "error",
+        undefined,
+        6000,
+      );
+    } finally {
+      if (generation === this.modelToastGeneration) this.modelToastMode = null;
+    }
   }
 
   // 4. VAD 智能语音活动判定与声学能量计算 (采用 setInterval 30ms 保证切后台/最小化时不挂起断音)
@@ -1170,6 +1354,7 @@ export class AudioEngine {
             errors.rnnoise = reason;
           };
         } else {
+          const { RnnoiseWorkletNode, loadRnnoise } = await loadRnnoiseModule();
           const base = new URL(
             import.meta.env.BASE_URL || "./",
             window.location.href,
@@ -1529,6 +1714,19 @@ export class AudioEngine {
     return this.processedStream || this.rawMediaStream;
   }
 
+  public getContinuityDiagnostics() {
+    const engine = this.activeRoute?.output;
+    return {
+      contextState: this.audioContext?.state ?? "closed",
+      sampleRate: this.audioContext?.sampleRate ?? 0,
+      effectiveMode: this.activeRoute?.mode ?? "off",
+      queueMs: this.noiseStatus.queueMs ?? 0,
+      ...(engine instanceof DtlnWorkletNode
+        ? engine.continuity
+        : { underruns: 0, outputQueueMs: 0, renderedSamples: 0 }),
+    };
+  }
+
   getRawStream(): MediaStream | null {
     return this.rawMediaStream;
   }
@@ -1539,12 +1737,18 @@ export class AudioEngine {
   }
 
   stop() {
+    this.captureGeneration++;
     this.routingGeneration++;
     this.pendingRnnoise = null;
     this.pendingDtln = null;
     this.pendingDfn3 = null;
     for (const route of [...this.routes]) this.releaseRoute(route);
     this.activeRoute = null;
+    ++this.modelToastGeneration;
+    this.modelDownloadController?.abort();
+    this.modelDownloadController = null;
+    this.modelToastMode = null;
+    useToastStore.getState().removeToast("noise-model-switch");
     if (this.vadTimer) {
       clearInterval(this.vadTimer);
       this.vadTimer = null;

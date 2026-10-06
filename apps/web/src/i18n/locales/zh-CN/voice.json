@@ -66,7 +66,6 @@
   "downstreamPeers": "下游接力分发节点",
   "treeRelayMode": "P2P 智能接力 (Tree Relay)",
   "peerCount": "直连成员节点数",
-
   "pip": {
     "streamingTitle": "{{name}} 的直播",
     "returnToRoom": "回到语音频道",
@@ -228,5 +227,40 @@
     "expand": "展开",
     "collapseStage": "折叠舞台",
     "returnToCall": "返回通话视窗"
+  },
+  "capture": {
+    "unsupported": "此系统不支持所选应用的声音捕获，已仅共享画面",
+    "no_audio": "未捕获到共享声音，请检查浏览器的共享声音选项",
+    "capture_failed": "共享声音捕获已中断，画面共享仍继续"
+  },
+  "mediaEncryption": {
+    "inactive": "媒体加密尚未连接",
+    "negotiating": "正在协商端到端加密",
+    "ready": "加密已就绪，等待媒体",
+    "active": "实际媒体已端到端加密",
+    "failed": "媒体加密失败，已停止传输",
+    "counts": "已加密 {{encrypted}} 帧 · 已解密 {{decrypted}} 帧"
+  },
+  "audioQuality": {
+    "unknown": "暂无数据",
+    "loss": "窗口丢包率",
+    "jitter": "抖动",
+    "buffer": "实际抖动缓冲",
+    "concealment": "音频补偿比例",
+    "received": "窗口 RTP 接收字节",
+    "targetBuffer": "接收缓冲目标",
+    "pipeline": "本地音频连续性",
+    "context": "AudioContext 状态",
+    "queue": "推理队列",
+    "outputQueue": "播放输出队列",
+    "underruns": "播放欠载次数",
+    "sampleRate": "采样率",
+    "rendered": "已渲染采样数",
+    "contextStates": {
+      "running": "运行中",
+      "suspended": "已暂停",
+      "closed": "已关闭",
+      "interrupted": "已中断"
+    }
   }
 }

@@ -3,6 +3,7 @@ import {
   GatewayEvents,
   type Attachment,
   type AttachmentAccessResponse,
+  type DownloadProgress,
 } from "@tescord/types";
 import { API_BASE, resolveServerUrl } from "../config.js";
 import { gatewayClient } from "./gateway.js";
@@ -217,6 +218,7 @@ export async function loadMediaBlob(
   variant: "preview" | "original" = "preview",
   signal?: AbortSignal,
   onRenewing?: () => void,
+  onProgress?: (progress: DownloadProgress) => void,
 ): Promise<Blob> {
   const isAttachmentObj = typeof target !== "string";
   const userId = useAuthStore.getState().user?.id || "guest";
@@ -235,18 +237,55 @@ export async function loadMediaBlob(
     if (signal?.aborted)
       throw new DOMException("Request aborted", "AbortError");
     const cached = readBlob(key);
-    if (cached) return cached;
+    if (cached) {
+      onProgress?.({ loaded: cached.size, total: cached.size, phase: "ready" });
+      return cached;
+    }
     for (let attempt = 0; attempt < 2; attempt++) {
       const targetUrl =
         variant === "preview" ? access.previewUrl || access.url : access.url;
       const response = await fetch(resolveServerUrl(targetUrl), { signal });
       if (response.ok) {
-        const blob = await response.blob();
+        const sizeHeader = Number(response.headers.get("content-length"));
+        const total =
+          sizeHeader > 0 && !response.headers.get("content-encoding")
+            ? sizeHeader
+            : undefined;
+        const chunks: Uint8Array<ArrayBuffer>[] = [];
+        let loaded = 0;
+        onProgress?.({ loaded, total, phase: "downloading" });
+        let blob: Blob;
+        if (response.body && onProgress) {
+          const reader = response.body.getReader();
+          try {
+            for (;;) {
+              const { done, value } = await reader.read();
+              if (signal?.aborted || generation !== cacheGeneration) {
+                await reader.cancel();
+                throw new DOMException("Request aborted", "AbortError");
+              }
+              if (done) break;
+              chunks.push(new Uint8Array(value));
+              loaded += value.byteLength;
+              onProgress({ loaded, total, phase: "downloading" });
+            }
+          } finally {
+            reader.releaseLock();
+          }
+          blob = new Blob(chunks, {
+            type:
+              response.headers.get("content-type") ||
+              "application/octet-stream",
+          });
+        } else {
+          blob = await response.blob();
+        }
         if (signal?.aborted)
           throw new DOMException("Request aborted", "AbortError");
         if (generation !== cacheGeneration)
           throw new Error(tGlobal("errors:FORBIDDEN"));
         rememberBlob(key, blob);
+        onProgress?.({ loaded: blob.size, total: blob.size, phase: "ready" });
         return blob;
       }
       if (
@@ -278,8 +317,9 @@ export async function loadAttachmentBlob(
   variant: "preview" | "original",
   signal?: AbortSignal,
   onRenewing?: () => void,
+  onProgress?: (progress: DownloadProgress) => void,
 ): Promise<Blob> {
-  return loadMediaBlob(attachment, variant, signal, onRenewing);
+  return loadMediaBlob(attachment, variant, signal, onRenewing, onProgress);
 }
 
 export async function openAttachmentDownload(attachment: Attachment) {
@@ -291,6 +331,19 @@ export async function openAttachmentDownload(attachment: Attachment) {
   document.body.appendChild(link);
   link.click();
   link.remove();
+}
+
+/** Discard a resource rejected by its decoder so retry performs a fresh fetch. */
+export function discardAttachmentBlob(
+  attachment: Attachment,
+  variant: "preview" | "original",
+) {
+  const key = cacheKey(attachment, variant);
+  const cached = blobCache.get(key);
+  if (cached) {
+    cachedBytes -= cached.size;
+    blobCache.delete(key);
+  }
 }
 
 export function clearAttachmentCache() {

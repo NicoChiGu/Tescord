@@ -1,3 +1,4 @@
+import { installEncryptedVoiceUi } from "./helpers/encrypted-voice-ui";
 import { test, expect } from "@playwright/test";
 
 test.describe("语音频道进入交互自动化验收 (Voice Channel Click & Double-Click)", () => {
@@ -55,6 +56,7 @@ test.describe("语音频道进入交互自动化验收 (Voice Channel Click & Do
     });
 
     // 2. 访问主页面并进入首个公会
+    await installEncryptedVoiceUi(page);
     await page.goto("/");
     await expect(page).toHaveTitle(/Tescord/i);
 

@@ -124,7 +124,10 @@ test.describe("移动端与平板设备文字频道动态加载与视口优化�
       await expect(serverBtn).toBeVisible({ timeout: 6000 });
       await serverBtn.click();
 
-      const generalChannelBtn = page.getByRole("button", { name: "general" });
+      const generalChannelBtn = page.getByRole("button", {
+        name: "general",
+        exact: true,
+      });
       await expect(generalChannelBtn).toBeVisible({ timeout: 6000 });
       await generalChannelBtn.click();
     }
@@ -210,7 +213,10 @@ test.describe("移动端与平板设备文字频道动态加载与视口优化�
       await expect(serverBtn).toBeVisible({ timeout: 6000 });
       await serverBtn.click();
 
-      const generalChannelBtn = page.getByRole("button", { name: "general" });
+      const generalChannelBtn = page.getByRole("button", {
+        name: "general",
+        exact: true,
+      });
       await expect(generalChannelBtn).toBeVisible({ timeout: 6000 });
       await generalChannelBtn.click();
     }

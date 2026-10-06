@@ -1,5 +1,6 @@
 import { test as setup, expect } from "@playwright/test";
 import path from "node:path";
+import { CURRENT_APP_VERSION } from "../apps/web/src/data/changelogs";
 
 const authFile = path.join(
   process.cwd(),
@@ -52,7 +53,7 @@ setup(
           { name: "tescord_e2e_refresh_token", value: body.refreshToken },
           {
             name: "tescord_last_seen_changelog_version",
-            value: "0.3.0",
+            value: CURRENT_APP_VERSION,
           },
           {
             name: "tescord_e2e_normal_access_token",

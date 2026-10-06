@@ -170,7 +170,8 @@ test.describe("消息引用跳转原文与高亮交互端到端验收 (Discord-P
       const url = route.request().url();
       const match = url.match(/\/api\/channels\/([^/]+)\/messages/);
       const activeChannelId = match ? match[1] : "c_general";
-      const customizedMessages = mockMessages.map((m) => ({
+      const customizedMessages = mockMessages.map((m, index) => ({
+        sequence: index + 1,
         ...m,
         channelId: activeChannelId,
       }));
@@ -225,6 +226,15 @@ test.describe("消息引用跳转原文与高亮交互端到端验收 (Discord-P
     await expect(originMessageEl).toHaveClass(/animate-message-highlight/, {
       timeout: 3000,
     });
+    // Wait for the reply scroll animation to settle before clicking its transient banner.
+    await expect(originMessageEl).toBeInViewport();
+    await expect
+      .poll(() =>
+        page
+          .getByTestId("chat-scroll-container")
+          .evaluate((el) => el.scrollTop),
+      )
+      .toBeLessThan(100);
 
     // 5. 验证因离开底部，输入框上方浮现 Discord 经典的“跳到最新”胶囊按钮
     const jumpToPresentBtn = page.getByTitle("跳到最新消息");

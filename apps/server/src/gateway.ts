@@ -61,6 +61,72 @@ export class GatewayManager {
   private userSessions: Map<string, Map<string, ClientConnection>> = new Map();
   // 全网单用户仅存一个活跃语音会话：userId -> VoiceState
   private voiceStates: Map<string, VoiceState> = new Map();
+  private mediaJoinTimers = new Map<string, NodeJS.Timeout>();
+  public confirmMediaRegistration(
+    userId: string,
+    channelId: string,
+    sessionId: string,
+  ): void {
+    const state = this.voiceStates.get(userId);
+    if (state?.channelId !== channelId || state.sessionId !== sessionId) return;
+    const timer = this.mediaJoinTimers.get(userId);
+    if (timer) clearTimeout(timer);
+    this.mediaJoinTimers.delete(userId);
+  }
+  public expireMediaParticipant(
+    userId: string,
+    channelId: string,
+    sessionId: string,
+  ): void {
+    const state = this.voiceStates.get(userId);
+    if (state?.channelId !== channelId || state.sessionId !== sessionId) return;
+    this.confirmMediaRegistration(userId, channelId, sessionId);
+    this.voiceStates.delete(userId);
+    p2pTopologyManager.removeViewer(channelId, userId);
+    for (const [id, media] of cloudflareRealtimeService.listSessions()) {
+      if (
+        media.userId === userId &&
+        media.channelId === channelId &&
+        media.gatewaySessionId === sessionId
+      )
+        void cloudflareRealtimeService.revokeSession(id).catch(() => {});
+    }
+    if (state.streaming) p2pTopologyManager.unregisterStream(channelId, userId);
+    const conn = this.userSessions.get(userId)?.get(sessionId);
+    if (conn)
+      this.send(conn.ws, {
+        op: GatewayOpCode.DISPATCH,
+        t: "VOICE_SERVER_DISCONNECT",
+        d: {
+          reason: "MEDIA_NEGOTIATION_TIMEOUT",
+        } satisfies VoiceServerDisconnectPayload,
+      });
+    void this.broadcastToChannelViewers(channelId, {
+      op: GatewayOpCode.DISPATCH,
+      t: "VOICE_STATE_UPDATE",
+      d: {
+        ...state,
+        channelId: null,
+        previousChannelId: channelId,
+        revision: this.nextVoiceRevision(userId),
+        streaming: false,
+      },
+    });
+  }
+  public getMediaVoiceState(userId: string): VoiceState | null {
+    const state = this.voiceStates.get(userId);
+    return state?.sessionId &&
+      this.hasIdentifiedSession(userId, state.sessionId)
+      ? { ...state }
+      : null;
+  }
+  public getMediaVoiceRoster(channelId: string): VoiceState[] {
+    return [...this.voiceStates.keys()]
+      .map((id) => this.getMediaVoiceState(id))
+      .filter((state): state is VoiceState =>
+        Boolean(state?.channelId === channelId),
+      );
+  }
   private voiceRevisions: Map<string, number> = new Map();
   private nextVoiceRevision(userId: string): number {
     const revision = (this.voiceRevisions.get(userId) ?? 0) + 1;
@@ -81,11 +147,14 @@ export class GatewayManager {
     userId: string,
     sessionId: string,
     loginSessionId: string,
+    sessionVersion?: number,
   ): boolean {
     const conn = this.userSessions.get(userId)?.get(sessionId);
     return (
       conn?.userId === userId &&
       conn.authSessionId === loginSessionId &&
+      (sessionVersion === undefined ||
+        conn.sessionVersion === sessionVersion) &&
       conn.ws.readyState === WebSocket.OPEN
     );
   }
@@ -528,6 +597,18 @@ export class GatewayManager {
 
         const existingVoice = this.voiceStates.get(conn.userId);
 
+        if (data.channelId && data.mediaEncryptionVersion !== 2) {
+          this.send(conn.ws, {
+            op: GatewayOpCode.DISPATCH,
+            t: "MEDIA_ENCRYPTION_REQUIRED",
+            d: {
+              channelId: data.channelId,
+              code: "MEDIA_E2EE_UNSUPPORTED",
+              version: 2,
+            },
+          });
+          return;
+        }
         if (data.channelId) {
           this.pendingVoiceJoins.set(conn.userId, {
             channelId: data.channelId,
@@ -665,6 +746,21 @@ export class GatewayManager {
           };
 
           this.voiceStates.set(conn.userId, voiceState);
+          if (!sameVoiceSession) {
+            const previousTimer = this.mediaJoinTimers.get(conn.userId);
+            if (previousTimer) clearTimeout(previousTimer);
+            const joiningUserId = conn.userId;
+            const timer = setTimeout(() => {
+              this.mediaJoinTimers.delete(joiningUserId);
+              this.expireMediaParticipant(
+                joiningUserId,
+                channel.id,
+                conn.sessionId!,
+              );
+            }, 10_000);
+            timer.unref();
+            this.mediaJoinTimers.set(joiningUserId, timer);
+          }
           this.pendingVoiceJoins.delete(conn.userId);
           await this.broadcastToChannelViewers(data.channelId, {
             op: GatewayOpCode.DISPATCH,
@@ -758,6 +854,14 @@ export class GatewayManager {
         if (payload.t === GatewayEvents.CALL_OFFER) {
           if (!conn.userId || !conn.sessionId) return;
           const data = payload.d as DMCallOfferPayload | undefined;
+          if (data?.mediaEncryptionVersion !== 2) {
+            this.send(conn.ws, {
+              op: GatewayOpCode.DISPATCH,
+              t: "MEDIA_ENCRYPTION_REQUIRED",
+              d: { code: "MEDIA_E2EE_UNSUPPORTED", version: 2 },
+            });
+            return;
+          }
           if (
             typeof data?.channelId !== "string" ||
             !data.channelId ||
@@ -813,6 +917,14 @@ export class GatewayManager {
         } else if (payload.t === GatewayEvents.CALL_ANSWER) {
           if (!conn.userId || !conn.sessionId) return;
           const data = payload.d as DMCallActionPayload | undefined;
+          if (data?.mediaEncryptionVersion !== 2) {
+            this.send(conn.ws, {
+              op: GatewayOpCode.DISPATCH,
+              t: "MEDIA_ENCRYPTION_REQUIRED",
+              d: { code: "MEDIA_E2EE_UNSUPPORTED", version: 2 },
+            });
+            return;
+          }
           if (
             typeof data?.callId !== "string" ||
             !data.callId ||
@@ -898,6 +1010,12 @@ export class GatewayManager {
         } else if (payload.t === GatewayEvents.P2P_SIGNAL) {
           const signalData = payload.d as P2PSignalPayload;
           if (!signalData || !conn.userId || !conn.sessionId) return;
+          if (
+            signalData.negotiationId !== undefined &&
+            (typeof signalData.negotiationId !== "string" ||
+              !/^[a-zA-Z0-9-]{1,64}$/.test(signalData.negotiationId))
+          )
+            return;
           if (signalData.callId) {
             if (
               !signalData.channelId ||

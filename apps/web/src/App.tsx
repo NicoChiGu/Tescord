@@ -1,3 +1,4 @@
+import { useToastStore } from "./stores/useToastStore.js";
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Channel,
@@ -16,12 +17,11 @@ import {
   User,
   UserStatus,
   PresenceUpdateEvent,
-  DevicePublicKey,
-  MediaKeyEnvelopePayload,
   DMCallEndedPayload,
   ClientCallState,
   ChannelUnreadInfo,
   ChannelUnreadMap,
+  MEDIA_ENCRYPTION_VERSION,
 } from "@tescord/types";
 import { TitleBar } from "./components/TitleBar.js";
 import { GatewayConnectionBanner } from "./components/GatewayConnectionBanner.js";
@@ -87,11 +87,15 @@ import { useAuthStore } from "./stores/useAuthStore.js";
 import { usePresenceStore } from "./stores/usePresenceStore.js";
 import { gatewayClient } from "./services/gateway.js";
 import { audioEngine } from "./services/audioEngine.js";
+import { useMessageHistory } from "./hooks/useMessageHistory.js";
 import { livekitService, ActiveScreenShare } from "./services/livekit.js";
 import { cloudflareRealtimeService } from "./services/cloudflare_realtime/index.js";
 import { audioMixer } from "./services/audioMixer.js";
 import { doubleRatchetManager } from "./services/doubleRatchet.js";
 import { sframeManager } from "./services/sframe.js";
+import { mediaEncryptionService } from "./services/mediaEncryption.js";
+import { captureDisplay } from "./services/displayCapture.js";
+import { getErrorMessage } from "./i18n/index.js";
 import { soundManager } from "./services/soundManager.js";
 import { p2pStreamManager } from "./services/p2p/P2PStreamManager.js";
 import { voiceMeshManager } from "./services/p2p/VoiceMeshManager.js";
@@ -205,15 +209,27 @@ export const App: React.FC = () => {
       isLeftDrawerOpen: isMobileDrawerOpen,
       isRightDrawerOpen: isMobileMemberOpen,
     },
-    !isDesktop,
+    !isDesktop && !useUserProfilePopoutStore((state) => state.isOpen),
   );
   const [activeVoiceChannelId, setActiveVoiceChannelId] = useState<
     string | null
   >(null);
+  const rejoinVoiceRef = useRef<(channelId: string) => Promise<void>>(
+    async () => {},
+  );
   const [voiceConnectionStatus, setVoiceConnectionStatus] =
     useState<VoiceConnectionStatus>(() => livekitService.getConnectionStatus());
   const [messages, setMessages] = useState<Message[]>([]);
   const [isMessagesLoading, setIsMessagesLoading] = useState<boolean>(false);
+  const messageHistory = useMessageHistory(
+    selectedChannel,
+    currentUser?.id,
+    messages,
+    setMessages,
+    setIsMessagesLoading,
+  );
+  const messageHistoryRef = useRef(messageHistory);
+  messageHistoryRef.current = messageHistory;
   const [voiceStates, setVoiceStates] = useState<VoiceState[]>([]);
   const voiceRevisionRef = useRef<Map<string, number>>(new Map());
   const [voiceTransferNotice, setVoiceTransferNotice] =
@@ -227,6 +243,9 @@ export const App: React.FC = () => {
     livekitService.getActiveSpeakers(),
   );
   const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const displayCaptureCleanupRef = useRef<(() => void) | null>(null);
+  const screenShareGenerationRef = useRef(0);
+  const dmJoinInProgressRef = useRef<string | null>(null);
   const [isVideoEnabled, setIsVideoEnabled] = useState(false);
   const [activeScreenShare, setActiveScreenShare] =
     useState<ActiveScreenShare | null>(null);
@@ -274,8 +293,16 @@ export const App: React.FC = () => {
   useEffect(() => {
     const currentUserId =
       currentUser?.id || useChannelNavStore.getState().userId;
-    if (currentUserId && !isAccountTransitionRef.current) {
-      useChannelNavStore.getState().recordLastSelectedGuild(selectedGuildId);
+    const navigation = useChannelNavStore.getState();
+    if (
+      currentUserId &&
+      !isAccountTransitionRef.current &&
+      (selectedGuildId !== null ||
+        navigation.getLastSelectedGuild(currentUserId) !== undefined)
+    ) {
+      // Do not persist the initial placeholder as an explicit Friends choice
+      // before the first guild response resolves the user's navigation.
+      navigation.recordLastSelectedGuild(selectedGuildId);
     }
   }, [selectedGuildId, currentUser?.id]);
   const getVoiceGuildId = (channelId: string | null) =>
@@ -309,9 +336,13 @@ export const App: React.FC = () => {
   };
   const sfuFallbackInProgressRef = useRef(false);
   const connectSfuFallbackRef = useRef<
-    (channelId: string, callId?: string | null) => Promise<boolean>
+    (
+      channelId: string,
+      callId?: string | null,
+      force?: boolean,
+    ) => Promise<boolean>
   >(async () => false);
-  connectSfuFallbackRef.current = async (channelId, callId) => {
+  connectSfuFallbackRef.current = async (channelId, callId, force = false) => {
     if (
       activeVoiceChannelIdRef.current !== channelId ||
       sfuFallbackInProgressRef.current
@@ -319,7 +350,7 @@ export const App: React.FC = () => {
       return false;
 
     // 守卫：若当前频道除自己外已无其他成员，严禁降级回退至 SFU，保持 P2P 就绪待命
-    if (!callId && voiceMeshManager.getOtherMemberCount() === 0) {
+    if (!force && !callId && voiceMeshManager.getOtherMemberCount() === 0) {
       console.log(
         `[Voice] 频道 ${channelId} 仅剩当前用户，拦截 SFU 回退，保持 P2P 就绪待命`,
       );
@@ -339,12 +370,12 @@ export const App: React.FC = () => {
       const channel = guildsRef.current
         .flatMap((guild) => guild.channels)
         .find((candidate) => candidate.id === channelId);
-      const requireE2EE = Boolean(callId || channel?.isE2EE);
+      const requireE2EE = true;
       if (
         !user ||
         !token ||
         (!callId && !channel) ||
-        (requireE2EE && !sframeManager.getStats().enabled)
+        !sframeManager.hasActiveContext
       ) {
         throw new Error("媒体身份或 E2EE 密钥尚未就绪");
       }
@@ -355,9 +386,8 @@ export const App: React.FC = () => {
           audioStream: stream,
           audioBitrate:
             channel?.bitrate || audioEngine.config.audioBitrate || 64000,
-          ...(callId
-            ? { callId, gatewaySessionId: gatewayClient.getSessionId() }
-            : {}),
+          gatewaySessionId: gatewayClient.getSessionId(),
+          ...(callId ? { callId } : {}),
         });
         if (activeVoiceChannelIdRef.current !== channelId)
           throw new Error("频道已切换");
@@ -682,7 +712,10 @@ export const App: React.FC = () => {
         voiceMeshManager.setContext(null);
         p2pStreamManager.setContext(null);
         audioEngine.stop();
-        sframeManager.disable();
+        mediaEncryptionService.stop();
+        screenShareGenerationRef.current++;
+        displayCaptureCleanupRef.current?.();
+        displayCaptureCleanupRef.current = null;
         livekitService.setNegotiatedE2EEKey(null);
         cloudflareRealtimeService.setNegotiatedE2EEKey(null);
         accountCleanupPromiseRef.current = Promise.allSettled([
@@ -1200,11 +1233,8 @@ export const App: React.FC = () => {
 
         // 仅当消息属于当前选中的频道时追加至 messages，防止全服公屏广播串台污染
         if (msg.channelId === selectedChannelRef.current?.id) {
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === msg.id)) return prev;
-            return [...prev, msg];
-          });
-          if (msg.authorId !== currentUser?.id) {
+          const appended = messageHistoryRef.current.receiveMessage(msg);
+          if (appended && msg.authorId !== currentUser?.id) {
             markChannelReadOnServer(msg.channelId, msg.sequence);
           }
         }
@@ -1752,8 +1782,14 @@ export const App: React.FC = () => {
               );
               voiceOperationEpochRef.current++;
               isVoiceSwitchingRef.current = false;
-              sframeManager.disable();
+              mediaEncryptionService.stop();
+              screenShareGenerationRef.current++;
+              displayCaptureCleanupRef.current?.();
+              displayCaptureCleanupRef.current = null;
+              voiceMeshManager.stopAll();
+              p2pStreamManager.stopAll();
               audioEngine.stop();
+              void cloudflareRealtimeService.disconnect();
               void livekitService.leaveRoom();
               activeVoiceChannelIdRef.current = null;
               setActiveVoiceChannelId(null);
@@ -1776,16 +1812,10 @@ export const App: React.FC = () => {
                 `[Voice] 收到频道切换过渡离开信令 (${vs.previousChannelId} -> ${activeVoiceChannelIdRef.current})，安全忽略本地清理`,
               );
             }
-          } else if (vs.channelId && !isOtherSession) {
-            // 本账号本设备确认进入新频道：若本地状态尚未对齐或处于切换中，进行权威对齐
-            if (activeVoiceChannelIdRef.current !== vs.channelId) {
-              console.log(
-                `[Voice] 收到网关确认自身进入新频道 ${vs.channelId}，对齐本地活跃频道状态`,
-              );
-              activeVoiceChannelIdRef.current = vs.channelId;
-              setActiveVoiceChannelId(vs.channelId);
-            }
           }
+          // A delayed join acknowledgement must never resurrect a locally cancelled
+          // or transferred session. Joins set the intended channel before signalling;
+          // an unsolicited channel also has no negotiated media context.
         }
 
         setVoiceStates((prev) => {
@@ -1956,6 +1986,14 @@ export const App: React.FC = () => {
     const unbindVoiceDisconnect = gatewayClient.on(
       "VOICE_SERVER_DISCONNECT",
       async (data: VoiceServerDisconnectPayload) => {
+        if (data.reason === "MEDIA_NEGOTIATION_TIMEOUT") {
+          showGlobalToast(
+            getErrorMessage({ code: "MEDIA_NEGOTIATION_TIMEOUT" }),
+            "error",
+          );
+          await handleLeaveVoiceChannel();
+          return;
+        }
         if (data.reason === "VOICE_TRANSFER") {
           const prevChannel =
             guildsRef.current
@@ -1964,9 +2002,16 @@ export const App: React.FC = () => {
             selectedChannelRef.current;
 
           // 1. 彻底释放麦克风硬件与媒体流
-          sframeManager.disable();
+          mediaEncryptionService.stop();
+          screenShareGenerationRef.current++;
+          displayCaptureCleanupRef.current?.();
+          displayCaptureCleanupRef.current = null;
+          voiceOperationEpochRef.current++;
+          isVoiceSwitchingRef.current = false;
+          activeVoiceChannelIdRef.current = null;
+          voiceMeshManager.stopAll();
+          p2pStreamManager.stopAll();
           audioEngine.stop();
-          await livekitService.leaveRoom();
 
           // 2. 播放挂断提示音
           soundManager.play("VOICE_LEAVE");
@@ -1975,12 +2020,17 @@ export const App: React.FC = () => {
           setActiveVoiceChannelId(null);
           setIsSpeaking(false);
           setIsScreenSharing(false);
+          setIsVideoEnabled(false);
 
           // 4. 展示转移提示卡片
           setVoiceTransferNotice({
             targetPlatform: data.targetPlatform || t("voice:otherDevice"),
             previousChannel: prevChannel || null,
           });
+          await Promise.allSettled([
+            cloudflareRealtimeService.disconnect(),
+            livekitService.leaveRoom(),
+          ]);
         }
       },
     );
@@ -2074,73 +2124,14 @@ export const App: React.FC = () => {
             useDMCallStore.getState().setConnected(data.callId);
           }
 
-          if (data.callerId === currentUser?.id && data.state === "ringing") {
-            try {
-              const token = useAuthStore.getState().token;
-              if (!token) throw new Error("登录已失效");
-              const response = await fetch(
-                `${API_BASE}/api/channels/${data.channelId}/e2ee/devices`,
-                {
-                  headers: { Authorization: `Bearer ${token}` },
-                },
-              );
-              if (!response.ok) throw new Error("无法读取对端设备密钥");
-              const devices = (await response.json()) as DevicePublicKey[];
-              const negotiated = await deviceKeyService.distributeMediaKey(
-                data.channelId,
-                data.callId,
-                devices,
-                token,
-              );
-              sframeManager.setNegotiatedKey(negotiated.key);
-              livekitService.setNegotiatedE2EEKey(negotiated.key);
-              cloudflareRealtimeService.setNegotiatedE2EEKey(negotiated.key);
-              setCallEncryption({
-                status: negotiated.trust,
-                fingerprint: negotiated.fingerprint,
-              });
-            } catch (error) {
-              setCallEncryption({ status: "failed" });
-              showGlobalToast(
-                error instanceof Error ? error.message : "E2EE 密钥协商失败",
-                "error",
-              );
-              gatewayClient.send({
-                op: GatewayOpCode.DISPATCH,
-                t: GatewayEvents.CALL_END,
-                d: { callId: data.callId, reason: "e2ee_key_exchange_failed" },
-              });
-            }
+          if (data.state === "active") {
+            void handleJoinDMCall(data.channelId, data.hasVideo, data.callId);
           }
         }
       },
     );
 
-    const unbindMediaKey = gatewayClient.on(
-      GatewayEvents.E2EE_KEY_EXCHANGE,
-      async (data: MediaKeyEnvelopePayload) => {
-        if (!data?.callId || data.callId !== activeDMCallRef.current?.callId)
-          return;
-        try {
-          const negotiated = await deviceKeyService.openMediaKey(data);
-          if (!negotiated) return;
-          sframeManager.setNegotiatedKey(negotiated.key);
-          livekitService.setNegotiatedE2EEKey(negotiated.key);
-          cloudflareRealtimeService.setNegotiatedE2EEKey(negotiated.key);
-
-          setCallEncryption({
-            status: negotiated.trust,
-            fingerprint: negotiated.fingerprint,
-          });
-        } catch (error) {
-          setCallEncryption({ status: "failed" });
-          showGlobalToast(
-            error instanceof Error ? error.message : "E2EE 媒体密钥验证失败",
-            "error",
-          );
-        }
-      },
-    );
+    const unbindMediaKey = () => {};
 
     const unbindCallEnd = gatewayClient.on(
       GatewayEvents.CALL_END,
@@ -2513,6 +2504,14 @@ export const App: React.FC = () => {
         cloudflareRealtimeService.currentSessionId
       ) {
         pendingChannelId = activeVoiceChannelIdRef.current;
+        voiceOperationEpochRef.current++;
+        mediaEncryptionService.stop();
+        audioEngine.stop();
+        screenShareGenerationRef.current++;
+        displayCaptureCleanupRef.current?.();
+        displayCaptureCleanupRef.current = null;
+        setIsScreenSharing(false);
+        setIsVideoEnabled(false);
         void cloudflareRealtimeService.disconnect();
         livekitService.setConnectionStatus("connecting");
         clearTimer();
@@ -2538,44 +2537,13 @@ export const App: React.FC = () => {
         pendingChannelId = null;
         clearTimer();
         if (activeVoiceChannelIdRef.current !== channelId) return;
-        void audioEngine
-          .initMicrophone()
-          .then(async () => {
-            const stream = audioEngine.getStream();
-            if (!stream)
-              throw new Error("Microphone unavailable after reconnect");
-            if (activeVoiceChannelIdRef.current !== channelId)
-              throw new Error("Voice channel changed during reconnect");
-            const guildChannel = guildsRef.current
-              .flatMap((guild) => guild.channels)
-              .find((channel) => channel.id === channelId);
-            const dmCallId = guildChannel
-              ? null
-              : activeDMCallRef.current?.channelId === channelId
-                ? activeDMCallRef.current.callId
-                : useDMCallStore.getState().channelId === channelId
-                  ? useDMCallStore.getState().callId
-                  : null;
-            if (!guildChannel && !dmCallId)
-              throw new Error("DM call ended during reconnect");
-            await cloudflareRealtimeService.connect(channelId, {
-              audioStream: stream,
-              audioBitrate:
-                guildChannel?.bitrate ||
-                audioEngine.config.audioBitrate ||
-                64000,
-              ...(dmCallId
-                ? {
-                    callId: dmCallId,
-                    gatewaySessionId: gatewayClient.getSessionId(),
-                  }
-                : {}),
-            });
-          })
-          .catch(() => {
+        void rejoinVoiceRef.current(channelId).catch(() => {
+          if (activeVoiceChannelIdRef.current === channelId) {
             livekitService.setConnectionStatus("disconnected");
+            activeVoiceChannelIdRef.current = null;
             setActiveVoiceChannelId(null);
-          });
+          }
+        });
       }
     });
     return () => {
@@ -2624,7 +2592,10 @@ export const App: React.FC = () => {
       }
 
       // 3. 清理本地媒体与加密管线
-      sframeManager.disable();
+      mediaEncryptionService.stop();
+      screenShareGenerationRef.current++;
+      displayCaptureCleanupRef.current?.();
+      displayCaptureCleanupRef.current = null;
       livekitService.setNegotiatedE2EEKey(null);
       voiceMeshManager.stopAll();
       audioEngine.stop();
@@ -2762,143 +2733,7 @@ export const App: React.FC = () => {
     };
   }, [guilds, isScreenSharing]);
 
-  // 切换文字或私信频道拉取历史消息（升级为 IndexedDB SWR 零感知秒开 + 竞态保护）
-  useEffect(() => {
-    if (!selectedChannel || selectedChannel.type === "VOICE") {
-      setMessages([]);
-      setIsMessagesLoading(false);
-      return;
-    }
-
-    // 立即清空当前消息状态并开启加载指示，杜绝旧频道或旧用户残留
-    setMessages([]);
-    setIsMessagesLoading(true);
-
-    const currentReqChannelId = selectedChannel.id;
-    const currentReqChannelType = selectedChannel.type;
-    const controller = new AbortController();
-    const token = localStorage.getItem("tescord_access_token");
-
-    // 1. SWR 阶段一：尝试从当前用户本地 IndexedDB 原子化取出最新 100 条历史消息快照
-    messageDb
-      .getChannelSnapshot(currentReqChannelId, 100)
-      .then(({ messages: cached }) => {
-        // 确认当前仍处于发起查询的频道
-        if (selectedChannelRef.current?.id === currentReqChannelId) {
-          if (cached && cached.length > 0) {
-            // 本地命中缓存：直接上屏秒开，跳过骨架屏！
-            setMessages(cached);
-            setIsMessagesLoading(false);
-          }
-        }
-      });
-
-    // 2. SWR 阶段二：后台异步拉取最新 100 条网络数据并持久化到本地
-    fetch(
-      `${API_BASE}/api/channels/${currentReqChannelId}/messages?limit=100`,
-      {
-        signal: controller.signal,
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      },
-    )
-      .then(async (res) => {
-        if (!res.ok) throw new Error(`读取消息失败 (${res.status})`);
-        const data = (await res.json()) as Message[];
-
-        // 异步存入本地 IndexedDB 数据库（单频道 300 条 LRU 淘汰）
-        if (data && data.length > 0) {
-          await messageDb.saveMessages(currentReqChannelId, data);
-        }
-
-        // 严格核对当前激活频道是否依然为发起请求的频道，杜绝网络竞态覆盖
-        if (selectedChannelRef.current?.id === currentReqChannelId) {
-          // 比较新数据与已有数据是否一致，避免无实质变化时触发全量重新渲染
-          setMessages((prev) => {
-            if (
-              prev.length === data.length &&
-              prev.length > 0 &&
-              prev[prev.length - 1]?.id === data[data.length - 1]?.id &&
-              prev[0]?.id === data[0]?.id
-            ) {
-              return prev;
-            }
-            return data;
-          });
-        }
-
-        if (
-          currentReqChannelType === "DM" &&
-          selectedChannelRef.current?.id === currentReqChannelId
-        ) {
-          const lastReadSequence = data.reduce(
-            (max, message) => Math.max(max, message.sequence || 0),
-            0,
-          );
-          await fetch(`${API_BASE}/api/channels/${currentReqChannelId}/read`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({ lastReadSequence }),
-          });
-          setDmChannels((current) =>
-            current.map((channel) =>
-              channel.id === currentReqChannelId
-                ? { ...channel, unreadCount: 0 }
-                : channel,
-            ),
-          );
-        }
-      })
-      .catch((err) => {
-        if (err.name !== "AbortError") {
-          console.error("Failed to fetch messages:", err);
-          if (selectedChannelRef.current?.id === currentReqChannelId) {
-            setMessages([]);
-          }
-        }
-      })
-      .finally(() => {
-        if (selectedChannelRef.current?.id === currentReqChannelId) {
-          setIsMessagesLoading(false);
-        }
-      });
-
-    return () => {
-      // 3. 切换离开当前频道时，立即中止正在传输中的旧请求
-      controller.abort();
-    };
-  }, [selectedChannel?.id]);
-
-  // 重新拉取当前频道的最新 100 条消息（当用户在历史位置断层且点击跳到最新时触发）
-  const handleReloadLatestMessages = useCallback(async () => {
-    if (!selectedChannel || selectedChannel.type === "VOICE") return;
-    const currentReqChannelId = selectedChannel.id;
-    const token = localStorage.getItem("tescord_access_token");
-    try {
-      const res = await fetch(
-        `${API_BASE}/api/channels/${currentReqChannelId}/messages?limit=100`,
-        {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        },
-      );
-      if (!res.ok) return;
-      const data = (await res.json()) as Message[];
-      if (data && data.length > 0) {
-        await messageDb.saveMessages(currentReqChannelId, data);
-      }
-      if (selectedChannelRef.current?.id === currentReqChannelId) {
-        setMessages(data);
-      }
-    } catch (err) {
-      console.error("Failed to reload latest messages:", err);
-    }
-  }, [selectedChannel?.id]);
+  const handleReloadLatestMessages = messageHistory.reloadLatest;
 
   const currentGuild = guilds.find((g) => g.id === selectedGuildId) || null;
   const currentChannels = currentGuild ? currentGuild.channels : [];
@@ -3420,30 +3255,48 @@ export const App: React.FC = () => {
     setSelectedChannel(channel);
     livekitService.setConnectionStatus("connecting");
 
-    // 阶段五：语音端到端加密 (SFrame WebRTC E2EE)
-    if (channel.isE2EE) {
-      if (!sframeManager.getStats().enabled) {
+    try {
+      if (
+        !channel.guildId ||
+        !(await gatewayClient.updateVoiceStateAndWait(
+          channel.guildId,
+          channel.id,
+          { selfMute: isMutedRef.current, selfDeaf: isDeafened },
+        ))
+      )
+        throw new Error("MEDIA_CONTEXT_STALE");
+      if (!isCurrentVoiceOp()) return;
+      const token = useAuthStore.getState().token;
+      if (!token) throw new Error("UNAUTHORIZED");
+      await mediaEncryptionService.prepare({
+        channelId: channel.id,
+        gatewaySessionId: gatewayClient.getSessionId(),
+        userId: joiningUserId,
+        token,
+        onFailure: (error) => {
+          if (!isCurrentVoiceOp()) return;
+          showGlobalToast(getErrorMessage({ code: error.message }), "error");
+          void handleLeaveVoiceChannel();
+        },
+      });
+      if (!isCurrentVoiceOp()) return;
+    } catch (error) {
+      if (isCurrentVoiceOp()) {
         showGlobalToast(
-          "设备密钥尚未协商完成，已阻止未加密加入 E2EE 频道",
+          getErrorMessage({
+            code:
+              error instanceof Error ? error.message : "MEDIA_KEY_UNAVAILABLE",
+          }),
           "error",
         );
-        if (isCurrentVoiceOp()) {
-          activeVoiceChannelIdRef.current = null;
-          setActiveVoiceChannelId(null);
-          livekitService.setConnectionStatus("disconnected");
-          isVoiceSwitchingRef.current = false;
-        }
-        return;
+        await handleLeaveVoiceChannel();
+        isVoiceSwitchingRef.current = false;
       }
-    } else {
-      sframeManager.disable();
+      return;
     }
 
     await audioEngine.initMicrophone();
-    if (!isCurrentVoiceOp()) {
-      audioEngine.stop();
-      return;
-    }
+    if (!isCurrentVoiceOp()) return;
     // A rebuilt capture graph must inherit the current mute before it is published.
     audioEngine.setMute(isMutedRef.current);
 
@@ -3462,26 +3315,6 @@ export const App: React.FC = () => {
         VOICE_ENGINE === "cloudflare_realtime");
 
     if (isP2PMesh && processedStream && channel.guildId) {
-      const voiceStateAccepted = await gatewayClient.updateVoiceStateAndWait(
-        channel.guildId,
-        channel.id,
-        {
-          selfMute: isMuted,
-          selfDeaf: isDeafened,
-          selfVideo: isVideoEnabled,
-          streaming: isScreenSharing,
-        },
-      );
-      if (!voiceStateAccepted || !isCurrentVoiceOp()) {
-        if (isCurrentVoiceOp()) {
-          audioEngine.stop();
-          activeVoiceChannelIdRef.current = null;
-          setActiveVoiceChannelId(null);
-          livekitService.setConnectionStatus("disconnected");
-          isVoiceSwitchingRef.current = false;
-        }
-        return;
-      }
       const otherMembers = voiceStates
         .filter(
           (state) =>
@@ -3517,13 +3350,10 @@ export const App: React.FC = () => {
           {
             audioStream: processedStream,
             audioBitrate: bitrate,
+            gatewaySessionId: gatewayClient.getSessionId(),
           },
         );
-        if (!isCurrentVoiceOp()) {
-          await cloudflareRealtimeService.disconnect();
-          audioEngine.stop();
-          return;
-        }
+        if (!isCurrentVoiceOp()) return;
         cloudflareRealtimeService.setMicrophoneMute(isMutedRef.current);
         joinSuccess = Boolean(cfSessionId);
         if (joinSuccess && isCurrentVoiceOp()) {
@@ -3566,23 +3396,16 @@ export const App: React.FC = () => {
         });
         if (!res.ok) throw new Error("Failed to get guild media token");
         const data = await res.json();
-        if (!isCurrentVoiceOp()) {
-          audioEngine.stop();
-          return;
-        }
+        if (!isCurrentVoiceOp()) return;
         joinSuccess = await livekitService.joinRoom(
           data.url,
           data.token,
           channel.id,
           processedStream,
           bitrate,
-          Boolean(channel.isE2EE),
+          true,
         );
-        if (!isCurrentVoiceOp()) {
-          if (joinSuccess) await livekitService.leaveRoom();
-          audioEngine.stop();
-          return;
-        }
+        if (!isCurrentVoiceOp()) return;
       }
     } catch (e) {
       console.error("Failed to join livekit room:", e);
@@ -3592,9 +3415,7 @@ export const App: React.FC = () => {
     if (!joinSuccess) {
       console.warn("语音服务连接未成功，自动复位语音频道状态");
       if (isCurrentVoiceOp()) {
-        audioEngine.stop();
-        activeVoiceChannelIdRef.current = null;
-        setActiveVoiceChannelId(null);
+        await handleLeaveVoiceChannel();
         livekitService.setConnectionStatus("disconnected");
         isVoiceSwitchingRef.current = false;
       }
@@ -3621,13 +3442,7 @@ export const App: React.FC = () => {
       );
       if (!voiceStateAccepted) {
         if (isCurrentVoiceOp()) {
-          await cloudflareRealtimeService.disconnect();
-          await livekitService.leaveRoom();
-          voiceMeshManager.stopAll();
-          audioEngine.stop();
-          activeVoiceChannelIdRef.current = null;
-          setActiveVoiceChannelId(null);
-          isVoiceSwitchingRef.current = false;
+          await handleLeaveVoiceChannel();
         }
         return;
       }
@@ -3641,6 +3456,10 @@ export const App: React.FC = () => {
   // 取消正在进行的语音连接
   const handleCancelVoiceJoin = async () => {
     voiceOperationEpochRef.current++;
+    mediaEncryptionService.stop();
+    screenShareGenerationRef.current++;
+    displayCaptureCleanupRef.current?.();
+    displayCaptureCleanupRef.current = null;
     isVoiceSwitchingRef.current = false;
     const cancellingChannelId =
       activeVoiceChannelIdRef.current || activeVoiceChannelId;
@@ -3696,7 +3515,10 @@ export const App: React.FC = () => {
     }
 
     // 清理 SFrame 语音加密管线状态与纯语音 Mesh P2P
-    sframeManager.disable();
+    mediaEncryptionService.stop();
+    screenShareGenerationRef.current++;
+    displayCaptureCleanupRef.current?.();
+    displayCaptureCleanupRef.current = null;
     livekitService.setNegotiatedE2EEKey(null);
     cloudflareRealtimeService.setNegotiatedE2EEKey(null);
     // 向频道内对端广播 VOICE_LEAVE 离开信令，使其毫秒级释放连接并取消重试
@@ -3725,7 +3547,12 @@ export const App: React.FC = () => {
     const currentChannel = guildsRef.current
       .flatMap((g) => g.channels)
       .find((c) => c.id === leavingChannelId);
-    const targetGuildId = currentChannel?.guildId || selectedGuildId;
+    const leavingDM =
+      activeDMCallRef.current?.channelId === leavingChannelId ||
+      currentDMStoreEarly.callState !== "idle";
+    const targetGuildId = leavingDM
+      ? null
+      : currentChannel?.guildId || selectedGuildId;
 
     if (targetGuildId) {
       gatewayClient.updateVoiceState(targetGuildId, null, {
@@ -3934,107 +3761,187 @@ export const App: React.FC = () => {
     callId: string,
   ) => {
     if (!currentUser) return;
-    if (!sframeManager.getStats().enabled) {
-      showGlobalToast("E2EE 设备密钥尚未就绪，已阻止未加密媒体连接", "error");
+    if (
+      dmJoinInProgressRef.current === callId ||
+      (activeVoiceChannelIdRef.current === channelId &&
+        sframeManager.hasActiveContext)
+    )
       return;
-    }
-    setActiveVoiceChannelId(channelId);
-    livekitService.setConnectionStatus("connecting");
-    await audioEngine.initMicrophone();
-    const bitrate = 64000;
-    const processedStream = audioEngine.getStream();
-
-    let joinSuccess = false;
-    const dmChannel =
-      dmChannels.find((candidate) => candidate.id === channelId) ||
-      (selectedChannel?.id === channelId ? selectedChannel : null);
-    const peerId = dmChannel?.recipients?.find(
-      (recipient) => recipient.id !== currentUser.id,
-    )?.id;
-
-    // 1v1 默认先建立端到端加密的 WebRTC 直连；ICE 配置中包含自建 TURN，
-    // 因此 host/srflx/relay 都属于 P2P 阶段。只有该阶段确认失败才进入 SFU。
-    if (processedStream && peerId) {
-      try {
-        await voiceMeshManager.startVoiceMesh(
-          channelId,
-          "",
-          processedStream,
-          [peerId],
-          callId,
-        );
-        joinSuccess = await voiceMeshManager.waitForConnectedPeer(8_000);
-        if (joinSuccess) livekitService.setConnectionStatus("p2p_active");
-      } catch (error) {
-        console.warn("DM P2P/TURN 协商失败，准备回退 SFU:", error);
-      }
-    }
-
-    if (!joinSuccess) voiceMeshManager.stopAll();
-
-    const isCloudflareActive = VOICE_ENGINE === "cloudflare_realtime";
-    if (!joinSuccess && isCloudflareActive && processedStream) {
-      try {
-        console.log(
-          "[VoiceEngine] DM 呼叫回退使用 Cloudflare Realtime SFU 建立连接:",
-          channelId,
-        );
-        const cfSessionId = await cloudflareRealtimeService.connect(channelId, {
-          audioStream: processedStream,
-          audioBitrate: bitrate,
-          callId,
-          gatewaySessionId: gatewayClient.getSessionId(),
-        });
-        joinSuccess = Boolean(cfSessionId);
-        if (joinSuccess) livekitService.setConnectionStatus("connected");
-      } catch (cfErr) {
-        console.error("Cloudflare Realtime 加入 DM 呼叫失败:", cfErr);
-      }
-    }
-
+    dmJoinInProgressRef.current = callId;
+    const accountEpoch = accountEpochRef.current;
+    const voiceEpoch = ++voiceOperationEpochRef.current;
+    const isCurrent = () =>
+      accountEpochRef.current === accountEpoch &&
+      voiceOperationEpochRef.current === voiceEpoch &&
+      activeDMCallRef.current?.callId === callId &&
+      useAuthStore.getState().user?.id === currentUser.id;
     try {
-      if (!joinSuccess && !isCloudflareActive) {
-        const token = useAuthStore.getState().token;
-        const res = await fetch(
-          `${API_BASE}/api/channels/dm/${channelId}/call-token`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({
-              callId,
-              sessionId: gatewayClient.getSessionId(),
-            }),
-          },
-        );
-        if (!res.ok) throw new Error("Failed to get DM call token");
-        const data = await res.json();
-        joinSuccess = await livekitService.joinRoom(
-          data.serverUrl || data.url,
-          data.token,
-          data.roomName || `dm_${channelId}`,
-          processedStream,
-          bitrate,
-          true,
-        );
+      if (!(await gatewayClient.waitUntilReady(currentUser.id)))
+        throw new Error("MEDIA_CONTEXT_STALE");
+      const token = useAuthStore.getState().token;
+      if (!token || !isCurrent()) return;
+      const previousChannelId = activeVoiceChannelIdRef.current;
+      if (previousChannelId && previousChannelId !== channelId) {
+        const previousGuild = getVoiceGuildId(previousChannelId);
+        if (previousGuild) gatewayClient.updateVoiceState(previousGuild, null);
+        mediaEncryptionService.stop();
+        screenShareGenerationRef.current++;
+        displayCaptureCleanupRef.current?.();
+        displayCaptureCleanupRef.current = null;
+        voiceMeshManager.stopAll();
+        audioEngine.stop();
+        await cloudflareRealtimeService.disconnect();
+        await livekitService.leaveRoom();
+        if (!isCurrent()) return;
       }
-    } catch (e) {
-      console.error("Failed to join DM call:", e);
-      joinSuccess = false;
-    }
+      activeVoiceChannelIdRef.current = channelId;
+      setActiveVoiceChannelId(channelId);
+      livekitService.setConnectionStatus("connecting");
+      await mediaEncryptionService.prepare({
+        channelId,
+        callId,
+        gatewaySessionId: gatewayClient.getSessionId(),
+        userId: currentUser.id,
+        token,
+        onFailure: (error) => {
+          if (!isCurrent()) return;
+          setCallEncryption({ status: "failed" });
+          showGlobalToast(getErrorMessage({ code: error.message }), "error");
+          void handleLeaveVoiceChannel();
+        },
+      });
+      if (!isCurrent()) return;
+      setCallEncryption({ status: "tofu" });
+      await audioEngine.initMicrophone();
+      audioEngine.setMute(isMutedRef.current);
+      if (!isCurrent()) return;
+      const bitrate = 64000;
+      const processedStream = audioEngine.getStream();
 
-    if (!joinSuccess) {
-      console.warn("语音服务连接未成功，自动复位呼叫状态");
-      audioEngine.stop();
-      setActiveVoiceChannelId(null);
-      return;
-    }
+      let joinSuccess = false;
+      const dmChannel =
+        dmChannels.find((candidate) => candidate.id === channelId) ||
+        (selectedChannel?.id === channelId ? selectedChannel : null);
+      const peerId = dmChannel?.recipients?.find(
+        (recipient) => recipient.id !== currentUser.id,
+      )?.id;
 
-    soundManager.play("VOICE_JOIN");
-    if (hasVideo) {
-      handleToggleCamera();
+      // 1v1 默认先建立端到端加密的 WebRTC 直连；ICE 配置中包含自建 TURN，
+      // 因此 host/srflx/relay 都属于 P2P 阶段。只有该阶段确认失败才进入 SFU。
+      if (processedStream && peerId) {
+        try {
+          await voiceMeshManager.startVoiceMesh(
+            channelId,
+            "",
+            processedStream,
+            [peerId],
+            callId,
+          );
+          joinSuccess = await voiceMeshManager.waitForConnectedPeer(8_000);
+          if (!isCurrent()) return;
+          if (joinSuccess) livekitService.setConnectionStatus("p2p_active");
+        } catch (error) {
+          console.warn("DM P2P/TURN 协商失败，准备回退 SFU:", error);
+        }
+      }
+
+      if (!isCurrent()) return;
+      if (!joinSuccess) voiceMeshManager.stopAll();
+
+      const isCloudflareActive = VOICE_ENGINE === "cloudflare_realtime";
+      if (!joinSuccess && isCloudflareActive && processedStream) {
+        try {
+          console.log(
+            "[VoiceEngine] DM 呼叫回退使用 Cloudflare Realtime SFU 建立连接:",
+            channelId,
+          );
+          const cfSessionId = await cloudflareRealtimeService.connect(
+            channelId,
+            {
+              audioStream: processedStream,
+              audioBitrate: bitrate,
+              callId,
+              gatewaySessionId: gatewayClient.getSessionId(),
+            },
+          );
+          if (!isCurrent()) return;
+          joinSuccess = Boolean(cfSessionId);
+          if (joinSuccess) livekitService.setConnectionStatus("connected");
+        } catch (cfErr) {
+          console.error("Cloudflare Realtime 加入 DM 呼叫失败:", cfErr);
+        }
+      }
+
+      try {
+        if (!joinSuccess && !isCloudflareActive) {
+          const token = useAuthStore.getState().token;
+          const res = await fetch(
+            `${API_BASE}/api/channels/dm/${channelId}/call-token`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify({
+                callId,
+                sessionId: gatewayClient.getSessionId(),
+              }),
+            },
+          );
+          if (!res.ok) throw new Error("Failed to get DM call token");
+          const data = await res.json();
+          joinSuccess = await livekitService.joinRoom(
+            data.serverUrl || data.url,
+            data.token,
+            data.roomName || `dm_${channelId}`,
+            processedStream,
+            bitrate,
+            true,
+          );
+        }
+      } catch (e) {
+        console.error("Failed to join DM call:", e);
+        joinSuccess = false;
+      }
+
+      if (!isCurrent()) return;
+      if (!joinSuccess) {
+        console.warn("语音服务连接未成功，自动复位呼叫状态");
+        await handleLeaveVoiceChannel();
+        return;
+      }
+
+      soundManager.play("VOICE_JOIN");
+      if (hasVideo) {
+        handleToggleCamera();
+      }
+    } catch (error) {
+      if (isCurrent()) {
+        showGlobalToast(
+          getErrorMessage({
+            code:
+              error instanceof Error ? error.message : "MEDIA_KEY_UNAVAILABLE",
+          }),
+          "error",
+        );
+        await handleLeaveVoiceChannel();
+      }
+    } finally {
+      if (dmJoinInProgressRef.current === callId)
+        dmJoinInProgressRef.current = null;
+    }
+  };
+
+  rejoinVoiceRef.current = async (channelId) => {
+    const channel = guildsRef.current
+      .flatMap((guild) => guild.channels)
+      .find((channel) => channel.id === channelId);
+    if (channel) await handleJoinVoiceChannel(channel);
+    else {
+      // A disconnected Gateway ends its device-bound DM session on the server.
+      // A new call must negotiate a new call id and keys instead of reusing it.
+      await handleLeaveVoiceChannel();
     }
   };
 
@@ -4063,9 +3970,26 @@ export const App: React.FC = () => {
   };
 
   // 主动发起 1v1 私信呼叫
-  const handleStartCall = (channelId: string, hasVideo: boolean) => {
+  const handleStartCall = async (channelId: string, hasVideo: boolean) => {
     if (!currentUser) return;
-    sframeManager.disable();
+    if (!sframeManager.isSupported()) {
+      showGlobalToast(
+        getErrorMessage({ code: "MEDIA_E2EE_UNSUPPORTED" }),
+        "error",
+      );
+      return;
+    }
+    const callEpoch = accountEpochRef.current;
+    if (activeVoiceChannelIdRef.current) await handleLeaveVoiceChannel();
+    if (
+      callEpoch !== accountEpochRef.current ||
+      useAuthStore.getState().user?.id !== currentUser.id
+    )
+      return;
+    mediaEncryptionService.stop();
+    screenShareGenerationRef.current++;
+    displayCaptureCleanupRef.current?.();
+    displayCaptureCleanupRef.current = null;
     livekitService.setNegotiatedE2EEKey(null);
     cloudflareRealtimeService.setNegotiatedE2EEKey(null);
     setCallEncryption({ status: "negotiating" });
@@ -4089,6 +4013,7 @@ export const App: React.FC = () => {
       d: {
         channelId,
         hasVideo,
+        mediaEncryptionVersion: MEDIA_ENCRYPTION_VERSION,
       },
     });
   };
@@ -4125,58 +4050,6 @@ export const App: React.FC = () => {
     if (!incomingCall) return;
     soundManager.stopLoop();
     const call = incomingCall;
-    if (!sframeManager.getStats().enabled) {
-      try {
-        const token = useAuthStore.getState().token;
-        if (!token) throw new Error("登录已失效");
-        // 来电可以先于对端的密钥信封到达；优先等实时密钥事件，避免正常接听产生 404。
-        for (
-          let attempt = 0;
-          attempt < 15 && !sframeManager.getStats().enabled;
-          attempt++
-        ) {
-          if (activeDMCallRef.current?.callId !== call.callId) return;
-          await new Promise((resolve) => setTimeout(resolve, 100));
-        }
-        let lastError: unknown = new Error("等待对端媒体密钥超时");
-        for (
-          let attempt = 0;
-          attempt < 20 && !sframeManager.getStats().enabled;
-          attempt++
-        ) {
-          if (activeDMCallRef.current?.callId !== call.callId) return;
-          try {
-            const envelope = await deviceKeyService.fetchMediaKey(
-              call.channelId,
-              call.callId,
-              token,
-            );
-            const negotiated = await deviceKeyService.openMediaKey(envelope);
-            if (!negotiated) throw new Error("媒体密钥未发给当前设备");
-            sframeManager.setNegotiatedKey(negotiated.key);
-            livekitService.setNegotiatedE2EEKey(negotiated.key);
-            cloudflareRealtimeService.setNegotiatedE2EEKey(negotiated.key);
-            setCallEncryption({
-              status: negotiated.trust,
-              fingerprint: negotiated.fingerprint,
-            });
-          } catch (error) {
-            lastError = error;
-            if (!sframeManager.getStats().enabled && attempt < 19) {
-              await new Promise((resolve) => setTimeout(resolve, 250));
-            }
-          }
-        }
-        if (!sframeManager.getStats().enabled) throw lastError;
-      } catch (error) {
-        setCallEncryption({ status: "failed" });
-        showGlobalToast(
-          error instanceof Error ? error.message : "E2EE 密钥尚未就绪",
-          "warning",
-        );
-        return;
-      }
-    }
     if (activeDMCallRef.current?.callId !== call.callId) return;
     setIncomingCall(null);
     useDMCallStore.getState().setConnecting(call.callId);
@@ -4185,6 +4058,7 @@ export const App: React.FC = () => {
       t: GatewayEvents.CALL_ANSWER,
       d: {
         callId: call.callId,
+        mediaEncryptionVersion: MEDIA_ENCRYPTION_VERSION,
       },
     });
     const ch = dmChannels.find((c) => c.id === call.channelId);
@@ -4405,6 +4279,9 @@ export const App: React.FC = () => {
   // 显式停止屏幕推流 (无论底层处于何种状态，绝不弹出选择码率的 Modal)
   const handleStopScreenShare = useCallback(async () => {
     setIsScreenShareModalOpen(false); // 强制关闭任何选择弹窗，绝不弹出
+    screenShareGenerationRef.current++;
+    displayCaptureCleanupRef.current?.();
+    displayCaptureCleanupRef.current = null;
     setIsScreenSharing(false);
     setActiveScreenShare((prev) => (prev?.isLocal ? null : prev));
 
@@ -4441,7 +4318,12 @@ export const App: React.FC = () => {
 
   // 切换屏幕分享 (打开选择弹窗或停止分享)
   const handleToggleScreenShare = async () => {
-    if (!activeVoiceChannelId || !getVoiceGuildId(activeVoiceChannelId)) return;
+    if (
+      !activeVoiceChannelId ||
+      (!getVoiceGuildId(activeVoiceChannelId) &&
+        activeDMCallRef.current?.channelId !== activeVoiceChannelId)
+    )
+      return;
     if (isCurrentUserStreaming()) {
       await handleStopScreenShare();
     } else {
@@ -4459,124 +4341,75 @@ export const App: React.FC = () => {
     transmissionMode: StreamTransmissionMode = "sfu",
   ) => {
     const voiceGuildId = getVoiceGuildId(activeVoiceChannelId);
-    if (!activeVoiceChannelId || !voiceGuildId) return;
+    const callId =
+      activeDMCallRef.current?.channelId === activeVoiceChannelId
+        ? activeDMCallRef.current.callId
+        : undefined;
+    if (!activeVoiceChannelId || (!voiceGuildId && !callId)) return;
+    if (callId) transmissionMode = "sfu";
 
     const preset =
       SCREEN_SHARE_PRESETS[presetId] || SCREEN_SHARE_PRESETS["1080p60"];
 
+    const shareGeneration = ++screenShareGenerationRef.current;
+    let ownCleanup: (() => void) | undefined;
+    const isCurrentShare = () =>
+      screenShareGenerationRef.current === shareGeneration;
     try {
-      let stream: MediaStream;
-      let fellBackToVideoOnly = false;
-
-      if (sourceId && window.electronAPI) {
-        const constraints: any = {
-          audio: captureAudio
-            ? {
-                mandatory: {
-                  chromeMediaSource: "desktop",
-                },
-              }
-            : false,
-          video: {
-            mandatory: {
-              chromeMediaSource: "desktop",
-              chromeMediaSourceId: sourceId,
-              minWidth: preset.width,
-              maxWidth: preset.width,
-              minHeight: preset.height,
-              maxHeight: preset.height,
-              minFrameRate: preset.frameRate,
-              maxFrameRate: preset.frameRate,
-            },
-          },
-        };
-        try {
-          stream = await navigator.mediaDevices.getUserMedia(constraints);
-        } catch (desktopErr: any) {
-          if (captureAudio) {
-            console.warn(
-              "桌面端伴音捕获失败，自动降级为纯画面推流:",
-              desktopErr,
-            );
-            constraints.audio = false;
-            stream = await navigator.mediaDevices.getUserMedia(constraints);
-            fellBackToVideoOnly = true;
-          } else {
-            throw desktopErr;
-          }
-        }
-      } else {
-        const audioConstraints: MediaTrackConstraints = {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        };
-
-        const displayMediaOptions: any = {
-          video: {
-            width: { ideal: preset.width },
-            height: { ideal: preset.height },
-            frameRate: { ideal: preset.frameRate, max: preset.frameRate },
-          },
-          audio: captureAudio ? audioConstraints : false,
-          // W3C Screen Capture Extensions
-          systemAudio: captureAudio ? "include" : "exclude",
-          selfBrowserSurface: "exclude",
-          surfaceSwitching: "include",
-        };
-
-        try {
-          stream =
-            await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
-        } catch (mediaErr: any) {
-          // 用户主动取消授权或关闭原生选择弹窗
-          if (
-            mediaErr?.name === "NotAllowedError" ||
-            mediaErr?.name === "AbortError"
-          ) {
-            throw mediaErr;
-          }
-
-          // 捕获伴音启动失败（NotReadableError: Could not start audio source 等）
-          const isAudioSourceError =
-            captureAudio &&
-            (mediaErr?.name === "NotReadableError" ||
-              mediaErr?.name === "TrackStartError" ||
-              mediaErr?.name === "OverconstrainedError" ||
-              (typeof mediaErr?.message === "string" &&
-                mediaErr.message.toLowerCase().includes("audio")));
-
-          if (isAudioSourceError) {
-            console.warn(
-              "⚠️ 浏览器伴音源启动失败(声卡独占/驱动限制/窗口不支持伴音)，自动无缝降级为纯画面推流:",
-              mediaErr,
-            );
-            const fallbackOptions = {
-              video: displayMediaOptions.video,
-              audio: false,
-              systemAudio: "exclude",
-              selfBrowserSurface: "exclude",
-              surfaceSwitching: "include",
-            };
-            stream =
-              await navigator.mediaDevices.getDisplayMedia(fallbackOptions);
-            fellBackToVideoOnly = true;
-          } else {
-            throw mediaErr;
-          }
-        }
+      sframeManager.assertReady();
+      const captureEpoch = accountEpochRef.current;
+      const captureVoiceEpoch = voiceOperationEpochRef.current;
+      const captured = await captureDisplay({
+        sourceId: sourceId || undefined,
+        captureAudio,
+        onAudioUnavailable: (reason) =>
+          useToastStore
+            .getState()
+            .updateToast(
+              `display-audio-${shareGeneration}`,
+              `voice:capture.${reason}`,
+              {},
+              "warning",
+              undefined,
+              7000,
+            ),
+        video: {
+          width: { ideal: preset.width },
+          height: { ideal: preset.height },
+          frameRate: { ideal: preset.frameRate, max: preset.frameRate },
+        },
+      });
+      if (
+        captureEpoch !== accountEpochRef.current ||
+        captureVoiceEpoch !== voiceOperationEpochRef.current ||
+        !isCurrentShare()
+      ) {
+        captured.cleanup();
+        return;
       }
-
-      // 如果发生了伴音降级，给用户醒目 Toast 提示
-      if (fellBackToVideoOnly) {
-        showGlobalToast(
-          "⚠️ 系统伴音未能启动（若需分享声音，请选择【整个屏幕】并勾选【共享系统音频】），已自动降级为纯画面推流",
-          "warning",
-          7000,
-        );
-      }
-
+      displayCaptureCleanupRef.current?.();
+      ownCleanup = captured.cleanup;
+      displayCaptureCleanupRef.current = captured.cleanup;
+      const stream = captured.stream;
+      if (captureAudio && captured.reason)
+        useToastStore
+          .getState()
+          .updateToast(
+            `display-audio-${shareGeneration}`,
+            `voice:capture.${captured.reason}`,
+            {},
+            "warning",
+            undefined,
+            7000,
+          );
       const actualHasAudioTrack = stream.getAudioTracks().length > 0;
+      stream.getVideoTracks()[0]?.addEventListener(
+        "ended",
+        () => {
+          if (isCurrentShare()) void handleStopScreenShare();
+        },
+        { once: true },
+      );
 
       if (
         transmissionMode === "p2p_direct" ||
@@ -4584,7 +4417,7 @@ export const App: React.FC = () => {
       ) {
         await p2pStreamManager.startBroadcasting(
           activeVoiceChannelId,
-          voiceGuildId,
+          voiceGuildId!,
           stream,
           transmissionMode,
           videoCodec || "h264",
@@ -4599,6 +4432,15 @@ export const App: React.FC = () => {
       } else {
         // 4.2 保持原生双轨推流架构：屏幕伴音作为独立音轨发送，麦克风人声保持独立推流，避免静音冲突
         if (VOICE_ENGINE === "cloudflare_realtime") {
+          if (
+            cloudflareRealtimeService.status !== "connected" &&
+            !(await connectSfuFallbackRef.current(
+              activeVoiceChannelId,
+              callId,
+              true,
+            ))
+          )
+            throw new Error("MEDIA_KEY_UNAVAILABLE");
           const videoTrack = stream.getVideoTracks()[0];
           if (!videoTrack) throw new Error("屏幕视频轨道不可用");
           await cloudflareRealtimeService.publishMediaTrack(
@@ -4612,41 +4454,59 @@ export const App: React.FC = () => {
               stream,
               "screen-audio",
             );
-          videoTrack.addEventListener(
-            "ended",
-            () => {
-              void handleStopScreenShare();
-            },
-            { once: true },
-          );
         } else {
-          await livekitService.startScreenShareWithStream(stream, {
-            sourceId: sourceId || undefined,
-            preset: presetId,
-            captureAudio: actualHasAudioTrack,
-            simulcast: true,
-            videoCodec,
-            customBitrate,
-          });
+          const started = await livekitService.startScreenShareWithStream(
+            stream,
+            {
+              sourceId: sourceId || undefined,
+              preset: presetId,
+              captureAudio: actualHasAudioTrack,
+              simulcast: true,
+              videoCodec,
+              customBitrate,
+            },
+          );
+          if (!started) throw new Error("MEDIA_E2EE_UNSUPPORTED");
         }
       }
 
+      if (
+        !isCurrentShare() ||
+        captureEpoch !== accountEpochRef.current ||
+        captureVoiceEpoch !== voiceOperationEpochRef.current
+      ) {
+        captured.cleanup();
+        return;
+      }
       setIsScreenSharing(true);
       setScreenShareModeByChannel((previous) => ({
         ...previous,
         [activeVoiceChannelId]: transmissionMode,
       }));
-      gatewayClient.updateVoiceState(voiceGuildId, activeVoiceChannelId, {
-        streaming: true,
-        streamMode: transmissionMode,
-      });
-    } catch (err: any) {
-      if (err?.name === "NotAllowedError" || err?.name === "AbortError") {
+      if (voiceGuildId)
+        gatewayClient.updateVoiceState(voiceGuildId, activeVoiceChannelId, {
+          streaming: true,
+          streamMode: transmissionMode,
+        });
+    } catch (err: unknown) {
+      ownCleanup?.();
+      if (!isCurrentShare()) return;
+      screenShareGenerationRef.current++;
+      displayCaptureCleanupRef.current?.();
+      displayCaptureCleanupRef.current = null;
+      await cloudflareRealtimeService.unpublishSource("screen").catch(() => {});
+      await cloudflareRealtimeService
+        .unpublishSource("screen-audio")
+        .catch(() => {});
+      if (
+        err instanceof Error &&
+        (err.name === "NotAllowedError" || err.name === "AbortError")
+      ) {
         console.info("用户取消了屏幕共享授权");
         return;
       }
       console.error("Failed to start screen share:", err);
-      showGlobalToast(`屏幕分享失败: ${err?.message || "未知错误"}`, "error");
+      showGlobalToast(t("voice:capture.capture_failed"), "error");
     }
   };
 
@@ -4749,13 +4609,10 @@ export const App: React.FC = () => {
       useChannelNavStore.getState().recordLastSelectedGuild(ch.guildId);
       useChannelNavStore.getState().recordChannelVisit(ch.guildId, ch.id);
       if (ch.type === "TEXT") {
-        useChannelNavStore
-          .getState()
-          .recordTextChannelVisit(ch.guildId, ch.id);
+        useChannelNavStore.getState().recordTextChannelVisit(ch.guildId, ch.id);
         setChannelUnreadMap((prev) => {
           const cur = prev[ch.id];
-          if (!cur || (!cur.hasUnread && cur.mentionCount === 0))
-            return prev;
+          if (!cur || (!cur.hasUnread && cur.mentionCount === 0)) return prev;
           return {
             ...prev,
             [ch.id]: {
@@ -4768,9 +4625,7 @@ export const App: React.FC = () => {
         });
         markChannelReadOnServer(ch.id);
         if (ch.guildId) {
-          const otherUnread = Object.values(
-            channelUnreadMapRef.current,
-          ).some(
+          const otherUnread = Object.values(channelUnreadMapRef.current).some(
             (item) =>
               item.guildId === ch.guildId &&
               item.channelId !== ch.id &&
@@ -4791,9 +4646,7 @@ export const App: React.FC = () => {
       setSelectedGuildId(null);
       useChannelNavStore.getState().recordLastSelectedGuild(null);
       setDmChannels((prev) =>
-        prev.map((dm) =>
-          dm.id === ch.id ? { ...dm, unreadCount: 0 } : dm,
-        ),
+        prev.map((dm) => (dm.id === ch.id ? { ...dm, unreadCount: 0 } : dm)),
       );
     }
     if (isDrawer || isMobileDrawerOpen) {
@@ -5166,11 +5019,14 @@ export const App: React.FC = () => {
           />
         ) : selectedChannel ? (
           <ChatArea
-            key={selectedChannel.id}
+            key={`${currentUser.id}:${selectedChannel.id}`}
             channel={selectedChannel}
             guild={currentGuild}
             messages={messages}
             isLoadingMessages={isMessagesLoading}
+            history={messageHistory.history}
+            onLoadOlderMessages={messageHistory.loadOlder}
+            onLoadNewerMessages={messageHistory.loadNewer}
             currentUser={currentUser}
             onSendMessage={handleSendMessage}
             onReactionAdd={handleReactionAdd}
@@ -5264,7 +5120,10 @@ export const App: React.FC = () => {
               className={`fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300 ease-out ${
                 isMobileMemberOpen ? "opacity-100" : "opacity-0"
               }`}
-              onClick={() => setIsMobileMemberOpen(false)}
+              onClick={() => {
+                if (!useUserProfilePopoutStore.getState().isOpen)
+                  setIsMobileMemberOpen(false);
+              }}
             />
             {/* 抽屉面板主体 */}
             <div
@@ -5279,7 +5138,10 @@ export const App: React.FC = () => {
                 <button
                   type="button"
                   data-testid="close-member-drawer-btn"
-                  onClick={() => setIsMobileMemberOpen(false)}
+                  onClick={() => {
+                    if (!useUserProfilePopoutStore.getState().isOpen)
+                      setIsMobileMemberOpen(false);
+                  }}
                   className="p-1 rounded text-discord-textMuted hover:text-white hover:bg-[#35373c] transition"
                   title="关闭成员列表"
                   aria-label="关闭成员列表"
@@ -5730,7 +5592,10 @@ export const App: React.FC = () => {
       {globalToast && (
         <div
           data-testid="global-toast"
-          className={`fixed top-12 left-1/2 -translate-x-1/2 z-[9999] max-w-[90vw] sm:max-w-md px-4 py-2.5 rounded-lg shadow-2xl flex items-center gap-2.5 text-sm font-medium animate-in fade-in slide-in-from-top-4 duration-200 border backdrop-blur-md ${
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className={`fixed top-[max(3rem,env(safe-area-inset-top))] left-1/2 -translate-x-1/2 z-[110] max-w-[90vw] sm:max-w-md px-4 py-2.5 rounded-lg shadow-2xl flex items-center gap-2.5 text-sm font-medium animate-in fade-in slide-in-from-top-4 duration-200 border backdrop-blur-md ${
             globalToast.type === "warning"
               ? "bg-[#2b2d31]/95 text-amber-300 border-amber-500/40"
               : globalToast.type === "error"

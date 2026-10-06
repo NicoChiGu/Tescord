@@ -288,5 +288,13 @@
   "globalFontSizeDesc": "按比例动态缩放全软件文字与界面排版大小（基准 13px - 20px）",
   "resetFontSize": "重置默认字号",
   "myEmojis": "我的表情",
-  "myEmojisDesc": "管理您上传的个人表情包，可在任何频道或私信中自由发送"
+  "myEmojisDesc": "管理您上传的个人表情包，可在任何频道或私信中自由发送",
+  "noiseLoad": {
+    "downloading": "正在下载 {{model}} 模型",
+    "verifying": "正在校验 {{model}} 模型",
+    "initializing": "正在初始化 {{model}} 降噪",
+    "complete": "已切换至 {{model}} 降噪",
+    "downloaded": "{{model}} 已下载，将在麦克风启用时加载",
+    "failed": "{{model}} 加载失败，继续使用 {{effective}}"
+  }
 }

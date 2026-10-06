@@ -241,7 +241,8 @@
     "title": "Edit Icon Size",
     "description": "Drag to pan the preview, use slider to zoom in or out.",
     "confirmBtn": "Confirm & Upload",
-    "previewAlt": "Icon crop preview"
+    "previewAlt": "Icon crop preview",
+    "processingFailed": "Could not process the image. Try again."
   },
   "whatsNew": {
     "title": "What's New in Tescord",

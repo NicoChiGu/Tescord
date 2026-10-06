@@ -185,7 +185,9 @@
     "loadFailed": "图片加载失败",
     "retry": "点击重试",
     "originalBadge": "原图",
-    "zoomBadge": "缩放 {{percent}}%"
+    "zoomBadge": "缩放 {{percent}}%",
+    "decoding": "正在解码原图…",
+    "downloadProgress": "{{loaded}} / {{total}} MB"
   },
   "searchEmoji": "搜索表情...",
   "emojiCategoryRecent": "常用表情",
@@ -212,5 +214,17 @@
     "welcomeDesc": "支持关键词全文搜索及 from:、has: 等高级语法过滤。",
     "imageAttachment": "图片附件",
     "fileAttachment": "文件附件"
+  },
+  "loadingOlder": "正在加载较早的消息…",
+  "loadingNewer": "正在加载较新的消息…",
+  "loadOlder": "加载较早的消息",
+  "loadNewer": "加载较新的消息",
+  "history": {
+    "loadFailed": "无法加载消息，请重试",
+    "unread": "您有未读消息",
+    "viewingOlder": "您正在查看较旧的消息",
+    "jumpUnread": "跳转至未读",
+    "jumpLatest": "跳到最新",
+    "jumpLatestTitle": "跳到最新消息"
   }
 }

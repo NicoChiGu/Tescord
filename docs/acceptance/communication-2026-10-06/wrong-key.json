@@ -1,0 +1,47 @@
+{
+  "a": {
+    "enabled": true,
+    "keyId": 1001,
+    "framesEncrypted": 91,
+    "framesDecrypted": 0,
+    "framesDroppedReplay": 0,
+    "lastError": null
+  },
+  "b": {
+    "enabled": true,
+    "keyId": 2002,
+    "framesEncrypted": 91,
+    "framesDecrypted": 0,
+    "framesDroppedReplay": 0,
+    "lastError": null
+  },
+  "pa": {
+    "sent": 13069,
+    "received": 13034,
+    "codec": "",
+    "pair": {
+      "local": "host",
+      "remote": "host"
+    }
+  },
+  "pb": {
+    "sent": 13034,
+    "received": 13069,
+    "codec": "",
+    "pair": {
+      "local": "host",
+      "remote": "host"
+    }
+  },
+  "samples": [
+    {
+      "id": "b",
+      "rms": 0
+    },
+    {
+      "id": "a",
+      "rms": 0
+    }
+  ],
+  "legacy": false
+}

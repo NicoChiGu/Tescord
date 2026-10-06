@@ -66,7 +66,6 @@
   "downstreamPeers": "下游接力分發節點",
   "treeRelayMode": "P2P 智慧接力 (Tree Relay)",
   "peerCount": "直連成員節點數",
-
   "pip": {
     "streamingTitle": "{{name}} 的直播",
     "returnToRoom": "回到語音頻道",
@@ -228,5 +227,40 @@
     "expand": "展開",
     "collapseStage": "折疊舞台",
     "returnToCall": "返回通話視窗"
+  },
+  "capture": {
+    "unsupported": "此系統不支援所選應用程式的聲音擷取，目前僅分享畫面",
+    "no_audio": "未擷取到分享聲音，請檢查瀏覽器的分享聲音選項",
+    "capture_failed": "分享聲音擷取已中斷，畫面分享仍持續"
+  },
+  "mediaEncryption": {
+    "inactive": "媒體加密尚未連線",
+    "negotiating": "正在協商端對端加密",
+    "ready": "加密已就緒，等待媒體",
+    "active": "實際媒體已端對端加密",
+    "failed": "媒體加密失敗，已停止傳輸",
+    "counts": "已加密 {{encrypted}} 影格 · 已解密 {{decrypted}} 影格"
+  },
+  "audioQuality": {
+    "unknown": "暫無資料",
+    "loss": "區間遺失率",
+    "jitter": "抖動",
+    "buffer": "實際抖動緩衝",
+    "concealment": "音訊補償比例",
+    "received": "區間 RTP 接收位元組",
+    "targetBuffer": "接收緩衝目標",
+    "pipeline": "本機音訊連續性",
+    "context": "AudioContext 狀態",
+    "queue": "推論佇列",
+    "outputQueue": "播放輸出佇列",
+    "underruns": "播放欠載次數",
+    "sampleRate": "取樣率",
+    "rendered": "已渲染取樣數",
+    "contextStates": {
+      "running": "執行中",
+      "suspended": "已暫停",
+      "closed": "已關閉",
+      "interrupted": "已中斷"
+    }
   }
 }

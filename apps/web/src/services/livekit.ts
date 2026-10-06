@@ -37,6 +37,8 @@ import { audioEngine } from "./audioEngine.js";
 import { soundManager } from "./soundManager.js";
 import { useSettingsStore } from "../stores/useSettingsStore.js";
 import { bitrateCalculator } from "./stats/BitrateCalculator.js";
+import { captureDisplay } from "./displayCapture.js";
+import { useToastStore } from "../stores/useToastStore.js";
 
 export type { StreamDetailedStats };
 
@@ -151,17 +153,22 @@ export function detectSupportedVideoCodecs(): CodecCapabilityInfo[] {
     }
   }
 
-  const av1Supported = Boolean(supportsAV1() || mimeTypes.has("video/av1"));
-  const vp9Supported = Boolean(supportsVP9() || mimeTypes.has("video/vp9"));
+  const hasWebRTC = typeof RTCRtpSender !== "undefined";
+  const av1Supported = Boolean(
+    (hasWebRTC && supportsAV1()) || mimeTypes.has("video/av1"),
+  );
+  const vp9Supported = Boolean(
+    (hasWebRTC && supportsVP9()) || mimeTypes.has("video/vp9"),
+  );
   const h265Supported = Boolean(
     cachedH265Supported ??
-    (supportsH265() ||
+    ((hasWebRTC && supportsH265()) ||
       mimeTypes.has("video/hevc") ||
       mimeTypes.has("video/h265")),
   );
   const h264Supported =
-    mimeTypes.size === 0 ? true : mimeTypes.has("video/h264");
-  const vp8Supported = true; // VP8 通用兜底支持
+    hasWebRTC && (mimeTypes.size === 0 || mimeTypes.has("video/h264"));
+  const vp8Supported = hasWebRTC; // VP8 is the baseline only when WebRTC exists.
 
   return [
     {
@@ -319,6 +326,8 @@ export class LiveKitService {
   private localScreenVideoTrack: any = null;
   private localScreenAudioTrack: any = null;
   private localScreenStream: MediaStream | null = null;
+  private displayCaptureCleanup: (() => void) | null = null;
+  private screenCaptureGeneration = 0;
   public localScreenShare: ActiveScreenShare | null = null;
   public isSwitchingRoom: boolean = false;
   public activeScreenShare: ActiveScreenShare | null = null;
@@ -2000,13 +2009,21 @@ export class LiveKitService {
   async startScreenShareWithStream(
     stream: MediaStream,
     options?: ScreenShareOptions,
+    captureCleanup?: () => void,
   ): Promise<boolean> {
+    let operationGeneration: number | undefined;
     try {
       await this.stopScreenShare();
+      operationGeneration = this.screenCaptureGeneration;
+      const room = this.room;
+      this.displayCaptureCleanup = captureCleanup ?? null;
       this.localScreenStream = stream;
 
       const videoTrack = stream.getVideoTracks()[0];
-      if (!videoTrack) return false;
+      if (!videoTrack) {
+        await this.stopScreenShare();
+        return false;
+      }
 
       const presetKey = options?.preset || "1080p60";
       const preset =
@@ -2026,10 +2043,10 @@ export class LiveKitService {
             ? this.customBitrate
             : preset.bitrate;
 
-      const localIdentity = this.room?.localParticipant?.identity || "local";
+      const localIdentity = room?.localParticipant?.identity || "local";
 
       // 若当前未建立 LiveKit SFU 媒体连接 (如单机离线模式或 E2E 测试环境)，直接通过本地 MediaStreamTrack 维护状态
-      if (!this.room || !this.isConnected) {
+      if (!room || !this.isConnected) {
         this.localScreenVideoTrack = videoTrack;
         videoTrack.onended = () => {
           this.stopScreenShare();
@@ -2059,7 +2076,7 @@ export class LiveKitService {
 
       // 发布屏幕视频轨 (启用 Simulcast 多清晰度广播与指定编码格式)
       // 显式传入 screenShareEncoding，修复 livekit-client 在屏幕分享场景下忽略 videoEncoding 的底层缺陷
-      await this.room.localParticipant.publishTrack(videoTrack, {
+      await room.localParticipant.publishTrack(videoTrack, {
         name: "screen-share-video",
         source: Track.Source.ScreenShare,
         simulcast: options?.simulcast !== false,
@@ -2075,17 +2092,47 @@ export class LiveKitService {
         },
       });
 
+      if (
+        operationGeneration !== this.screenCaptureGeneration ||
+        room !== this.room ||
+        !this.isConnected
+      ) {
+        await room.localParticipant
+          .unpublishTrack(videoTrack)
+          .catch(() => undefined);
+        captureCleanup?.();
+        stream.getTracks().forEach((track) => track.stop());
+        return false;
+      }
+
       this.localScreenVideoTrack = videoTrack;
 
       // 若捕获了桌面/窗口原生伴音，同时发布高音质立体声伴音轨
       const audioTrack = stream.getAudioTracks()[0];
       if (audioTrack && options?.captureAudio) {
-        await this.room.localParticipant.publishTrack(audioTrack, {
+        await room.localParticipant.publishTrack(audioTrack, {
           name: "screen-share-audio",
           source: Track.Source.ScreenShareAudio,
           audioPreset: { maxBitrate: 128000 },
           dtx: true,
         });
+        if (
+          operationGeneration !== this.screenCaptureGeneration ||
+          room !== this.room ||
+          !this.isConnected
+        ) {
+          await Promise.all([
+            room.localParticipant
+              .unpublishTrack(videoTrack)
+              .catch(() => undefined),
+            room.localParticipant
+              .unpublishTrack(audioTrack)
+              .catch(() => undefined),
+          ]);
+          captureCleanup?.();
+          stream.getTracks().forEach((track) => track.stop());
+          return false;
+        }
         this.localScreenAudioTrack = audioTrack;
       }
 
@@ -2099,7 +2146,7 @@ export class LiveKitService {
       const shareInfo: ActiveScreenShare = {
         track: videoTrack,
         audioTrack: this.localScreenAudioTrack,
-        participantIdentity: this.room.localParticipant.identity,
+        participantIdentity: room.localParticipant.identity,
         isLocal: true,
         preset: presetKey,
         resolution: `${preset.width}x${preset.height}`,
@@ -2108,7 +2155,7 @@ export class LiveKitService {
       };
 
       this.localScreenShare = shareInfo;
-      this.screenSharesMap.set(this.room.localParticipant.identity, shareInfo);
+      this.screenSharesMap.set(room.localParticipant.identity, shareInfo);
       if (!this.activeScreenShare) {
         this.activeScreenShare = shareInfo;
         this.notifyScreenShareChanged();
@@ -2118,11 +2165,18 @@ export class LiveKitService {
       return true;
     } catch (err) {
       console.warn("Failed to publish screen share stream:", err);
+      if (operationGeneration === this.screenCaptureGeneration)
+        await this.stopScreenShare();
+      else {
+        captureCleanup?.();
+        stream.getTracks().forEach((track) => track.stop());
+      }
       return false;
     }
   }
 
   async stopScreenShare() {
+    this.screenCaptureGeneration++;
     try {
       if (this.room && this.isConnected) {
         if (this.localScreenVideoTrack) {
@@ -2143,6 +2197,8 @@ export class LiveKitService {
     } catch (e) {
       console.warn("Stop screen share error:", e);
     } finally {
+      this.displayCaptureCleanup?.();
+      this.displayCaptureCleanup = null;
       // 必须无条件停止底层物理 Track 并释放硬件捕获资源
       if (this.localScreenVideoTrack) {
         try {
@@ -2275,56 +2331,43 @@ export class LiveKitService {
     );
   }
 
-  async setScreenShareEnabled(enabled: boolean): Promise<boolean> {
+  async setScreenShareEnabled(
+    enabled: boolean,
+    options?: ScreenShareOptions,
+  ): Promise<boolean> {
     if (enabled) {
-      // 默认尝试请求屏幕或窗口共享
+      const generation = ++this.screenCaptureGeneration;
       try {
-        const audioConstraints: MediaTrackConstraints = {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        };
-        const stream = await navigator.mediaDevices.getDisplayMedia({
+        const captured = await captureDisplay({
+          sourceId: options?.sourceId,
+          captureAudio: options?.captureAudio !== false,
           video: {
             width: { ideal: 1920 },
             height: { ideal: 1080 },
             frameRate: { ideal: 60 },
           },
-          audio: audioConstraints,
-          // @ts-ignore
-          systemAudio: "include",
-          // @ts-ignore
-          selfBrowserSurface: "exclude",
         });
-        return this.startScreenShareWithStream(stream);
-      } catch (err: any) {
-        if (
-          err?.name === "NotReadableError" ||
-          err?.name === "TrackStartError" ||
-          err?.name === "OverconstrainedError" ||
-          (typeof err?.message === "string" &&
-            err.message.toLowerCase().includes("audio"))
-        ) {
-          try {
-            console.warn("⚠️ 伴音采集失败，自动降级为仅画面推流:", err);
-            const videoOnlyStream =
-              await navigator.mediaDevices.getDisplayMedia({
-                video: {
-                  width: { ideal: 1920 },
-                  height: { ideal: 1080 },
-                  frameRate: { ideal: 60 },
-                },
-                audio: false,
-              });
-            return this.startScreenShareWithStream(videoOnlyStream);
-          } catch (fallbackErr) {
-            console.warn(
-              "Screen share fallback request cancelled or error:",
-              fallbackErr,
-            );
-            return false;
-          }
+        if (generation !== this.screenCaptureGeneration) {
+          captured.cleanup();
+          return false;
         }
+        if (captured.reason)
+          useToastStore
+            .getState()
+            .showToast({ key: `voice:capture.${captured.reason}` }, "info");
+        const result = await this.startScreenShareWithStream(
+          captured.stream,
+          {
+            preset: "1080p60",
+            simulcast: true,
+            ...options,
+            captureAudio: options?.captureAudio !== false,
+          },
+          captured.cleanup,
+        );
+        if (!result) captured.cleanup();
+        return result;
+      } catch (err) {
         console.warn("Screen share request cancelled or error:", err);
         return false;
       }
