@@ -2445,24 +2445,37 @@ export const App: React.FC = () => {
           const data: Guild[] = await res.json();
           setGuilds(data);
           const target = data.find((g) => g.id === targetGuildId);
-          if (target && target.channels && target.channels.length > 0) {
-            setSelectedGuildId(targetGuildId);
-            const preferFirst = e.detail?.preferFirst ?? true;
-            const targetChannel = preferFirst
-              ? getDefaultGuildChannel(target, true)
-              : resolveGuildChannel(
-                  target,
+          if (
+            selectedGuildIdRef.current === targetGuildId &&
+            target &&
+            target.channels &&
+            target.channels.length > 0
+          ) {
+            const currentChan = selectedChannelRef.current;
+            const currentBelongsToGuild =
+              currentChan &&
+              target.channels.some((c) => c.id === currentChan.id);
+            if (!currentBelongsToGuild) {
+              const preferFirst = e.detail?.preferFirst ?? true;
+              const targetChannel = preferFirst
+                ? getDefaultGuildChannel(target, true)
+                : resolveGuildChannel(
+                    target,
+                    useChannelNavStore
+                      .getState()
+                      .getLastVisitedChannel(target.id),
+                    true,
+                  );
+              if (targetChannel) {
+                setSelectedChannel(targetChannel);
+                if (targetChannel.guildId) {
                   useChannelNavStore
                     .getState()
-                    .getLastVisitedChannel(target.id),
-                  true,
-                );
-            if (targetChannel) {
-              setSelectedChannel(targetChannel);
-              if (targetChannel.guildId) {
-                useChannelNavStore
-                  .getState()
-                  .recordChannelVisit(targetChannel.guildId, targetChannel.id);
+                    .recordChannelVisit(
+                      targetChannel.guildId,
+                      targetChannel.id,
+                    );
+                }
               }
             }
           }

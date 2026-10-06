@@ -38,7 +38,7 @@ export const FileAttachment: React.FC<FileAttachmentProps> = ({
       .catch((cause: unknown) => {
         if (!cancelled)
           setError(
-            cause instanceof Error ? cause.message : t("stlPreview.loadFailed"),
+            cause instanceof Error ? cause.message : t("attachment.loadFailed"),
           );
       });
     return () => {
@@ -55,7 +55,7 @@ export const FileAttachment: React.FC<FileAttachmentProps> = ({
       })
       .catch((cause: unknown) =>
         setError(
-          cause instanceof Error ? cause.message : t("stlPreview.loadFailed"),
+          cause instanceof Error ? cause.message : t("attachment.loadFailed"),
         ),
       );
   };
@@ -66,9 +66,7 @@ export const FileAttachment: React.FC<FileAttachmentProps> = ({
   const download = () => {
     void openAttachmentDownload(attachment).catch((cause: unknown) =>
       setError(
-        cause instanceof Error
-          ? cause.message
-          : t("lightbox.downloadFailed"),
+        cause instanceof Error ? cause.message : t("lightbox.downloadFailed"),
       ),
     );
   };
@@ -125,7 +123,9 @@ export const FileAttachment: React.FC<FileAttachmentProps> = ({
             <span>{(attachment.fileSize / 1024).toFixed(1)} KB</span>
             <span>·</span>
             <span>
-              {isStl ? t("stlPreview.tag") : attachment.mimeType || "File"}
+              {isStl
+                ? t("stlPreview.tag")
+                : attachment.mimeType || t("attachment.genericFile")}
             </span>
           </div>
         </div>
@@ -173,4 +173,3 @@ export const FileAttachment: React.FC<FileAttachmentProps> = ({
     </div>
   );
 };
-

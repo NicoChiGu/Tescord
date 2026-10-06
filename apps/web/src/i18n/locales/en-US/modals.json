@@ -264,6 +264,12 @@
     "items": {
       "v0_3_3_media_e2ee_title": "SFrame Media End-to-End Encryption",
       "v0_3_3_media_e2ee_desc": "RFC 9605 compliant frame-level encryption for audio and video media streams. The server acts purely as a blind relay with zero access to plain payload.",
+      "v0_3_3_presence_title": "Multi-Session Presence & Idle Arbitration",
+      "v0_3_3_presence_desc": "Introduces per-session status tracking and smart presence arbitration across multiple devices, automatic idle detection after 10m AFK, and debounced broadcast resolution.",
+      "v0_3_3_spoiler_title": "Discord-Style Dynamic Mosaic Noise Spoiler Tag",
+      "v0_3_3_spoiler_desc": "Supports ||spoiler content|| markdown syntax with animated particle noise canvas, click-to-reveal toggle interaction, and prefers-reduced-motion accessibility.",
+      "v0_3_3_invite_card_title": "Rich Server Invite Embed & Auto Navigation",
+      "v0_3_3_invite_card_desc": "Redesigns server invite links into Discord-grade rich embed cards with banners, icons, live presence/member counts, and one-click join with instant channel navigation.",
       "v0_3_3_stl_preview_title": "Interactive 3D Preview for STL Models",
       "v0_3_3_stl_preview_desc": "Preview STL 3D models directly in chat attachments with full rotation, zoom, triangle count, physical dimensions (mm), and safe WebGL resource cleanup.",
       "v0_3_3_loopback_title": "Native Desktop Audio Loopback (WASAPI)",

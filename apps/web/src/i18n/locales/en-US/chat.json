@@ -155,7 +155,8 @@
     "joinFailed": "Failed to join server",
     "invalidTitle": "Invite Invalid",
     "invalidDesc": "This invite may be expired, or you might not have permission to join.",
-    "resolving": "Resolving server invite..."
+    "resolving": "Resolving server invite...",
+    "verified": "Verified Server"
   },
   "toolbar": {
     "bold": "Bold (**)",
@@ -259,5 +260,9 @@
   "welcomeChannelDesc": "This is the start of the #{{name}} channel. Enjoy chatting!",
   "welcomeChannelE2EEDesc": "This is an experimental end-to-end Double Ratchet encrypted channel (Beta). All messages are encrypted locally on the client; the server acts only as a blind relay with zero plaintext storage.",
   "spoilerHintHidden": "Spoiler: Click to reveal",
-  "spoilerHintRevealed": "Click to hide spoiler"
+  "spoilerHintRevealed": "Click to hide spoiler",
+  "attachment": {
+    "loadFailed": "Failed to load media",
+    "genericFile": "File"
+  }
 }

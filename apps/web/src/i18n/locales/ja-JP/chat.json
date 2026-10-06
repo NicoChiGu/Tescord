@@ -155,7 +155,8 @@
     "joinFailed": "サーバーへの参加に失敗しました",
     "invalidTitle": "無効な招待",
     "invalidDesc": "この招待リンクは期限切れか、参加権限がありません。",
-    "resolving": "招待を解決中..."
+    "resolving": "招待を解決中...",
+    "verified": "認証済みサーバー"
   },
   "toolbar": {
     "bold": "太字 (**)",
@@ -259,5 +260,9 @@
   "welcomeChannelDesc": "ここが #{{name}} チャンネルの始まりです。会話を楽しみましょう！",
   "welcomeChannelE2EEDesc": "これは実験的なエンドツーエンドDouble Ratchet暗号化機密チャンネル (Beta) です。すべてのメッセージはクライアント側でローカルに暗号化され、サーバーは平文を保存せず中継のみを行います。",
   "spoilerHintHidden": "ネタバレ注意：クリックして表示",
-  "spoilerHintRevealed": "クリックしてネタバレを再非表示"
+  "spoilerHintRevealed": "クリックしてネタバレを再非表示",
+  "attachment": {
+    "loadFailed": "メディアの読み込みに失敗しました",
+    "genericFile": "ファイル"
+  }
 }

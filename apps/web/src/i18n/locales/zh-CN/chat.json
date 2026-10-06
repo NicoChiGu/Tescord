@@ -155,7 +155,8 @@
     "joinFailed": "加入服务器失败",
     "invalidTitle": "邀请已失效",
     "invalidDesc": "此邀请链接可能已过期，或者您没有加入此服务器的权限。",
-    "resolving": "正在解析服务器邀请..."
+    "resolving": "正在解析服务器邀请...",
+    "verified": "已认证服务器"
   },
   "toolbar": {
     "bold": "粗体 (**)",
@@ -259,5 +260,9 @@
   "welcomeChannelDesc": "这是 #{{name}} 频道的起点。畅所欲言吧！",
   "welcomeChannelE2EEDesc": "这是一个实验性端到端双棘轮加密绝密频道 (Beta)。所有消息均在客户端本地密文封装，服务器仅充当盲中继，零明文存储。",
   "spoilerHintHidden": "剧透警告：点击显现",
-  "spoilerHintRevealed": "点击重新隐藏剧透"
+  "spoilerHintRevealed": "点击重新隐藏剧透",
+  "attachment": {
+    "loadFailed": "媒体加载失败",
+    "genericFile": "文件"
+  }
 }

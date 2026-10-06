@@ -68,26 +68,10 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
     try {
       const d = new Date(createdAt);
       if (isNaN(d.getTime())) return null;
-      const lang = i18n.language || "zh-CN";
-      if (lang.startsWith("zh") || lang.startsWith("ja")) {
-        return `${d.getFullYear()}年${d.getMonth() + 1}月`;
-      } else {
-        const monthNames = [
-          "Jan",
-          "Feb",
-          "Mar",
-          "Apr",
-          "May",
-          "Jun",
-          "Jul",
-          "Aug",
-          "Sep",
-          "Oct",
-          "Nov",
-          "Dec",
-        ];
-        return `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
-      }
+      return new Intl.DateTimeFormat(i18n.language || "zh-CN", {
+        year: "numeric",
+        month: "short",
+      }).format(d);
     } catch {
       return null;
     }
@@ -197,9 +181,7 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
     invite.approximatePresenceCount ??
     0;
   const memberCount =
-    invite.guild.approximateMemberCount ??
-    invite.approximateMemberCount ??
-    0;
+    invite.guild.approximateMemberCount ?? invite.approximateMemberCount ?? 0;
 
   return (
     <div
@@ -250,11 +232,12 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
           <span
             className="inline-flex items-center justify-center text-[#23a55a] shrink-0"
             title="Verified"
+            aria-label={t("chat:invite.verified", { defaultValue: "Verified" })}
           >
             <svg
               className="w-4 h-4 fill-current"
               viewBox="0 0 24 24"
-              aria-label="Verified"
+              aria-hidden="true"
             >
               <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1.2 15-4.3-4.3 1.4-1.4 2.9 2.9 6.9-6.9 1.4 1.4-8.3 8.3z" />
             </svg>

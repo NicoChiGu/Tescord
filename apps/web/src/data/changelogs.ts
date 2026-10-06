@@ -15,6 +15,24 @@ export const BUILTIN_CHANGELOGS: VersionChangelog[] = [
         descriptionKey: "modals:whatsNew.items.v0_3_3_media_e2ee_desc",
       },
       {
+        id: "multi-session-presence",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_3_presence_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_3_presence_desc",
+      },
+      {
+        id: "mosaic-spoiler",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_3_spoiler_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_3_spoiler_desc",
+      },
+      {
+        id: "rich-invite-embed",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_3_invite_card_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_3_invite_card_desc",
+      },
+      {
         id: "stl-3d-preview",
         category: "features",
         titleKey: "modals:whatsNew.items.v0_3_3_stl_preview_title",

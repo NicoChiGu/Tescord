@@ -14,6 +14,21 @@
   - 网关升级至媒体协议 v2，完善握手超时拦截与客户端密钥信封协商 (`StreamMediaKeyEnvelope`)；
   - 完善端到端加密状态指示器与可视化仪表板（`MediaEncryptionIndicator` / `NetworkQualityModal`）。
 
+- **多端在线状态协同与智能闲置仲裁 (Multi-Session Presence & Idle Arbitration)**：
+  - 引入客户端会话级（Session-level）在线状态独立追踪与智能仲裁算法，区分用户手动设定与客户端挂机状态；
+  - 10 分钟无操作自动判定进入闲置状态（`IDLE`），全端离席自动判定闲置，并在全端活跃唤醒时即时恢复在线；
+  - 服务端网关新增精准的断开连接防抖重新仲裁与状态广播机制，杜绝断线震荡。
+
+- **类 Discord 动态噪点马赛克剧透标签 (Discord-Style Noise Mosaic Spoiler Tag)**：
+  - 支持 `||剧透内容||` markdown 语法解析与行内渲染；
+  - 像素级还原 Discord 动态噪点马赛克遮罩动效，支持点击显现与再次隐藏交互；
+  - 适配系统的 `prefers-reduced-motion` 辅助功能偏好，降低弱网与低功耗设备渲染开销。
+
+- **富媒体公会邀请卡片与首频道智能直达 (Rich Server Invite Embed & Auto Navigation)**：
+  - 聊天中的服务器邀请链接全面升级为 Discord 风格富媒体卡片；
+  - 呈现公会横幅、图标、创建年月、实时在线人数与总成员数；
+  - 支持一键加入或“前往服务器”，并智能直达首个可用文本频道，增加异步数据拉取竞态保护。
+
 - **STL 3D 模型在线交互式预览 (3D Model Preview in Chat)**：
   - 聊天附件全面支持 STL 3D 模型文件在线解析与交互式预览；
   - 基于 Three.js 异步独立分包（首屏零开销），支持模型自由旋转、全方位缩放、自动居中、面数统计及物理尺寸（mm）实时计算；

@@ -155,7 +155,8 @@
     "joinFailed": "加入伺服器失敗",
     "invalidTitle": "邀請已失效",
     "invalidDesc": "此邀請連結可能已過期，或者您沒有加入此伺服器的權限。",
-    "resolving": "正在解析伺服器邀請..."
+    "resolving": "正在解析伺服器邀請...",
+    "verified": "已認證伺服器"
   },
   "toolbar": {
     "bold": "粗體 (**)",
@@ -259,5 +260,9 @@
   "welcomeChannelDesc": "呢度係 #{{name}} 頻道嘅起點。盡情暢所欲言啦！",
   "welcomeChannelE2EEDesc": "呢個係實驗性端對端雙棘輪加密絕密頻道 (Beta)。所有訊息都喺客戶端本地密文封裝，伺服器只係充當盲中繼，零明文儲存。",
   "spoilerHintHidden": "劇透警告：點擊顯示",
-  "spoilerHintRevealed": "點擊重新隱藏劇透"
+  "spoilerHintRevealed": "點擊重新隱藏劇透",
+  "attachment": {
+    "loadFailed": "媒體載入失敗",
+    "genericFile": "檔案"
+  }
 }
