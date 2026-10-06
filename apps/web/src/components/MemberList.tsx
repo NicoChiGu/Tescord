@@ -288,7 +288,9 @@ export const MemberList: React.FC<MemberListProps> = ({
                         "https://api.dicebear.com/7.x/bottts/svg?seed=" + m.id
                       }
                       alt={m.username}
-                      className="w-8 h-8 rounded-full bg-[#1e1f22] object-cover"
+                      draggable={false}
+                      onDragStart={(e) => e.preventDefault()}
+                      className="w-8 h-8 rounded-full bg-[#1e1f22] object-cover select-none pointer-events-none"
                     />
                     <div className="absolute bottom-0 right-0">
                       <StatusBadge

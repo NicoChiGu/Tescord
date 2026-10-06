@@ -3591,6 +3591,21 @@ server.get("/api/invites/:code", async (request, reply) => {
     isMember = !!existingMember;
   }
 
+  // 获取公会成员真实在线状态
+  const guildMembers = await prisma.guildMember.findMany({
+    where: { guildId: invite.guild.id },
+    select: { userId: true },
+  });
+  const memberUserIds = guildMembers.map((m) => m.userId);
+  const presences = await cacheStore.batchGetPresences(memberUserIds);
+  let approximatePresenceCount = 0;
+  for (const uid of memberUserIds) {
+    const p = presences.get(uid);
+    if (p && p.status !== "OFFLINE" && p.status !== "INVISIBLE") {
+      approximatePresenceCount++;
+    }
+  }
+
   return {
     code: invite.code,
     guild: {
@@ -3600,8 +3615,10 @@ server.get("/api/invites/:code", async (request, reply) => {
       description: invite.guild.description,
       createdAt: invite.guild.createdAt.toISOString(),
       approximateMemberCount: memberCount,
-      approximatePresenceCount: Math.max(1, Math.floor(memberCount * 0.4)),
+      approximatePresenceCount,
     },
+    approximateMemberCount: memberCount,
+    approximatePresenceCount,
     inviter: invite.inviter,
     expiresAt: invite.expiresAt ? invite.expiresAt.toISOString() : null,
     maxUses: invite.maxUses,

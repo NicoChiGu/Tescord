@@ -88,6 +88,8 @@ export const Avatar: React.FC<AvatarProps> = ({
       <img
         src={resolvedSrc}
         alt={alt}
+        draggable={false}
+        onDragStart={(e) => e.preventDefault()}
         onError={() => setHasError(true)}
         className="w-full h-full aspect-square object-cover rounded-full bg-[#1e1f22] select-none pointer-events-none"
       />

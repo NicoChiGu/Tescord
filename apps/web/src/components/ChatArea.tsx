@@ -370,6 +370,8 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
             alt={authorName}
             width={40}
             height={40}
+            draggable={false}
+            onDragStart={(e) => e.preventDefault()}
             loading="lazy"
             decoding="async"
             data-profile-trigger={`chat-${msg.author.id}`}
@@ -384,7 +386,7 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
                 e.currentTarget.getBoundingClientRect(),
               )
             }
-            className="w-10 h-10 rounded-full object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition mt-0.5"
+            className="w-10 h-10 rounded-full object-cover flex-shrink-0 cursor-pointer hover:opacity-80 transition mt-0.5 select-none"
           />
         )}
         <div className="flex-1 overflow-hidden">
@@ -2249,24 +2251,48 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     );
   };
 
+  // 追踪是否属于网页 DOM 内部元素被拖拽（内部拖拽绝不触发文件上传）
+  const isInternalDragRef = useRef(false);
+  useEffect(() => {
+    const handleDragStart = () => {
+      isInternalDragRef.current = true;
+    };
+    const handleDragEnd = () => {
+      isInternalDragRef.current = false;
+    };
+    window.addEventListener("dragstart", handleDragStart);
+    window.addEventListener("dragend", handleDragEnd);
+    return () => {
+      window.removeEventListener("dragstart", handleDragStart);
+      window.removeEventListener("dragend", handleDragEnd);
+    };
+  }, []);
+
+  // 严格校验是否为来自操作系统外部的文件拖入（排除内部 DOM 图片/链接/文本拖拽）
+  const isExternalFileDrag = (e: React.DragEvent) => {
+    if (isInternalDragRef.current) return false;
+    const types = Array.from(e.dataTransfer?.types || []);
+    return types.includes("Files") && !types.includes("text/html");
+  };
+
   return (
     <div
       className="flex-1 flex flex-col h-full bg-discord-chat relative"
       data-channel-id={channel.id}
       onDragEnter={(e) => {
-        if (e.dataTransfer.types.includes("Files")) {
+        if (isExternalFileDrag(e)) {
           e.preventDefault();
           dragCounterRef.current += 1;
           setIsDraggingFile(true);
         }
       }}
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes("Files")) {
+        if (isExternalFileDrag(e)) {
           e.preventDefault();
         }
       }}
       onDragLeave={(e) => {
-        if (e.dataTransfer.types.includes("Files")) {
+        if (isExternalFileDrag(e)) {
           e.preventDefault();
           dragCounterRef.current -= 1;
           if (dragCounterRef.current <= 0) {
@@ -2276,7 +2302,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         }
       }}
       onDrop={async (e) => {
-        if (e.dataTransfer.types.includes("Files")) {
+        if (isExternalFileDrag(e)) {
           e.preventDefault();
           dragCounterRef.current = 0;
           setIsDraggingFile(false);
@@ -2671,11 +2697,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                     <img
                       src={resolveServerUrl(otherRecipient.avatarUrl)}
                       alt={displayChannelName}
+                      draggable={false}
+                      onDragStart={(e) => e.preventDefault()}
                       onError={(e) => {
                         (e.currentTarget as HTMLImageElement).src =
                           `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(otherRecipient.username || "user")}`;
                       }}
-                      className="w-20 h-20 rounded-full object-cover shadow-md"
+                      className="w-20 h-20 rounded-full object-cover shadow-md select-none pointer-events-none"
                     />
                   ) : (
                     <div className="w-20 h-20 rounded-full bg-discord-brand text-white text-2xl font-bold flex items-center justify-center shadow-md">

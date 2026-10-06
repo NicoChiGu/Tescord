@@ -169,7 +169,11 @@ test.describe("4 项核心缺陷与用户体验改进验收测试 (four-user-fix
     const inviteCard = page.locator('[data-testid="server-invite-card"]');
     await expect(inviteCard).toBeVisible({ timeout: 5000 });
 
-    // 检查卡片内的横幅图片与公会头像
+    // 1. 验证卡片正确展示计算出的在线人数与总成员数
+    await expect(inviteCard).toContainText("50 位在线");
+    await expect(inviteCard).toContainText("100 位成员");
+
+    // 2. 检查邀请卡片内的横幅图片与公会头像均禁止拖拽
     const cardImages = inviteCard.locator("img");
     const count = await cardImages.count();
     expect(count).toBeGreaterThan(0);
@@ -179,6 +183,11 @@ test.describe("4 项核心缺陷与用户体验改进验收测试 (four-user-fix
       const draggable = await img.getAttribute("draggable");
       expect(draggable).toBe("false");
     }
+
+    // 3. 检查聊天消息中作者头像同样被设置 draggable=false，杜绝拖拽上传
+    const authorAvatar = page.locator('img[data-profile-trigger="chat-usr_mock_terata"]');
+    await expect(authorAvatar).toBeVisible();
+    expect(await authorAvatar.getAttribute("draggable")).toBe("false");
   });
 
   test("3. 私信通话与连接阶段：不再显示 WebRTC P2P Direct / LiveKit SFU，统一呈现设计卡片", async ({

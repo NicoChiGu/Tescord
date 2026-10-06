@@ -25,6 +25,14 @@
   - 新增智能事件转义器，全面对称支持 5 种官方语言区域（`zh-CN`, `zh-TW`, `zh-HK`, `en-US`, `ja-JP`），将未接听、已取消、已拒绝与通话时长优雅渲染为本地化文字摘要；
   - 同步优化桌面系统通知消息体转义，保证各端交互呈现一致性。
 
+- **服务器邀请卡片实时在线人数准确计算 (Accurate Invite Presence Count)**：
+  - 修复服务端 `/api/invites/:code` 路由中使用虚构模拟公式 `Math.max(1, Math.floor(memberCount * 0.4))` 导致离线人数与在线统计失真的问题；
+  - 改造为实时查询公会成员列表并调用 `cacheStore.batchGetPresences` 真实统计有效在线（ONLINE / IDLE / DND）人数。
+
+- **聊天消息用户头像拖拽上传防御 (Message Avatar Drag Prevention & External Drag Guard)**：
+  - 为聊天消息内的作者头像、DM 横幅大头像与成员列表头像添加 `draggable={false}` 与 `onDragStart.preventDefault`；
+  - 在 `ChatArea` 引入全局内部拖拽守卫与外部文件类型纯净度校验（`isExternalFileDrag`），彻底杜绝网页内部任何元素被意外拖动为上传文件。
+
 ---
 
 ## [0.3.3] - 2026-10-06
