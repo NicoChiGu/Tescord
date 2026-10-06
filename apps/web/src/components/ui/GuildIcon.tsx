@@ -39,7 +39,14 @@ export function GuildIcon({
     );
   return (
     <img
+      draggable={props.draggable ?? false}
       {...props}
+      onDragStart={(event) => {
+        if (props.draggable !== true) {
+          event.preventDefault();
+        }
+        props.onDragStart?.(event);
+      }}
       src={imageSrc}
       alt={alt}
       onError={(event) => {

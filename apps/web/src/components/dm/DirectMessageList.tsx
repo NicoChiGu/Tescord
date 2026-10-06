@@ -79,6 +79,30 @@ export const DirectMessageList: React.FC<DirectMessageListProps> = ({
     }
   };
 
+  // 格式化最后一条消息预览（支持通话历史系统事件的本地化转换）
+  const formatMessageSnippet = (content?: string): string => {
+    if (!content) return "";
+    if (content.startsWith("[CALL_EVENT:")) {
+      if (content.includes(":missed")) {
+        return t("chat:dm.callHistory.missed", { defaultValue: "未接来电" });
+      }
+      if (content.includes(":declined")) {
+        return t("chat:dm.callHistory.declined", { defaultValue: "已拒绝通话" });
+      }
+      if (content.includes(":canceled")) {
+        return t("chat:dm.callHistory.canceled", { defaultValue: "已取消呼叫" });
+      }
+      if (content.includes(":ended:")) {
+        const duration = content.split(":ended:")[1]?.replace("]", "");
+        return duration
+          ? `${t("chat:dm.callHistory.ended", { defaultValue: "通话已结束" })} (${duration})`
+          : t("chat:dm.callHistory.ended", { defaultValue: "通话已结束" });
+      }
+      return t("chat:dm.callHistory.ended", { defaultValue: "通话已结束" });
+    }
+    return content;
+  };
+
   // 发起新私信
   const handleStartDM = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -254,7 +278,7 @@ export const DirectMessageList: React.FC<DirectMessageListProps> = ({
                     </div>
                     <p className="text-xs text-discord-textMuted truncate">
                       {channel.lastMessage
-                        ? channel.lastMessage.content
+                        ? formatMessageSnippet(channel.lastMessage.content)
                         : customStatus ||
                           t("chat:dm.clickToChat", {
                             defaultValue: "点击开始私信沟通",

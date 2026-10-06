@@ -275,11 +275,15 @@ export const DMCallStage: React.FC<DMCallStageProps> = ({
     );
   }
 
-  // 2. 拨出等待阶段 (Outgoing Calling Stage)
-  if (callState === "outgoing_calling") {
+  // 2. 拨出等待与媒体连接协商阶段 (Outgoing Calling & Connecting Stage)
+  if (callState === "outgoing_calling" || callState === "connecting") {
     return (
       <div
-        data-testid="dm-outgoing-call-stage"
+        data-testid={
+          callState === "connecting"
+            ? "dm-connecting-call-stage"
+            : "dm-outgoing-call-stage"
+        }
         className="h-80 sm:h-96 bg-gradient-to-b from-[#1e1f22] to-[#111214] border-b border-[#2b2d31] flex flex-col items-center justify-center relative overflow-hidden select-none p-6"
       >
         {/* 背景水波呼吸波纹 */}
@@ -322,14 +326,22 @@ export const DMCallStage: React.FC<DMCallStageProps> = ({
             </span>
           </div>
 
-          {encryption && (
-            <div className="mt-2 flex items-center space-x-1.5 text-xs text-discord-green bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>
-                {t("chat:dm.incomingCall.e2eeTrusted", "端到端加密连接协商中")}
-              </span>
-            </div>
-          )}
+          <div className="mt-2 flex items-center space-x-1.5 text-xs text-discord-green bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>
+              {encryption?.status === "tofu"
+                ? t("chat:dm.incomingCall.e2eeTofu", {
+                    defaultValue: "首次信任设备 · E2EE",
+                  })
+                : encryption?.status === "failed"
+                  ? t("chat:dm.incomingCall.e2eeFailed", {
+                      defaultValue: "设备验证失败",
+                    })
+                  : t("chat:dm.incomingCall.e2eeTrusted", {
+                      defaultValue: "已验证设备 · E2EE",
+                    })}
+            </span>
+          </div>
 
           {/* 本端预览控制与取消呼叫 */}
           <div className="mt-6 flex items-center space-x-4">
@@ -375,39 +387,19 @@ export const DMCallStage: React.FC<DMCallStageProps> = ({
 
             {/* 大尺寸红色取消呼叫按钮 */}
             <button
-              onClick={onCancelCall}
+              onClick={onCancelCall || onHangup}
               data-testid="dm-cancel-call-btn"
               className="px-6 py-3 rounded-full bg-rose-600 hover:bg-rose-700 text-white font-semibold flex items-center space-x-2 shadow-xl transition transform hover:scale-105 active:scale-95"
             >
               <PhoneOff className="w-5 h-5" />
-              <span>{t("voice:dmCall.cancelCall", "取消呼叫")}</span>
+              <span>
+                {t("voice:dmCall.cancelCall", {
+                  defaultValue: "取消呼叫",
+                })}
+              </span>
             </button>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  // 3. 正在建立媒体协商握手 (Connecting Stage)
-  if (callState === "connecting") {
-    return (
-      <div
-        data-testid="dm-connecting-call-stage"
-        className="h-80 sm:h-96 bg-[#111214] border-b border-[#2b2d31] flex flex-col items-center justify-center select-none"
-      >
-        <div className="w-16 h-16 rounded-full border-4 border-discord-brand border-t-transparent animate-spin mb-4" />
-        <p className="text-white text-base font-semibold">
-          {t("voice:connecting", "正在建立加密音视频通道...")}
-        </p>
-        <p className="text-xs text-zinc-400 mt-1">
-          WebRTC P2P Direct / LiveKit SFU
-        </p>
-        <button
-          onClick={onHangup}
-          className="mt-6 px-5 py-2 rounded-full bg-rose-600 hover:bg-rose-700 text-white text-sm font-medium transition"
-        >
-          {t("voice:cancel", "取消")}
-        </button>
       </div>
     );
   }

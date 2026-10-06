@@ -1,8 +1,39 @@
 import { VersionChangelog } from "@tescord/types";
 
-export const CURRENT_APP_VERSION = "0.3.3";
+export const CURRENT_APP_VERSION = "0.3.4";
 
 export const BUILTIN_CHANGELOGS: VersionChangelog[] = [
+  {
+    version: "0.3.4",
+    releaseDate: "2026-10-07",
+    releaseUrl: "https://github.com/labsphaela/Tescord/releases/tag/0.3.4",
+    items: [
+      {
+        id: "responsive-gesture-fix",
+        category: "improvements",
+        titleKey: "modals:whatsNew.items.v0_3_4_responsive_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_4_responsive_desc",
+      },
+      {
+        id: "invite-drag-prevention",
+        category: "improvements",
+        titleKey: "modals:whatsNew.items.v0_3_4_drag_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_4_drag_desc",
+      },
+      {
+        id: "dm-call-stage-clean",
+        category: "improvements",
+        titleKey: "modals:whatsNew.items.v0_3_4_call_stage_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_4_call_stage_desc",
+      },
+      {
+        id: "call-snippet-i18n",
+        category: "improvements",
+        titleKey: "modals:whatsNew.items.v0_3_4_snippet_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_4_snippet_desc",
+      },
+    ],
+  },
   {
     version: "0.3.3",
     releaseDate: "2026-10-06",

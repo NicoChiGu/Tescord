@@ -4,6 +4,29 @@
 
 ---
 
+## [0.3.4] - 2026-10-07
+
+### 🐛 问题修复与体验优化 (Bug Fixes & UX)
+
+- **响应式视口切换与手势 Hook 稳定性修复 (Responsive Hook Invariant Fix)**：
+  - 修复平板横竖屏或视口动态变化时条件调用 `useUserProfilePopoutStore` 违反 React Rules of Hooks 导致的链表槽位错乱与 `Cannot read properties of undefined (reading 'length')` 运行时崩溃；
+  - 提取 Store 状态至顶层无条件消费，保障全端抽屉滑动手势（`useSwipeGesture`）在全尺寸视口下的稳定性。
+
+- **服务器邀请卡片原生拖拽阻断 (Server Invite Embed Drag Prevention)**：
+  - 彻底禁止邀请卡片内的公会头像与横幅背景发生浏览器原生图片拖拽（`draggable={false}` / `onDragStart.preventDefault`），杜绝因拖动卡片误触发聊天区文件拖拽上传；
+  - 在 `GuildIcon` 基础组件增加默认防拖拽属性兜底。
+
+- **私信音视频通话呼叫界面极简化 (DM Call Stage Simplified)**：
+  - 移除呼叫连接阶段冗余技术术语提示（`WebRTC P2P Direct / LiveKit SFU`）与黑屏过渡菊花；
+  - 统一并入纯净呼叫舞台设计，完整保留对方大头像、水波呼吸波纹、端到端加密状态徽标（`已验证设备 · E2EE`）与底部控制栏。
+
+- **好友列表通话事件消息简介本地化转换 (Call History Message Snippet Localization)**：
+  - 修复私信好友列表最后一条消息直接渲染原始 `[CALL_EVENT:canceled]` 等协议字符串的问题；
+  - 新增智能事件转义器，全面对称支持 5 种官方语言区域（`zh-CN`, `zh-TW`, `zh-HK`, `en-US`, `ja-JP`），将未接听、已取消、已拒绝与通话时长优雅渲染为本地化文字摘要；
+  - 同步优化桌面系统通知消息体转义，保证各端交互呈现一致性。
+
+---
+
 ## [0.3.3] - 2026-10-06
 
 ### 🚀 新增功能 (Features)

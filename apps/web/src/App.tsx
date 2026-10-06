@@ -123,7 +123,13 @@ type DMCallHistorySnapshot = {
 };
 
 export const App: React.FC = () => {
-  const { t } = useTranslation(["common", "server", "modals", "contextMenu"]);
+  const { t } = useTranslation([
+    "common",
+    "server",
+    "modals",
+    "contextMenu",
+    "chat",
+  ]);
   const {
     user: currentUser,
     isAuthenticated,
@@ -185,6 +191,12 @@ export const App: React.FC = () => {
     setIsMobileMemberOpen(false);
   }, [selectedChannel?.id, isDesktop]);
 
+  const {
+    isOpen: isProfilePopoutOpen,
+    payload: profilePopoutPayload,
+    closePopout: closeProfilePopout,
+  } = useUserProfilePopoutStore();
+
   // 移动端与平板端左右滑动呼出与收起抽屉手势
   useSwipeGesture(
     {
@@ -209,7 +221,7 @@ export const App: React.FC = () => {
       isLeftDrawerOpen: isMobileDrawerOpen,
       isRightDrawerOpen: isMobileMemberOpen,
     },
-    !isDesktop && !useUserProfilePopoutStore((state) => state.isOpen),
+    !isDesktop && !isProfilePopoutOpen,
   );
   const [activeVoiceChannelId, setActiveVoiceChannelId] = useState<
     string | null
@@ -257,11 +269,6 @@ export const App: React.FC = () => {
       audioEngine.config.noiseSuppressionMode || "rnnoise",
     );
   const [showMemberList, setShowMemberList] = useState(true);
-  const {
-    isOpen: isProfilePopoutOpen,
-    payload: profilePopoutPayload,
-    closePopout: closeProfilePopout,
-  } = useUserProfilePopoutStore();
 
   // 内部引用，保证长存事件与异步回调中始终读取最新状态
   const activeVoiceChannelIdRef = useRef<string | null>(null);
@@ -1370,10 +1377,35 @@ export const App: React.FC = () => {
           if (!isUserMuted && !isChannelMuted && (isMentioned || isHidden)) {
             window.electronAPI?.showNotification({
               title: `${msg.author?.username || "Tescord"}`,
-              body:
-                msg.content.length > 80
-                  ? msg.content.slice(0, 80) + "..."
-                  : msg.content,
+              body: (() => {
+                const c = msg.content;
+                if (c.startsWith("[CALL_EVENT:")) {
+                  if (c.includes(":missed"))
+                    return t("chat:dm.callHistory.missed", {
+                      defaultValue: "未接来电",
+                    });
+                  if (c.includes(":declined"))
+                    return t("chat:dm.callHistory.declined", {
+                      defaultValue: "已拒绝通话",
+                    });
+                  if (c.includes(":canceled"))
+                    return t("chat:dm.callHistory.canceled", {
+                      defaultValue: "已取消呼叫",
+                    });
+                  if (c.includes(":ended:")) {
+                    const dur = c.split(":ended:")[1]?.replace("]", "");
+                    return dur
+                      ? `${t("chat:dm.callHistory.ended", { defaultValue: "通话已结束" })} (${dur})`
+                      : t("chat:dm.callHistory.ended", {
+                          defaultValue: "通话已结束",
+                        });
+                  }
+                  return t("chat:dm.callHistory.ended", {
+                    defaultValue: "通话已结束",
+                  });
+                }
+                return c.length > 80 ? c.slice(0, 80) + "..." : c;
+              })(),
               channelId: msg.channelId,
               guildId: msgGuildId || selectedGuildIdRef.current || undefined,
               avatarUrl: msg.author?.avatarUrl || undefined,

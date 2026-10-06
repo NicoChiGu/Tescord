@@ -187,15 +187,18 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
     <div
       className="my-3 w-full max-w-[420px] bg-[#2b2d31] border border-[#1f2023]/80 rounded-2xl shadow-xl overflow-hidden select-none transition-all hover:border-[#35373c]"
       data-testid="server-invite-card"
+      onDragStart={(e) => e.preventDefault()}
     >
       {/* 顶部横幅 Banner */}
-      <div className="relative w-full h-20 bg-[#1e1f22] overflow-hidden">
+      <div className="relative w-full h-20 bg-[#1e1f22] overflow-hidden select-none pointer-events-none">
         {invite.guild.iconUrl ? (
           <img
             src={resolveServerUrl(invite.guild.iconUrl)}
             alt=""
             aria-hidden="true"
-            className="absolute inset-0 w-full h-full object-cover blur-md scale-125 opacity-35"
+            draggable={false}
+            onDragStart={(e) => e.preventDefault()}
+            className="absolute inset-0 w-full h-full object-cover blur-md scale-125 opacity-35 select-none pointer-events-none"
           />
         ) : null}
         <div className="absolute inset-0 bg-gradient-to-r from-indigo-900/40 via-purple-900/30 to-pink-900/40" />
@@ -203,16 +206,18 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
       </div>
 
       {/* 头像区域 (重叠在横幅下方与内容之间) */}
-      <div className="relative px-4 flex items-end justify-between -mt-10 mb-2">
-        <div className="w-[72px] h-[72px] rounded-[22px] ring-4 ring-[#2b2d31] bg-[#1e1f22] overflow-hidden shrink-0 shadow-lg flex items-center justify-center">
+      <div className="relative px-4 flex items-end justify-between -mt-10 mb-2 select-none">
+        <div className="w-[72px] h-[72px] rounded-[22px] ring-4 ring-[#2b2d31] bg-[#1e1f22] overflow-hidden shrink-0 shadow-lg flex items-center justify-center select-none pointer-events-none">
           {invite.guild.iconUrl ? (
             <GuildIcon
               src={resolveServerUrl(invite.guild.iconUrl)}
               alt={invite.guild.name}
-              className="w-full h-full object-cover"
+              draggable={false}
+              onDragStart={(e) => e.preventDefault()}
+              className="w-full h-full object-cover select-none pointer-events-none"
             />
           ) : (
-            <div className="w-full h-full bg-[#5865F2] text-white font-bold text-2xl flex items-center justify-center">
+            <div className="w-full h-full bg-[#5865F2] text-white font-bold text-2xl flex items-center justify-center select-none">
               {invite.guild.name.slice(0, 2).toUpperCase()}
             </div>
           )}
@@ -284,16 +289,18 @@ export const ServerInviteEmbed: React.FC<ServerInviteEmbedProps> = ({
         ) : null}
 
         {/* 附属归属小标 (小图标 + 服务器名称) */}
-        <div className="flex items-center gap-2 pt-0.5">
-          <div className="relative shrink-0 w-5 h-5 rounded-md overflow-hidden bg-[#1e1f22] flex items-center justify-center">
+        <div className="flex items-center gap-2 pt-0.5 select-none">
+          <div className="relative shrink-0 w-5 h-5 rounded-md overflow-hidden bg-[#1e1f22] flex items-center justify-center select-none pointer-events-none">
             {invite.guild.iconUrl ? (
               <GuildIcon
                 src={resolveServerUrl(invite.guild.iconUrl)}
                 alt={invite.guild.name}
-                className="w-full h-full object-cover"
+                draggable={false}
+                onDragStart={(e) => e.preventDefault()}
+                className="w-full h-full object-cover select-none pointer-events-none"
               />
             ) : (
-              <span className="text-[10px] font-bold text-white">
+              <span className="text-[10px] font-bold text-white select-none">
                 {invite.guild.name.slice(0, 1).toUpperCase()}
               </span>
             )}
