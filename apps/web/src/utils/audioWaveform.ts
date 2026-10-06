@@ -4,7 +4,20 @@
  */
 
 const DEFAULT_BARS = 40;
+const MAX_WAVEFORM_CACHE_SIZE = 200;
 const waveformCache = new Map<string, number[]>();
+
+function setWaveformCache(key: string, data: number[]): void {
+  if (waveformCache.has(key)) {
+    waveformCache.delete(key);
+  } else if (waveformCache.size >= MAX_WAVEFORM_CACHE_SIZE) {
+    const firstKey = waveformCache.keys().next().value;
+    if (firstKey !== undefined) {
+      waveformCache.delete(firstKey);
+    }
+  }
+  waveformCache.set(key, data);
+}
 
 /**
  * 基于字符串生成稳定的伪随机波形（平滑曲线降级）
@@ -38,6 +51,8 @@ export async function getAudioPeaks(
 ): Promise<number[]> {
   const cached = waveformCache.get(cacheKey);
   if (cached && cached.length === barsCount) {
+    waveformCache.delete(cacheKey);
+    waveformCache.set(cacheKey, cached);
     return cached;
   }
 
@@ -47,10 +62,11 @@ export async function getAudioPeaks(
     (!window.AudioContext && !(window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)
   ) {
     const fallback = generateFallbackPeaks(cacheKey, barsCount);
-    waveformCache.set(cacheKey, fallback);
+    setWaveformCache(cacheKey, fallback);
     return fallback;
   }
 
+  let audioCtx: AudioContext | null = null;
   try {
     const response = await fetch(url, { mode: "cors" });
     if (!response.ok) {
@@ -61,7 +77,7 @@ export async function getAudioPeaks(
     const AudioContextClass =
       window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-    const audioCtx = new AudioContextClass();
+    audioCtx = new AudioContextClass();
 
     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
     const pcm = audioBuffer.getChannelData(0);
@@ -94,9 +110,6 @@ export async function getAudioPeaks(
       }
     }
 
-    // 释放 AudioContext
-    void audioCtx.close().catch(() => {});
-
     // 归一化到 [0.18, 1.0]
     const normalized = peaks.map((p) => {
       if (maxRms <= 0.0001) return 0.25;
@@ -104,13 +117,17 @@ export async function getAudioPeaks(
       return Math.max(0.18, Math.min(1.0, 0.18 + ratio * 0.82));
     });
 
-    waveformCache.set(cacheKey, normalized);
+    setWaveformCache(cacheKey, normalized);
     return normalized;
   } catch (err) {
     // 解码失败或受跨域保护，优雅降级为平滑伪随机波形
     const fallback = generateFallbackPeaks(cacheKey, barsCount);
-    waveformCache.set(cacheKey, fallback);
+    setWaveformCache(cacheKey, fallback);
     return fallback;
+  } finally {
+    if (audioCtx && audioCtx.state !== "closed") {
+      void audioCtx.close().catch(() => {});
+    }
   }
 }
 

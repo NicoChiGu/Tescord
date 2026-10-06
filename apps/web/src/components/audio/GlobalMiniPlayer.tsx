@@ -49,6 +49,14 @@ export const GlobalMiniPlayer: React.FC = () => {
   const [peaks, setPeaks] = useState<number[]>([]);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [scrubPercent, setScrubPercent] = useState<number | null>(null);
+  const scrubCleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => {
+      scrubCleanupRef.current?.();
+      scrubCleanupRef.current = null;
+    };
+  }, []);
 
   // 当活跃音轨变更时加载波形数据
   useEffect(() => {
@@ -89,9 +97,15 @@ export const GlobalMiniPlayer: React.FC = () => {
       setScrubPercent(calculatePercent(moveEvent.clientX));
     };
 
-    const onMouseUp = (upEvent: MouseEvent) => {
+    const cleanup = () => {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
+      scrubCleanupRef.current = null;
+    };
+    scrubCleanupRef.current = cleanup;
+
+    const onMouseUp = (upEvent: MouseEvent) => {
+      cleanup();
 
       const finalPercent = calculatePercent(upEvent.clientX);
       setIsScrubbing(false);

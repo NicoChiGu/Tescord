@@ -1,8 +1,39 @@
 import { VersionChangelog } from "@tescord/types";
 
-export const CURRENT_APP_VERSION = "0.3.4";
+export const CURRENT_APP_VERSION = "0.3.5";
 
 export const BUILTIN_CHANGELOGS: VersionChangelog[] = [
+  {
+    version: "0.3.5",
+    releaseDate: "2026-10-07",
+    releaseUrl: "https://github.com/labsphaela/Tescord/releases/tag/0.3.5",
+    items: [
+      {
+        id: "custom-audio-player",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_5_audio_player_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_5_audio_player_desc",
+      },
+      {
+        id: "mini-floating-dock",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_5_mini_dock_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_5_mini_dock_desc",
+      },
+      {
+        id: "media-e2ee-signaling",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_5_media_e2ee_signaling_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_5_media_e2ee_signaling_desc",
+      },
+      {
+        id: "audio-lifecycle-safeguards",
+        category: "improvements",
+        titleKey: "modals:whatsNew.items.v0_3_5_audio_lifecycle_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_5_audio_lifecycle_desc",
+      },
+    ],
+  },
   {
     version: "0.3.4",
     releaseDate: "2026-10-07",

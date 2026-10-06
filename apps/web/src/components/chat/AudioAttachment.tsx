@@ -39,6 +39,14 @@ export const AudioAttachment: React.FC<AudioAttachmentProps> = ({
 }) => {
   const { t } = useTranslation("chat");
   const waveformRef = useRef<HTMLDivElement>(null);
+  const scrubCleanupRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    return () => {
+      scrubCleanupRef.current?.();
+      scrubCleanupRef.current = null;
+    };
+  }, []);
 
   const [mediaUrl, setMediaUrl] = useState<string>();
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -157,9 +165,15 @@ export const AudioAttachment: React.FC<AudioAttachmentProps> = ({
       setScrubPercent(p);
     };
 
-    const onMouseUp = (upEvent: MouseEvent) => {
+    const cleanup = () => {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
+      scrubCleanupRef.current = null;
+    };
+    scrubCleanupRef.current = cleanup;
+
+    const onMouseUp = (upEvent: MouseEvent) => {
+      cleanup();
 
       const finalPercent = calculatePercentFromEvent(upEvent.clientX);
       setIsScrubbing(false);

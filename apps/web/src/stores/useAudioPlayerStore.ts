@@ -91,6 +91,10 @@ export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => {
     });
 
     audio.addEventListener("error", () => {
+      // 若当前没有有效 src，或没有活跃音轨（例如已 close 清空），不触发全局错误
+      if (!audio.getAttribute("src") || !get().activeTrack) {
+        return;
+      }
       set({
         isPlaying: false,
         isBuffering: false,
@@ -120,7 +124,10 @@ export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => {
 
       if (isSameTrack) {
         if (audio.paused) {
-          audio.play().catch((err) => {
+          audio.play().catch((err: unknown) => {
+            if (err instanceof DOMException && err.name === "AbortError") {
+              return;
+            }
             console.warn("[AudioPlayer] play failed:", err);
             set({ error: "audio_playback_error", isPlaying: false });
           });
@@ -148,7 +155,10 @@ export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => {
         .then(() => {
           set({ isPlaying: true, isBuffering: false });
         })
-        .catch((err) => {
+        .catch((err: unknown) => {
+          if (err instanceof DOMException && err.name === "AbortError") {
+            return;
+          }
           console.warn("[AudioPlayer] play failed:", err);
           set({ error: "audio_playback_error", isPlaying: false });
         });
@@ -232,7 +242,8 @@ export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => {
       const audio = getOrCreateAudio();
       if (audio) {
         audio.pause();
-        audio.src = "";
+        audio.removeAttribute("src");
+        audio.load();
       }
       set({
         activeTrack: null,

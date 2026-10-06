@@ -4,6 +4,35 @@
 
 ---
 
+## [0.3.5] - 2026-10-07
+
+### 🚀 新增功能与体验革新 (Features & UX)
+
+- **类 Discord 自定义波形音频播放器 (Discord-Styled Custom Waveform Audio Player)**：
+  - 彻底淘汰原生 HTML5 `<audio controls>` 灰条，重构为高度沉浸的 Discord 风格深灰音频卡片组件（`AudioAttachment`）；
+  - 基于 Web Audio API 离线提取 PCM 峰值并计算 RMS 均方根波形，在非支持或受限环境下采用平滑确定性正弦伪随机波形降级；
+  - 引入 LRU 峰值内存缓存（最大 200 项）与命中自刷新机制，保障高频消息滚动与重新渲染时的流畅性能；
+  - 提供波形柱状图拖拽寻道（Drag-to-Seek Scrubbing）、动态毫秒级播放进度条、静音切换与四档倍速循环调节（1.0x / 1.25x / 1.5x / 2.0x）。
+
+- **全局单例互斥播放与常驻微缩浮动胶囊底栏 (Global Mutex Playback & Floating Mini Dock)**：
+  - 设计全局播放状态机（`useAudioPlayerStore`），以单例原生 `HTMLAudioElement` 驱动播放，从底层彻底根除多音频同时播放导致的声音混叠；
+  - 离开当前消息视口、切换文字频道或进入其他公会时，背景播放持续进行，右下角自动激活常驻微缩胶囊底栏（`GlobalMiniPlayer`）；
+  - 支持极简胶囊（Pill）与完整面板（Dock）两种视图无缝切换，实现真正的无感跨频道流转收听。
+
+- **流媒体端到端加密实时信令与设备确认 (Realtime Media E2EE Signaling & Device Acknowledgment)**：
+  - 扩展 SFrame 流媒体加密协议规范（`MEDIA_KEY_ENVELOPE`、`MEDIA_KEY_ACK`、`MEDIA_EPOCH_UPDATE`），前后端统一由 `@tescord/types` 强类型驱动；
+  - 服务端基于 WebSocket 网关精准实现针对设备会话的实时信令直推；前端增加 2.5s 轮询补偿防丢机制；通过 7 项独立数据库隔离单元测试套件。
+
+- **音频全生命周期资源安全释放与异常防御 (Audio Lifecycle Safeguards & Event Defenses)**：
+  - 在 Web Audio 波形解码的 `finally` 块中严格回收 `AudioContext` 实例，杜绝并发解码失败导致的浏览器音频上下文耗尽泄漏；
+  - 为波形拖拽全局事件挂载加入组件卸载（unmount）与拖拽终结时的双重解绑防线；
+  - 在单例音轨切换与播放器关闭时，过滤切歌引发的无害 `AbortError`，重置音频源并防御空 `src` 伪错误污染。
+
+- **全域多语言 100% 对称支持 (Full-Stack 5-Locale i18n Alignment)**：
+  - 在 `zh-CN`、`zh-TW`、`zh-HK`、`en-US`、`ja-JP` 全部 5 套官方语言包的 `chat.json` 与 `modals.json` 中完成 100% 键名对称性对齐，零未抽离硬编码文案。
+
+---
+
 ## [0.3.4] - 2026-10-07
 
 ### 🐛 问题修复与体验优化 (Bug Fixes & UX)
