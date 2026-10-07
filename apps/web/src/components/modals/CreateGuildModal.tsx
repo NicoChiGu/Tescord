@@ -240,93 +240,93 @@ export const CreateGuildModal: React.FC<CreateGuildModalProps> = ({
               </div>
             )}
 
-          {/* 服务器图标挑选 */}
-          <div className="flex flex-col items-center justify-center space-y-2">
-            <div className="relative group">
-              <img
-                src={iconUrl}
-                alt={t("modals:createGuild.randomIcon")}
-                className="w-20 h-20 rounded-full border-2 border-discord-brand bg-[#2b2d31] p-1 shadow-md transition group-hover:scale-105"
+            {/* 服务器图标挑选 */}
+            <div className="flex flex-col items-center justify-center space-y-2">
+              <div className="relative group">
+                <img
+                  src={iconUrl}
+                  alt={t("modals:createGuild.randomIcon")}
+                  className="w-20 h-20 rounded-full border-2 border-discord-brand bg-[#2b2d31] p-1 shadow-md transition group-hover:scale-105"
+                />
+                <button
+                  type="button"
+                  onClick={() =>
+                    setIconSeed(Math.random().toString(36).substring(7))
+                  }
+                  disabled={isSubmitting}
+                  className="absolute -bottom-1 -right-1 bg-discord-brand hover:bg-discord-brand/80 text-white p-1.5 rounded-full shadow-lg transition"
+                  title={t("modals:createGuild.randomIcon")}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                </button>
+              </div>
+              <span className="text-[11px] text-discord-textMuted">
+                {t("modals:createGuild.randomIconTip")}
+              </span>
+            </div>
+
+            {/* 服务器名称 */}
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted mb-2">
+                {t("modals:createGuild.nameLabel")}{" "}
+                <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                value={guildName}
+                onChange={(e) => setGuildName(e.target.value)}
+                placeholder={t("modals:createGuild.namePlaceholder")}
+                className="w-full bg-[#1e1f22] text-discord-textHeader px-3 py-2.5 rounded text-sm focus:outline-none focus:ring-2 focus:ring-discord-brand transition border border-transparent focus:border-discord-brand"
               />
+            </div>
+
+            {/* 是否公开 */}
+            <div className="flex items-center justify-between p-3 rounded-lg bg-[#1e1f22] border border-white/5">
+              <div className="space-y-0.5">
+                <div className="text-xs font-bold text-discord-textHeader">
+                  {t("modals:createGuild.isPublicTitle")}
+                </div>
+                <p className="text-[11px] text-discord-textMuted">
+                  {t("modals:createGuild.isPublicDesc")}
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                data-testid="create-guild-is-public-checkbox"
+                checked={isPublic}
+                onChange={(e) => setIsPublic(e.target.checked)}
+                className="w-4 h-4 rounded text-discord-brand focus:ring-discord-brand bg-[#2b2d31] border-gray-600 cursor-pointer"
+              />
+            </div>
+
+            {/* 底部按钮栏 */}
+            <div className="pt-2 flex items-center justify-between">
               <button
                 type="button"
-                onClick={() =>
-                  setIconSeed(Math.random().toString(36).substring(7))
-                }
-                disabled={isSubmitting}
-                className="absolute -bottom-1 -right-1 bg-discord-brand hover:bg-discord-brand/80 text-white p-1.5 rounded-full shadow-lg transition"
-                title={t("modals:createGuild.randomIcon")}
+                onClick={() => {
+                  onClose();
+                  onOpenJoinModal();
+                }}
+                className="text-xs text-discord-brand hover:underline font-medium"
               >
-                <Sparkles className="w-3.5 h-3.5" />
+                {t("modals:createGuild.haveInvite")}
+              </button>
+
+              <button
+                type="submit"
+                disabled={isSubmitting || !guildName.trim()}
+                className="bg-discord-brand hover:bg-discord-brandHover text-white px-5 py-2.5 rounded font-medium text-sm transition shadow-md disabled:opacity-50 flex items-center space-x-1.5"
+              >
+                <Server className="w-4 h-4" />
+                <span>
+                  {isSubmitting
+                    ? t("modals:createGuild.submitting")
+                    : t("modals:createGuild.submit")}
+                </span>
               </button>
             </div>
-            <span className="text-[11px] text-discord-textMuted">
-              {t("modals:createGuild.randomIconTip")}
-            </span>
-          </div>
-
-          {/* 服务器名称 */}
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted mb-2">
-              {t("modals:createGuild.nameLabel")}{" "}
-              <span className="text-red-400">*</span>
-            </label>
-            <input
-              type="text"
-              required
-              value={guildName}
-              onChange={(e) => setGuildName(e.target.value)}
-              placeholder={t("modals:createGuild.namePlaceholder")}
-              className="w-full bg-[#1e1f22] text-discord-textHeader px-3 py-2.5 rounded text-sm focus:outline-none focus:ring-2 focus:ring-discord-brand transition border border-transparent focus:border-discord-brand"
-            />
-          </div>
-
-          {/* 是否公开 */}
-          <div className="flex items-center justify-between p-3 rounded-lg bg-[#1e1f22] border border-white/5">
-            <div className="space-y-0.5">
-              <div className="text-xs font-bold text-discord-textHeader">
-                {t("modals:createGuild.isPublicTitle")}
-              </div>
-              <p className="text-[11px] text-discord-textMuted">
-                {t("modals:createGuild.isPublicDesc")}
-              </p>
-            </div>
-            <input
-              type="checkbox"
-              data-testid="create-guild-is-public-checkbox"
-              checked={isPublic}
-              onChange={(e) => setIsPublic(e.target.checked)}
-              className="w-4 h-4 rounded text-discord-brand focus:ring-discord-brand bg-[#2b2d31] border-gray-600 cursor-pointer"
-            />
-          </div>
-
-          {/* 底部按钮栏 */}
-          <div className="pt-2 flex items-center justify-between">
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                onOpenJoinModal();
-              }}
-              className="text-xs text-discord-brand hover:underline font-medium"
-            >
-              {t("modals:createGuild.haveInvite")}
-            </button>
-
-            <button
-              type="submit"
-              disabled={isSubmitting || !guildName.trim()}
-              className="bg-discord-brand hover:bg-discord-brandHover text-white px-5 py-2.5 rounded font-medium text-sm transition shadow-md disabled:opacity-50 flex items-center space-x-1.5"
-            >
-              <Server className="w-4 h-4" />
-              <span>
-                {isSubmitting
-                  ? t("modals:createGuild.submitting")
-                  : t("modals:createGuild.submit")}
-              </span>
-            </button>
-          </div>
-        </form>
+          </form>
         )}
       </div>
     </div>

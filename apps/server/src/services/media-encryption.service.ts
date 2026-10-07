@@ -174,7 +174,12 @@ export class MediaEncryptionRegistry {
         channelId,
         body.gatewaySessionId,
       );
-    const snapshot = await this.snapshot(userId, loginSessionId, channelId, body);
+    const snapshot = await this.snapshot(
+      userId,
+      loginSessionId,
+      channelId,
+      body,
+    );
     this.broadcastEpochUpdate(room, snapshot.context);
     return snapshot;
   }
@@ -617,22 +622,18 @@ export class MediaEncryptionRegistry {
             device.deviceId === sample.senderDeviceId,
         );
         if (sender) {
-          this.gateway.sendToSession?.(
-            sender.userId,
-            sender.gatewaySessionId,
-            {
-              op: GatewayOpCode.DISPATCH,
-              t: GatewayEvents.MEDIA_KEY_ACK,
-              d: {
-                channelId,
-                callId: body.callId,
-                contextId: context.contextId,
-                membershipVersion: context.membershipVersion,
-                keyId,
-                acknowledged: true,
-              } satisfies MediaKeyAckPushPayload,
-            },
-          );
+          this.gateway.sendToSession?.(sender.userId, sender.gatewaySessionId, {
+            op: GatewayOpCode.DISPATCH,
+            t: GatewayEvents.MEDIA_KEY_ACK,
+            d: {
+              channelId,
+              callId: body.callId,
+              contextId: context.contextId,
+              membershipVersion: context.membershipVersion,
+              keyId,
+              acknowledged: true,
+            } satisfies MediaKeyAckPushPayload,
+          });
         }
       }
     }

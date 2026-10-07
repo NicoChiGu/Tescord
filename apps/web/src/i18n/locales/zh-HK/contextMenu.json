@@ -110,5 +110,12 @@
     "back": "後退",
     "forward": "前進",
     "inspect": "檢查元素"
+  },
+  "attachment": {
+    "download": "下載附件",
+    "copyLink": "複製附件下載連結",
+    "copyLinkSuccess": "已複製附件連結到剪貼簿",
+    "openInNewTab": "在瀏覽器新分頁開啟",
+    "previewImage": "檢視原圖"
   }
 }

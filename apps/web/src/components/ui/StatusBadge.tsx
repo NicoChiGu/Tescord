@@ -35,9 +35,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
   const renderBadgeContent = () => {
     switch (normalizedStatus) {
       case "ONLINE":
-        return (
-          <circle cx="5" cy="5" r="5" fill="#23a55a" />
-        );
+        return <circle cx="5" cy="5" r="5" fill="#23a55a" />;
 
       case "IDLE":
         return (
@@ -49,7 +47,13 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
                 <circle cx="3" cy="3" r="3.75" fill="#000000" />
               </mask>
             </defs>
-            <circle cx="5" cy="5" r="5" fill="#f0b232" mask={`url(#${maskId})`} />
+            <circle
+              cx="5"
+              cy="5"
+              r="5"
+              fill="#f0b232"
+              mask={`url(#${maskId})`}
+            />
           </>
         );
 
@@ -60,10 +64,23 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
               <mask id={maskId}>
                 {/* 白色保留，黑色挖空中心横杠 */}
                 <rect x="0" y="0" width="10" height="10" fill="#ffffff" />
-                <rect x="2" y="4.25" width="6" height="1.5" rx="0.75" fill="#000000" />
+                <rect
+                  x="2"
+                  y="4.25"
+                  width="6"
+                  height="1.5"
+                  rx="0.75"
+                  fill="#000000"
+                />
               </mask>
             </defs>
-            <circle cx="5" cy="5" r="5" fill="#f23f43" mask={`url(#${maskId})`} />
+            <circle
+              cx="5"
+              cy="5"
+              r="5"
+              fill="#f23f43"
+              mask={`url(#${maskId})`}
+            />
           </>
         );
 
@@ -78,13 +95,21 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
                 <circle cx="5" cy="5" r="2.75" fill="#000000" />
               </mask>
             </defs>
-            <circle cx="5" cy="5" r="5" fill="#80848e" mask={`url(#${maskId})`} />
+            <circle
+              cx="5"
+              cy="5"
+              r="5"
+              fill="#80848e"
+              mask={`url(#${maskId})`}
+            />
           </>
         );
     }
   };
 
-  const borderWidth = withBorder ? Math.max(1.5, Math.round(pixelSize * 0.15)) : 0;
+  const borderWidth = withBorder
+    ? Math.max(1.5, Math.round(pixelSize * 0.15))
+    : 0;
 
   return (
     <div
@@ -93,7 +118,9 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
         width: pixelSize,
         height: pixelSize,
         borderRadius: "50%",
-        boxShadow: withBorder ? `0 0 0 ${borderWidth}px ${borderColor}` : undefined,
+        boxShadow: withBorder
+          ? `0 0 0 ${borderWidth}px ${borderColor}`
+          : undefined,
       }}
       aria-label={`Status: ${normalizedStatus}`}
     >

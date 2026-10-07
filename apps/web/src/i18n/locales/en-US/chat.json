@@ -283,6 +283,8 @@
     "miniPlayer": "Audio Player",
     "expand": "Expand",
     "collapse": "Collapse",
-    "close": "Close player"
+    "close": "Close player",
+    "snapLeft": "Snap Left",
+    "snapRight": "Snap Right"
   }
 }

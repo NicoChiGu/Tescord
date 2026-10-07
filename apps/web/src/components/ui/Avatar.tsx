@@ -76,7 +76,11 @@ export const Avatar: React.FC<AvatarProps> = ({
 
     return (
       <div className={`absolute bottom-0 right-0 z-10 ${statusClassName}`}>
-        <StatusBadge status={status} size={badgePixelSize} borderColor="#232428" />
+        <StatusBadge
+          status={status}
+          size={badgePixelSize}
+          borderColor="#232428"
+        />
       </div>
     );
   };

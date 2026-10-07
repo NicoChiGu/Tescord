@@ -302,6 +302,24 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
     });
   };
 
+  const handleAttachmentContextMenu = (
+    e: React.MouseEvent,
+    att: Attachment,
+    onPreviewImage?: () => void,
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    useContextMenuStore.getState().openMenu(e.clientX, e.clientY, {
+      type: "attachment",
+      attachment: att,
+      message: msg,
+      guild,
+      onPreviewImage,
+      onReply: setReplyingTo,
+      onDelete: onDeleteMessage,
+    });
+  };
+
   return (
     <div
       id={`message-${msg.id}`}
@@ -529,30 +547,50 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
                 const isImg = isImageMime(att.mimeType, att.fileName);
                 if (isImg) {
                   return (
-                    <ImageAttachment
+                    <div
                       key={att.id}
-                      attachment={att}
-                      onPreview={setLightboxImage}
-                    />
+                      data-testid={`attachment-item-${att.id}`}
+                      onContextMenu={(e) =>
+                        handleAttachmentContextMenu(e, att, () =>
+                          setLightboxImage(att),
+                        )
+                      }
+                      className="inline-block"
+                    >
+                      <ImageAttachment
+                        attachment={att}
+                        onPreview={setLightboxImage}
+                      />
+                    </div>
                   );
                 }
 
                 const isAudio = isAudioFile(att.mimeType, att.fileName);
                 if (isAudio) {
                   return (
-                    <AudioAttachment
+                    <div
                       key={att.id}
-                      attachment={att}
-                    />
+                      data-testid={`attachment-item-${att.id}`}
+                      onContextMenu={(e) => handleAttachmentContextMenu(e, att)}
+                      className="inline-block max-w-full"
+                    >
+                      <AudioAttachment attachment={att} />
+                    </div>
                   );
                 }
 
                 return (
-                  <FileAttachment
+                  <div
                     key={att.id}
-                    attachment={att}
-                    onPreviewStl={setPreviewStl}
-                  />
+                    data-testid={`attachment-item-${att.id}`}
+                    onContextMenu={(e) => handleAttachmentContextMenu(e, att)}
+                    className="inline-block max-w-full"
+                  >
+                    <FileAttachment
+                      attachment={att}
+                      onPreviewStl={setPreviewStl}
+                    />
+                  </div>
                 );
               })}
             </div>

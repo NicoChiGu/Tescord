@@ -283,6 +283,8 @@
     "miniPlayer": "音訊播放器",
     "expand": "展開",
     "collapse": "收起",
-    "close": "關閉播放器"
+    "close": "關閉播放器",
+    "snapLeft": "靠左吸附",
+    "snapRight": "靠右吸附"
   }
 }

@@ -110,5 +110,12 @@
     "back": "戻る",
     "forward": "進む",
     "inspect": "要素を検証"
+  },
+  "attachment": {
+    "download": "添付ファイルをダウンロード",
+    "copyLink": "ダウンロードリンクをコピー",
+    "copyLinkSuccess": "添付ファイルのリンクをクリップボードにコピーしました",
+    "openInNewTab": "新しいタブで開く",
+    "previewImage": "元の画像を表示"
   }
 }

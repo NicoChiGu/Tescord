@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { Message, Guild, UserStatus } from "@tescord/types";
+import { Message, Guild, UserStatus, Attachment } from "@tescord/types";
 
 export interface MessageMenuData {
   type: "message";
@@ -35,7 +35,18 @@ export interface UserMenuData {
   onBanMember?: (userId: string, username: string) => void;
 }
 
-export type ContextMenuData = MessageMenuData | UserMenuData;
+export interface AttachmentMenuData {
+  type: "attachment";
+  attachment: Attachment;
+  message?: Message;
+  guild?: Guild | null;
+  onPreviewImage?: () => void;
+  onReply?: (message: Message) => void;
+  onDelete?: (messageId: string) => void;
+}
+
+export type ContextMenuData =
+  MessageMenuData | UserMenuData | AttachmentMenuData;
 
 interface ContextMenuState {
   isOpen: boolean;

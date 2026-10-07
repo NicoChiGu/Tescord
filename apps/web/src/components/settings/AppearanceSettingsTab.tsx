@@ -1,15 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import {
-  Monitor,
-  Check,
-  RotateCcw,
-  Eye,
-  Type,
-} from "lucide-react";
-import {
-  useSettingsStore,
-} from "../../stores/useSettingsStore.js";
+import { Monitor, Check, RotateCcw, Eye, Type } from "lucide-react";
+import { useSettingsStore } from "../../stores/useSettingsStore.js";
 import { MessageDisplayMode } from "@tescord/types";
 
 const FONT_SIZE_PRESETS = [13, 14, 15, 16, 18, 20];
@@ -272,15 +264,10 @@ export const AppearanceSettingsTab: React.FC = () => {
                 data-testid="reset-font-size-btn"
                 onClick={handleResetFontSize}
                 className="text-xs text-gray-400 hover:text-white flex items-center gap-1 transition-colors px-2 py-0.5 rounded hover:bg-white/5"
-                title={t(
-                  "settings:resetFontSize",
-                  "重置默认字号 (16px)",
-                )}
+                title={t("settings:resetFontSize", "重置默认字号 (16px)")}
               >
                 <RotateCcw className="w-3 h-3" />
-                <span>
-                  {t("settings:resetFontSize", "重置默认字号")}
-                </span>
+                <span>{t("settings:resetFontSize", "重置默认字号")}</span>
               </button>
             )}
           </div>

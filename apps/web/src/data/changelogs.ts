@@ -1,8 +1,51 @@
 import { VersionChangelog } from "@tescord/types";
 
-export const CURRENT_APP_VERSION = "0.3.5";
+export const CURRENT_APP_VERSION = "0.3.6";
 
 export const BUILTIN_CHANGELOGS: VersionChangelog[] = [
+  {
+    version: "0.3.6",
+    releaseDate: "2026-10-07",
+    releaseUrl: "https://github.com/labsphaela/Tescord/releases/tag/0.3.6",
+    items: [
+      {
+        id: "custom-select-component",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_6_select_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_6_select_desc",
+      },
+      {
+        id: "portal-dark-tooltip",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_6_tooltip_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_6_tooltip_desc",
+      },
+      {
+        id: "attachment-context-menu",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_6_attachment_menu_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_6_attachment_menu_desc",
+      },
+      {
+        id: "mini-player-magnetic-waveform",
+        category: "improvements",
+        titleKey: "modals:whatsNew.items.v0_3_6_mini_player_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_6_mini_player_desc",
+      },
+      {
+        id: "voice-channel-name-case-spaces",
+        category: "improvements",
+        titleKey: "modals:whatsNew.items.v0_3_6_voice_name_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_6_voice_name_desc",
+      },
+      {
+        id: "voice-topology-and-streamer-hud",
+        category: "improvements",
+        titleKey: "modals:whatsNew.items.v0_3_6_voice_hud_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_6_voice_hud_desc",
+      },
+    ],
+  },
   {
     version: "0.3.5",
     releaseDate: "2026-10-07",
@@ -24,7 +67,8 @@ export const BUILTIN_CHANGELOGS: VersionChangelog[] = [
         id: "media-e2ee-signaling",
         category: "features",
         titleKey: "modals:whatsNew.items.v0_3_5_media_e2ee_signaling_title",
-        descriptionKey: "modals:whatsNew.items.v0_3_5_media_e2ee_signaling_desc",
+        descriptionKey:
+          "modals:whatsNew.items.v0_3_5_media_e2ee_signaling_desc",
       },
       {
         id: "audio-lifecycle-safeguards",

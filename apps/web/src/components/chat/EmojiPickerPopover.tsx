@@ -80,7 +80,10 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
     if (!isOpen) return;
 
     const handleClickOutside = (e: MouseEvent) => {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+      if (
+        popoverRef.current &&
+        !popoverRef.current.contains(e.target as Node)
+      ) {
         onClose();
       }
     };
@@ -130,7 +133,9 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
     return recentEmojis
       .map((code) => {
         // 尝试匹配自定义表情 <a?:name:id>
-        const customMatch = code.match(/^<a?:([a-zA-Z0-9_]+):([a-zA-Z0-9_-]+)>/);
+        const customMatch = code.match(
+          /^<a?:([a-zA-Z0-9_]+):([a-zA-Z0-9_-]+)>/,
+        );
         if (customMatch) {
           const id = customMatch[2];
           const found =
@@ -147,7 +152,12 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
         }
         return {
           type: "unicode" as const,
-          item: { emoji: code, name: code, category: "people" as const, keywords: [] },
+          item: {
+            emoji: code,
+            name: code,
+            category: "people" as const,
+            keywords: [],
+          },
           raw: code,
         };
       })
@@ -237,7 +247,9 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
             <button
               type="button"
               onClick={() => scrollToCategory("server")}
-              title={t("chat:emojiCategoryServer", { defaultValue: "服务器表情" })}
+              title={t("chat:emojiCategoryServer", {
+                defaultValue: "服务器表情",
+              })}
               className="p-1 hover:text-white hover:bg-white/10 rounded-md transition"
             >
               <Server className="w-4 h-4" />
@@ -256,7 +268,9 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
           <button
             type="button"
             onClick={() => scrollToCategory("people")}
-            title={t("chat:emojiCategoryPeople", { defaultValue: "人物与笑脸" })}
+            title={t("chat:emojiCategoryPeople", {
+              defaultValue: "人物与笑脸",
+            })}
             className="p-1 hover:text-white hover:bg-white/10 rounded-md transition"
           >
             <Smile className="w-4 h-4" />
@@ -264,7 +278,9 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
           <button
             type="button"
             onClick={() => scrollToCategory("nature")}
-            title={t("chat:emojiCategoryNature", { defaultValue: "动物与自然" })}
+            title={t("chat:emojiCategoryNature", {
+              defaultValue: "动物与自然",
+            })}
             className="p-1 hover:text-white hover:bg-white/10 rounded-md transition"
           >
             <Trees className="w-4 h-4" />
@@ -280,7 +296,9 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
           <button
             type="button"
             onClick={() => scrollToCategory("activities")}
-            title={t("chat:emojiCategoryActivities", { defaultValue: "活动与运动" })}
+            title={t("chat:emojiCategoryActivities", {
+              defaultValue: "活动与运动",
+            })}
             className="p-1 hover:text-white hover:bg-white/10 rounded-md transition"
           >
             <Gamepad2 className="w-4 h-4" />
@@ -288,7 +306,9 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
           <button
             type="button"
             onClick={() => scrollToCategory("travel")}
-            title={t("chat:emojiCategoryTravel", { defaultValue: "旅行与地点" })}
+            title={t("chat:emojiCategoryTravel", {
+              defaultValue: "旅行与地点",
+            })}
             className="p-1 hover:text-white hover:bg-white/10 rounded-md transition"
           >
             <Plane className="w-4 h-4" />
@@ -296,7 +316,9 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
           <button
             type="button"
             onClick={() => scrollToCategory("objects")}
-            title={t("chat:emojiCategoryObjects", { defaultValue: "物体与工具" })}
+            title={t("chat:emojiCategoryObjects", {
+              defaultValue: "物体与工具",
+            })}
             className="p-1 hover:text-white hover:bg-white/10 rounded-md transition"
           >
             <Lightbulb className="w-4 h-4" />
@@ -304,7 +326,9 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
           <button
             type="button"
             onClick={() => scrollToCategory("symbols")}
-            title={t("chat:emojiCategorySymbols", { defaultValue: "符号与标记" })}
+            title={t("chat:emojiCategorySymbols", {
+              defaultValue: "符号与标记",
+            })}
             className="p-1 hover:text-white hover:bg-white/10 rounded-md transition"
           >
             <Hash className="w-4 h-4" />
@@ -330,7 +354,9 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
           <div id="emoji-cat-recent">
             <div className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-1.5 flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5" />
-              <span>{t("chat:emojiCategoryRecent", { defaultValue: "常用" })}</span>
+              <span>
+                {t("chat:emojiCategoryRecent", { defaultValue: "常用" })}
+              </span>
             </div>
             <div className="grid grid-cols-8 sm:grid-cols-9 gap-1">
               {recentEmojiItems.map((item, idx) => {
@@ -454,13 +480,41 @@ export const EmojiPickerPopover: React.FC<EmojiPickerPopoverProps> = ({
 
         {/* 4. Unicode 表情分类展示 */}
         {[
-          { id: "people", labelKey: "chat:emojiCategoryPeople", label: "人物与笑脸" },
-          { id: "nature", labelKey: "chat:emojiCategoryNature", label: "动物与自然" },
-          { id: "food", labelKey: "chat:emojiCategoryFood", label: "食物与饮料" },
-          { id: "activities", labelKey: "chat:emojiCategoryActivities", label: "活动与运动" },
-          { id: "travel", labelKey: "chat:emojiCategoryTravel", label: "旅行与地点" },
-          { id: "objects", labelKey: "chat:emojiCategoryObjects", label: "物体与工具" },
-          { id: "symbols", labelKey: "chat:emojiCategorySymbols", label: "符号与标记" },
+          {
+            id: "people",
+            labelKey: "chat:emojiCategoryPeople",
+            label: "人物与笑脸",
+          },
+          {
+            id: "nature",
+            labelKey: "chat:emojiCategoryNature",
+            label: "动物与自然",
+          },
+          {
+            id: "food",
+            labelKey: "chat:emojiCategoryFood",
+            label: "食物与饮料",
+          },
+          {
+            id: "activities",
+            labelKey: "chat:emojiCategoryActivities",
+            label: "活动与运动",
+          },
+          {
+            id: "travel",
+            labelKey: "chat:emojiCategoryTravel",
+            label: "旅行与地点",
+          },
+          {
+            id: "objects",
+            labelKey: "chat:emojiCategoryObjects",
+            label: "物体与工具",
+          },
+          {
+            id: "symbols",
+            labelKey: "chat:emojiCategorySymbols",
+            label: "符号与标记",
+          },
           { id: "flags", labelKey: "chat:emojiCategoryFlags", label: "旗帜" },
         ].map((cat) => {
           const list = categoryGroups[cat.id] || [];

@@ -1,10 +1,7 @@
 import { useAuthStore } from "../stores/useAuthStore.js";
 import { apiFetch } from "./apiClient.js";
 import { API_BASE } from "../config.js";
-import {
-  GatewayEvents,
-  MEDIA_ENCRYPTION_VERSION,
-} from "@tescord/types";
+import { GatewayEvents, MEDIA_ENCRYPTION_VERSION } from "@tescord/types";
 import type {
   MediaEncryptionContext,
   MediaEncryptionJoinRequest,

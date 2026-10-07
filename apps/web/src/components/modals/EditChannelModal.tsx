@@ -16,6 +16,7 @@ import { Channel, Guild, StreamTransmissionMode } from "@tescord/types";
 import { useTranslation } from "react-i18next";
 import { API_BASE } from "../../config.js";
 import { getErrorMessage } from "../../i18n/index.js";
+import { Select } from "../ui/Select.js";
 
 interface EditChannelModalProps {
   isOpen: boolean;
@@ -91,7 +92,10 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          name: name.trim(),
+          name:
+            channel.type === "TEXT"
+              ? name.trim().toLowerCase().replace(/\s+/g, "-")
+              : name.trim(),
           topic: topic.trim(),
           parentId: parentId || null,
           ...(channel.type === "VOICE"
@@ -256,19 +260,18 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
             <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted mb-2">
               {t("modals:createChannel.categoryLabel")}
             </label>
-            <select
+            <Select
               value={parentId || ""}
-              onChange={(e) => setParentId(e.target.value || null)}
-              className="w-full bg-[#1e1f22] text-discord-textNormal border border-black/50 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-discord-brand transition cursor-pointer"
+              onChange={(val) => setParentId(val || null)}
+              options={[
+                { value: "", label: t("modals:createChannel.noCategory") },
+                ...(guild?.categories || []).map((cat) => ({
+                  value: cat.id,
+                  label: `📁 ${cat.name}`,
+                })),
+              ]}
               data-testid="edit-channel-category-select"
-            >
-              <option value="">{t("modals:createChannel.noCategory")}</option>
-              {guild?.categories?.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  📁 {cat.name}
-                </option>
-              ))}
-            </select>
+            />
           </div>
 
           {/* 语音频道传输拓扑设置 */}

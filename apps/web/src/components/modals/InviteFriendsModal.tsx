@@ -178,8 +178,7 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
 
   // 通过私信向好友发送邀请卡片
   const handleSendInviteToFriend = async (friend: User) => {
-    if (invitedUsers[friend.id] || sendingInvite[friend.id])
-      return;
+    if (invitedUsers[friend.id] || sendingInvite[friend.id]) return;
     try {
       setSendingInvite((prev) => ({ ...prev, [friend.id]: true }));
       let codeToUse = inviteCode;

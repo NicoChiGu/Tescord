@@ -18,6 +18,8 @@
   "enabled": "已开启",
   "disabled": "已关闭",
   "new": "新的",
+  "selectPlaceholder": "请选择...",
+  "noOptions": "无可选项目",
   "status": {
     "online": "在线",
     "idle": "闲置",

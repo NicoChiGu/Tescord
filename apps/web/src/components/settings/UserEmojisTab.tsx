@@ -1,14 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { CustomEmoji } from "@tescord/types";
-import {
-  Upload,
-  Trash2,
-  Smile,
-  Loader2,
-  Copy,
-  Check,
-} from "lucide-react";
+import { Upload, Trash2, Smile, Loader2, Copy, Check } from "lucide-react";
 import { useEmojiStore } from "../../stores/useEmojiStore.js";
 import { resolveServerUrl } from "../../config.js";
 import { toast } from "../../stores/useToastStore.js";
@@ -16,12 +9,8 @@ import { dialog } from "../../stores/useDialogStore.js";
 
 export const UserEmojisTab: React.FC = () => {
   const { t } = useTranslation(["settings", "common", "errors"]);
-  const {
-    userEmojis,
-    fetchUserEmojis,
-    uploadUserEmoji,
-    deleteUserEmoji,
-  } = useEmojiStore();
+  const { userEmojis, fetchUserEmojis, uploadUserEmoji, deleteUserEmoji } =
+    useEmojiStore();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -42,14 +31,21 @@ export const UserEmojisTab: React.FC = () => {
       URL.revokeObjectURL(previewUrl);
     }
 
-    const isGif = file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
+    const isGif =
+      file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
     if (isGif && file.size > 2 * 1024 * 1024) {
-      toast.error(t("errors:EMOJI_FILE_TOO_LARGE", { defaultValue: "GIF表情限制在2MB以内" }));
+      toast.error(
+        t("errors:EMOJI_FILE_TOO_LARGE", {
+          defaultValue: "GIF表情限制在2MB以内",
+        }),
+      );
       e.target.value = "";
       return;
     }
     if (!isGif && file.size > 5 * 1024 * 1024) {
-      toast.error(t("errors:FILE_TOO_LARGE", { defaultValue: "图片大小不能超过5MB" }));
+      toast.error(
+        t("errors:FILE_TOO_LARGE", { defaultValue: "图片大小不能超过5MB" }),
+      );
       e.target.value = "";
       return;
     }
@@ -60,7 +56,11 @@ export const UserEmojisTab: React.FC = () => {
       .slice(0, 32);
 
     setSelectedFile(file);
-    setEmojiName(cleanDefaultName.length >= 2 ? cleanDefaultName : `emoji_${Date.now() % 1000}`);
+    setEmojiName(
+      cleanDefaultName.length >= 2
+        ? cleanDefaultName
+        : `emoji_${Date.now() % 1000}`,
+    );
     setPreviewUrl(URL.createObjectURL(file));
   };
 
@@ -102,10 +102,14 @@ export const UserEmojisTab: React.FC = () => {
     setIsUploading(true);
     try {
       await uploadUserEmoji(trimmed, selectedFile);
-      toast.success(t("common:saveSuccess", { defaultValue: "上传表情成功！" }));
+      toast.success(
+        t("common:saveSuccess", { defaultValue: "上传表情成功！" }),
+      );
       handleCancelUpload();
     } catch (err: any) {
-      toast.error(err.message || t("common:networkError", { defaultValue: "上传失败" }));
+      toast.error(
+        err.message || t("common:networkError", { defaultValue: "上传失败" }),
+      );
     } finally {
       setIsUploading(false);
     }
@@ -128,7 +132,9 @@ export const UserEmojisTab: React.FC = () => {
       await deleteUserEmoji(emoji.id);
       toast.success(t("common:deleteSuccess", { defaultValue: "删除成功" }));
     } catch (err: any) {
-      toast.error(err.message || t("common:networkError", { defaultValue: "删除失败" }));
+      toast.error(
+        err.message || t("common:networkError", { defaultValue: "删除失败" }),
+      );
     }
   };
 
@@ -200,16 +206,22 @@ export const UserEmojisTab: React.FC = () => {
               {t("common:name", { defaultValue: "表情名称" })}
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-2 text-gray-400 font-mono text-sm">:</span>
+              <span className="absolute left-3 top-2 text-gray-400 font-mono text-sm">
+                :
+              </span>
               <input
                 type="text"
                 value={emojiName}
-                onChange={(e) => setEmojiName(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))}
+                onChange={(e) =>
+                  setEmojiName(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))
+                }
                 placeholder="my_sticker"
                 maxLength={32}
                 className="w-full bg-[#1e1f22] text-sm text-white pl-6 pr-6 py-1.5 rounded-lg border border-[#3f4147] focus:outline-none focus:border-[#5865f2] font-mono"
               />
-              <span className="absolute right-3 top-2 text-gray-400 font-mono text-sm">:</span>
+              <span className="absolute right-3 top-2 text-gray-400 font-mono text-sm">
+                :
+              </span>
             </div>
             <p className="text-[10px] text-gray-400">
               {selectedFile.type === "image/gif"

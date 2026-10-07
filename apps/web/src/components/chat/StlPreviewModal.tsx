@@ -38,25 +38,28 @@ export const StlPreviewModal: React.FC<StlPreviewModalProps> = ({
   const [resetTrigger, setResetTrigger] = useState(0);
 
   // 加载 STL 二进制数据
-  const loadData = useCallback(async (att: Attachment) => {
-    setLoading(true);
-    setError(null);
-    setBuffer(null);
-    setStats(null);
+  const loadData = useCallback(
+    async (att: Attachment) => {
+      setLoading(true);
+      setError(null);
+      setBuffer(null);
+      setStats(null);
 
-    try {
-      const blob = await loadAttachmentBlob(att, "original");
-      const arrayBuffer = await blob.arrayBuffer();
-      setBuffer(arrayBuffer);
-    } catch (err) {
-      console.error("[StlPreviewModal] Failed to load STL blob:", err);
-      setError(
-        err instanceof Error ? err.message : t("stlPreview.loadFailed"),
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [t]);
+      try {
+        const blob = await loadAttachmentBlob(att, "original");
+        const arrayBuffer = await blob.arrayBuffer();
+        setBuffer(arrayBuffer);
+      } catch (err) {
+        console.error("[StlPreviewModal] Failed to load STL blob:", err);
+        setError(
+          err instanceof Error ? err.message : t("stlPreview.loadFailed"),
+        );
+      } finally {
+        setLoading(false);
+      }
+    },
+    [t],
+  );
 
   useEffect(() => {
     if (attachment) {
@@ -201,7 +204,9 @@ export const StlPreviewModal: React.FC<StlPreviewModalProps> = ({
                   data-testid="stl-triangles-stat"
                   className="flex items-center gap-1.5 text-white/70"
                 >
-                  <span className="text-white/40">{t("stlPreview.triangles")}:</span>
+                  <span className="text-white/40">
+                    {t("stlPreview.triangles")}:
+                  </span>
                   <span className="font-semibold text-white">
                     {formatNumber(stats.triangleCount)}
                   </span>
@@ -214,7 +219,9 @@ export const StlPreviewModal: React.FC<StlPreviewModalProps> = ({
                   data-testid="stl-dimensions-stat"
                   className="flex items-center gap-1.5 text-white/70 border-l border-white/10 pl-3 sm:pl-4"
                 >
-                  <span className="text-white/40">{t("stlPreview.dimensions")}:</span>
+                  <span className="text-white/40">
+                    {t("stlPreview.dimensions")}:
+                  </span>
                   <span className="font-semibold text-white">
                     {t("stlPreview.dimensionsValue", {
                       x: formatDimension(stats.dimensions.x),

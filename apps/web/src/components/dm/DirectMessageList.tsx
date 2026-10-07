@@ -87,10 +87,14 @@ export const DirectMessageList: React.FC<DirectMessageListProps> = ({
         return t("chat:dm.callHistory.missed", { defaultValue: "未接来电" });
       }
       if (content.includes(":declined")) {
-        return t("chat:dm.callHistory.declined", { defaultValue: "已拒绝通话" });
+        return t("chat:dm.callHistory.declined", {
+          defaultValue: "已拒绝通话",
+        });
       }
       if (content.includes(":canceled")) {
-        return t("chat:dm.callHistory.canceled", { defaultValue: "已取消呼叫" });
+        return t("chat:dm.callHistory.canceled", {
+          defaultValue: "已取消呼叫",
+        });
       }
       if (content.includes(":ended:")) {
         const duration = content.split(":ended:")[1]?.replace("]", "");

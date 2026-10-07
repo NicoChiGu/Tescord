@@ -18,6 +18,8 @@
   "enabled": "有効",
   "disabled": "無効",
   "new": "NEW",
+  "selectPlaceholder": "選択してください...",
+  "noOptions": "選択肢がありません",
   "status": {
     "online": "オンライン",
     "idle": "退席中",

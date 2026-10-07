@@ -103,7 +103,9 @@ test.describe("自定义音频播放器 UI、波形频谱、单例互斥与右�
     });
 
     // 等待待发送预览出现并发送
-    await expect(page.locator(`text="${audioFile1}"`)).toBeVisible({ timeout: 10000 });
+    await expect(page.locator(`text="${audioFile1}"`)).toBeVisible({
+      timeout: 10000,
+    });
     const chatInput = page.locator('div[contenteditable="true"]').first();
     await chatInput.fill(`Audio_Test_1_${Date.now()}`);
     await chatInput.press("Enter");
@@ -127,7 +129,11 @@ test.describe("自定义音频播放器 UI、波形频谱、单例互斥与右�
     expect(barsCount).toBeGreaterThan(20);
 
     // 4. 点击播放卡片 1
-    const playBtn1 = playerCard1.locator('button[title="播放"], button[title="Play"], button[aria-label="播放"], button[aria-label="Play"]').first();
+    const playBtn1 = playerCard1
+      .locator(
+        'button[title="播放"], button[title="Play"], button[aria-label="播放"], button[aria-label="Play"]',
+      )
+      .first();
     await playBtn1.click();
 
     // 验证卡片 1 播放中状态以及右下角迷你悬浮播放器出现
@@ -148,7 +154,9 @@ test.describe("自定义音频播放器 UI、波形频谱、单例互斥与右�
     const speedBtn = playerCard1.locator("button", { hasText: "1x" }).first();
     if (await speedBtn.isVisible()) {
       await speedBtn.click();
-      await expect(playerCard1.locator("button", { hasText: "1.25x" }).first()).toBeVisible();
+      await expect(
+        playerCard1.locator("button", { hasText: "1.25x" }).first(),
+      ).toBeVisible();
     }
 
     // 7. 上传第二个音频文件，测试单例互斥
@@ -157,7 +165,9 @@ test.describe("自定义音频播放器 UI、波形频谱、单例互斥与右�
       mimeType: "audio/wav",
       buffer: mockAudioBuffer,
     });
-    await expect(page.locator(`text="${audioFile2}"`)).toBeVisible({ timeout: 10000 });
+    await expect(page.locator(`text="${audioFile2}"`)).toBeVisible({
+      timeout: 10000,
+    });
     await chatInput.fill(`Audio_Test_2_${Date.now()}`);
     await chatInput.press("Enter");
 
@@ -168,22 +178,36 @@ test.describe("自定义音频播放器 UI、波形频谱、单例互斥与右�
     await expect(playerCard2).toBeVisible({ timeout: 10000 });
 
     // 点击播放卡片 2
-    const playBtn2 = playerCard2.locator('button[title="播放"], button[title="Play"], button[aria-label="播放"], button[aria-label="Play"]').first();
+    const playBtn2 = playerCard2
+      .locator(
+        'button[title="播放"], button[title="Play"], button[aria-label="播放"], button[aria-label="Play"]',
+      )
+      .first();
     await playBtn2.click();
 
     // 互斥断言：卡片 2 正在播放，迷你播放器更新为 audioFile2
     await expect(miniPlayer).toContainText(audioFile2);
 
     // 8. 测试迷你播放器展开与收起
-    const expandBtn = miniPlayer.locator('button[title="展开"], button[title="Expand"], button[aria-label="展开"], button[aria-label="Expand"]').first();
+    const expandBtn = miniPlayer
+      .locator(
+        'button[title="展开"], button[title="Expand"], button[aria-label="展开"], button[aria-label="Expand"]',
+      )
+      .first();
     if (await expandBtn.isVisible()) {
       await expandBtn.click();
       // 展开后应包含音量滑块或更大波形
-      await expect(miniPlayer.locator('input[type="range"]')).toBeVisible({ timeout: 5000 });
+      await expect(miniPlayer.locator('input[type="range"]')).toBeVisible({
+        timeout: 5000,
+      });
     }
 
     // 9. 测试迷你播放器关闭
-    const closeBtn = miniPlayer.locator('button[title="关闭播放器"], button[title="Close player"], button[aria-label="关闭播放器"], button[aria-label="Close player"]').first();
+    const closeBtn = miniPlayer
+      .locator(
+        'button[title="关闭播放器"], button[title="Close player"], button[aria-label="关闭播放器"], button[aria-label="Close player"]',
+      )
+      .first();
     await closeBtn.click();
     await expect(miniPlayer).toBeHidden({ timeout: 5000 });
 

@@ -21,12 +21,8 @@ interface EmojisTabProps {
 
 export const EmojisTab: React.FC<EmojisTabProps> = ({ guild }) => {
   const { t } = useTranslation(["server", "common", "errors"]);
-  const {
-    guildEmojis,
-    fetchGuildEmojis,
-    uploadGuildEmoji,
-    deleteGuildEmoji,
-  } = useEmojiStore();
+  const { guildEmojis, fetchGuildEmojis, uploadGuildEmoji, deleteGuildEmoji } =
+    useEmojiStore();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -50,14 +46,21 @@ export const EmojisTab: React.FC<EmojisTabProps> = ({ guild }) => {
       URL.revokeObjectURL(previewUrl);
     }
 
-    const isGif = file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
+    const isGif =
+      file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
     if (isGif && file.size > 2 * 1024 * 1024) {
-      toast.error(t("errors:EMOJI_FILE_TOO_LARGE", { defaultValue: "GIF表情限制在2MB以内" }));
+      toast.error(
+        t("errors:EMOJI_FILE_TOO_LARGE", {
+          defaultValue: "GIF表情限制在2MB以内",
+        }),
+      );
       e.target.value = "";
       return;
     }
     if (!isGif && file.size > 5 * 1024 * 1024) {
-      toast.error(t("errors:FILE_TOO_LARGE", { defaultValue: "图片大小不能超过5MB" }));
+      toast.error(
+        t("errors:FILE_TOO_LARGE", { defaultValue: "图片大小不能超过5MB" }),
+      );
       e.target.value = "";
       return;
     }
@@ -69,7 +72,11 @@ export const EmojisTab: React.FC<EmojisTabProps> = ({ guild }) => {
       .slice(0, 32);
 
     setSelectedFile(file);
-    setEmojiName(cleanDefaultName.length >= 2 ? cleanDefaultName : `emoji_${Date.now() % 1000}`);
+    setEmojiName(
+      cleanDefaultName.length >= 2
+        ? cleanDefaultName
+        : `emoji_${Date.now() % 1000}`,
+    );
     setPreviewUrl(URL.createObjectURL(file));
   };
 
@@ -111,10 +118,14 @@ export const EmojisTab: React.FC<EmojisTabProps> = ({ guild }) => {
     setIsUploading(true);
     try {
       await uploadGuildEmoji(guild.id, trimmed, selectedFile);
-      toast.success(t("common:saveSuccess", { defaultValue: "上传表情成功！" }));
+      toast.success(
+        t("common:saveSuccess", { defaultValue: "上传表情成功！" }),
+      );
       handleCancelUpload();
     } catch (err: any) {
-      toast.error(err.message || t("common:networkError", { defaultValue: "上传失败" }));
+      toast.error(
+        err.message || t("common:networkError", { defaultValue: "上传失败" }),
+      );
     } finally {
       setIsUploading(false);
     }
@@ -137,7 +148,9 @@ export const EmojisTab: React.FC<EmojisTabProps> = ({ guild }) => {
       await deleteGuildEmoji(guild.id, emoji.id);
       toast.success(t("common:deleteSuccess", { defaultValue: "删除成功" }));
     } catch (err: any) {
-      toast.error(err.message || t("common:networkError", { defaultValue: "删除失败" }));
+      toast.error(
+        err.message || t("common:networkError", { defaultValue: "删除失败" }),
+      );
     }
   };
 
@@ -157,7 +170,9 @@ export const EmojisTab: React.FC<EmojisTabProps> = ({ guild }) => {
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2">
             <Smile className="w-5 h-5 text-[#5865f2]" />
-            <span>{t("server:emojiManagement", { defaultValue: "服务器表情管理" })}</span>
+            <span>
+              {t("server:emojiManagement", { defaultValue: "服务器表情管理" })}
+            </span>
           </h2>
           <p className="text-xs text-gray-400 mt-1 max-w-xl">
             {t("server:emojiUploadHint", {
@@ -212,16 +227,22 @@ export const EmojisTab: React.FC<EmojisTabProps> = ({ guild }) => {
               {t("server:emojiNamePlaceholder", { defaultValue: "表情代号" })}
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-2 text-gray-400 font-mono text-sm">:</span>
+              <span className="absolute left-3 top-2 text-gray-400 font-mono text-sm">
+                :
+              </span>
               <input
                 type="text"
                 value={emojiName}
-                onChange={(e) => setEmojiName(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))}
+                onChange={(e) =>
+                  setEmojiName(e.target.value.replace(/[^a-zA-Z0-9_]/g, ""))
+                }
                 placeholder="cat_dance"
                 maxLength={32}
                 className="w-full bg-[#1e1f22] text-sm text-white pl-6 pr-6 py-1.5 rounded-lg border border-[#3f4147] focus:outline-none focus:border-[#5865f2] font-mono"
               />
-              <span className="absolute right-3 top-2 text-gray-400 font-mono text-sm">:</span>
+              <span className="absolute right-3 top-2 text-gray-400 font-mono text-sm">
+                :
+              </span>
             </div>
             <p className="text-[10px] text-gray-400">
               {selectedFile.type === "image/gif"

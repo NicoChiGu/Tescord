@@ -76,7 +76,9 @@ test.describe("4 项核心缺陷与用户体验改进验收测试 (four-user-fix
     // 验证控制台与运行时没有任何 React Hook 或 length 读取崩溃
     const fatalErrors = pageErrors.filter(
       (msg) =>
-        msg.includes("Cannot read properties of undefined (reading 'length')") ||
+        msg.includes(
+          "Cannot read properties of undefined (reading 'length')",
+        ) ||
         msg.includes("Rendered more hooks than during the previous render") ||
         msg.includes("Rendered fewer hooks than during the previous render"),
     );
@@ -185,7 +187,9 @@ test.describe("4 项核心缺陷与用户体验改进验收测试 (four-user-fix
     }
 
     // 3. 检查聊天消息中作者头像同样被设置 draggable=false，杜绝拖拽上传
-    const authorAvatar = page.locator('img[data-profile-trigger="chat-usr_mock_terata"]');
+    const authorAvatar = page.locator(
+      'img[data-profile-trigger="chat-usr_mock_terata"]',
+    );
     await expect(authorAvatar).toBeVisible();
     expect(await authorAvatar.getAttribute("draggable")).toBe("false");
   });
@@ -242,21 +246,29 @@ test.describe("4 项核心缺陷与用户体验改进验收测试 (four-user-fix
     await dmItem.click();
 
     // 点击发起语音呼叫
-    const voiceCallBtn = page.locator('[data-testid="dm-start-voice-call-btn"]');
+    const voiceCallBtn = page.locator(
+      '[data-testid="dm-start-voice-call-btn"]',
+    );
     await expect(voiceCallBtn).toBeVisible({ timeout: 5000 });
     await voiceCallBtn.click();
 
     // 验证呼叫舞台呈现（波纹、对方头像、已验证设备·E2EE、取消呼叫按钮）
-    const outgoingStage = page.locator('[data-testid="dm-outgoing-call-stage"]');
+    const outgoingStage = page.locator(
+      '[data-testid="dm-outgoing-call-stage"]',
+    );
     await expect(outgoingStage).toBeVisible({ timeout: 5000 });
     await expect(outgoingStage).toContainText("TERA-TEST");
     await expect(outgoingStage).toContainText("已验证设备 · E2EE");
-    await expect(page.locator('[data-testid="dm-cancel-call-btn"]')).toBeVisible();
+    await expect(
+      page.locator('[data-testid="dm-cancel-call-btn"]'),
+    ).toBeVisible();
 
     // 验证无论何时都不再渲染任何 WebRTC P2P Direct 或 LiveKit SFU 字样
     await expect(page.locator("body")).not.toContainText("WebRTC P2P Direct");
     await expect(page.locator("body")).not.toContainText("LiveKit SFU");
-    await expect(page.locator("body")).not.toContainText("正在建立加密音视频通道...");
+    await expect(page.locator("body")).not.toContainText(
+      "正在建立加密音视频通道...",
+    );
 
     // 点击取消呼叫
     await page.locator('[data-testid="dm-cancel-call-btn"]').click();
@@ -355,6 +367,8 @@ test.describe("4 项核心缺陷与用户体验改进验收测试 (four-user-fix
     // 校验解析后的本地化文案正确呈现在列表简介中
     await expect(page.getByText("已取消呼叫")).toBeVisible({ timeout: 5000 });
     await expect(page.getByText("未接来电")).toBeVisible({ timeout: 5000 });
-    await expect(page.getByText("通话已结束 (02:45)")).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("通话已结束 (02:45)")).toBeVisible({
+      timeout: 5000,
+    });
   });
 });

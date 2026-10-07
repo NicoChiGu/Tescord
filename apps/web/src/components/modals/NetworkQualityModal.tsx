@@ -440,7 +440,9 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                 </div>
                 {localStats?.videoBitrate ? (
                   <div className="flex justify-between py-1 border-b border-[#35373c]">
-                    <span className="text-discord-textMuted">{t("voice:videoBitrate")}</span>
+                    <span className="text-discord-textMuted">
+                      {t("voice:videoBitrate")}
+                    </span>
                     <span className="text-emerald-400 font-mono">
                       {localStats.videoBitrate} kbps
                     </span>
@@ -456,7 +458,9 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                   </span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-[#35373c]">
-                  <span className="text-discord-textMuted">{t("voice:noiseSuppressionEngine")}</span>
+                  <span className="text-discord-textMuted">
+                    {t("voice:noiseSuppressionEngine")}
+                  </span>
                   <span className="text-white font-mono">
                     {effectiveNoiseLabel}
                   </span>
@@ -717,7 +721,9 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                             </span>
                             <div className="flex items-center gap-3 font-mono text-[11px]">
                               <span className="text-discord-green font-bold">
-                                {rep.rtt > 0 ? `${rep.rtt} ms` : t("voice:networkStats.unknown")}
+                                {rep.rtt > 0
+                                  ? `${rep.rtt} ms`
+                                  : t("voice:networkStats.unknown")}
                               </span>
                               <span className="text-discord-textMuted text-[10px]">
                                 {rep.connectionType}

@@ -18,6 +18,8 @@
   "enabled": "已開啟",
   "disabled": "已關閉",
   "new": "新的",
+  "selectPlaceholder": "請選擇...",
+  "noOptions": "無可選項目",
   "status": {
     "online": "線上",
     "idle": "閒置",

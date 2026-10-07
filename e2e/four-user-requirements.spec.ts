@@ -264,7 +264,8 @@ test.describe("4 项核心用户需求与缺陷修复完整验收 (four-user-req
             channelId: "c_main_text",
             authorId: mockTargetFriend.id,
             author: mockTargetFriend,
-            content: "这是一条包含 DiscordSearch 关键词的重要项目公告测试消息！",
+            content:
+              "这是一条包含 DiscordSearch 关键词的重要项目公告测试消息！",
             channelName: "综合讨论区",
             sequence: 1,
             isEncrypted: false,
@@ -299,9 +300,7 @@ test.describe("4 项核心用户需求与缺陷修复完整验收 (four-user-req
     await serverBtn.click();
 
     // 点击该服务器下的“综合讨论区”文本频道
-    const channelItem = page
-      .locator('span:has-text("综合讨论区")')
-      .first();
+    const channelItem = page.locator('span:has-text("综合讨论区")').first();
     await expect(channelItem).toBeVisible({ timeout: 10000 });
     await channelItem.click();
   };
@@ -347,7 +346,9 @@ test.describe("4 项核心用户需求与缺陷修复完整验收 (four-user-req
     // 验证模态框已正常渲染并展示好友列表
     const inviteModal = page.locator(".fixed.inset-0.z-50");
     await expect(inviteModal).toBeVisible({ timeout: 5000 });
-    await expect(inviteModal.locator("h3")).toContainText(/好友.*Tescord 核心公会/);
+    await expect(inviteModal.locator("h3")).toContainText(
+      /好友.*Tescord 核心公会/,
+    );
 
     // 验证自动预生成的邀请链接输入框存在且包含链接
     const inviteInput = inviteModal.locator("input[readonly]");
@@ -433,9 +434,7 @@ test.describe("4 项核心用户需求与缺陷修复完整验收 (four-user-req
     if (await searchDrawerBtn.isVisible()) {
       await searchDrawerBtn.click();
     } else {
-      const searchBoxInput = page
-        .locator('input[placeholder*="搜索"]')
-        .first();
+      const searchBoxInput = page.locator('input[placeholder*="搜索"]').first();
       await searchBoxInput.click();
       await searchBoxInput.press("Enter");
     }
@@ -529,7 +528,9 @@ test.describe("4 项核心用户需求与缺陷修复完整验收 (four-user-req
       const serverButtons = page.locator(
         '[data-testid="server-list-container"] button',
       );
-      const firstAriaLabel = await serverButtons.first().getAttribute("aria-label");
+      const firstAriaLabel = await serverButtons
+        .first()
+        .getAttribute("aria-label");
       expect(firstAriaLabel).toBe(mockGuild2.name);
     }
   });

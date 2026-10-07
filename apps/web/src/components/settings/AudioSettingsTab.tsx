@@ -10,6 +10,7 @@ import { livekitService } from "../../services/livekit.js";
 import { cloudflareRealtimeService } from "../../services/cloudflare_realtime/index.js";
 import { useSettingsStore } from "../../stores/useSettingsStore.js";
 import { VOICE_ENGINE } from "../../config.js";
+import { Select } from "../ui/Select.js";
 import {
   Volume2,
   Mic,
@@ -750,25 +751,28 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               </button>
             </div>
 
-            <select
+            <Select
               value={selectedInputId}
-              onChange={(e) => handleInputChange(e.target.value)}
-              className="w-full bg-[#1e1f22] border border-[#3f4147] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-discord-brand transition cursor-pointer"
-            >
-              {inputDevices.length === 0 && (
-                <option value="default">
-                  {t("settings:audioVideo.defaultInputDevice")}
-                </option>
-              )}
-              {inputDevices.map((d, index) => (
-                <option key={d.deviceId || index} value={d.deviceId}>
-                  {d.label ||
-                    t("settings:audioVideo.inputDeviceIndex", {
-                      index: index + 1,
-                    })}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => handleInputChange(val)}
+              options={
+                inputDevices.length === 0
+                  ? [
+                      {
+                        value: "default",
+                        label: t("settings:audioVideo.defaultInputDevice"),
+                      },
+                    ]
+                  : inputDevices.map((d, index) => ({
+                      value: d.deviceId,
+                      label:
+                        d.label ||
+                        t("settings:audioVideo.inputDeviceIndex", {
+                          index: index + 1,
+                        }),
+                    }))
+              }
+              triggerClassName="py-2 text-xs border border-[#3f4147] rounded-lg"
+            />
 
             {/* 输入音量/增益 */}
             <div className="space-y-1.5 pt-1">
@@ -819,25 +823,28 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               </button>
             </div>
 
-            <select
+            <Select
               value={selectedOutputId}
-              onChange={(e) => handleOutputChange(e.target.value)}
-              className="w-full bg-[#1e1f22] border border-[#3f4147] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-discord-brand transition cursor-pointer"
-            >
-              {outputDevices.length === 0 && (
-                <option value="default">
-                  {t("settings:audioVideo.defaultOutputDevice")}
-                </option>
-              )}
-              {outputDevices.map((d, index) => (
-                <option key={d.deviceId || index} value={d.deviceId}>
-                  {d.label ||
-                    t("settings:audioVideo.outputDeviceIndex", {
-                      index: index + 1,
-                    })}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => handleOutputChange(val)}
+              options={
+                outputDevices.length === 0
+                  ? [
+                      {
+                        value: "default",
+                        label: t("settings:audioVideo.defaultOutputDevice"),
+                      },
+                    ]
+                  : outputDevices.map((d, index) => ({
+                      value: d.deviceId,
+                      label:
+                        d.label ||
+                        t("settings:audioVideo.outputDeviceIndex", {
+                          index: index + 1,
+                        }),
+                    }))
+              }
+              triggerClassName="py-2 text-xs border border-[#3f4147] rounded-lg"
+            />
 
             {/* 输出音量 */}
             <div className="space-y-1.5 pt-1">
@@ -1188,26 +1195,29 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
               <Camera className="w-4 h-4 text-discord-brand" />
               <span>{t("settings:audioVideo.cameraDeviceLabel")}</span>
             </label>
-            <select
+            <Select
               data-testid="camera-device-select"
               value={selectedCameraId}
-              onChange={(e) => handleCameraChange(e.target.value)}
-              className="w-full bg-[#1e1f22] border border-[#3f4147] rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-discord-brand transition cursor-pointer"
-            >
-              {cameraDevices.length === 0 && (
-                <option value="default">
-                  {t("settings:audioVideo.defaultCameraDevice")}
-                </option>
-              )}
-              {cameraDevices.map((d, index) => (
-                <option key={d.deviceId || index} value={d.deviceId}>
-                  {d.label ||
-                    t("settings:audioVideo.cameraDeviceIndex", {
-                      index: index + 1,
-                    })}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => handleCameraChange(val)}
+              options={
+                cameraDevices.length === 0
+                  ? [
+                      {
+                        value: "default",
+                        label: t("settings:audioVideo.defaultCameraDevice"),
+                      },
+                    ]
+                  : cameraDevices.map((d, index) => ({
+                      value: d.deviceId,
+                      label:
+                        d.label ||
+                        t("settings:audioVideo.cameraDeviceIndex", {
+                          index: index + 1,
+                        }),
+                    }))
+              }
+              triggerClassName="py-2 text-xs border border-[#3f4147] rounded-lg"
+            />
           </div>
 
           {/* 视频预览视口与测试控制 */}

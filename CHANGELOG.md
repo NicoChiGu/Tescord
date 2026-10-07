@@ -2,6 +2,43 @@
 
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/) 格式，并严格记录每个版本的变更与修复项。发布时 CI 将自动从本文件中提取对应版本的更新日志推送到 GitHub Releases。
 
+## [0.3.6] - 2026-10-07
+
+### 🚀 新增功能与体验革新 (Features & UX)
+
+- **类 Discord 自定义暗黑无障碍下拉选项组件 (Custom Accessible Select Component)**：
+  - 彻底淘汰浏览器原生 `<select>` / `<option>` 标签，杜绝浅色边框与平台外观割裂；
+  - 严格遵循 WAI-ARIA 规范（`role="listbox"` / `role="option"` / `aria-expanded` / `aria-selected`），支持 `ArrowUp` / `ArrowDown` 快速键盘导航（智能跳过禁用项）、`Enter` / `Space` 选中与 `Escape` / 外部点击自动收起；
+  - 深度集成多语言国际化，并在创建频道、编辑频道、邀请设置、公会审计日志过滤、用户音频设备选择与超级管理后台全域无缝替换。
+
+- **全局 Portal 悬浮暗黑微气泡 Tooltip 组件 (Portal-Based Dark Micro-Bubble Tooltips)**：
+  - 告别浏览器原生 `title` 属性的显示延迟与父容器 `overflow: hidden` 裁剪遮挡问题；
+  - 基于 React Portal 挂载至 `document.body`，提供 4 方位（`top` / `bottom` / `left` / `right`）与 3 种对齐策略（`center` / `start` / `end`）；
+  - 配备 150ms 优雅微防抖与精准边缘避让，全面升级侧边栏、频道操作、通话控制栏、推流面板及音乐底栏悬停提示。
+
+- **聊天附件专属右键上下文菜单 (Dedicated Attachment Context Menu)**：
+  - 为聊天区图片、音频与通用文件附件绑定专属右键菜单交互；
+  - 支持附件快速下载、复制直链并弹出 Toast 成功通知、新标签页打开与原图查看；
+  - 联动消息级操作（引用回复、复制消息 ID、删除自身消息）。
+
+### 🛠️ 细节优化与交互对齐 (Improvements & Polish)
+
+- **浮动音乐播放器全窗口拖拽与双侧磁吸附 (Floating Mini Player Magnetic Snapping)**：
+  - 迷你播放器支持全窗口自由拖动，松手时根据屏幕位置智能贴边吸附至左侧或右侧（`snappedSide: "left" | "right"`），并在窗口缩放时自适应贴边；
+  - 波形图采用双层亚像素平滑渐变剪裁（`clip-path: inset(...)`），消除离散色块跳变；
+  - 新增播放游标（Thumb）指示线与 hover 波形实时时间戳浮层微气泡。
+
+- **语音与文本频道命名规则智能解耦 (Voice vs Text Channel Name Decoupling)**：
+  - 文本频道继续保持 Discord 规范化小写与连字符约束；
+  - 语音频道完全放宽限制，支持保留原始英文大小写与自然空格输入，并在前后端完成同步放宽与双向校验。
+
+- **语音拓扑状态徽标与主播推流 HUD 重构 (Voice Topology Badges & Streamer HUD)**：
+  - 频道列表喇叭图标支持叠加 P2P 蓝色网络拓扑小标与 E2EE 绿色安全锁徽标，精简频道标题旁冗余人数胶囊；
+  - 主播本人的推流观众数徽标由右上角调整为左上角悬浮操作区，解除与全屏/聚焦/诊断图标的密集挤占。
+
+- **全域多语言 100% 对称对齐 (Full-Stack 5-Locale i18n Alignment)**：
+  - 5 套官方语言包（`zh-CN`、`zh-TW`、`zh-HK`、`en-US`、`ja-JP`）全量同步更新新增特性与提示文案，零漏键、零硬编码。
+
 ---
 
 ## [0.3.5] - 2026-10-07

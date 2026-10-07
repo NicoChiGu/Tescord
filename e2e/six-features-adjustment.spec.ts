@@ -10,7 +10,8 @@ test.describe("6 项系统功能调整与体验优化自动化验收 (six-featur
       );
       localStorage.setItem(
         "tescord_refresh_token",
-        localStorage.getItem("tescord_e2e_refresh_token") || "mock_refresh_token",
+        localStorage.getItem("tescord_e2e_refresh_token") ||
+          "mock_refresh_token",
       );
     });
   });
@@ -72,7 +73,11 @@ test.describe("6 项系统功能调整与体验优化自动化验收 (six-featur
     // 检查页面中 StatusBadge 生成了月牙遮罩 (mask 中包含挖去黑圆的 SVG)
     const hasIdleMoonMask = await page.evaluate(() => {
       const masks = Array.from(document.querySelectorAll("mask"));
-      return masks.some((m) => m.innerHTML.includes("<circle") && m.innerHTML.includes('fill="#000000"'));
+      return masks.some(
+        (m) =>
+          m.innerHTML.includes("<circle") &&
+          m.innerHTML.includes('fill="#000000"'),
+      );
     });
     expect(hasIdleMoonMask).toBeTruthy();
 
@@ -84,7 +89,11 @@ test.describe("6 项系统功能调整与体验优化自动化验收 (six-featur
     // 检查页面中 StatusBadge 生成了横杠遮罩 (mask 中包含挖去黑矩形的 SVG)
     const hasDndBarMask = await page.evaluate(() => {
       const masks = Array.from(document.querySelectorAll("mask"));
-      return masks.some((m) => m.innerHTML.includes("<rect") && m.innerHTML.includes('fill="#000000"'));
+      return masks.some(
+        (m) =>
+          m.innerHTML.includes("<rect") &&
+          m.innerHTML.includes('fill="#000000"'),
+      );
     });
     expect(hasDndBarMask).toBeTruthy();
   });
@@ -114,7 +123,9 @@ test.describe("6 项系统功能调整与体验优化自动化验收 (six-featur
   }) => {
     // 切换为真实的数据库普通用户 Alice
     await page.addInitScript(() => {
-      const normalToken = localStorage.getItem("tescord_e2e_normal_access_token");
+      const normalToken = localStorage.getItem(
+        "tescord_e2e_normal_access_token",
+      );
       if (normalToken) {
         localStorage.setItem("tescord_access_token", normalToken);
         localStorage.removeItem("tescord_refresh_token");

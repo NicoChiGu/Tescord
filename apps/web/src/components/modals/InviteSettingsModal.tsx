@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { X, Loader2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { Select } from "../ui/Select.js";
 
 export interface InviteOptions {
   maxAge: number; // 秒，0 为永不
@@ -75,47 +76,54 @@ export const InviteSettingsModal: React.FC<InviteSettingsModalProps> = ({
                   defaultValue: "將連結設定為在以下時間後失效",
                 })}
               </label>
-              <select
-                value={maxAge}
-                onChange={(e) => setMaxAge(Number(e.target.value))}
-                className="w-full bg-[#1e1f22] text-white text-sm rounded-md px-3 py-2.5 border border-[#1f2023] focus:outline-none focus:border-discord-brand transition"
-              >
-                <option value={1800}>
-                  {t("modals:inviteSettings.expireOptions.30m", {
-                    defaultValue: "30 分鐘",
-                  })}
-                </option>
-                <option value={3600}>
-                  {t("modals:inviteSettings.expireOptions.1h", {
-                    defaultValue: "1 小時",
-                  })}
-                </option>
-                <option value={21600}>
-                  {t("modals:inviteSettings.expireOptions.6h", {
-                    defaultValue: "6 小時",
-                  })}
-                </option>
-                <option value={43200}>
-                  {t("modals:inviteSettings.expireOptions.12h", {
-                    defaultValue: "12 小時",
-                  })}
-                </option>
-                <option value={86400}>
-                  {t("modals:inviteSettings.expireOptions.1d", {
-                    defaultValue: "1 天",
-                  })}
-                </option>
-                <option value={604800}>
-                  {t("modals:inviteSettings.expireOptions.7d", {
-                    defaultValue: "7 天",
-                  })}
-                </option>
-                <option value={0}>
-                  {t("modals:inviteSettings.expireOptions.never", {
-                    defaultValue: "永不失效",
-                  })}
-                </option>
-              </select>
+              <Select
+                value={String(maxAge)}
+                onChange={(val) => setMaxAge(Number(val))}
+                options={[
+                  {
+                    value: "1800",
+                    label: t("modals:inviteSettings.expireOptions.30m", {
+                      defaultValue: "30 分鐘",
+                    }),
+                  },
+                  {
+                    value: "3600",
+                    label: t("modals:inviteSettings.expireOptions.1h", {
+                      defaultValue: "1 小時",
+                    }),
+                  },
+                  {
+                    value: "21600",
+                    label: t("modals:inviteSettings.expireOptions.6h", {
+                      defaultValue: "6 小時",
+                    }),
+                  },
+                  {
+                    value: "43200",
+                    label: t("modals:inviteSettings.expireOptions.12h", {
+                      defaultValue: "12 小時",
+                    }),
+                  },
+                  {
+                    value: "86400",
+                    label: t("modals:inviteSettings.expireOptions.1d", {
+                      defaultValue: "1 天",
+                    }),
+                  },
+                  {
+                    value: "604800",
+                    label: t("modals:inviteSettings.expireOptions.7d", {
+                      defaultValue: "7 天",
+                    }),
+                  },
+                  {
+                    value: "0",
+                    label: t("modals:inviteSettings.expireOptions.never", {
+                      defaultValue: "永不失效",
+                    }),
+                  },
+                ]}
+              />
             </div>
 
             {/* 2. 最大使用次数 */}
@@ -125,47 +133,54 @@ export const InviteSettingsModal: React.FC<InviteSettingsModalProps> = ({
                   defaultValue: "最大使用次數",
                 })}
               </label>
-              <select
-                value={maxUses}
-                onChange={(e) => setMaxUses(Number(e.target.value))}
-                className="w-full bg-[#1e1f22] text-white text-sm rounded-md px-3 py-2.5 border border-[#1f2023] focus:outline-none focus:border-discord-brand transition"
-              >
-                <option value={0}>
-                  {t("modals:inviteSettings.maxUsesOptions.unlimited", {
-                    defaultValue: "無限制",
-                  })}
-                </option>
-                <option value={1}>
-                  {t("modals:inviteSettings.maxUsesOptions.1", {
-                    defaultValue: "1 次",
-                  })}
-                </option>
-                <option value={5}>
-                  {t("modals:inviteSettings.maxUsesOptions.5", {
-                    defaultValue: "5 次",
-                  })}
-                </option>
-                <option value={10}>
-                  {t("modals:inviteSettings.maxUsesOptions.10", {
-                    defaultValue: "10 次",
-                  })}
-                </option>
-                <option value={25}>
-                  {t("modals:inviteSettings.maxUsesOptions.25", {
-                    defaultValue: "25 次",
-                  })}
-                </option>
-                <option value={50}>
-                  {t("modals:inviteSettings.maxUsesOptions.50", {
-                    defaultValue: "50 次",
-                  })}
-                </option>
-                <option value={100}>
-                  {t("modals:inviteSettings.maxUsesOptions.100", {
-                    defaultValue: "100 次",
-                  })}
-                </option>
-              </select>
+              <Select
+                value={String(maxUses)}
+                onChange={(val) => setMaxUses(Number(val))}
+                options={[
+                  {
+                    value: "0",
+                    label: t("modals:inviteSettings.maxUsesOptions.unlimited", {
+                      defaultValue: "無限制",
+                    }),
+                  },
+                  {
+                    value: "1",
+                    label: t("modals:inviteSettings.maxUsesOptions.1", {
+                      defaultValue: "1 次",
+                    }),
+                  },
+                  {
+                    value: "5",
+                    label: t("modals:inviteSettings.maxUsesOptions.5", {
+                      defaultValue: "5 次",
+                    }),
+                  },
+                  {
+                    value: "10",
+                    label: t("modals:inviteSettings.maxUsesOptions.10", {
+                      defaultValue: "10 次",
+                    }),
+                  },
+                  {
+                    value: "25",
+                    label: t("modals:inviteSettings.maxUsesOptions.25", {
+                      defaultValue: "25 次",
+                    }),
+                  },
+                  {
+                    value: "50",
+                    label: t("modals:inviteSettings.maxUsesOptions.50", {
+                      defaultValue: "50 次",
+                    }),
+                  },
+                  {
+                    value: "100",
+                    label: t("modals:inviteSettings.maxUsesOptions.100", {
+                      defaultValue: "100 次",
+                    }),
+                  },
+                ]}
+              />
             </div>
 
             {/* 3. 临时会员开关 */}

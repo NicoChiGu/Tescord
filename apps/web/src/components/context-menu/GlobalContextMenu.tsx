@@ -4,11 +4,17 @@ import {
   useContextMenuStore,
   MessageMenuData,
   UserMenuData,
+  AttachmentMenuData,
 } from "../../stores/useContextMenuStore.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { usePermissions } from "../../hooks/usePermissions.js";
 import { useFriendStore } from "../../stores/useFriendStore.js";
 import { toast } from "../../stores/useToastStore.js";
+import {
+  openAttachmentDownload,
+  getAttachmentAccess,
+} from "../../services/attachmentAccess.js";
+import { resolveServerUrl } from "../../config.js";
 import {
   Reply,
   Pin,
@@ -24,6 +30,9 @@ import {
   Phone,
   UserPlus,
   UserMinus,
+  Download,
+  ExternalLink,
+  Eye,
 } from "lucide-react";
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🚀", "🎉"];
@@ -107,6 +116,14 @@ export const GlobalContextMenu: React.FC = () => {
           setCopiedId={setCopiedId}
           onClose={closeMenu}
         />
+      ) : data.type === "attachment" ? (
+        <AttachmentMenuItems
+          data={data}
+          currentUser={currentUser}
+          copiedId={copiedId}
+          setCopiedId={setCopiedId}
+          onClose={closeMenu}
+        />
       ) : (
         <UserMenuItems
           data={data}
@@ -115,6 +132,204 @@ export const GlobalContextMenu: React.FC = () => {
           setCopiedId={setCopiedId}
           onClose={closeMenu}
         />
+      )}
+    </div>
+  );
+};
+
+// 附件专属右键菜单项
+interface AttachmentMenuItemsProps {
+  data: AttachmentMenuData;
+  currentUser: any;
+  copiedId: boolean;
+  setCopiedId: (v: boolean) => void;
+  onClose: () => void;
+}
+
+const AttachmentMenuItems: React.FC<AttachmentMenuItemsProps> = ({
+  data,
+  currentUser,
+  copiedId,
+  setCopiedId,
+  onClose,
+}) => {
+  const { t } = useTranslation(["contextMenu", "common"]);
+  const { attachment, message, onPreviewImage, onReply, onDelete } = data;
+  const isImage =
+    Boolean(onPreviewImage) ||
+    attachment.mimeType?.startsWith("image/") ||
+    /\.(png|jpe?g|gif|webp|svg)$/i.test(attachment.fileName || "");
+
+  const handleDownload = async () => {
+    onClose();
+    try {
+      await openAttachmentDownload(attachment);
+    } catch {
+      toast.error(t("common:error", { defaultValue: "下载失败" }));
+    }
+  };
+
+  const handleCopyLink = async () => {
+    onClose();
+    try {
+      const access = await getAttachmentAccess(attachment);
+      const url = resolveServerUrl(access.downloadUrl || access.url);
+      await navigator.clipboard.writeText(url);
+      toast.success(
+        t("contextMenu:attachment.copyLinkSuccess", {
+          defaultValue: "已复制附件链接至剪贴板",
+        }),
+      );
+    } catch {
+      const fallbackUrl = resolveServerUrl(attachment.url);
+      await navigator.clipboard.writeText(fallbackUrl);
+      toast.success(
+        t("contextMenu:attachment.copyLinkSuccess", {
+          defaultValue: "已复制附件链接至剪贴板",
+        }),
+      );
+    }
+  };
+
+  const handleOpenInNewTab = async () => {
+    onClose();
+    try {
+      const access = await getAttachmentAccess(attachment);
+      const url = resolveServerUrl(access.url || access.downloadUrl);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch {
+      window.open(
+        resolveServerUrl(attachment.url),
+        "_blank",
+        "noopener,noreferrer",
+      );
+    }
+  };
+
+  const isAuthor =
+    message && currentUser && message.author?.id === currentUser.id;
+
+  return (
+    <div className="space-y-0.5">
+      {/* 附件专属操作项 */}
+      <button
+        data-testid="attachment-ctx-download"
+        onClick={handleDownload}
+        className="w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-discord-brand hover:text-white transition text-left cursor-pointer group"
+      >
+        <span>
+          {t("contextMenu:attachment.download", { defaultValue: "下载附件" })}
+        </span>
+        <Download className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100" />
+      </button>
+
+      <button
+        data-testid="attachment-ctx-copy-link"
+        onClick={handleCopyLink}
+        className="w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-discord-brand hover:text-white transition text-left cursor-pointer group"
+      >
+        <span>
+          {t("contextMenu:attachment.copyLink", {
+            defaultValue: "复制附件下载链接",
+          })}
+        </span>
+        <Copy className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100" />
+      </button>
+
+      <button
+        data-testid="attachment-ctx-open-new-tab"
+        onClick={handleOpenInNewTab}
+        className="w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-discord-brand hover:text-white transition text-left cursor-pointer group"
+      >
+        <span>
+          {t("contextMenu:attachment.openInNewTab", {
+            defaultValue: "在浏览器新标签页打开",
+          })}
+        </span>
+        <ExternalLink className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100" />
+      </button>
+
+      {isImage && onPreviewImage && (
+        <button
+          data-testid="attachment-ctx-preview-image"
+          onClick={() => {
+            onClose();
+            onPreviewImage();
+          }}
+          className="w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-discord-brand hover:text-white transition text-left cursor-pointer group"
+        >
+          <span>
+            {t("contextMenu:attachment.previewImage", {
+              defaultValue: "查看原图",
+            })}
+          </span>
+          <Eye className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100" />
+        </button>
+      )}
+
+      {/* 消息级关联操作项 */}
+      {message && (
+        <>
+          <div className="my-1 h-[1px] bg-[#35363c]" />
+
+          {onReply && (
+            <button
+              data-testid="attachment-ctx-reply"
+              onClick={() => {
+                onClose();
+                onReply(message);
+              }}
+              className="w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-discord-brand hover:text-white transition text-left cursor-pointer group"
+            >
+              <span>
+                {t("contextMenu:quoteReply", { defaultValue: "引用回复" })}
+              </span>
+              <Reply className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100" />
+            </button>
+          )}
+
+          <button
+            data-testid="attachment-ctx-copy-id"
+            onClick={async () => {
+              await navigator.clipboard.writeText(message.id);
+              setCopiedId(true);
+              setTimeout(() => {
+                setCopiedId(false);
+                onClose();
+              }, 1200);
+            }}
+            className="w-full flex items-center justify-between px-2 py-1.5 rounded hover:bg-discord-brand hover:text-white transition text-left cursor-pointer group"
+          >
+            <span>
+              {copiedId
+                ? t("contextMenu:idCopied", { defaultValue: "已复制 ID" })
+                : t("contextMenu:copyMessageId", {
+                    defaultValue: "复制消息 ID",
+                  })}
+            </span>
+            {copiedId ? (
+              <Check className="w-3.5 h-3.5 text-green-400" />
+            ) : (
+              <Copy className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100" />
+            )}
+          </button>
+
+          {isAuthor && onDelete && (
+            <button
+              data-testid="attachment-ctx-delete"
+              onClick={() => {
+                onClose();
+                onDelete(message.id);
+              }}
+              className="w-full flex items-center justify-between px-2 py-1.5 rounded text-red-400 hover:bg-red-500 hover:text-white transition text-left cursor-pointer group"
+            >
+              <span>
+                {t("contextMenu:deleteMessage", { defaultValue: "删除消息" })}
+              </span>
+              <Trash2 className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100" />
+            </button>
+          )}
+        </>
       )}
     </div>
   );

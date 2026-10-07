@@ -19,6 +19,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { API_BASE } from "../../config.js";
 import { getErrorMessage } from "../../i18n/index.js";
+import { Select } from "../ui/Select.js";
 
 interface CreateChannelModalProps {
   isOpen: boolean;
@@ -80,7 +81,10 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify({
-          name: name.trim(),
+          name:
+            type === "TEXT"
+              ? name.trim().toLowerCase().replace(/\s+/g, "-")
+              : name.trim(),
           type,
           parentId: parentId || undefined,
           topic: topic.trim() || undefined,
@@ -108,9 +112,9 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in">
-      <div className="bg-[#313338] text-discord-textNormal w-full max-w-md rounded-lg shadow-2xl overflow-hidden border border-[#3f4147]">
+      <div className="bg-[#313338] text-discord-textNormal w-full max-w-md rounded-lg shadow-2xl overflow-hidden border border-[#3f4147] max-h-[90vh] flex flex-col">
         {/* 标题 */}
-        <div className="relative px-6 pt-6 pb-2">
+        <div className="relative px-6 pt-6 pb-2 shrink-0">
           <button
             onClick={onClose}
             className="absolute right-4 top-4 text-discord-textMuted hover:text-discord-textHeader transition"
@@ -127,7 +131,10 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
         </div>
 
         {/* 表单内容 */}
-        <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
+        <form
+          onSubmit={handleSubmit}
+          className="px-6 py-4 space-y-4 overflow-y-auto flex-1"
+        >
           {error && (
             <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs px-3 py-2 rounded">
               {error}
@@ -353,19 +360,18 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
             <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted mb-2">
               {t("modals:createChannel.categoryLabel")}
             </label>
-            <select
+            <Select
               value={parentId || ""}
-              onChange={(e) => setParentId(e.target.value || null)}
-              className="w-full bg-[#1e1f22] text-discord-textHeader px-3 py-2.5 rounded text-sm focus:outline-none focus:ring-2 focus:ring-discord-brand transition border border-transparent cursor-pointer"
+              onChange={(val) => setParentId(val || null)}
+              options={[
+                { value: "", label: t("modals:createChannel.noCategory") },
+                ...categories.map((cat) => ({
+                  value: cat.id,
+                  label: `📁 ${cat.name}`,
+                })),
+              ]}
               data-testid="channel-category-select"
-            >
-              <option value="">{t("modals:createChannel.noCategory")}</option>
-              {categories.map((cat) => (
-                <option key={cat.id} value={cat.id}>
-                  📁 {cat.name}
-                </option>
-              ))}
-            </select>
+            />
           </div>
 
           {/* 频道话题 (仅文字频道) */}
@@ -416,6 +422,7 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
             </button>
             <button
               type="submit"
+              data-testid="create-channel-submit-btn"
               disabled={isSubmitting || !name.trim()}
               className="bg-discord-brand hover:bg-discord-brandHover text-white px-5 py-2.5 rounded font-medium text-sm transition shadow-md disabled:opacity-50"
             >

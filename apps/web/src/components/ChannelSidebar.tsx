@@ -33,11 +33,13 @@ import {
   FolderPlus,
   BellOff,
   GripVertical,
+  Network,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { VOICE_ENGINE, resolveServerUrl } from "../config.js";
 import { VoiceConnectionStatusPopover } from "./VoiceConnectionStatusPopover.js";
 import { StatusBadge } from "./ui/StatusBadge.js";
+import { Tooltip } from "./ui/Tooltip.js";
 import {
   DndContext,
   DragOverlay,
@@ -202,6 +204,11 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
   const isSelected = selectedChannelId === channel.id;
   const isConnected = activeVoiceChannelId === channel.id;
   const isVoice = channel.type === "VOICE";
+  const isP2P =
+    isVoice &&
+    (channel.voiceMode === "p2p_mesh" ||
+      channel.streamMode === "p2p_direct" ||
+      channel.streamMode === "p2p_relay");
   const isChannelMuted = useSettingsStore((s) => s.isChannelMuted(channel.id));
   const hasUnread = Boolean(unreadInfo?.hasUnread && !isSelected);
   const mentionCount = unreadInfo?.mentionCount || 0;
@@ -306,12 +313,36 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
                       : "text-discord-textMuted hover:bg-discord-hover hover:text-discord-textNormal"
               }`}
             >
-              <Volume2
-                className={`w-4 h-4 mr-1.5 flex-shrink-0 ${
-                  isConnected ? "text-discord-green" : ""
-                }`}
-              />
+              <div className="relative mr-1.5 flex-shrink-0">
+                <Volume2
+                  className={`w-4 h-4 ${
+                    isConnected ? "text-discord-green" : ""
+                  }`}
+                />
+                {isP2P && (
+                  <span
+                    data-testid="voice-p2p-icon"
+                    className="absolute -top-1 -right-1.5 flex items-center justify-center bg-[#1e1f22] rounded-full p-[1px] shadow ring-1 ring-[#1e1f22]"
+                    title={t("voice:p2pMeshTitle", {
+                      defaultValue: "点对点直连 (P2P)",
+                    })}
+                  >
+                    <Network className="w-2.5 h-2.5 text-blue-400" />
+                  </span>
+                )}
+              </div>
               <span className="truncate">{channel.name}</span>
+              {channel.isE2EE && (
+                <span
+                  data-testid="voice-e2ee-lock-icon"
+                  title={t("voice:encryptedChannel", {
+                    defaultValue: "端到端加密",
+                  })}
+                  className="inline-flex items-center ml-1.5 flex-shrink-0"
+                >
+                  <Lock className="w-3.5 h-3.5 text-discord-green" />
+                </span>
+              )}
             </button>
           ) : (
             <button
@@ -364,36 +395,30 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
               </span>
             )}
             {isChannelMuted && (
-              <span
-                className="flex items-center text-discord-textMuted"
-                title={t("voice:channelMuted")}
-              >
-                <BellOff
-                  className="w-3.5 h-3.5 text-discord-textMuted flex-shrink-0"
-                  data-testid={`channel-muted-icon-${channel.id}`}
-                />
-              </span>
-            )}
-
-            {isVoice && (
-              <span className="text-xs px-1.5 py-0.5 rounded bg-[#1f2023] text-discord-textMuted flex-shrink-0">
-                {participants.length}
-              </span>
+              <Tooltip content={t("voice:channelMuted")}>
+                <span className="flex items-center text-discord-textMuted pointer-events-auto">
+                  <BellOff
+                    className="w-3.5 h-3.5 text-discord-textMuted flex-shrink-0"
+                    data-testid={`channel-muted-icon-${channel.id}`}
+                  />
+                </span>
+              </Tooltip>
             )}
 
             {canManageChannels && onEditChannel && (
-              <button
-                type="button"
-                data-testid={`edit-channel-gear-${channel.id}`}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEditChannel(channel);
-                }}
-                className="group/cog pointer-events-auto opacity-0 group-hover:opacity-100 hover:text-white text-discord-textMuted p-0.5 rounded transition-all duration-150 active:scale-90"
-                title={t("contextMenu:channel.editChannel")}
-              >
-                <Settings className="w-3.5 h-3.5 transition-transform duration-200 ease-out group-hover/cog:rotate-45" />
-              </button>
+              <Tooltip content={t("contextMenu:channel.editChannel")}>
+                <button
+                  type="button"
+                  data-testid={`edit-channel-gear-${channel.id}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditChannel(channel);
+                  }}
+                  className="group/cog pointer-events-auto opacity-0 group-hover:opacity-100 hover:text-white text-discord-textMuted p-0.5 rounded transition-all duration-150 active:scale-90"
+                >
+                  <Settings className="w-3.5 h-3.5 transition-transform duration-200 ease-out group-hover/cog:rotate-45" />
+                </button>
+              </Tooltip>
             )}
           </div>
         </div>
@@ -1252,7 +1277,16 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
               {activeItem?.type === "channel" ? (
                 <div className="flex items-center px-2 py-1.5 rounded-md text-sm font-medium bg-[#2b2d31] text-white shadow-2xl ring-1 ring-discord-brand/60 rotate-1 scale-[1.02] cursor-grabbing opacity-95 pointer-events-none">
                   {activeItem.channel.type === "VOICE" ? (
-                    <Volume2 className="w-4 h-4 mr-1.5 text-discord-green flex-shrink-0" />
+                    <div className="relative mr-1.5 flex-shrink-0">
+                      <Volume2 className="w-4 h-4 text-discord-green" />
+                      {(activeItem.channel.voiceMode === "p2p_mesh" ||
+                        activeItem.channel.streamMode === "p2p_direct" ||
+                        activeItem.channel.streamMode === "p2p_relay") && (
+                        <span className="absolute -top-1 -right-1.5 flex items-center justify-center bg-[#1e1f22] rounded-full p-[1px] shadow ring-1 ring-[#1e1f22]">
+                          <Network className="w-2.5 h-2.5 text-blue-400" />
+                        </span>
+                      )}
+                    </div>
                   ) : activeItem.channel.isE2EE ? (
                     <div className="relative mr-1.5 flex-shrink-0">
                       <Hash className="w-4 h-4 text-discord-textMuted" />
@@ -1262,6 +1296,10 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                     <Hash className="w-4 h-4 mr-1.5 text-discord-textMuted flex-shrink-0" />
                   )}
                   <span className="truncate">{activeItem.channel.name}</span>
+                  {activeItem.channel.type === "VOICE" &&
+                    activeItem.channel.isE2EE && (
+                      <Lock className="w-3.5 h-3.5 ml-1.5 text-discord-green flex-shrink-0" />
+                    )}
                 </div>
               ) : activeItem?.type === "category" ? (
                 <div className="flex items-center space-x-1 px-2.5 py-1.5 rounded-md text-xs font-bold text-white uppercase tracking-wider bg-[#2b2d31] shadow-2xl ring-1 ring-discord-brand/60 rotate-1 scale-[1.02] cursor-grabbing opacity-95 pointer-events-none">
@@ -1618,49 +1656,58 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
 
         {/* 麦克风/耳机/设置控制按钮 */}
         <div className="flex items-center space-x-0.5 text-discord-textMuted">
-          <button
-            data-testid="user-bar-mic-btn"
-            onClick={onToggleMute}
-            className={`p-1.5 rounded hover:bg-discord-hover transition-all duration-150 active:scale-90 ${
-              isMuted
-                ? "text-discord-danger hover:text-discord-danger bg-discord-danger/10 hover:bg-discord-danger/20"
-                : "hover:text-discord-textNormal"
-            }`}
-            title={isMuted ? t("voice:unmuteMic") : t("voice:muteMic")}
+          <Tooltip
+            content={isMuted ? t("voice:unmuteMic") : t("voice:muteMic")}
           >
-            {isMuted ? (
-              <MicOff className="w-4 h-4 transition-transform duration-150 scale-100" />
-            ) : (
-              <Mic className="w-4 h-4 transition-transform duration-150 scale-100" />
-            )}
-          </button>
-          <button
-            data-testid="user-bar-deafen-btn"
-            onClick={onToggleDeafen}
-            className={`p-1.5 rounded hover:bg-discord-hover transition-all duration-150 active:scale-90 relative ${
-              isDeafened
-                ? "text-discord-danger hover:text-discord-danger bg-discord-danger/10 hover:bg-discord-danger/20"
-                : "hover:text-discord-textNormal"
-            }`}
-            title={isDeafened ? t("voice:undeafen") : t("voice:deafen")}
-          >
-            <div className="relative flex items-center justify-center">
-              <Headphones className="w-4 h-4 transition-transform duration-150" />
-              {isDeafened && (
-                <span className="absolute w-5 h-0.5 bg-discord-danger rotate-45 transform origin-center rounded-full shadow-sm animate-in fade-in zoom-in-75 duration-150" />
+            <button
+              data-testid="user-bar-mic-btn"
+              onClick={onToggleMute}
+              className={`p-1.5 rounded hover:bg-discord-hover transition-all duration-150 active:scale-90 ${
+                isMuted
+                  ? "text-discord-danger hover:text-discord-danger bg-discord-danger/10 hover:bg-discord-danger/20"
+                  : "hover:text-discord-textNormal"
+              }`}
+            >
+              {isMuted ? (
+                <MicOff className="w-4 h-4 transition-transform duration-150 scale-100" />
+              ) : (
+                <Mic className="w-4 h-4 transition-transform duration-150 scale-100" />
               )}
-            </div>
-          </button>
-          <button
-            type="button"
-            data-testid="user-settings-gear-btn"
-            data-action="open-user-settings"
-            onClick={onOpenSettings}
-            className="group/gear p-1.5 rounded hover:bg-discord-hover hover:text-discord-textNormal transition-all duration-150 active:scale-90 cursor-pointer"
-            title={t("voice:deviceSettings")}
+            </button>
+          </Tooltip>
+
+          <Tooltip
+            content={isDeafened ? t("voice:undeafen") : t("voice:deafen")}
           >
-            <Settings className="w-4 h-4 transition-transform duration-300 ease-out group-hover/gear:rotate-45" />
-          </button>
+            <button
+              data-testid="user-bar-deafen-btn"
+              onClick={onToggleDeafen}
+              className={`p-1.5 rounded hover:bg-discord-hover transition-all duration-150 active:scale-90 relative ${
+                isDeafened
+                  ? "text-discord-danger hover:text-discord-danger bg-discord-danger/10 hover:bg-discord-danger/20"
+                  : "hover:text-discord-textNormal"
+              }`}
+            >
+              <div className="relative flex items-center justify-center">
+                <Headphones className="w-4 h-4 transition-transform duration-150" />
+                {isDeafened && (
+                  <span className="absolute w-5 h-0.5 bg-discord-danger rotate-45 transform origin-center rounded-full shadow-sm animate-in fade-in zoom-in-75 duration-150" />
+                )}
+              </div>
+            </button>
+          </Tooltip>
+
+          <Tooltip content={t("voice:deviceSettings")}>
+            <button
+              type="button"
+              data-testid="user-settings-gear-btn"
+              data-action="open-user-settings"
+              onClick={onOpenSettings}
+              className="group/gear p-1.5 rounded hover:bg-discord-hover hover:text-discord-textNormal transition-all duration-150 active:scale-90 cursor-pointer"
+            >
+              <Settings className="w-4 h-4 transition-transform duration-300 ease-out group-hover/gear:rotate-45" />
+            </button>
+          </Tooltip>
         </div>
       </div>
 

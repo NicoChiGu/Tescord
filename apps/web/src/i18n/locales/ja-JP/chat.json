@@ -283,6 +283,8 @@
     "miniPlayer": "オーディオプレーヤー",
     "expand": "展開",
     "collapse": "折りたたむ",
-    "close": "プレーヤーを閉じる"
+    "close": "プレーヤーを閉じる",
+    "snapLeft": "左側に吸着",
+    "snapRight": "右側に吸着"
   }
 }

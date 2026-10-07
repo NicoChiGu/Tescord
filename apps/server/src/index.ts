@@ -3841,7 +3841,10 @@ server.post("/api/guilds/:guildId/channels", async (request, reply) => {
   const channel = await prisma.channel.create({
     data: {
       guildId,
-      name: name.trim().toLowerCase().replace(/\s+/g, "-"),
+      name:
+        type === "VOICE"
+          ? name.trim()
+          : name.trim().toLowerCase().replace(/\s+/g, "-"),
       type: type || "TEXT",
       topic: topic || null,
       parentId: parentId || null,
@@ -4011,7 +4014,14 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
   const updatedChannel = await prisma.channel.update({
     where: { id: channelId },
     data: {
-      ...(name ? { name: name.trim().toLowerCase().replace(/\s+/g, "-") } : {}),
+      ...(name
+        ? {
+            name:
+              channel.type === "VOICE"
+                ? name.trim()
+                : name.trim().toLowerCase().replace(/\s+/g, "-"),
+          }
+        : {}),
       ...(topic !== undefined ? { topic } : {}),
       ...(parentId !== undefined ? { parentId } : {}),
       ...(position !== undefined ? { position } : {}),

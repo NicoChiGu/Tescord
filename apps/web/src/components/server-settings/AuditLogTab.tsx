@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { API_BASE, resolveServerUrl } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
+import { Select } from "../ui/Select.js";
 
 interface AuditLogTabProps {
   guild: Guild;
@@ -126,43 +127,54 @@ export const AuditLogTab: React.FC<AuditLogTabProps> = ({ guild }) => {
         {/* 过滤器 */}
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-gray-400" />
-          <select
+          <Select
             value={filterAction}
-            onChange={(e) => setFilterAction(e.target.value)}
-            className="bg-[#1e1f22] border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-[#5865f2]"
-          >
-            <option value="ALL">{t("server:auditLog.filterAll")}</option>
-            <option value={AuditLogAction.GUILD_UPDATE}>
-              {t("server:auditLog.actions.guildUpdate")}
-            </option>
-            <option value={AuditLogAction.ROLE_CREATE}>
-              {t("server:auditLog.actions.roleCreate")}
-            </option>
-            <option value={AuditLogAction.ROLE_UPDATE}>
-              {t("server:auditLog.actions.roleUpdate")}
-            </option>
-            <option value={AuditLogAction.ROLE_DELETE}>
-              {t("server:auditLog.actions.roleDelete")}
-            </option>
-            <option value={AuditLogAction.MEMBER_KICK}>
-              {t("server:auditLog.actions.memberKick")}
-            </option>
-            <option value={AuditLogAction.MEMBER_BAN_ADD}>
-              {t("server:auditLog.actions.memberBanAdd")}
-            </option>
-            <option value={AuditLogAction.MEMBER_BAN_REMOVE}>
-              {t("server:auditLog.actions.memberBanRemove")}
-            </option>
-            <option value={AuditLogAction.MEMBER_ROLE_UPDATE}>
-              {t("server:auditLog.actions.memberRoleUpdate")}
-            </option>
-            <option value={AuditLogAction.INVITE_DELETE}>
-              {t("server:auditLog.actions.inviteDelete")}
-            </option>
-            <option value="GUILD_OWNERSHIP_TRANSFER">
-              {t("server:auditLog.actions.guildOwnershipTransfer")}
-            </option>
-          </select>
+            onChange={(val) => setFilterAction(val)}
+            options={[
+              { value: "ALL", label: t("server:auditLog.filterAll") },
+              {
+                value: AuditLogAction.GUILD_UPDATE,
+                label: t("server:auditLog.actions.guildUpdate"),
+              },
+              {
+                value: AuditLogAction.ROLE_CREATE,
+                label: t("server:auditLog.actions.roleCreate"),
+              },
+              {
+                value: AuditLogAction.ROLE_UPDATE,
+                label: t("server:auditLog.actions.roleUpdate"),
+              },
+              {
+                value: AuditLogAction.ROLE_DELETE,
+                label: t("server:auditLog.actions.roleDelete"),
+              },
+              {
+                value: AuditLogAction.MEMBER_KICK,
+                label: t("server:auditLog.actions.memberKick"),
+              },
+              {
+                value: AuditLogAction.MEMBER_BAN_ADD,
+                label: t("server:auditLog.actions.memberBanAdd"),
+              },
+              {
+                value: AuditLogAction.MEMBER_BAN_REMOVE,
+                label: t("server:auditLog.actions.memberBanRemove"),
+              },
+              {
+                value: AuditLogAction.MEMBER_ROLE_UPDATE,
+                label: t("server:auditLog.actions.memberRoleUpdate"),
+              },
+              {
+                value: AuditLogAction.INVITE_DELETE,
+                label: t("server:auditLog.actions.inviteDelete"),
+              },
+              {
+                value: "GUILD_OWNERSHIP_TRANSFER",
+                label: t("server:auditLog.actions.guildOwnershipTransfer"),
+              },
+            ]}
+            triggerClassName="py-1.5 px-3 text-xs border border-white/10 rounded-lg min-w-[160px]"
+          />
         </div>
       </div>
 

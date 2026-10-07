@@ -165,7 +165,9 @@ test.describe("外观与排版设置（Appearance, Chat Font Scaling, Cozy/Compa
     await slider.dispatchEvent("change");
 
     // 验证根字体大小与 CSS 变量实时联动
-    const rootFontSize = await page.evaluate(() => document.documentElement.style.fontSize);
+    const rootFontSize = await page.evaluate(
+      () => document.documentElement.style.fontSize,
+    );
     expect(rootFontSize).toBe("18px");
 
     // 重置字号
@@ -173,7 +175,9 @@ test.describe("外观与排版设置（Appearance, Chat Font Scaling, Cozy/Compa
     await expect(resetBtn).toBeVisible();
     await resetBtn.click();
 
-    const resetRootFontSize = await page.evaluate(() => document.documentElement.style.fontSize);
+    const resetRootFontSize = await page.evaluate(
+      () => document.documentElement.style.fontSize,
+    );
     expect(resetRootFontSize).toBe("16px");
   });
 });

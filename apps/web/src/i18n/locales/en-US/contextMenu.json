@@ -110,5 +110,12 @@
     "back": "Back",
     "forward": "Forward",
     "inspect": "Inspect Element"
+  },
+  "attachment": {
+    "download": "Download Attachment",
+    "copyLink": "Copy Download Link",
+    "copyLinkSuccess": "Attachment link copied to clipboard",
+    "openInNewTab": "Open in New Tab",
+    "previewImage": "View Full Image"
   }
 }

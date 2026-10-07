@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Play,
@@ -11,6 +11,7 @@ import {
   ChevronDown,
   Music,
   Loader2,
+  GripVertical,
 } from "lucide-react";
 import { useAudioPlayerStore } from "../../stores/useAudioPlayerStore.js";
 import {
@@ -18,11 +19,13 @@ import {
   getInitialAudioPeaks,
   formatAudioTime,
 } from "../../utils/audioWaveform.js";
+import { Tooltip } from "../ui/Tooltip.js";
 
 const BARS_COUNT = 32;
 
 export const GlobalMiniPlayer: React.FC = () => {
   const { t } = useTranslation("chat");
+  const playerRef = useRef<HTMLDivElement>(null);
   const waveformRef = useRef<HTMLDivElement>(null);
 
   const {
@@ -35,8 +38,6 @@ export const GlobalMiniPlayer: React.FC = () => {
     playbackRate,
     isBuffering,
     isExpanded,
-    playTrack,
-    pauseTrack,
     togglePlay,
     seek,
     setVolume,
@@ -51,12 +52,114 @@ export const GlobalMiniPlayer: React.FC = () => {
   const [scrubPercent, setScrubPercent] = useState<number | null>(null);
   const scrubCleanupRef = useRef<(() => void) | null>(null);
 
+  // 窗口拖拽与磁吸状态
+  const [position, setPosition] = useState<{ x: number; y: number } | null>(
+    null,
+  );
+  const [isDraggingPlayer, setIsDraggingPlayer] = useState(false);
+  const [snappedSide, setSnappedSide] = useState<"left" | "right">("right");
+  const dragCleanupRef = useRef<(() => void) | null>(null);
+
   useEffect(() => {
     return () => {
       scrubCleanupRef.current?.();
-      scrubCleanupRef.current = null;
+      dragCleanupRef.current?.();
     };
   }, []);
+
+  // 窗口初始化位置
+  useEffect(() => {
+    if (position === null && typeof window !== "undefined") {
+      const initialY = Math.max(20, window.innerHeight - 240);
+      const initialX = Math.max(20, window.innerWidth - 340 - 20);
+      setPosition({ x: initialX, y: initialY });
+    }
+  }, [position]);
+
+  // 窗口 resize 保持贴边
+  useEffect(() => {
+    const handleResize = () => {
+      if (!playerRef.current) return;
+      const widgetWidth = playerRef.current.offsetWidth || 320;
+      setPosition((prev) => {
+        if (!prev) return null;
+        const newX =
+          snappedSide === "left"
+            ? 20
+            : Math.max(20, window.innerWidth - widgetWidth - 20);
+        const newY = Math.max(20, Math.min(window.innerHeight - 80, prev.y));
+        return { x: newX, y: newY };
+      });
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, [snappedSide]);
+
+  // 浮窗全窗口拖拽与吸附两侧逻辑
+  const handlePlayerDragStart = (e: React.MouseEvent) => {
+    // 忽略按钮与交互区域触发的拖拽
+    if ((e.target as HTMLElement).closest("button, input, [role='slider']")) {
+      return;
+    }
+    e.preventDefault();
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const initialPos = position || {
+      x: window.innerWidth - (playerRef.current?.offsetWidth || 320) - 20,
+      y: window.innerHeight - 240,
+    };
+
+    setIsDraggingPlayer(true);
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaY = moveEvent.clientY - startY;
+
+      const widgetWidth = playerRef.current?.offsetWidth || 320;
+      const widgetHeight = playerRef.current?.offsetHeight || 160;
+
+      const clampedX = Math.max(
+        0,
+        Math.min(window.innerWidth - widgetWidth, initialPos.x + deltaX),
+      );
+      const clampedY = Math.max(
+        10,
+        Math.min(window.innerHeight - widgetHeight - 10, initialPos.y + deltaY),
+      );
+
+      setPosition({ x: clampedX, y: clampedY });
+    };
+
+    const cleanup = () => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      dragCleanupRef.current = null;
+    };
+    dragCleanupRef.current = cleanup;
+
+    const onMouseUp = () => {
+      cleanup();
+      setIsDraggingPlayer(false);
+
+      if (!playerRef.current) return;
+      const widgetWidth = playerRef.current.offsetWidth || 320;
+
+      setPosition((prev) => {
+        if (!prev) return null;
+        const centerX = prev.x + widgetWidth / 2;
+        const snapLeft = centerX < window.innerWidth / 2;
+
+        setSnappedSide(snapLeft ? "left" : "right");
+        const targetX = snapLeft ? 20 : window.innerWidth - widgetWidth - 20;
+
+        return { x: targetX, y: prev.y };
+      });
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
 
   // 当活跃音轨变更时加载波形数据
   useEffect(() => {
@@ -76,9 +179,16 @@ export const GlobalMiniPlayer: React.FC = () => {
     return null;
   }
 
-  const progressRatio = duration > 0
-    ? Math.max(0, Math.min(1, (scrubPercent !== null ? scrubPercent : (currentTime / duration))))
-    : 0;
+  const progressRatio =
+    duration > 0
+      ? Math.max(
+          0,
+          Math.min(
+            1,
+            scrubPercent !== null ? scrubPercent : currentTime / duration,
+          ),
+        )
+      : 0;
 
   // 波形拖拽寻道计算
   const calculatePercent = (clientX: number): number => {
@@ -89,6 +199,7 @@ export const GlobalMiniPlayer: React.FC = () => {
 
   const handleWaveformMouseDown = (e: React.MouseEvent) => {
     e.preventDefault();
+    e.stopPropagation();
     const percent = calculatePercent(e.clientX);
     setIsScrubbing(true);
     setScrubPercent(percent);
@@ -106,7 +217,6 @@ export const GlobalMiniPlayer: React.FC = () => {
 
     const onMouseUp = (upEvent: MouseEvent) => {
       cleanup();
-
       const finalPercent = calculatePercent(upEvent.clientX);
       setIsScrubbing(false);
       setScrubPercent(null);
@@ -126,15 +236,42 @@ export const GlobalMiniPlayer: React.FC = () => {
 
   const displayTime = formatAudioTime(currentTime);
   const displayTotalDuration = formatAudioTime(duration);
+  const scrubTargetSeconds =
+    (scrubPercent !== null ? scrubPercent : progressRatio) * (duration || 0);
+  const scrubDisplayTime = formatAudioTime(scrubTargetSeconds);
+
+  const stylePosition: React.CSSProperties = position
+    ? {
+        position: "fixed",
+        left: `${position.x}px`,
+        top: `${position.y}px`,
+        transition: isDraggingPlayer
+          ? "none"
+          : "left 0.3s cubic-bezier(0.16, 1, 0.3, 1), top 0.3s cubic-bezier(0.16, 1, 0.3, 1)",
+      }
+    : {};
 
   return (
     <div
+      ref={playerRef}
+      style={stylePosition}
       data-testid="global-mini-audio-player"
-      className="fixed bottom-5 right-5 z-50 select-none animate-in fade-in slide-in-from-bottom-3 duration-200"
+      onMouseDown={handlePlayerDragStart}
+      className={`fixed z-50 select-none ${
+        position ? "" : "bottom-5 right-5"
+      } ${
+        isDraggingPlayer
+          ? "cursor-grabbing opacity-90 scale-[1.01]"
+          : "cursor-default"
+      }`}
     >
       {!isExpanded ? (
         /* 极简迷你胶囊状态 (Minimal Capsule Pill) */
         <div className="flex items-center gap-2.5 px-3.5 py-2 bg-[#1e1f22]/95 backdrop-blur-md border border-[#383a40] hover:border-discord-brand/50 rounded-full shadow-2xl text-white transition-all duration-200 hover:shadow-discord-brand/10">
+          <div className="cursor-grab active:cursor-grabbing text-discord-textMuted hover:text-white p-0.5 -ml-1">
+            <GripVertical className="w-3.5 h-3.5" />
+          </div>
+
           {/* 音乐状态图标 */}
           <div
             className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
@@ -161,50 +298,61 @@ export const GlobalMiniPlayer: React.FC = () => {
           </div>
 
           {/* 播放/暂停控制 */}
-          <button
-            type="button"
-            onClick={() => togglePlay(activeTrack)}
-            title={isPlaying ? t("audioPlayer.pause") : t("audioPlayer.play")}
-            aria-label={isPlaying ? t("audioPlayer.pause") : t("audioPlayer.play")}
-            className="w-7 h-7 rounded-full bg-discord-brand hover:bg-discord-brand/90 text-white flex items-center justify-center shrink-0 transition-transform active:scale-95 cursor-pointer shadow"
+          <Tooltip
+            content={isPlaying ? t("audioPlayer.pause") : t("audioPlayer.play")}
           >
-            {isBuffering ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : isPlaying ? (
-              <Pause className="w-3.5 h-3.5 fill-current" />
-            ) : (
-              <Play className="w-3.5 h-3.5 fill-current translate-x-0.5" />
-            )}
-          </button>
+            <button
+              type="button"
+              onClick={() => togglePlay(activeTrack)}
+              aria-label={
+                isPlaying ? t("audioPlayer.pause") : t("audioPlayer.play")
+              }
+              className="w-7 h-7 rounded-full bg-discord-brand hover:bg-discord-brand/90 text-white flex items-center justify-center shrink-0 transition-transform active:scale-95 cursor-pointer shadow"
+            >
+              {isBuffering ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : isPlaying ? (
+                <Pause className="w-3.5 h-3.5 fill-current" />
+              ) : (
+                <Play className="w-3.5 h-3.5 fill-current translate-x-0.5" />
+              )}
+            </button>
+          </Tooltip>
 
           {/* 展开完整面板按钮 */}
-          <button
-            type="button"
-            onClick={() => setIsExpanded(true)}
-            title={t("audioPlayer.expand")}
-            aria-label={t("audioPlayer.expand")}
-            className="p-1 text-discord-textMuted hover:text-white transition-colors rounded-full hover:bg-[#35373c] cursor-pointer"
-          >
-            <ChevronUp className="w-4 h-4" />
-          </button>
+          <Tooltip content={t("audioPlayer.expand")}>
+            <button
+              type="button"
+              onClick={() => setIsExpanded(true)}
+              aria-label={t("audioPlayer.expand")}
+              className="p-1 text-discord-textMuted hover:text-white transition-colors rounded-full hover:bg-[#35373c] cursor-pointer"
+            >
+              <ChevronUp className="w-4 h-4" />
+            </button>
+          </Tooltip>
 
           {/* 关闭/销毁当前播放器 */}
-          <button
-            type="button"
-            onClick={close}
-            title={t("audioPlayer.close")}
-            aria-label={t("audioPlayer.close")}
-            className="p-1 text-discord-textMuted hover:text-red-400 transition-colors rounded-full hover:bg-[#35373c] cursor-pointer"
-          >
-            <X className="w-3.5 h-3.5" />
-          </button>
+          <Tooltip content={t("audioPlayer.close")}>
+            <button
+              type="button"
+              onClick={close}
+              aria-label={t("audioPlayer.close")}
+              className="p-1 text-discord-textMuted hover:text-red-400 transition-colors rounded-full hover:bg-[#35373c] cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </Tooltip>
         </div>
       ) : (
         /* 展开完整浮动播放卡片 (Expanded Floating Dock) */
         <div className="flex flex-col gap-3 p-4 bg-[#1e1f22]/95 backdrop-blur-lg border border-[#383a40] rounded-2xl shadow-2xl text-white w-80 transition-all duration-200">
-          {/* 顶栏：标题与操作 */}
+          {/* 顶栏：拖拽把手、标题与操作 */}
           <div className="flex items-center justify-between gap-2 min-w-0">
             <div className="flex items-center gap-2 min-w-0 flex-1">
+              <div className="cursor-grab active:cursor-grabbing text-discord-textMuted hover:text-white p-0.5 -ml-1">
+                <GripVertical className="w-4 h-4" />
+              </div>
+
               <div
                 className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 ${
                   isPlaying
@@ -221,36 +369,66 @@ export const GlobalMiniPlayer: React.FC = () => {
                 >
                   {activeTrack.fileName}
                 </div>
-                <div className="text-[10px] text-discord-textMuted">
-                  {t("audioPlayer.nowPlaying")}
+                <div className="text-[10px] text-discord-textMuted flex items-center gap-1.5">
+                  <span>{t("audioPlayer.nowPlaying")}</span>
+                  <span className="text-[9px] px-1 py-0.2 rounded bg-black/40 text-gray-400">
+                    {snappedSide === "left"
+                      ? t("audioPlayer.snapLeft")
+                      : t("audioPlayer.snapRight")}
+                  </span>
                 </div>
               </div>
             </div>
 
             <div className="flex items-center gap-1 shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsExpanded(false)}
-                title={t("audioPlayer.collapse")}
-                aria-label={t("audioPlayer.collapse")}
-                className="p-1 text-discord-textMuted hover:text-white transition-colors rounded hover:bg-[#35373c] cursor-pointer"
-              >
-                <ChevronDown className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={close}
-                title={t("audioPlayer.close")}
-                aria-label={t("audioPlayer.close")}
-                className="p-1 text-discord-textMuted hover:text-red-400 transition-colors rounded hover:bg-[#35373c] cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
+              <Tooltip content={t("audioPlayer.collapse")}>
+                <button
+                  type="button"
+                  onClick={() => setIsExpanded(false)}
+                  aria-label={t("audioPlayer.collapse")}
+                  className="p-1 text-discord-textMuted hover:text-white transition-colors rounded hover:bg-[#35373c] cursor-pointer"
+                >
+                  <ChevronDown className="w-4 h-4" />
+                </button>
+              </Tooltip>
+
+              <Tooltip content={t("audioPlayer.close")}>
+                <button
+                  type="button"
+                  onClick={close}
+                  aria-label={t("audioPlayer.close")}
+                  className="p-1 text-discord-textMuted hover:text-red-400 transition-colors rounded hover:bg-[#35373c] cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </Tooltip>
             </div>
           </div>
 
-          {/* 波形进度轨 (支持点击/拖拽 seek) */}
-          <div className="flex flex-col gap-1">
+          {/* 波形进度轨：左向右平滑连续填充效果 + 拖拽时间下指示标 Tooltip */}
+          <div className="flex flex-col gap-1 relative">
+            {/* 拖拽寻道时浮动的 Tooltip + 下标小三角指示器 */}
+            {isScrubbing && (
+              <div
+                data-testid="audio-scrub-tooltip"
+                style={{
+                  left: `${(scrubPercent !== null ? scrubPercent : progressRatio) * 100}%`,
+                }}
+                className="absolute -top-11 -translate-x-1/2 pointer-events-none z-30 flex flex-col items-center animate-in fade-in zoom-in-95 duration-100"
+              >
+                <div className="bg-[#111214] text-white px-2.5 py-1 rounded-md shadow-2xl border border-[#383a40] flex items-center gap-1.5 text-[11px] font-mono whitespace-nowrap">
+                  <span className="font-bold text-discord-brand">
+                    {scrubDisplayTime}
+                  </span>
+                  <span className="text-[10px] text-discord-textMuted">
+                    / {displayTotalDuration}
+                  </span>
+                </div>
+                {/* 向下三角形下标指示器 (Down-arrow pin indicator) */}
+                <div className="w-0 h-0 border-x-4 border-x-transparent border-t-4 border-t-[#111214] -mt-[1px]" />
+              </div>
+            )}
+
             <div
               ref={waveformRef}
               role="slider"
@@ -260,31 +438,62 @@ export const GlobalMiniPlayer: React.FC = () => {
               aria-valuemax={duration}
               aria-valuenow={currentTime}
               onMouseDown={handleWaveformMouseDown}
-              className={`h-9 flex items-center justify-between gap-[2px] px-1.5 py-1 bg-[#2b2d31]/80 rounded-lg cursor-pointer select-none border border-transparent hover:border-[#4e5058]/50 ${
+              className={`relative h-10 bg-[#2b2d31]/80 rounded-lg cursor-pointer select-none border border-transparent hover:border-[#4e5058]/50 overflow-hidden ${
                 isScrubbing ? "ring-1 ring-discord-brand" : ""
               }`}
             >
-              {peaks.map((heightRatio, idx) => {
-                const barRatio = (idx + 0.5) / BARS_COUNT;
-                const isPlayed = barRatio <= progressRatio;
-                const heightPercent = Math.round(heightRatio * 100);
-
-                return (
-                  <div
-                    key={idx}
-                    className="flex-1 h-full flex items-center justify-center"
-                  >
+              {/* 底层：未播放波形条柱 (灰阶底色) */}
+              <div className="absolute inset-0 flex items-center justify-between gap-[2px] px-1.5 py-1">
+                {peaks.map((heightRatio, idx) => {
+                  const heightPercent = Math.round(heightRatio * 100);
+                  return (
                     <div
-                      style={{ height: `${heightPercent}%` }}
-                      className={`w-full max-w-[3.5px] rounded-full transition-all duration-75 ${
-                        isPlayed
-                          ? "bg-discord-brand"
-                          : "bg-[#4e5058] hover:bg-[#5c5e66]"
-                      }`}
-                    />
-                  </div>
-                );
-              })}
+                      key={`bg-${idx}`}
+                      className="flex-1 h-full flex items-center justify-center"
+                    >
+                      <div
+                        style={{ height: `${heightPercent}%` }}
+                        className="w-full max-w-[3.5px] rounded-full bg-[#4e5058]/70"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 顶层：已播放波形条柱 (利用 clipPath 实现亚像素级从左到右平滑连续填充) */}
+              <div
+                data-testid="audio-waveform-fill"
+                style={{
+                  clipPath: `inset(0 ${Math.max(
+                    0,
+                    (1 - progressRatio) * 100,
+                  )}% 0 0)`,
+                }}
+                className="absolute inset-0 flex items-center justify-between gap-[2px] px-1.5 py-1 pointer-events-none transition-[clip-path] duration-75"
+              >
+                {peaks.map((heightRatio, idx) => {
+                  const heightPercent = Math.round(heightRatio * 100);
+                  return (
+                    <div
+                      key={`fg-${idx}`}
+                      className="flex-1 h-full flex items-center justify-center"
+                    >
+                      <div
+                        style={{ height: `${heightPercent}%` }}
+                        className="w-full max-w-[3.5px] rounded-full bg-gradient-to-r from-[#5865f2] to-[#7983f5] shadow-sm"
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* 播放光标游标 (Cursor Thumb) */}
+              <div
+                style={{
+                  left: `${progressRatio * 100}%`,
+                }}
+                className="absolute top-1 bottom-1 w-[2px] bg-white rounded-full shadow pointer-events-none -translate-x-1/2"
+              />
             </div>
 
             {/* 时间标签 */}
@@ -298,51 +507,70 @@ export const GlobalMiniPlayer: React.FC = () => {
           <div className="flex items-center justify-between pt-1 border-t border-[#313338]">
             {/* 播放/暂停控制 */}
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => togglePlay(activeTrack)}
-                title={isPlaying ? t("audioPlayer.pause") : t("audioPlayer.play")}
-                aria-label={isPlaying ? t("audioPlayer.pause") : t("audioPlayer.play")}
-                className="w-8 h-8 rounded-full bg-discord-brand hover:bg-discord-brand/90 text-white flex items-center justify-center shrink-0 transition-transform active:scale-95 cursor-pointer shadow"
+              <Tooltip
+                content={
+                  isPlaying ? t("audioPlayer.pause") : t("audioPlayer.play")
+                }
               >
-                {isBuffering ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : isPlaying ? (
-                  <Pause className="w-4 h-4 fill-current" />
-                ) : (
-                  <Play className="w-4 h-4 fill-current translate-x-0.5" />
-                )}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => togglePlay(activeTrack)}
+                  aria-label={
+                    isPlaying ? t("audioPlayer.pause") : t("audioPlayer.play")
+                  }
+                  className="w-8 h-8 rounded-full bg-discord-brand hover:bg-discord-brand/90 text-white flex items-center justify-center shrink-0 transition-transform active:scale-95 cursor-pointer shadow"
+                >
+                  {isBuffering ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : isPlaying ? (
+                    <Pause className="w-4 h-4 fill-current" />
+                  ) : (
+                    <Play className="w-4 h-4 fill-current translate-x-0.5" />
+                  )}
+                </button>
+              </Tooltip>
 
               {/* 倍速 */}
-              <button
-                type="button"
-                onClick={cyclePlaybackRate}
-                title={t("audioPlayer.playbackRate", { rate: playbackRate })}
-                aria-label={t("audioPlayer.playbackRate", { rate: playbackRate })}
-                className="text-[10px] font-bold px-2 py-1 rounded bg-[#2b2d31] text-discord-interactiveNormal hover:text-white hover:bg-[#35373c] transition-colors cursor-pointer"
+              <Tooltip
+                content={t("audioPlayer.playbackRate", { rate: playbackRate })}
               >
-                {playbackRate}x
-              </button>
+                <button
+                  type="button"
+                  onClick={cyclePlaybackRate}
+                  aria-label={t("audioPlayer.playbackRate", {
+                    rate: playbackRate,
+                  })}
+                  className="text-[10px] font-bold px-2 py-1 rounded bg-[#2b2d31] text-discord-interactiveNormal hover:text-white hover:bg-[#35373c] transition-colors cursor-pointer"
+                >
+                  {playbackRate}x
+                </button>
+              </Tooltip>
             </div>
 
             {/* 音量控制 */}
             <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={toggleMute}
-                title={isMuted ? t("audioPlayer.unmute") : t("audioPlayer.mute")}
-                aria-label={isMuted ? t("audioPlayer.unmute") : t("audioPlayer.mute")}
-                className="p-1 text-discord-textMuted hover:text-white transition-colors rounded hover:bg-[#35373c] cursor-pointer"
+              <Tooltip
+                content={
+                  isMuted ? t("audioPlayer.unmute") : t("audioPlayer.mute")
+                }
               >
-                {isMuted || volume === 0 ? (
-                  <VolumeX className="w-4 h-4 text-red-400" />
-                ) : volume < 0.5 ? (
-                  <Volume1 className="w-4 h-4" />
-                ) : (
-                  <Volume2 className="w-4 h-4" />
-                )}
-              </button>
+                <button
+                  type="button"
+                  onClick={toggleMute}
+                  aria-label={
+                    isMuted ? t("audioPlayer.unmute") : t("audioPlayer.mute")
+                  }
+                  className="p-1 text-discord-textMuted hover:text-white transition-colors rounded hover:bg-[#35373c] cursor-pointer"
+                >
+                  {isMuted || volume === 0 ? (
+                    <VolumeX className="w-4 h-4 text-red-400" />
+                  ) : volume < 0.5 ? (
+                    <Volume1 className="w-4 h-4" />
+                  ) : (
+                    <Volume2 className="w-4 h-4" />
+                  )}
+                </button>
+              </Tooltip>
               <input
                 type="range"
                 min="0"

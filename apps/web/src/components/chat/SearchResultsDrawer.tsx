@@ -113,7 +113,12 @@ export const SearchResultsDrawer: React.FC<SearchResultsDrawerProps> = ({
 
   const performSearch = async (textToSearch?: string) => {
     const targetText = textToSearch !== undefined ? textToSearch : searchInput;
-    if (!targetText.trim() && !parsedQuery.fromUser && !parsedQuery.hasType && !parsedQuery.isPinned) {
+    if (
+      !targetText.trim() &&
+      !parsedQuery.fromUser &&
+      !parsedQuery.hasType &&
+      !parsedQuery.isPinned
+    ) {
       return;
     }
 
@@ -137,9 +142,18 @@ export const SearchResultsDrawer: React.FC<SearchResultsDrawerProps> = ({
             authorId: item.authorId,
             author: {
               id: item.authorId,
-              username: item.authorId === currentUser.id ? currentUser.username : "User",
-              displayName: item.authorId === currentUser.id ? currentUser.displayName : undefined,
-              avatarUrl: item.authorId === currentUser.id ? currentUser.avatarUrl : undefined,
+              username:
+                item.authorId === currentUser.id
+                  ? currentUser.username
+                  : "User",
+              displayName:
+                item.authorId === currentUser.id
+                  ? currentUser.displayName
+                  : undefined,
+              avatarUrl:
+                item.authorId === currentUser.id
+                  ? currentUser.avatarUrl
+                  : undefined,
             },
             content: dec ? dec.text : item.content,
             isEncrypted: true,
@@ -162,7 +176,8 @@ export const SearchResultsDrawer: React.FC<SearchResultsDrawerProps> = ({
         } else {
           if (parsedQuery.inChannel && guild) {
             const foundCh = guild.channels?.find(
-              (c) => c.name.toLowerCase() === parsedQuery.inChannel?.toLowerCase(),
+              (c) =>
+                c.name.toLowerCase() === parsedQuery.inChannel?.toLowerCase(),
             );
             if (foundCh) params.set("channelId", foundCh.id);
           }
@@ -210,10 +225,15 @@ export const SearchResultsDrawer: React.FC<SearchResultsDrawerProps> = ({
 
   const highlightKeyword = (content: string, keyword: string) => {
     if (!keyword.trim()) return content;
-    const parts = content.split(new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"));
+    const parts = content.split(
+      new RegExp(`(${keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi"),
+    );
     return parts.map((part, i) =>
       part.toLowerCase() === keyword.toLowerCase() ? (
-        <mark key={i} className="bg-amber-400/30 text-amber-200 px-0.5 rounded font-semibold">
+        <mark
+          key={i}
+          className="bg-amber-400/30 text-amber-200 px-0.5 rounded font-semibold"
+        >
           {part}
         </mark>
       ) : (
@@ -263,8 +283,12 @@ export const SearchResultsDrawer: React.FC<SearchResultsDrawerProps> = ({
             onKeyDown={handleKeyDown}
             placeholder={
               channel.isE2EE
-                ? t("chat:search.e2eePlaceholder", { defaultValue: "在端加密频道中检索..." })
-                : t("chat:search.placeholder", { defaultValue: "输入关键词或过滤语法..." })
+                ? t("chat:search.e2eePlaceholder", {
+                    defaultValue: "在端加密频道中检索...",
+                  })
+                : t("chat:search.placeholder", {
+                    defaultValue: "输入关键词或过滤语法...",
+                  })
             }
             className="w-full bg-[#1e1f22] text-sm text-discord-textNormal rounded-md px-3 py-1.5 pr-8 focus:outline-none focus:ring-1 focus:ring-discord-brand placeholder-discord-textMuted"
           />
@@ -379,7 +403,9 @@ export const SearchResultsDrawer: React.FC<SearchResultsDrawerProps> = ({
             <Search className="w-10 h-10 opacity-30" />
             <div className="space-y-1">
               <p className="text-sm font-semibold text-white">
-                {t("chat:search.noResults", { defaultValue: "找不到相符的消息" })}
+                {t("chat:search.noResults", {
+                  defaultValue: "找不到相符的消息",
+                })}
               </p>
               <p className="text-xs text-discord-textMuted">
                 {t("chat:search.noResultsDesc", {
@@ -393,11 +419,14 @@ export const SearchResultsDrawer: React.FC<SearchResultsDrawerProps> = ({
             <Search className="w-10 h-10 opacity-30" />
             <div className="space-y-1">
               <p className="text-sm font-semibold text-white">
-                {t("chat:search.welcomeTitle", { defaultValue: "Discord 消息搜索" })}
+                {t("chat:search.welcomeTitle", {
+                  defaultValue: "Discord 消息搜索",
+                })}
               </p>
               <p className="text-xs text-discord-textMuted">
                 {t("chat:search.welcomeDesc", {
-                  defaultValue: "支持关键词全文搜索及 from:、has: 等高级语法过滤。",
+                  defaultValue:
+                    "支持关键词全文搜索及 from:、has: 等高级语法过滤。",
                 })}
               </p>
             </div>
@@ -428,7 +457,9 @@ export const SearchResultsDrawer: React.FC<SearchResultsDrawerProps> = ({
                     ) : (
                       <Hash className="w-3 h-3 shrink-0" />
                     )}
-                    <span className="truncate">{msg.channelName || channel.name}</span>
+                    <span className="truncate">
+                      {msg.channelName || channel.name}
+                    </span>
                   </div>
                   <span className="text-[11px] shrink-0">
                     {dateStr} {timeStr}
@@ -460,15 +491,25 @@ export const SearchResultsDrawer: React.FC<SearchResultsDrawerProps> = ({
                     {/* 附件简略预览 */}
                     {msg.attachments && msg.attachments.length > 0 && (
                       <div className="flex items-center space-x-2 pt-1 text-[11px] text-discord-textMuted">
-                        {msg.attachments.some((a) => a.mimeType?.startsWith("image/")) ? (
+                        {msg.attachments.some((a) =>
+                          a.mimeType?.startsWith("image/"),
+                        ) ? (
                           <div className="flex items-center space-x-1">
                             <ImageIcon className="w-3.5 h-3.5 text-discord-brand" />
-                            <span>{t("chat:search.imageAttachment", { defaultValue: "图片附件" })}</span>
+                            <span>
+                              {t("chat:search.imageAttachment", {
+                                defaultValue: "图片附件",
+                              })}
+                            </span>
                           </div>
                         ) : (
                           <div className="flex items-center space-x-1">
                             <FileText className="w-3.5 h-3.5 text-discord-brand" />
-                            <span>{t("chat:search.fileAttachment", { defaultValue: "文件附件" })}</span>
+                            <span>
+                              {t("chat:search.fileAttachment", {
+                                defaultValue: "文件附件",
+                              })}
+                            </span>
                           </div>
                         )}
                       </div>

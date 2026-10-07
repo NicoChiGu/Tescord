@@ -63,8 +63,14 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
     };
   }, [attachment.id || attachment.url, retryCount]);
 
-  const rawWidth = "width" in attachment && typeof (attachment as any).width === "number" ? (attachment as any).width : undefined;
-  const rawHeight = "height" in attachment && typeof (attachment as any).height === "number" ? (attachment as any).height : undefined;
+  const rawWidth =
+    "width" in attachment && typeof (attachment as any).width === "number"
+      ? (attachment as any).width
+      : undefined;
+  const rawHeight =
+    "height" in attachment && typeof (attachment as any).height === "number"
+      ? (attachment as any).height
+      : undefined;
 
   const { displayWidth, displayHeight, aspectRatio } = React.useMemo(() => {
     const maxWidth = 380;

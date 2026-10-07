@@ -35,14 +35,28 @@ function loadInitialRecentEmojis(): string[] {
       if (Array.isArray(parsed)) return parsed.slice(0, MAX_RECENT_EMOJIS);
     }
   } catch {}
-  return ["👍", "❤️", "😂", "🔥", "🎉", "🚀", "👀", "💯", "🤔", "🥳", "✨", "🙌"];
+  return [
+    "👍",
+    "❤️",
+    "😂",
+    "🔥",
+    "🎉",
+    "🚀",
+    "👀",
+    "💯",
+    "🤔",
+    "🥳",
+    "✨",
+    "🙌",
+  ];
 }
 
 // 辅助：静态图片尺寸与质量压缩 (Canvas，保持比例在 128x128 以内)
 async function processEmojiImage(
   file: File,
 ): Promise<{ blob: Blob; mimeType: string; isAnimated: boolean }> {
-  const isGif = file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
+  const isGif =
+    file.type === "image/gif" || file.name.toLowerCase().endsWith(".gif");
   if (isGif) {
     if (file.size > 2 * 1024 * 1024) {
       throw new Error("GIF 表情文件大小不能超过 2MB");
@@ -79,16 +93,28 @@ async function processEmojiImage(
       canvas.height = Math.max(1, height);
       const ctx = canvas.getContext("2d");
       if (!ctx) {
-        return resolve({ blob: file, mimeType: file.type || "image/png", isAnimated: false });
+        return resolve({
+          blob: file,
+          mimeType: file.type || "image/png",
+          isAnimated: false,
+        });
       }
 
       ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
       canvas.toBlob(
         (blob) => {
           if (blob && blob.size > 0) {
-            resolve({ blob, mimeType: blob.type || "image/png", isAnimated: false });
+            resolve({
+              blob,
+              mimeType: blob.type || "image/png",
+              isAnimated: false,
+            });
           } else {
-            resolve({ blob: file, mimeType: file.type || "image/png", isAnimated: false });
+            resolve({
+              blob: file,
+              mimeType: file.type || "image/png",
+              isAnimated: false,
+            });
           }
         },
         "image/png",
@@ -154,7 +180,10 @@ export const useEmojiStore = create<EmojiState>((set, get) => ({
       const filtered = state.recentEmojis.filter((e) => e !== emoji);
       const nextRecent = [emoji, ...filtered].slice(0, MAX_RECENT_EMOJIS);
       try {
-        localStorage.setItem(RECENT_EMOJIS_STORAGE_KEY, JSON.stringify(nextRecent));
+        localStorage.setItem(
+          RECENT_EMOJIS_STORAGE_KEY,
+          JSON.stringify(nextRecent),
+        );
       } catch {}
       return { recentEmojis: nextRecent };
     });
@@ -174,20 +203,23 @@ export const useEmojiStore = create<EmojiState>((set, get) => ({
     const filename = `${trimmedName}.${extension}`;
 
     // 1. 获取预签名上传链接
-    const presignRes = await fetch(`${API_BASE}/api/attachments/presigned-url`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+    const presignRes = await fetch(
+      `${API_BASE}/api/attachments/presigned-url`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          fileName: filename,
+          fileSize: blob.size,
+          mimeType,
+          purpose: "custom-emoji",
+          guildId,
+        }),
       },
-      body: JSON.stringify({
-        fileName: filename,
-        fileSize: blob.size,
-        mimeType,
-        purpose: "custom-emoji",
-        guildId,
-      }),
-    });
+    );
 
     if (!presignRes.ok) {
       const err = await presignRes.json().catch(() => ({}));
@@ -255,19 +287,22 @@ export const useEmojiStore = create<EmojiState>((set, get) => ({
     const filename = `${trimmedName}.${extension}`;
 
     // 1. 获取预签名上传链接
-    const presignRes = await fetch(`${API_BASE}/api/attachments/presigned-url`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+    const presignRes = await fetch(
+      `${API_BASE}/api/attachments/presigned-url`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          fileName: filename,
+          fileSize: blob.size,
+          mimeType,
+          purpose: "custom-emoji",
+        }),
       },
-      body: JSON.stringify({
-        fileName: filename,
-        fileSize: blob.size,
-        mimeType,
-        purpose: "custom-emoji",
-      }),
-    });
+    );
 
     if (!presignRes.ok) {
       const err = await presignRes.json().catch(() => ({}));
@@ -322,10 +357,13 @@ export const useEmojiStore = create<EmojiState>((set, get) => ({
     const { token } = useAuthStore.getState();
     if (!token) throw new Error("未登录");
 
-    const res = await fetch(`${API_BASE}/api/guilds/${guildId}/emojis/${emojiId}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await fetch(
+      `${API_BASE}/api/guilds/${guildId}/emojis/${emojiId}`,
+      {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${token}` },
+      },
+    );
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -335,7 +373,9 @@ export const useEmojiStore = create<EmojiState>((set, get) => ({
     set((state) => ({
       guildEmojis: {
         ...state.guildEmojis,
-        [guildId]: (state.guildEmojis[guildId] || []).filter((e) => e.id !== emojiId),
+        [guildId]: (state.guildEmojis[guildId] || []).filter(
+          (e) => e.id !== emojiId,
+        ),
       },
     }));
   },

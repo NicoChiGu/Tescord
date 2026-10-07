@@ -6,6 +6,7 @@ import { API_BASE, resolveServerUrl } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { dialog } from "../../stores/useDialogStore.js";
 import { toast } from "../../stores/useToastStore.js";
+import { Select } from "../ui/Select.js";
 
 interface InvitesTabProps {
   guild: Guild;
@@ -140,51 +141,57 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
               <label className="block text-xs font-bold text-gray-300 mb-1.5">
                 {t("server:invites.expireLimit")}
               </label>
-              <select
-                value={newExpireHours}
-                onChange={(e) =>
-                  setNewExpireHours(parseInt(e.target.value, 10))
-                }
-                className="w-full bg-[#2b2d31] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#5865f2]"
-              >
-                <option value={1}>{t("server:invites.expire1h")}</option>
-                <option value={6}>{t("server:invites.expire6h")}</option>
-                <option value={12}>{t("server:invites.expire12h")}</option>
-                <option value={24}>{t("server:invites.expire24h")}</option>
-                <option value={168}>{t("server:invites.expire7d")}</option>
-                <option value={0}>{t("server:invites.expireNever")}</option>
-              </select>
+              <Select
+                value={String(newExpireHours)}
+                onChange={(val) => setNewExpireHours(parseInt(val, 10))}
+                options={[
+                  { value: "1", label: t("server:invites.expire1h") },
+                  { value: "6", label: t("server:invites.expire6h") },
+                  { value: "12", label: t("server:invites.expire12h") },
+                  { value: "24", label: t("server:invites.expire24h") },
+                  { value: "168", label: t("server:invites.expire7d") },
+                  { value: "0", label: t("server:invites.expireNever") },
+                ]}
+                triggerClassName="py-2 text-xs border border-white/10 rounded-lg bg-[#2b2d31]"
+              />
             </div>
 
             <div>
               <label className="block text-xs font-bold text-gray-300 mb-1.5">
                 {t("server:invites.maxUsesLimit")}
               </label>
-              <select
-                value={newMaxUses}
-                onChange={(e) => setNewMaxUses(parseInt(e.target.value, 10))}
-                className="w-full bg-[#2b2d31] border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-[#5865f2]"
-              >
-                <option value={0}>{t("server:invites.unlimitedUses")}</option>
-                <option value={1}>
-                  {t("server:invites.usesCount", { count: 1 })}
-                </option>
-                <option value={5}>
-                  {t("server:invites.usesCount", { count: 5 })}
-                </option>
-                <option value={10}>
-                  {t("server:invites.usesCount", { count: 10 })}
-                </option>
-                <option value={25}>
-                  {t("server:invites.usesCount", { count: 25 })}
-                </option>
-                <option value={50}>
-                  {t("server:invites.usesCount", { count: 50 })}
-                </option>
-                <option value={100}>
-                  {t("server:invites.usesCount", { count: 100 })}
-                </option>
-              </select>
+              <Select
+                value={String(newMaxUses)}
+                onChange={(val) => setNewMaxUses(parseInt(val, 10))}
+                options={[
+                  { value: "0", label: t("server:invites.unlimitedUses") },
+                  {
+                    value: "1",
+                    label: t("server:invites.usesCount", { count: 1 }),
+                  },
+                  {
+                    value: "5",
+                    label: t("server:invites.usesCount", { count: 5 }),
+                  },
+                  {
+                    value: "10",
+                    label: t("server:invites.usesCount", { count: 10 }),
+                  },
+                  {
+                    value: "25",
+                    label: t("server:invites.usesCount", { count: 25 }),
+                  },
+                  {
+                    value: "50",
+                    label: t("server:invites.usesCount", { count: 50 }),
+                  },
+                  {
+                    value: "100",
+                    label: t("server:invites.usesCount", { count: 100 }),
+                  },
+                ]}
+                triggerClassName="py-2 text-xs border border-white/10 rounded-lg bg-[#2b2d31]"
+              />
             </div>
           </div>
 

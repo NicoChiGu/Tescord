@@ -26,7 +26,6 @@ export const isAudioFile = (mimeType?: string, fileName?: string): boolean => {
   );
 };
 
-
 /**
  * 格式化数字（千分位）
  */

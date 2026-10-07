@@ -59,7 +59,9 @@ export async function getAudioPeaks(
   // 环境检查
   if (
     typeof window === "undefined" ||
-    (!window.AudioContext && !(window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext)
+    (!window.AudioContext &&
+      !(window as unknown as { webkitAudioContext?: typeof AudioContext })
+        .webkitAudioContext)
   ) {
     const fallback = generateFallbackPeaks(cacheKey, barsCount);
     setWaveformCache(cacheKey, fallback);
@@ -76,7 +78,8 @@ export async function getAudioPeaks(
 
     const AudioContextClass =
       window.AudioContext ||
-      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      (window as unknown as { webkitAudioContext: typeof AudioContext })
+        .webkitAudioContext;
     audioCtx = new AudioContextClass();
 
     const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
@@ -134,7 +137,10 @@ export async function getAudioPeaks(
 /**
  * 同步获取已缓存的波形，未缓存时返回稳定的初始降级波形
  */
-export function getInitialAudioPeaks(cacheKey: string, barsCount: number = DEFAULT_BARS): number[] {
+export function getInitialAudioPeaks(
+  cacheKey: string,
+  barsCount: number = DEFAULT_BARS,
+): number[] {
   const cached = waveformCache.get(cacheKey);
   if (cached && cached.length === barsCount) {
     return cached;

@@ -79,14 +79,22 @@ export const AudioAttachment: React.FC<AudioAttachmentProps> = ({
   const isCurrentlyPlaying = isCurrentTrack && isPlaying;
   const isCurrentlyBuffering = isCurrentTrack && isBuffering;
 
-  const currentDuration = isCurrentTrack && globalDuration > 0
-    ? globalDuration
-    : localDuration;
+  const currentDuration =
+    isCurrentTrack && globalDuration > 0 ? globalDuration : localDuration;
 
   const currentProgressSeconds = isCurrentTrack ? currentTime : 0;
-  const progressRatio = currentDuration > 0
-    ? Math.max(0, Math.min(1, (scrubPercent !== null ? scrubPercent : (currentProgressSeconds / currentDuration))))
-    : 0;
+  const progressRatio =
+    currentDuration > 0
+      ? Math.max(
+          0,
+          Math.min(
+            1,
+            scrubPercent !== null
+              ? scrubPercent
+              : currentProgressSeconds / currentDuration,
+          ),
+        )
+      : 0;
 
   // 1. 获取直链与初始元数据
   const loadMedia = useCallback(
@@ -217,16 +225,12 @@ export const AudioAttachment: React.FC<AudioAttachmentProps> = ({
   const handleDownload = () => {
     void openAttachmentDownload(attachment).catch((cause: unknown) => {
       setLoadError(
-        cause instanceof Error
-          ? cause.message
-          : t("lightbox.downloadFailed"),
+        cause instanceof Error ? cause.message : t("lightbox.downloadFailed"),
       );
     });
   };
 
-  const displayTime = isCurrentTrack
-    ? formatAudioTime(currentTime)
-    : "00:00";
+  const displayTime = isCurrentTrack ? formatAudioTime(currentTime) : "00:00";
   const displayTotalDuration = formatAudioTime(currentDuration);
 
   return (
@@ -290,7 +294,9 @@ export const AudioAttachment: React.FC<AudioAttachmentProps> = ({
               type="button"
               onClick={toggleMute}
               title={isMuted ? t("audioPlayer.unmute") : t("audioPlayer.mute")}
-              aria-label={isMuted ? t("audioPlayer.unmute") : t("audioPlayer.mute")}
+              aria-label={
+                isMuted ? t("audioPlayer.unmute") : t("audioPlayer.mute")
+              }
               className="p-1 text-discord-textMuted hover:text-white transition-colors rounded hover:bg-[#35373c]"
             >
               {isMuted || volume === 0 ? (
@@ -355,8 +361,12 @@ export const AudioAttachment: React.FC<AudioAttachmentProps> = ({
           type="button"
           onClick={handleTogglePlay}
           disabled={!mediaUrl || !!loadError}
-          title={isCurrentlyPlaying ? t("audioPlayer.pause") : t("audioPlayer.play")}
-          aria-label={isCurrentlyPlaying ? t("audioPlayer.pause") : t("audioPlayer.play")}
+          title={
+            isCurrentlyPlaying ? t("audioPlayer.pause") : t("audioPlayer.play")
+          }
+          aria-label={
+            isCurrentlyPlaying ? t("audioPlayer.pause") : t("audioPlayer.play")
+          }
           className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-transform active:scale-95 shadow-md ${
             isCurrentlyPlaying
               ? "bg-discord-brand text-white hover:brightness-110"

@@ -188,7 +188,10 @@ export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => {
     seek: (seconds: number) => {
       const audio = getOrCreateAudio();
       if (!audio) return;
-      const safeTime = Math.max(0, Math.min(seconds, get().duration || audio.duration || seconds));
+      const safeTime = Math.max(
+        0,
+        Math.min(seconds, get().duration || audio.duration || seconds),
+      );
       audio.currentTime = safeTime;
       set({ currentTime: safeTime });
     },
@@ -257,3 +260,7 @@ export const useAudioPlayerStore = create<AudioPlayerState>((set, get) => {
     },
   };
 });
+
+if (typeof window !== "undefined") {
+  (window as any).__TESCORD_AUDIO_STORE__ = useAudioPlayerStore;
+}

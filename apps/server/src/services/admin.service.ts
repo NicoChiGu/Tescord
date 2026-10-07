@@ -272,7 +272,8 @@ export class AdminService {
       requireInviteCode: map.get("require_invite_code") === "true",
       maintenanceMode: map.get("maintenance_mode") === "true",
       systemAnnouncement: map.get("system_announcement") || "",
-      allowNonSuperAdminCreateGuild: map.get("allow_non_super_admin_create_guild") !== "false",
+      allowNonSuperAdminCreateGuild:
+        map.get("allow_non_super_admin_create_guild") !== "false",
     };
   }
 
@@ -287,7 +288,10 @@ export class AdminService {
         ["require_invite_code", dto.requireInviteCode],
         ["maintenance_mode", dto.maintenanceMode],
         ["system_announcement", dto.systemAnnouncement?.slice(0, 2000)],
-        ["allow_non_super_admin_create_guild", dto.allowNonSuperAdminCreateGuild],
+        [
+          "allow_non_super_admin_create_guild",
+          dto.allowNonSuperAdminCreateGuild,
+        ],
       ];
       for (const [key, value] of entries) {
         if (value === undefined) continue;

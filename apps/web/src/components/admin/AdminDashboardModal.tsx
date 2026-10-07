@@ -1,4 +1,5 @@
 import { GuildIcon } from "../ui/GuildIcon.js";
+import { Select } from "../ui/Select.js";
 import React, { useState, useEffect } from "react";
 import {
   AdminOverviewStats,
@@ -1263,23 +1264,29 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         <label className="text-xs text-discord-textMuted block mb-1">
                           {t("admin:system.broadcastSeverityLevel")}
                         </label>
-                        <select
+                        <Select
                           value={broadcastSeverity}
-                          onChange={(e: any) =>
-                            setBroadcastSeverity(e.target.value)
+                          onChange={(val) =>
+                            setBroadcastSeverity(
+                              val as "INFO" | "WARNING" | "CRITICAL",
+                            )
                           }
-                          className="w-full bg-[#1e1f22] p-2 rounded border border-[#3f4147] text-white text-sm outline-none"
-                        >
-                          <option value="INFO">
-                            {t("admin:system.severityInfo")}
-                          </option>
-                          <option value="WARNING">
-                            {t("admin:system.severityWarning")}
-                          </option>
-                          <option value="CRITICAL">
-                            {t("admin:system.severityCritical")}
-                          </option>
-                        </select>
+                          options={[
+                            {
+                              value: "INFO",
+                              label: t("admin:system.severityInfo"),
+                            },
+                            {
+                              value: "WARNING",
+                              label: t("admin:system.severityWarning"),
+                            },
+                            {
+                              value: "CRITICAL",
+                              label: t("admin:system.severityCritical"),
+                            },
+                          ]}
+                          triggerClassName="p-2 border border-[#3f4147] rounded"
+                        />
                       </div>
                     </div>
 

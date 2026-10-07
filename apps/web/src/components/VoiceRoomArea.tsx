@@ -68,6 +68,7 @@ import { useTranslation } from "react-i18next";
 import { useViewport } from "../hooks/useViewport.js";
 import { StreamStatsHUD } from "./stream/StreamStatsHUD.js";
 import { useSettingsStore } from "../stores/useSettingsStore.js";
+import { Tooltip } from "./ui/Tooltip.js";
 
 interface VideoTrackPlayerProps {
   track: any;
@@ -564,34 +565,39 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
           </div>
         )}
 
+        {/* 左上角悬浮操作区：主播本人在推流时展示的红点【（·）人数】徽标 */}
+        {isMe && (hasAnyVideo || streamAvailable) && (
+          <div
+            className={`absolute top-2 left-2 flex items-center z-20 ${controlsVisibilityClass}`}
+          >
+            <Tooltip content={t("voice:viewers.title")}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleViewersModal?.();
+                }}
+                data-testid={`stream-viewers-badge-btn-${participant.userId}`}
+                className="px-2 py-0.5 rounded-full bg-black/75 hover:bg-black/90 border border-red-500/40 hover:border-red-500 text-white text-[11px] font-medium flex items-center space-x-1.5 shadow-lg backdrop-blur-md transition cursor-pointer"
+              >
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                </span>
+                <span className="font-mono">
+                  {t("voice:viewers.badgeCount", {
+                    count: viewerCount ?? viewersList?.length ?? 0,
+                  })}
+                </span>
+              </button>
+            </Tooltip>
+          </div>
+        )}
+
         {/* 右上角悬浮操作区：全屏切换、钉选/聚焦、Simulcast 切换、网络延迟指示 */}
         <div
           className={`absolute top-2 right-2 flex items-center space-x-1.5 z-20 ${controlsVisibilityClass}`}
         >
-          {/* 仅主播本人在推流时展示的红点【（·）人数】徽标 */}
-          {isMe && (hasAnyVideo || streamAvailable) && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleViewersModal?.();
-              }}
-              data-testid={`stream-viewers-badge-btn-${participant.userId}`}
-              className="px-2 py-0.5 rounded-full bg-black/75 hover:bg-black/90 border border-red-500/40 hover:border-red-500 text-white text-[11px] font-medium flex items-center space-x-1.5 shadow-lg backdrop-blur-md transition cursor-pointer"
-              title={t("voice:viewers.title")}
-            >
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
-              </span>
-              <span className="font-mono">
-                {t("voice:viewers.badgeCount", {
-                  count: viewerCount ?? viewersList?.length ?? 0,
-                })}
-              </span>
-            </button>
-          )}
-
           {/* 全屏播放切换按钮 (双击亦可切换，快捷键 F；主播本人禁止全屏播放，仅可聚焦放大) */}
           {hasAnyVideo && !isMe && (
             <button
@@ -2743,28 +2749,29 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                 livekitService.isSharingScreen;
 
               return (
-                <button
-                  data-testid="voice-toggle-screen-btn"
-                  onClick={() => {
-                    if (isScreenActive) {
-                      if (onStopScreenShare) {
-                        onStopScreenShare();
+                <Tooltip content={isScreenActive ? "停止共享" : "屏幕共享"}>
+                  <button
+                    data-testid="voice-toggle-screen-btn"
+                    onClick={() => {
+                      if (isScreenActive) {
+                        if (onStopScreenShare) {
+                          onStopScreenShare();
+                        } else {
+                          onToggleScreenShare();
+                        }
                       } else {
                         onToggleScreenShare();
                       }
-                    } else {
-                      onToggleScreenShare();
-                    }
-                  }}
-                  className={`p-2.5 sm:p-3.5 rounded-full transition-all duration-150 active:scale-95 shadow-lg ${
-                    isScreenActive
-                      ? "bg-discord-brand text-white hover:bg-discord-brand-hover ring-4 ring-discord-brand/30"
-                      : "bg-[#2b2d31] text-discord-textNormal hover:bg-discord-hover"
-                  }`}
-                  title={isScreenActive ? "停止共享" : "屏幕共享"}
-                >
-                  <ScreenShare className="w-5 h-5 transition-transform duration-150" />
-                </button>
+                    }}
+                    className={`p-2.5 sm:p-3.5 rounded-full transition-all duration-150 active:scale-95 shadow-lg cursor-pointer ${
+                      isScreenActive
+                        ? "bg-discord-brand text-white hover:bg-discord-brand-hover ring-4 ring-discord-brand/30"
+                        : "bg-[#2b2d31] text-discord-textNormal hover:bg-discord-hover"
+                    }`}
+                  >
+                    <ScreenShare className="w-5 h-5 transition-transform duration-150" />
+                  </button>
+                </Tooltip>
               );
             })()}
 
@@ -2919,13 +2926,14 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
             </div>
 
             {/* 挂断退出 */}
-            <button
-              onClick={onLeave}
-              className="group p-2.5 sm:p-3.5 rounded-full bg-discord-danger text-white hover:bg-discord-danger/90 hover:shadow-red-500/25 hover:shadow-xl transition-all duration-150 active:scale-90 shadow-lg"
-              title={t("voice:mediaTooltips.disconnect")}
-            >
-              <PhoneOff className="w-5 h-5 transition-transform duration-150 group-hover:scale-110" />
-            </button>
+            <Tooltip content={t("voice:mediaTooltips.disconnect")}>
+              <button
+                onClick={onLeave}
+                className="group p-2.5 sm:p-3.5 rounded-full bg-discord-danger text-white hover:bg-discord-danger/90 hover:shadow-red-500/25 hover:shadow-xl transition-all duration-150 active:scale-90 shadow-lg cursor-pointer"
+              >
+                <PhoneOff className="w-5 h-5 transition-transform duration-150 group-hover:scale-110" />
+              </button>
+            </Tooltip>
           </>
         )}
       </div>

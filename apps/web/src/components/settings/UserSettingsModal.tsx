@@ -201,9 +201,14 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
     const mimeType = rawType.includes("png")
       ? "image/png"
       : rawType.includes("jpeg") || rawType.includes("jpg")
-      ? "image/jpeg"
-      : "image/webp";
-    const ext = mimeType === "image/png" ? ".png" : mimeType === "image/jpeg" ? ".jpg" : ".webp";
+        ? "image/jpeg"
+        : "image/webp";
+    const ext =
+      mimeType === "image/png"
+        ? ".png"
+        : mimeType === "image/jpeg"
+          ? ".jpg"
+          : ".webp";
     const fileName = `user_avatar_${Date.now()}${ext}`;
 
     // 本地即时生成 Blob 预览，避免在点击保存前向服务端发起 GET 请求产生 404

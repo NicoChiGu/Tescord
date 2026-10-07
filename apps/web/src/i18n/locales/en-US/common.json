@@ -18,6 +18,8 @@
   "enabled": "Enabled",
   "disabled": "Disabled",
   "new": "NEW",
+  "selectPlaceholder": "Select an option...",
+  "noOptions": "No options available",
   "status": {
     "online": "Online",
     "idle": "Idle",
