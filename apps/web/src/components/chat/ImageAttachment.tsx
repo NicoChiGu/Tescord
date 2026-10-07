@@ -63,6 +63,24 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
     };
   }, [attachment.id || attachment.url, retryCount]);
 
+  const [naturalDims, setNaturalDims] = useState<{
+    width: number;
+    height: number;
+  }>();
+
+  // 监听屏幕/视口尺寸变化，以动态倍率缩减移动端图片及骨架屏基准尺寸
+  const [viewportWidth, setViewportWidth] = useState<number>(() =>
+    typeof window !== "undefined" ? window.innerWidth : 1024,
+  );
+
+  useEffect(() => {
+    const handleResize = () => {
+      setViewportWidth(window.innerWidth);
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const rawWidth =
     "width" in attachment && typeof (attachment as any).width === "number"
       ? (attachment as any).width
@@ -73,12 +91,28 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
       : undefined;
 
   const { displayWidth, displayHeight, aspectRatio } = React.useMemo(() => {
-    const maxWidth = 380;
-    const maxHeight = 280;
-    if (rawWidth && rawHeight && rawWidth > 0 && rawHeight > 0) {
-      const ratio = rawWidth / rawHeight;
-      let w = rawWidth;
-      let h = rawHeight;
+    // 动态倍率计算：根据屏幕视口宽度动态缩减最大基准尺寸，防止移动端超出容器
+    let scale = 1.0;
+    if (viewportWidth < 360) {
+      scale = 0.62; // 超小屏设备 (如 320px)
+    } else if (viewportWidth < 480) {
+      scale = 0.72; // 主流移动端竖屏 (360px ~ 480px)
+    } else if (viewportWidth < 640) {
+      scale = 0.84; // 大屏手机 / 窄平板
+    } else if (viewportWidth < 768) {
+      scale = 0.92; // 平板纵向 / 分屏
+    }
+
+    const maxWidth = Math.round(380 * scale);
+    const maxHeight = Math.round(280 * scale);
+
+    const effWidth = rawWidth || naturalDims?.width;
+    const effHeight = rawHeight || naturalDims?.height;
+
+    if (effWidth && effHeight && effWidth > 0 && effHeight > 0) {
+      const ratio = effWidth / effHeight;
+      let w = effWidth;
+      let h = effHeight;
       if (w > maxWidth) {
         w = maxWidth;
         h = Math.round(w / ratio);
@@ -88,26 +122,27 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
         w = Math.round(h * ratio);
       }
       return {
-        displayWidth: Math.max(w, 80),
-        displayHeight: Math.max(h, 60),
-        aspectRatio: `${rawWidth} / ${rawHeight}`,
+        displayWidth: Math.max(w, Math.round(80 * scale)),
+        displayHeight: Math.max(h, Math.round(60 * scale)),
+        aspectRatio: `${effWidth} / ${effHeight}`,
       };
     }
     return {
-      displayWidth: 256,
-      displayHeight: 160,
+      displayWidth: Math.round(256 * scale),
+      displayHeight: Math.round(160 * scale),
       aspectRatio: "16 / 9",
     };
-  }, [rawWidth, rawHeight]);
+  }, [rawWidth, rawHeight, naturalDims, viewportWidth]);
 
   return (
     <div
       style={{
         contain: "layout style",
         width: `${displayWidth}px`,
-        height: `${displayHeight}px`,
         maxWidth: "100%",
         aspectRatio,
+        height: "auto",
+        maxHeight: `${displayHeight}px`,
       }}
       className={`relative group/att rounded-lg overflow-hidden border border-[#3f4147] bg-[#1e1f22] select-none ${className}`}
     >
@@ -198,7 +233,14 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
             loading="lazy"
             decoding="async"
             style={{ width: "100%", height: "100%", objectFit: "contain" }}
-            onLoad={() => {
+            onLoad={(e) => {
+              if (!rawWidth || !rawHeight) {
+                const nw = e.currentTarget.naturalWidth;
+                const nh = e.currentTarget.naturalHeight;
+                if (nw > 0 && nh > 0) {
+                  setNaturalDims({ width: nw, height: nh });
+                }
+              }
               setStatus("loaded");
               onLoadSuccess?.();
             }}

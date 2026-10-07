@@ -70,24 +70,35 @@ export const GlobalMiniPlayer: React.FC = () => {
   // 窗口初始化位置
   useEffect(() => {
     if (position === null && typeof window !== "undefined") {
+      const widgetWidth = 320;
       const initialY = Math.max(20, window.innerHeight - 240);
-      const initialX = Math.max(20, window.innerWidth - 340 - 20);
+      const initialX = Math.max(10, window.innerWidth - widgetWidth - 20);
       setPosition({ x: initialX, y: initialY });
     }
   }, [position]);
 
-  // 窗口 resize 保持贴边
+  // 窗口 resize 保持贴边与移动端边界约束
   useEffect(() => {
     const handleResize = () => {
       if (!playerRef.current) return;
       const widgetWidth = playerRef.current.offsetWidth || 320;
       setPosition((prev) => {
         if (!prev) return null;
+        const margin = Math.min(
+          20,
+          Math.max(8, (window.innerWidth - widgetWidth) / 2),
+        );
         const newX =
           snappedSide === "left"
-            ? 20
-            : Math.max(20, window.innerWidth - widgetWidth - 20);
-        const newY = Math.max(20, Math.min(window.innerHeight - 80, prev.y));
+            ? Math.max(0, margin)
+            : Math.max(0, window.innerWidth - widgetWidth - margin);
+        const newY = Math.max(
+          10,
+          Math.min(
+            window.innerHeight - (playerRef.current?.offsetHeight || 80) - 10,
+            prev.y,
+          ),
+        );
         return { x: newX, y: newY };
       });
     };
@@ -95,50 +106,67 @@ export const GlobalMiniPlayer: React.FC = () => {
     return () => window.removeEventListener("resize", handleResize);
   }, [snappedSide]);
 
-  // 浮窗全窗口拖拽与吸附两侧逻辑
-  const handlePlayerDragStart = (e: React.MouseEvent) => {
+  // 浮窗全窗口拖拽与吸附两侧逻辑 (全端统合 Pointer Events，深度支持触屏与移动端手势)
+  const handlePlayerPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // 鼠标仅允许主键 (左键)，移动端触控/触控笔不受 button 限制
+    if (e.pointerType === "mouse" && e.button !== 0) {
+      return;
+    }
     // 忽略按钮与交互区域触发的拖拽
     if ((e.target as HTMLElement).closest("button, input, [role='slider']")) {
       return;
     }
     e.preventDefault();
 
+    const target = e.currentTarget;
+    const pointerId = e.pointerId;
+    try {
+      target.setPointerCapture(pointerId);
+    } catch {}
+
     const startX = e.clientX;
     const startY = e.clientY;
     const initialPos = position || {
-      x: window.innerWidth - (playerRef.current?.offsetWidth || 320) - 20,
-      y: window.innerHeight - 240,
+      x: Math.max(
+        10,
+        window.innerWidth - (playerRef.current?.offsetWidth || 320) - 20,
+      ),
+      y: Math.max(10, window.innerHeight - 240),
     };
 
     setIsDraggingPlayer(true);
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
       const deltaX = moveEvent.clientX - startX;
       const deltaY = moveEvent.clientY - startY;
 
       const widgetWidth = playerRef.current?.offsetWidth || 320;
       const widgetHeight = playerRef.current?.offsetHeight || 160;
 
-      const clampedX = Math.max(
-        0,
-        Math.min(window.innerWidth - widgetWidth, initialPos.x + deltaX),
-      );
-      const clampedY = Math.max(
-        10,
-        Math.min(window.innerHeight - widgetHeight - 10, initialPos.y + deltaY),
-      );
+      // 移动端视口边界防护：确保不超出屏幕可视区域
+      const safeMaxX = Math.max(0, window.innerWidth - widgetWidth);
+      const safeMaxY = Math.max(0, window.innerHeight - widgetHeight - 10);
+
+      const clampedX = Math.max(0, Math.min(safeMaxX, initialPos.x + deltaX));
+      const clampedY = Math.max(10, Math.min(safeMaxY, initialPos.y + deltaY));
 
       setPosition({ x: clampedX, y: clampedY });
     };
 
     const cleanup = () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
+      try {
+        target.releasePointerCapture(pointerId);
+      } catch {}
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
       dragCleanupRef.current = null;
     };
     dragCleanupRef.current = cleanup;
 
-    const onMouseUp = () => {
+    const onPointerUp = (upEvent: PointerEvent) => {
+      if (upEvent.pointerId !== pointerId) return;
       cleanup();
       setIsDraggingPlayer(false);
 
@@ -151,14 +179,22 @@ export const GlobalMiniPlayer: React.FC = () => {
         const snapLeft = centerX < window.innerWidth / 2;
 
         setSnappedSide(snapLeft ? "left" : "right");
-        const targetX = snapLeft ? 20 : window.innerWidth - widgetWidth - 20;
+        // 移动端防越界安全磁吸边距
+        const margin = Math.min(
+          20,
+          Math.max(8, (window.innerWidth - widgetWidth) / 2),
+        );
+        const targetX = snapLeft
+          ? Math.max(0, margin)
+          : Math.max(0, window.innerWidth - widgetWidth - margin);
 
         return { x: targetX, y: prev.y };
       });
     };
 
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
   };
 
   // 当活跃音轨变更时加载波形数据
@@ -197,25 +233,39 @@ export const GlobalMiniPlayer: React.FC = () => {
     return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
   };
 
-  const handleWaveformMouseDown = (e: React.MouseEvent) => {
+  const handleWaveformPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
     e.preventDefault();
     e.stopPropagation();
+
+    const target = e.currentTarget;
+    const pointerId = e.pointerId;
+    try {
+      target.setPointerCapture(pointerId);
+    } catch {}
+
     const percent = calculatePercent(e.clientX);
     setIsScrubbing(true);
     setScrubPercent(percent);
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
       setScrubPercent(calculatePercent(moveEvent.clientX));
     };
 
     const cleanup = () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
+      try {
+        target.releasePointerCapture(pointerId);
+      } catch {}
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
       scrubCleanupRef.current = null;
     };
     scrubCleanupRef.current = cleanup;
 
-    const onMouseUp = (upEvent: MouseEvent) => {
+    const onPointerUp = (upEvent: PointerEvent) => {
+      if (upEvent.pointerId !== pointerId) return;
       cleanup();
       const finalPercent = calculatePercent(upEvent.clientX);
       setIsScrubbing(false);
@@ -223,8 +273,9 @@ export const GlobalMiniPlayer: React.FC = () => {
       seek(finalPercent * (duration || 1));
     };
 
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
   };
 
   const cyclePlaybackRate = () => {
@@ -256,8 +307,8 @@ export const GlobalMiniPlayer: React.FC = () => {
       ref={playerRef}
       style={stylePosition}
       data-testid="global-mini-audio-player"
-      onMouseDown={handlePlayerDragStart}
-      className={`fixed z-50 select-none ${
+      onPointerDown={handlePlayerPointerDown}
+      className={`fixed z-50 select-none touch-none ${
         position ? "" : "bottom-5 right-5"
       } ${
         isDraggingPlayer
@@ -268,7 +319,7 @@ export const GlobalMiniPlayer: React.FC = () => {
       {!isExpanded ? (
         /* 极简迷你胶囊状态 (Minimal Capsule Pill) */
         <div className="flex items-center gap-2.5 px-3.5 py-2 bg-[#1e1f22]/95 backdrop-blur-md border border-[#383a40] hover:border-discord-brand/50 rounded-full shadow-2xl text-white transition-all duration-200 hover:shadow-discord-brand/10">
-          <div className="cursor-grab active:cursor-grabbing text-discord-textMuted hover:text-white p-0.5 -ml-1">
+          <div className="cursor-grab active:cursor-grabbing text-discord-textMuted hover:text-white p-1 -ml-1 touch-none">
             <GripVertical className="w-3.5 h-3.5" />
           </div>
 
@@ -345,11 +396,11 @@ export const GlobalMiniPlayer: React.FC = () => {
         </div>
       ) : (
         /* 展开完整浮动播放卡片 (Expanded Floating Dock) */
-        <div className="flex flex-col gap-3 p-4 bg-[#1e1f22]/95 backdrop-blur-lg border border-[#383a40] rounded-2xl shadow-2xl text-white w-80 transition-all duration-200">
+        <div className="flex flex-col gap-3 p-4 bg-[#1e1f22]/95 backdrop-blur-lg border border-[#383a40] rounded-2xl shadow-2xl text-white w-80 max-w-[calc(100vw-20px)] transition-all duration-200">
           {/* 顶栏：拖拽把手、标题与操作 */}
           <div className="flex items-center justify-between gap-2 min-w-0">
             <div className="flex items-center gap-2 min-w-0 flex-1">
-              <div className="cursor-grab active:cursor-grabbing text-discord-textMuted hover:text-white p-0.5 -ml-1">
+              <div className="cursor-grab active:cursor-grabbing text-discord-textMuted hover:text-white p-1 -ml-1 touch-none">
                 <GripVertical className="w-4 h-4" />
               </div>
 
@@ -437,8 +488,8 @@ export const GlobalMiniPlayer: React.FC = () => {
               aria-valuemin={0}
               aria-valuemax={duration}
               aria-valuenow={currentTime}
-              onMouseDown={handleWaveformMouseDown}
-              className={`relative h-10 bg-[#2b2d31]/80 rounded-lg cursor-pointer select-none border border-transparent hover:border-[#4e5058]/50 overflow-hidden ${
+              onPointerDown={handleWaveformPointerDown}
+              className={`relative h-10 bg-[#2b2d31]/80 rounded-lg cursor-pointer select-none touch-none border border-transparent hover:border-[#4e5058]/50 overflow-hidden ${
                 isScrubbing ? "ring-1 ring-discord-brand" : ""
               }`}
             >

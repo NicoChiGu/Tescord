@@ -555,7 +555,7 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
                           setLightboxImage(att),
                         )
                       }
-                      className="inline-block"
+                      className="inline-block max-w-full"
                     >
                       <ImageAttachment
                         attachment={att}

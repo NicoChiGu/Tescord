@@ -160,27 +160,40 @@ export const AudioAttachment: React.FC<AudioAttachmentProps> = ({
     return Math.max(0, Math.min(1, relativeX / rect.width));
   };
 
-  const handleWaveformMouseDown = (e: React.MouseEvent) => {
+  const handleWaveformPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
     e.preventDefault();
     if (!mediaUrl) return;
+
+    const target = e.currentTarget;
+    const pointerId = e.pointerId;
+    try {
+      target.setPointerCapture(pointerId);
+    } catch {}
 
     const percent = calculatePercentFromEvent(e.clientX);
     setIsScrubbing(true);
     setScrubPercent(percent);
 
-    const onMouseMove = (moveEvent: MouseEvent) => {
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      if (moveEvent.pointerId !== pointerId) return;
       const p = calculatePercentFromEvent(moveEvent.clientX);
       setScrubPercent(p);
     };
 
     const cleanup = () => {
-      window.removeEventListener("mousemove", onMouseMove);
-      window.removeEventListener("mouseup", onMouseUp);
+      try {
+        target.releasePointerCapture(pointerId);
+      } catch {}
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
       scrubCleanupRef.current = null;
     };
     scrubCleanupRef.current = cleanup;
 
-    const onMouseUp = (upEvent: MouseEvent) => {
+    const onPointerUp = (upEvent: PointerEvent) => {
+      if (upEvent.pointerId !== pointerId) return;
       cleanup();
 
       const finalPercent = calculatePercentFromEvent(upEvent.clientX);
@@ -209,8 +222,9 @@ export const AudioAttachment: React.FC<AudioAttachmentProps> = ({
       }
     };
 
-    window.addEventListener("mousemove", onMouseMove);
-    window.addEventListener("mouseup", onMouseUp);
+    window.addEventListener("pointermove", onPointerMove);
+    window.addEventListener("pointerup", onPointerUp);
+    window.addEventListener("pointercancel", onPointerUp);
   };
 
   // 4. 倍速切换 (1.0x -> 1.25x -> 1.5x -> 2.0x)
@@ -391,8 +405,8 @@ export const AudioAttachment: React.FC<AudioAttachmentProps> = ({
           aria-valuemin={0}
           aria-valuemax={currentDuration}
           aria-valuenow={currentProgressSeconds}
-          onMouseDown={handleWaveformMouseDown}
-          className={`flex-1 h-9 flex items-center justify-between gap-[2.5px] px-1.5 py-1 bg-[#1e1f22]/70 rounded-lg cursor-pointer select-none group/waveform transition-colors border border-transparent hover:border-[#4e5058]/50 ${
+          onPointerDown={handleWaveformPointerDown}
+          className={`flex-1 h-9 flex items-center justify-between gap-[2.5px] px-1.5 py-1 bg-[#1e1f22]/70 rounded-lg cursor-pointer select-none touch-none group/waveform transition-colors border border-transparent hover:border-[#4e5058]/50 ${
             isScrubbing ? "ring-1 ring-discord-brand" : ""
           }`}
         >
