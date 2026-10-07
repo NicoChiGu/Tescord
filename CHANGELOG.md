@@ -2,6 +2,54 @@
 
 本文档遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/) 格式，并严格记录每个版本的变更与修复项。发布时 CI 将自动从本文件中提取对应版本的更新日志推送到 GitHub Releases。
 
+## [0.3.7] - 2026-10-08
+
+### 🚀 新增功能与体验革新 (Features & UX)
+
+- **Discord 风格移动端手势动作抽屉 (Discord-Style Mobile Action Drawer)**：
+  - 基于手势引擎与 `vaul` 打造丝滑的移动端底部动作抽屉，配备深色磨砂蒙层、居中拖拽把手及全视口底部安全区（`safe-area-inset-bottom`）；
+  - 触发长按时提供 40ms 细腻触觉震动反馈（Haptic Feedback），并自动失焦收起系统软键盘；
+  - 核心操作内置“原地红色二次确认（Inline Destructive Confirmation）”交互，危险动作（删除/撤回等）点击就地提示并在 3.5s 后自动重置，避免打断式弹窗。
+
+- **多级子菜单下钻导航栈 (Nested Sub-menu Drill-down Navigation)**：
+  - 抽屉内部通过 `ActionDrawerContext` 支持子页面下钻视图入栈（`pushView`）与出栈（`popView`）；
+  - 顶部自动呈现带返回箭头的导航栏，移动端多级菜单体验（如频道静音时长等）高度拟合原生 App。
+
+- **全响应式上下文菜单桥接适配器 (Responsive Context Menu Bridge)**：
+  - 重构 `apps/web/src/components/ui/context-menu.tsx`，在 PC 桌面端继续保持 Radix UI 浮动菜单与坐标物理缓存防闪烁机制；
+  - 在移动触控设备（视口 `< 1024px` 或触控设备）自动降级并转换为 Discord 风格的 `ActionDrawer`，业务组件零改动兼容双端。
+
+- **全新移动端消息操作面板与 Emoji 快捷栏 (Redesigned Mobile Action Sheet)**：
+  - 顶部横向集成 8 个高频 Emoji 快捷回应栏（👍 ❤️ 😂 🎉 🔥 👏 👀 🚀）及更多表情选择器；
+  - 整合引用回复、编辑消息、置顶/取消置顶、复制文字与原地确认删除等高频操作。
+
+### 🛠️ 细节优化与交互对齐 (Improvements & Polish)
+
+- **响应式图片与骨架屏等比缩放 (Responsive Image & Skeleton Scaling)**：
+  - 优化小屏设备（320px ~ 768px）图片气泡与加载骨架屏尺寸，自动计算视口缩放阶梯比例（Scale Factor）；
+  - 严格维持原图长宽比（`aspect-ratio`）与 `max-w-full`，彻底杜绝横向撑破聊天气泡与视口。
+
+- **迷你音频浮窗移动端触控拖拽升级 (Mini Audio Player Mobile Touch Dragging)**：
+  - 将小窗拖拽与波形定位重构为 W3C 标准 `PointerEvent`，绑定 `setPointerCapture` 与 `touch-none` 样式；
+  - 消除浏览器原生下拉刷新/滑动手势干扰，增加移动端视口边界防负数安全裁切，解决边缘闪烁问题。
+
+- **长按手势防抖与黄金阈值调优 (Long-Press Haptic Debounce & Threshold Tuning)**：
+  - `useLongPress` 触发阈值调优至 450ms 黄金时长，并加入 10px 位移防抖容差，完美区分滚动与长按；
+  - 修复 `ChatArea.tsx` 中触屏判定逻辑缺陷，确保移动端长按消息 100% 稳定唤起。
+
+- **Tooltip 组件事件穿透保障 (Tooltip Event Pass-Through)**：
+  - 使用 `React.forwardRef` 包装，全面透传 `onContextMenu` 与 `onPointerDown` 事件，杜绝作为包裹层时吞掉长按或破坏 Radix ref 绑定。
+
+- **全域多语言 100% 对称对齐 (Full-Stack 5-Locale i18n Alignment)**：
+  - 5 套官方语言包（`zh-CN`、`zh-TW`、`zh-HK`、`en-US`、`ja-JP`）全量同步更新新增特性与提示文案，零漏键、零硬编码。
+
+### 🧪 自动化测试 (E2E Tests)
+
+- 新增 `e2e/mobile-action-drawer.spec.ts` 移动端动作抽屉与子菜单下钻自动化验收测试；
+- 新增 `e2e/mobile-image-skeleton-and-floating-player-drag.spec.ts` 移动端图片缩减与播放器拖拽验收测试。
+
+---
+
 ## [0.3.6] - 2026-10-07
 
 ### 🚀 新增功能与体验革新 (Features & UX)

@@ -1,8 +1,51 @@
 import { VersionChangelog } from "@tescord/types";
 
-export const CURRENT_APP_VERSION = "0.3.6";
+export const CURRENT_APP_VERSION = "0.3.7";
 
 export const BUILTIN_CHANGELOGS: VersionChangelog[] = [
+  {
+    version: "0.3.7",
+    releaseDate: "2026-10-08",
+    releaseUrl: "https://github.com/NicoChiGu/Tescord/releases/tag/0.3.7",
+    items: [
+      {
+        id: "mobile-action-drawer",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_7_action_drawer_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_7_action_drawer_desc",
+      },
+      {
+        id: "nested-submenu-navigation",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_7_nested_submenu_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_7_nested_submenu_desc",
+      },
+      {
+        id: "mobile-message-actions",
+        category: "features",
+        titleKey: "modals:whatsNew.items.v0_3_7_mobile_actions_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_7_mobile_actions_desc",
+      },
+      {
+        id: "responsive-image-skeleton",
+        category: "improvements",
+        titleKey: "modals:whatsNew.items.v0_3_7_image_skeleton_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_7_image_skeleton_desc",
+      },
+      {
+        id: "mini-player-touch-drag",
+        category: "improvements",
+        titleKey: "modals:whatsNew.items.v0_3_7_mini_player_drag_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_7_mini_player_drag_desc",
+      },
+      {
+        id: "long-press-debounce",
+        category: "improvements",
+        titleKey: "modals:whatsNew.items.v0_3_7_long_press_debounce_title",
+        descriptionKey: "modals:whatsNew.items.v0_3_7_long_press_debounce_desc",
+      },
+    ],
+  },
   {
     version: "0.3.6",
     releaseDate: "2026-10-07",
