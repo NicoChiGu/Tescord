@@ -345,41 +345,53 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
         Object.defineProperty(navigator.mediaDevices, "getDisplayMedia", {
           configurable: true,
           value: async () => {
-            if (!measureVideoLatency)
-              return navigator.mediaDevices.getUserMedia({
+            let videoTracks: MediaStreamTrack[];
+            let audioTracks: MediaStreamTrack[];
+            if (!measureVideoLatency) {
+              const stream = await navigator.mediaDevices.getUserMedia({
                 video: true,
                 audio: true,
               });
-            const canvas = document.createElement("canvas");
-            canvas.width = 640;
-            canvas.height = 360;
-            const ctx = canvas.getContext("2d")!;
-            const paint = () => {
-              const encoded = Date.now() & 0xffffff;
-              ctx.fillStyle = "#555";
-              ctx.fillRect(0, 0, 640, 360);
-              for (let bit = 0; bit < 24; bit++) {
-                ctx.fillStyle = (encoded >>> bit) & 1 ? "#fff" : "#000";
-                ctx.fillRect(20 + bit * 20, 0, 20, 100);
-              }
-              for (let bit = 0; bit < 4; bit++) {
-                ctx.fillStyle = bit % 2 ? "#000" : "#fff";
-                ctx.fillRect(550 + bit * 20, 0, 20, 100);
-              }
-            };
-            paint();
-            const timer = setInterval(paint, 33);
-            const video = canvas.captureStream(30);
-            video
-              .getVideoTracks()[0]
-              .addEventListener("ended", () => clearInterval(timer), {
-                once: true,
+              videoTracks = stream.getVideoTracks();
+              audioTracks = stream.getAudioTracks();
+            } else {
+              const canvas = document.createElement("canvas");
+              canvas.width = 640;
+              canvas.height = 360;
+              const ctx = canvas.getContext("2d")!;
+              const paint = () => {
+                const encoded = Date.now() & 0xffffff;
+                ctx.fillStyle = "#555";
+                ctx.fillRect(0, 0, 640, 360);
+                for (let bit = 0; bit < 24; bit++) {
+                  ctx.fillStyle = (encoded >>> bit) & 1 ? "#fff" : "#000";
+                  ctx.fillRect(20 + bit * 20, 0, 20, 100);
+                }
+                for (let bit = 0; bit < 4; bit++) {
+                  ctx.fillStyle = bit % 2 ? "#000" : "#fff";
+                  ctx.fillRect(550 + bit * 20, 0, 20, 100);
+                }
+              };
+              paint();
+              const timer = setInterval(paint, 33);
+              const video = canvas.captureStream(30);
+              video
+                .getVideoTracks()[0]
+                .addEventListener("ended", () => clearInterval(timer), {
+                  once: true,
+                });
+              const audio = await nativeGetUserMedia({ audio: true });
+              videoTracks = video.getVideoTracks();
+              audioTracks = audio.getAudioTracks();
+            }
+            for (const vt of videoTracks) {
+              const originalGetSettings = vt.getSettings.bind(vt);
+              vt.getSettings = () => ({
+                ...originalGetSettings(),
+                displaySurface: "monitor",
               });
-            const audio = await nativeGetUserMedia({ audio: true });
-            return new MediaStream([
-              ...video.getVideoTracks(),
-              ...audio.getAudioTracks(),
-            ]);
+            }
+            return new MediaStream([...videoTracks, ...audioTracks]);
           },
         });
         window.RTCPeerConnection = class extends NativePC {
