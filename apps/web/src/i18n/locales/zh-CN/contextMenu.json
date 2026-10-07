@@ -117,5 +117,8 @@
     "copyLinkSuccess": "已复制附件链接至剪贴板",
     "openInNewTab": "在浏览器新标签页打开",
     "previewImage": "查看原图"
-  }
+  },
+  "messageActions": "消息操作",
+  "subOptions": "子选项",
+  "confirmAction": "确认执行？"
 }

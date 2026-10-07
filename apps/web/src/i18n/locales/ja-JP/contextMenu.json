@@ -117,5 +117,8 @@
     "copyLinkSuccess": "添付ファイルのリンクをクリップボードにコピーしました",
     "openInNewTab": "新しいタブで開く",
     "previewImage": "元の画像を表示"
-  }
+  },
+  "messageActions": "メッセージ操作",
+  "subOptions": "オプション",
+  "confirmAction": "確認しますか？"
 }

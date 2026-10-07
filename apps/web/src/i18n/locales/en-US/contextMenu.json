@@ -117,5 +117,8 @@
     "copyLinkSuccess": "Attachment link copied to clipboard",
     "openInNewTab": "Open in New Tab",
     "previewImage": "View Full Image"
-  }
+  },
+  "messageActions": "Message Actions",
+  "subOptions": "Options",
+  "confirmAction": "Confirm?"
 }

@@ -117,5 +117,8 @@
     "copyLinkSuccess": "已複製附件連結到剪貼簿",
     "openInNewTab": "在瀏覽器新分頁開啟",
     "previewImage": "檢視原圖"
-  }
+  },
+  "messageActions": "訊息操作",
+  "subOptions": "子選項",
+  "confirmAction": "確認執行？"
 }

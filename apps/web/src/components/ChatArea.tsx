@@ -265,13 +265,29 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
   const isSelectedOnMobile = isMobile && selectedMessageId === msg.id;
 
   const longPressProps = useLongPress(() => {
-    if (isTouchDevice && !isMobile) {
+    if (isTouchDevice || isMobile) {
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        try {
+          navigator.vibrate(40);
+        } catch {}
+      }
+      if (typeof document !== "undefined" && document.activeElement) {
+        (document.activeElement as HTMLElement)?.blur?.();
+      }
       onOpenMobileActions(msg);
     }
   });
 
   const handleContextMenu = (e: React.MouseEvent) => {
     e.preventDefault();
+    const isMobileViewport =
+      isMobile ||
+      isTablet ||
+      (typeof window !== "undefined" && window.innerWidth < 1024);
+    if (isMobileViewport) {
+      onOpenMobileActions(msg);
+      return;
+    }
     useContextMenuStore.getState().openMenu(e.clientX, e.clientY, {
       type: "message",
       message: msg,
@@ -325,7 +341,7 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
       id={`message-${msg.id}`}
       data-message-id={msg.id}
       data-message-item={msg.id}
-      {...(isMobile ? {} : longPressProps)}
+      {...longPressProps}
       onClick={(e) => {
         if (!isMobile) return;
         if (

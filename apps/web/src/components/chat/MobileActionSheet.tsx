@@ -1,14 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Message, Guild } from "@tescord/types";
 import { usePermissions } from "../../hooks/usePermissions.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
-import { Reply, Pin, Edit2, Trash2, Copy, Check, X, Smile } from "lucide-react";
+import { Reply, Pin, Edit2, Trash2, Copy, Check, Smile } from "lucide-react";
 import { EmojiPickerPopover } from "./EmojiPickerPopover.js";
+import { ActionDrawer, DrawerItem } from "../ui/action-drawer.js";
 
 const QUICK_REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🚀", "🎉", "🔥"];
 
-interface MobileActionSheetProps {
+export interface MobileActionSheetProps {
   isOpen: boolean;
   message: Message | null;
   guild?: Guild | null;
@@ -36,15 +37,8 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
   const { canManageMessages } = usePermissions(guild);
   const [copiedText, setCopiedText] = useState(false);
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false);
-  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
-  useEffect(() => {
-    if (!isOpen) {
-      setIsConfirmingDelete(false);
-    }
-  }, [isOpen]);
-
-  if (!isOpen || !message) return null;
+  if (!message) return null;
 
   const isAuthor = currentUser?.id === message.authorId;
   const canDelete = isAuthor || canManageMessages;
@@ -68,114 +62,86 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
     onClose();
   };
 
-  const handleDeleteClick = () => {
-    if (!isConfirmingDelete) {
-      setIsConfirmingDelete(true);
-      return;
-    }
-    onDelete?.(message.id);
-    onClose();
-  };
+  const emojiHeader = (
+    <div
+      data-testid="drawer-quick-reactions"
+      className="bg-[#1e1f22] p-2 rounded-xl flex items-center justify-between overflow-x-auto custom-scrollbar border border-[#35373c]/50"
+    >
+      <div className="flex items-center space-x-1.5 sm:space-x-2">
+        {QUICK_REACTIONS.map((emoji) => (
+          <button
+            key={emoji}
+            type="button"
+            data-testid={`quick-reaction-${emoji}`}
+            onClick={() => handleReactionClick(emoji)}
+            className="w-10 h-10 flex items-center justify-center text-2xl hover:bg-[#35373c] active:scale-125 rounded-lg transition"
+          >
+            {emoji}
+          </button>
+        ))}
+      </div>
+
+      <div className="relative pl-2 border-l border-[#35373c] flex-shrink-0">
+        <button
+          type="button"
+          onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
+          className="w-10 h-10 flex items-center justify-center text-discord-textMuted hover:text-white hover:bg-[#35373c] rounded-lg transition"
+          title={t("contextMenu:moreReactions", "更多表情")}
+        >
+          <Smile className="w-5 h-5" />
+        </button>
+        <EmojiPickerPopover
+          isOpen={isEmojiPickerOpen}
+          onClose={() => setIsEmojiPickerOpen(false)}
+          onSelectEmoji={(emoji) => {
+            setIsEmojiPickerOpen(false);
+            handleReactionClick(emoji);
+          }}
+          guildId={guild?.id}
+        />
+      </div>
+    </div>
+  );
 
   return (
-    <div
+    <ActionDrawer
+      isOpen={isOpen}
+      onClose={onClose}
+      title={t("contextMenu:messageActions", "消息操作")}
+      headerContent={emojiHeader}
       data-testid="mobile-action-sheet"
-      className="fixed inset-0 z-50 flex flex-col justify-end lg:hidden"
     >
-      {/* 遮罩背景 */}
-      <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity animate-fade-in"
-        onClick={onClose}
-      />
+      <div className="bg-[#1e1f22] rounded-xl overflow-hidden divide-y divide-[#35373c]/50 border border-[#35373c]/50">
+        {/* 引用回复 */}
+        {onReply && (
+          <DrawerItem
+            icon={Reply}
+            label={t("contextMenu:quoteReply", "引用回复")}
+            data-testid="mobile-action-reply"
+            onClick={() => {
+              onReply(message);
+              onClose();
+            }}
+          />
+        )}
 
-      {/* 底部抽屉主体 */}
-      <div className="relative z-10 w-full bg-[#2b2d31] rounded-t-2xl shadow-2xl border-t border-[#3f4147] px-4 pt-3 pb-[calc(1.25rem+env(safe-area-inset-bottom))] animate-slide-up flex flex-col space-y-3">
-        {/* 顶部指示条与关闭按钮 */}
-        <div className="flex items-center justify-between pb-1">
-          <div className="w-10 h-1 bg-[#4e5058] rounded-full mx-auto" />
-          <button
-            onClick={onClose}
-            className="absolute right-4 top-3 text-discord-textMuted hover:text-white p-1"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
+        {/* 编辑消息 */}
+        {isAuthor && onEdit && (
+          <DrawerItem
+            icon={Edit2}
+            label={t("contextMenu:editMessage", "编辑消息")}
+            data-testid="mobile-action-edit"
+            onClick={() => {
+              onEdit(message);
+              onClose();
+            }}
+          />
+        )}
 
-        {/* 快捷 Emoji 表情条 */}
-        <div className="bg-[#1e1f22] p-2 rounded-xl flex items-center justify-between overflow-x-auto custom-scrollbar">
-          <div className="flex items-center space-x-2">
-            {QUICK_REACTIONS.map((emoji) => (
-              <button
-                key={emoji}
-                type="button"
-                onClick={() => handleReactionClick(emoji)}
-                className="w-10 h-10 flex items-center justify-center text-2xl hover:bg-[#35373c] active:scale-125 rounded-lg transition"
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
-
-          <div className="relative pl-2 border-l border-[#35373c] flex-shrink-0">
-            <button
-              onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
-              className="w-10 h-10 flex items-center justify-center text-discord-textMuted hover:text-white hover:bg-[#35373c] rounded-lg transition"
-              title={t("contextMenu:moreReactions", "更多表情")}
-            >
-              <Smile className="w-5 h-5" />
-            </button>
-            <EmojiPickerPopover
-              isOpen={isEmojiPickerOpen}
-              onClose={() => setIsEmojiPickerOpen(false)}
-              onSelectEmoji={(emoji) => {
-                setIsEmojiPickerOpen(false);
-                handleReactionClick(emoji);
-              }}
-              guildId={guild?.id}
-            />
-          </div>
-        </div>
-
-        {/* 操作项按钮列表 */}
-        <div className="bg-[#1e1f22] rounded-xl overflow-hidden divide-y divide-[#35373c]">
-          {onReply && (
-            <button
-              onClick={() => {
-                onReply(message);
-                onClose();
-              }}
-              className="w-full flex items-center space-x-3 px-4 py-3.5 text-discord-textNormal hover:bg-[#35373c] active:bg-discord-brand active:text-white transition"
-            >
-              <Reply className="w-5 h-5 text-discord-textMuted" />
-              <span className="text-sm font-medium">
-                {t("contextMenu:quoteReply", "引用回复")}
-              </span>
-            </button>
-          )}
-
-          {isAuthor && onEdit && (
-            <button
-              onClick={() => {
-                onEdit(message);
-                onClose();
-              }}
-              className="w-full flex items-center space-x-3 px-4 py-3.5 text-discord-textNormal hover:bg-[#35373c] active:bg-discord-brand active:text-white transition"
-            >
-              <Edit2 className="w-5 h-5 text-discord-textMuted" />
-              <span className="text-sm font-medium">
-                {t("contextMenu:editMessage", "编辑消息")}
-              </span>
-            </button>
-          )}
-
-          {(isAuthor || canManageMessages) && onTogglePin && (
-            <button
-              onClick={() => {
-                onTogglePin(message.id);
-                onClose();
-              }}
-              className="w-full flex items-center space-x-3 px-4 py-3.5 text-discord-textNormal hover:bg-[#35373c] active:bg-discord-brand active:text-white transition"
-            >
+        {/* 置顶 / 取消置顶 */}
+        {(isAuthor || canManageMessages) && onTogglePin && (
+          <DrawerItem
+            icon={() => (
               <Pin
                 className={`w-5 h-5 ${
                   message.isPinned
@@ -183,49 +149,48 @@ export const MobileActionSheet: React.FC<MobileActionSheetProps> = ({
                     : "text-discord-textMuted"
                 }`}
               />
-              <span className="text-sm font-medium">
-                {message.isPinned
-                  ? t("contextMenu:unpinMessage", "取消置顶")
-                  : t("contextMenu:pinMessage", "置顶该消息")}
-              </span>
-            </button>
-          )}
-
-          <button
-            onClick={handleCopyText}
-            className="w-full flex items-center space-x-3 px-4 py-3.5 text-discord-textNormal hover:bg-[#35373c] active:bg-discord-brand active:text-white transition"
-          >
-            {copiedText ? (
-              <Check className="w-5 h-5 text-discord-green" />
-            ) : (
-              <Copy className="w-5 h-5 text-discord-textMuted" />
             )}
-            <span className="text-sm font-medium">
-              {copiedText
-                ? t("common:copied", "已复制到剪贴板")
-                : t("contextMenu:copyText", "复制文字内容")}
-            </span>
-          </button>
+            label={
+              message.isPinned
+                ? t("contextMenu:unpinMessage", "取消置顶")
+                : t("contextMenu:pinMessage", "置顶该消息")
+            }
+            data-testid="mobile-action-pin"
+            onClick={() => {
+              onTogglePin(message.id);
+              onClose();
+            }}
+          />
+        )}
 
-          {canDelete && onDelete && (
-            <button
-              onClick={handleDeleteClick}
-              className={`w-full flex items-center space-x-3 px-4 py-3.5 transition ${
-                isConfirmingDelete
-                  ? "bg-discord-danger text-white font-semibold"
-                  : "text-discord-danger hover:bg-discord-danger/10 active:bg-discord-danger active:text-white"
-              }`}
-            >
-              <Trash2 className="w-5 h-5" />
-              <span className="text-sm font-medium">
-                {isConfirmingDelete
-                  ? t("contextMenu:confirmDelete", "确认删除?")
-                  : t("contextMenu:deleteOrRecall", "删除 / 撤回此消息")}
-              </span>
-            </button>
-          )}
-        </div>
+        {/* 复制文字内容 */}
+        <DrawerItem
+          icon={copiedText ? Check : Copy}
+          label={
+            copiedText
+              ? t("common:copied", "已复制到剪贴板")
+              : t("contextMenu:copyText", "复制文字内容")
+          }
+          data-testid="mobile-action-copy"
+          onClick={handleCopyText}
+        />
+
+        {/* 删除 / 撤回此消息 (带原地红色二次确认) */}
+        {canDelete && onDelete && (
+          <DrawerItem
+            icon={Trash2}
+            variant="danger"
+            isDestructive={true}
+            confirmLabel={t("contextMenu:confirmDelete", "确认删除？")}
+            label={t("contextMenu:deleteOrRecall", "删除 / 撤回此消息")}
+            data-testid="mobile-action-delete"
+            onClick={() => {
+              onDelete(message.id);
+              onClose();
+            }}
+          />
+        )}
       </div>
-    </div>
+    </ActionDrawer>
   );
 };

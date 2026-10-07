@@ -1,60 +1,21 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useEffect } from "react";
 
 export interface LongPressOptions {
-  threshold?: number; // 毫秒，默认 500ms
-  moveTolerance?: number; // 允许的手指移动像素，默认 10px
+  threshold?: number; // 毫秒，默认 450ms
+  moveTolerance?: number; // 允许的移动像素，默认 10px
   vibrate?: boolean; // 是否触发轻微震动反馈
 }
 
 export function useLongPress(
-  onLongPress: (e: React.TouchEvent | React.MouseEvent) => void,
+  onLongPress: (
+    e: React.TouchEvent | React.MouseEvent | React.PointerEvent,
+  ) => void,
   options: LongPressOptions = {},
 ) {
-  const { threshold = 500, moveTolerance = 10, vibrate = true } = options;
+  const { threshold = 450, moveTolerance = 10, vibrate = true } = options;
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const startPosRef = useRef<{ x: number; y: number } | null>(null);
   const isLongPressTriggeredRef = useRef(false);
-
-  const start = useCallback(
-    (e: React.TouchEvent) => {
-      // 仅针对单指触摸
-      if (e.touches.length > 1) return;
-      const touch = e.touches[0];
-      startPosRef.current = { x: touch.clientX, y: touch.clientY };
-      isLongPressTriggeredRef.current = false;
-
-      timerRef.current = setTimeout(() => {
-        isLongPressTriggeredRef.current = true;
-        if (vibrate && typeof navigator !== "undefined" && navigator.vibrate) {
-          try {
-            navigator.vibrate(40);
-          } catch {
-            // 忽略某些浏览器安全策略限制
-          }
-        }
-        onLongPress(e);
-      }, threshold);
-    },
-    [onLongPress, threshold, vibrate],
-  );
-
-  const move = useCallback(
-    (e: React.TouchEvent) => {
-      if (!startPosRef.current || e.touches.length === 0) return;
-      const touch = e.touches[0];
-      const dx = Math.abs(touch.clientX - startPosRef.current.x);
-      const dy = Math.abs(touch.clientY - startPosRef.current.y);
-
-      // 手指滑动超过容差，说明是滚动页面，取消长按
-      if (dx > moveTolerance || dy > moveTolerance) {
-        if (timerRef.current) {
-          clearTimeout(timerRef.current);
-          timerRef.current = null;
-        }
-      }
-    },
-    [moveTolerance],
-  );
 
   const clear = useCallback(() => {
     if (timerRef.current) {
@@ -64,10 +25,86 @@ export function useLongPress(
     startPosRef.current = null;
   }, []);
 
+  const handleStart = useCallback(
+    (clientX: number, clientY: number, e: any) => {
+      clear();
+      startPosRef.current = { x: clientX, y: clientY };
+      isLongPressTriggeredRef.current = false;
+
+      timerRef.current = setTimeout(() => {
+        isLongPressTriggeredRef.current = true;
+        if (vibrate && typeof navigator !== "undefined" && navigator.vibrate) {
+          try {
+            navigator.vibrate(40);
+          } catch {}
+        }
+        onLongPress(e);
+      }, threshold);
+    },
+    [clear, onLongPress, threshold, vibrate],
+  );
+
+  const handleMove = useCallback(
+    (clientX: number, clientY: number) => {
+      if (!startPosRef.current) return;
+      const dx = Math.abs(clientX - startPosRef.current.x);
+      const dy = Math.abs(clientY - startPosRef.current.y);
+
+      if (dx > moveTolerance || dy > moveTolerance) {
+        clear();
+      }
+    },
+    [clear, moveTolerance],
+  );
+
+  // Touch handlers
+  const onTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (e.touches.length > 1) return;
+      const touch = e.touches[0];
+      handleStart(touch.clientX, touch.clientY, e);
+    },
+    [handleStart],
+  );
+
+  const onTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (!startPosRef.current || e.touches.length === 0) return;
+      const touch = e.touches[0];
+      handleMove(touch.clientX, touch.clientY);
+    },
+    [handleMove],
+  );
+
+  // Pointer handlers (covers touch, pen, and synthetic pointer events)
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      if (e.button !== 0 && e.pointerType === "mouse") return;
+      handleStart(e.clientX, e.clientY, e);
+    },
+    [handleStart],
+  );
+
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!startPosRef.current) return;
+      handleMove(e.clientX, e.clientY);
+    },
+    [handleMove],
+  );
+
+  useEffect(() => {
+    return () => clear();
+  }, [clear]);
+
   return {
-    onTouchStart: start,
-    onTouchMove: move,
+    onTouchStart,
+    onTouchMove,
     onTouchEnd: clear,
     onTouchCancel: clear,
+    onPointerDown,
+    onPointerMove,
+    onPointerUp: clear,
+    onPointerCancel: clear,
   };
 }
