@@ -104,7 +104,21 @@ class PreheatManager {
 
     const messages = (await res.json()) as Message[];
     if (messages && messages.length > 0) {
-      await messageDb.saveMessages(channelId, messages);
+      const sequences = messages
+        .map((m) => m.sequence)
+        .filter((seq): seq is number => typeof seq === "number" && seq > 0);
+      if (sequences.length > 0) {
+        const minSequence = messages.length < 100 ? 1 : Math.min(...sequences);
+        const maxSequence = Number.MAX_SAFE_INTEGER;
+        await messageDb.reconcileChannelMessages(channelId, messages, {
+          minSequence,
+          maxSequence,
+        });
+      } else {
+        await messageDb.saveMessages(channelId, messages);
+      }
+    } else {
+      await messageDb.clearChannel(channelId);
     }
   }
 }

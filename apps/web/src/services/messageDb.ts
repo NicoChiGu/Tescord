@@ -33,6 +33,22 @@ class MessageDbService {
   }
 
   /**
+   * 基于权威消息列表与序列号范围执行原子对账修剪，物理清理已在服务端删除的消息
+   */
+  async reconcileChannelMessages(
+    channelId: string,
+    authoritativeMessages: Message[],
+    range: { minSequence: number; maxSequence: number },
+  ): Promise<void> {
+    if (!channelId) return;
+    await getStorageAdapter().reconcileChannelMessages(
+      channelId,
+      authoritativeMessages,
+      range,
+    );
+  }
+
+  /**
    * 从本地取出该频道最新的 N 条消息（默认 100 条，升序排列）
    */
   async getLatestMessages(channelId: string, limit = 100): Promise<Message[]> {

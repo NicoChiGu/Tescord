@@ -170,4 +170,138 @@ test.describe("频道切换前数据清理与防残留 (Channel Switch Cleanup)"
     await expect(chatInputBackCrypto).toBeVisible({ timeout: 5000 });
     await expect(chatInputBackCrypto).toHaveText(draftCrypto);
   });
+
+  test("消息在服务端被删除后，切换频道触发对账修剪，再次切回绝无已删旧消息瞬间闪现", async ({
+    page,
+  }) => {
+    // 初始状态：general 频道有两条消息（包括一条后续将被服务端删除的消息）
+    let generalMessages = [
+      {
+        id: "msg_reconcile_keep_01",
+        channelId: "chn_default_text_01",
+        sequence: 1,
+        content: "【保留消息-GEN-01】",
+        authorId: "usr_default_admin",
+        author: { id: "usr_default_admin", username: "Jackey" },
+        createdAt: new Date(Date.now() - 60000).toISOString(),
+      },
+      {
+        id: "msg_reconcile_deleted_02",
+        channelId: "chn_default_text_01",
+        sequence: 2,
+        content: "【已被服务端删除的旧消息-绝不可在切频道时闪现】",
+        authorId: "usr_default_admin",
+        author: { id: "usr_default_admin", username: "Jackey" },
+        createdAt: new Date(Date.now() - 30000).toISOString(),
+      },
+    ];
+
+    let releaseGeneralNetwork: () => void = () => {};
+    let shouldDelayGeneral = false;
+    const delayGeneralPromise = new Promise<void>((resolve) => {
+      releaseGeneralNetwork = resolve;
+    });
+
+    await page.route(
+      "**/api/channels/chn_default_text_01/messages*",
+      async (route) => {
+        if (shouldDelayGeneral) {
+          await delayGeneralPromise;
+        }
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(generalMessages),
+        });
+      },
+    );
+
+    await page.route(
+      "**/api/channels/chn_default_text_02/messages*",
+      (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify([
+            {
+              id: "msg_crypto_active_01",
+              channelId: "chn_default_text_02",
+              sequence: 1,
+              content: "【crypto-vault 专属加密内容】",
+              authorId: "usr_default_admin",
+              author: { id: "usr_default_admin", username: "Jackey" },
+              createdAt: new Date().toISOString(),
+            },
+          ]),
+        });
+      },
+    );
+
+    await page.goto("/");
+
+    // 1. 进入服务器与 general 频道
+    const serverBtn = page
+      .getByRole("button", { name: /Tescord 极客总部|极客/i })
+      .first();
+    await expect(serverBtn).toBeVisible({ timeout: 10000 });
+    await serverBtn.click();
+
+    const generalChannelBtn = page.getByRole("button", { name: "general" });
+    await expect(generalChannelBtn).toBeVisible({ timeout: 8000 });
+    await generalChannelBtn.click();
+
+    // 确认初始两条消息均正常上屏，并且已写入本地存储
+    const keepMsg = page.getByText("【保留消息-GEN-01】");
+    const deletedMsg = page.getByText(
+      "【已被服务端删除的旧消息-绝不可在切频道时闪现】",
+    );
+    await expect(keepMsg).toBeVisible({ timeout: 5000 });
+    await expect(deletedMsg).toBeVisible({ timeout: 5000 });
+
+    // 2. 切换至 crypto-vault 频道
+    const cryptoChannelBtn = page.getByRole("button", { name: "crypto-vault" });
+    await cryptoChannelBtn.click();
+    const cryptoMsg = page.getByText("【crypto-vault 专属加密内容】");
+    await expect(cryptoMsg).toBeVisible({ timeout: 5000 });
+
+    // 3. 模拟服务端将第二条消息物理删除：服务端最新返回列表中已不再包含该消息
+    generalMessages = [
+      {
+        id: "msg_reconcile_keep_01",
+        channelId: "chn_default_text_01",
+        sequence: 1,
+        content: "【保留消息-GEN-01】",
+        authorId: "usr_default_admin",
+        author: { id: "usr_default_admin", username: "Jackey" },
+        createdAt: new Date(Date.now() - 60000).toISOString(),
+      },
+    ];
+
+    // 4. 用户切回 general 频道，触发权威网络拉取与差量对账修剪（Reconciliation）
+    await generalChannelBtn.click();
+    await expect(keepMsg).toBeVisible({ timeout: 5000 });
+    await expect(deletedMsg).not.toBeVisible();
+
+    // 5. 再次切换至 crypto-vault
+    await cryptoChannelBtn.click();
+    await expect(cryptoMsg).toBeVisible({ timeout: 5000 });
+
+    // 6. 关键步骤：设置 general 频道的网络请求延迟挂起，模拟弱网/慢网
+    // 此时切回 general 频道必须完全依赖 IndexedDB 本地快照进行渲染！
+    shouldDelayGeneral = true;
+
+    await generalChannelBtn.click();
+
+    // 核心断言 1：在网络请求尚未返回（纯本地快照渲染）期间，被删除的消息已被永久修剪，绝不有一瞬间的闪现展示！
+    await expect(deletedMsg).not.toBeVisible();
+    await expect(keepMsg).toBeVisible({ timeout: 5000 });
+
+    // 核心断言 2：频道守卫生效，上一频道的 crypto-vault 消息也绝无 1 帧残留
+    await expect(cryptoMsg).not.toBeVisible();
+
+    // 7. 释放网络请求，验证最新数据稳定呈现
+    releaseGeneralNetwork();
+    await expect(keepMsg).toBeVisible({ timeout: 5000 });
+    await expect(deletedMsg).not.toBeVisible();
+  });
 });

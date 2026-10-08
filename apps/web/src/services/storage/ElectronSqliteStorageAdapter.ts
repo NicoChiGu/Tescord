@@ -85,6 +85,19 @@ export class ElectronSqliteStorageAdapter implements IStorageAdapter {
     await this.nativeStorage.saveMessage(msg);
   }
 
+  async reconcileChannelMessages(
+    channelId: string,
+    authoritativeMessages: Message[],
+    range: { minSequence: number; maxSequence: number },
+  ): Promise<void> {
+    await this.pendingSwitch;
+    await this.nativeStorage.reconcileChannelMessages(
+      channelId,
+      authoritativeMessages,
+      range,
+    );
+  }
+
   async getLatestMessages(channelId: string, limit = 100): Promise<Message[]> {
     await this.pendingSwitch;
     return this.nativeStorage.getLatestMessages(channelId, limit);

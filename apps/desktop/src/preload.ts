@@ -28,6 +28,7 @@ const STORAGE_IPC_CHANNELS = {
   TOKENS_CLEAR: "storage:tokens-clear",
   USER_SWITCH: "storage:user-switch",
   MESSAGES_SAVE_BATCH: "storage:messages-save-batch",
+  MESSAGES_RECONCILE: "storage:messages-reconcile",
   MESSAGE_SAVE_SINGLE: "storage:message-save-single",
   MESSAGES_GET_LATEST: "storage:messages-get-latest",
   CHANNEL_SNAPSHOT_GET: "storage:channel-snapshot-get",
@@ -276,6 +277,16 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.invoke(STORAGE_IPC_CHANNELS.MESSAGES_SAVE_BATCH, {
         channelId,
         messages,
+      }),
+    reconcileChannelMessages: (
+      channelId: string,
+      authoritativeMessages: Message[],
+      range: { minSequence: number; maxSequence: number },
+    ) =>
+      ipcRenderer.invoke(STORAGE_IPC_CHANNELS.MESSAGES_RECONCILE, {
+        channelId,
+        messages: authoritativeMessages,
+        range,
       }),
     saveMessage: (message: Message) =>
       ipcRenderer.invoke(STORAGE_IPC_CHANNELS.MESSAGE_SAVE_SINGLE, message),

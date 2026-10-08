@@ -1422,6 +1422,7 @@ export const App: React.FC = () => {
       "MESSAGE_DELETE",
       (data: { channelId?: string; messageId: string }) => {
         preheatManager.onGatewayMessageDelete(data.messageId);
+        void messageDb.deleteMessage(data.messageId);
         if (
           !data.channelId ||
           data.channelId === selectedChannelRef.current?.id
@@ -2964,6 +2965,9 @@ export const App: React.FC = () => {
   // 业务：删除/撤回消息
   const handleDeleteMessage = async (messageId: string) => {
     if (!selectedChannel) return;
+    // 乐观立即清理：立即从 React 状态和本地离线存储中剔除该消息，杜绝断线或切频道回魂
+    setMessages((prev) => prev.filter((m) => m.id !== messageId));
+    void messageDb.deleteMessage(messageId);
     try {
       const token = localStorage.getItem("tescord_access_token");
       await fetch(

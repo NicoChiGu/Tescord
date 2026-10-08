@@ -370,6 +370,24 @@ export class StorageManager {
     );
 
     ipcMain.handle(
+      STORAGE_IPC_CHANNELS.MESSAGES_RECONCILE,
+      async (
+        event,
+        payload: {
+          channelId: string;
+          messages: Message[];
+          range: { minSequence: number; maxSequence: number };
+        },
+      ) => {
+        return this.sendCacheRequest<boolean>(
+          event,
+          "messages-reconcile",
+          payload,
+        );
+      },
+    );
+
+    ipcMain.handle(
       STORAGE_IPC_CHANNELS.MESSAGE_SAVE_SINGLE,
       async (event, message: Message) => {
         return this.sendCacheRequest<boolean>(event, "message-save-single", {

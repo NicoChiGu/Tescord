@@ -1166,9 +1166,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
   }, [searchQuery, channel.id, messages.length]);
 
   const displayedMessages = React.useMemo(() => {
-    if (!matchingMessageIds) return messages;
-    return messages.filter((m) => matchingMessageIds.has(m.id));
-  }, [messages, matchingMessageIds]);
+    // 渲染守卫：严格过滤仅属于当前频道的有效消息，杜绝跨频道切换时的 1 帧残留闪现
+    const channelScoped = messages.filter(
+      (m) => !m.channelId || m.channelId === channel.id,
+    );
+    if (!matchingMessageIds) return channelScoped;
+    return channelScoped.filter((m) => matchingMessageIds.has(m.id));
+  }, [messages, matchingMessageIds, channel.id]);
 
   // 计算未读红线分割条位置（采用 Frozen Unread Marker 视觉冻结机制，当前会话期间红线位置绝对静止）
   const firstUnreadMessageId = React.useMemo(() => {

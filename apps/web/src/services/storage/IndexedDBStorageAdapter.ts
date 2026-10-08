@@ -227,6 +227,68 @@ export class IndexedDBStorageAdapter implements IStorageAdapter {
     }
   }
 
+  /**
+   * 基于权威消息列表与序列号范围执行原子对账修剪
+   * 物理删除闭区间内本地存在但权威列表中已不存在的失效消息
+   */
+  async reconcileChannelMessages(
+    channelId: string,
+    authoritativeMessages: Message[],
+    range: { minSequence: number; maxSequence: number },
+  ): Promise<void> {
+    if (!channelId) return;
+    try {
+      const db = await this.getDB();
+      const tx = db.transaction(["messages"], "readwrite");
+      const store = tx.objectStore("messages");
+
+      const minSeq = Math.max(
+        1,
+        Math.min(range.minSequence, range.maxSequence),
+      );
+      const maxSeq = Math.max(range.minSequence, range.maxSequence);
+
+      if (minSeq <= maxSeq) {
+        const authoritativeIdSet = new Set(
+          (authoritativeMessages || []).map((m) => m.id).filter(Boolean),
+        );
+
+        // 获取当前频道所有本地消息进行对账
+        const localMessages = await store.index("by_channel").getAll(channelId);
+        for (const localMsg of localMessages) {
+          const seq = localMsg.sequence ?? 0;
+          // 仅对位于 [minSeq, maxSeq] 闭区间内的数据对账
+          // 安全保护：严格排除 sequence <= 0（如本地乐观生成的消息）
+          if (seq >= minSeq && seq <= maxSeq) {
+            if (!authoritativeIdSet.has(localMsg.id)) {
+              await store.delete(localMsg.id);
+            }
+          }
+        }
+      }
+
+      // 批量写入/更新权威消息
+      if (authoritativeMessages && authoritativeMessages.length > 0) {
+        for (const msg of authoritativeMessages) {
+          if (!msg.channelId) {
+            msg.channelId = channelId;
+          }
+          await store.put(msg);
+        }
+      }
+
+      await tx.done;
+
+      // 容量淘汰
+      this.pruneChannelMessages(channelId).catch(() => {});
+    } catch (err) {
+      console.error(
+        "[IndexedDBStorageAdapter] reconcileChannelMessages failed:",
+        err,
+      );
+    }
+  }
+
   async getLatestMessages(channelId: string, limit = 100): Promise<Message[]> {
     try {
       const db = await this.getDB();

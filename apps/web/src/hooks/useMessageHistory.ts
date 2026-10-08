@@ -161,7 +161,31 @@ export function useMessageHistory(
         hasOlder: page.hasOlder,
         hasNewer: page.hasNewer || pendingLive.current.size > 0,
       });
-      void messageDb.saveMessages(channel.id, combined);
+      if (channel) {
+        if (page.messages.length > 0) {
+          const sequences = page.messages
+            .map((m) => m.sequence)
+            .filter((seq): seq is number => typeof seq === "number" && seq > 0);
+          if (sequences.length > 0) {
+            const minSequence = !page.hasOlder ? 1 : Math.min(...sequences);
+            const maxSequence = !page.hasNewer
+              ? Number.MAX_SAFE_INTEGER
+              : Math.max(...sequences);
+            void messageDb.reconcileChannelMessages(channel.id, combined, {
+              minSequence,
+              maxSequence,
+            });
+          } else {
+            void messageDb.saveMessages(channel.id, combined);
+          }
+        } else {
+          if (pendingLive.current.size === 0) {
+            void messageDb.clearChannel(channel.id);
+          } else {
+            void messageDb.saveMessages(channel.id, combined);
+          }
+        }
+      }
     } catch (error) {
       if (
         scopeRef.current === expectedScope &&
@@ -277,7 +301,33 @@ export function useMessageHistory(
               ? page.hasOlder
               : page.hasNewer || pendingLive.current.size > 0,
         }));
-        if (channel) void messageDb.saveMessages(channel.id, incoming);
+        if (channel) {
+          if (incoming.length > 0) {
+            const sequences = incoming
+              .map((m) => m.sequence)
+              .filter(
+                (seq): seq is number => typeof seq === "number" && seq > 0,
+              );
+            if (sequences.length > 0) {
+              const minSequence =
+                direction === "older" && !page.hasOlder
+                  ? 1
+                  : Math.min(...sequences);
+              const maxSequence =
+                direction === "newer" && !page.hasNewer
+                  ? Number.MAX_SAFE_INTEGER
+                  : Math.max(...sequences);
+              void messageDb.reconcileChannelMessages(channel.id, incoming, {
+                minSequence,
+                maxSequence,
+              });
+            } else {
+              void messageDb.saveMessages(channel.id, incoming);
+            }
+          } else {
+            void messageDb.saveMessages(channel.id, incoming);
+          }
+        }
       } catch (error) {
         if (
           scopeRef.current === expectedScope &&

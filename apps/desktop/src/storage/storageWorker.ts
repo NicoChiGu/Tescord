@@ -410,6 +410,103 @@ const handleRequest = (req: { id: string; type: string; payload: any }) => {
         break;
       }
 
+      case "messages-reconcile": {
+        const { channelId, messages, range } = payload as {
+          channelId: string;
+          messages: Message[];
+          range: { minSequence: number; maxSequence: number };
+        };
+        if (channelId) {
+          const db = getCacheDb(payload.userId);
+          const minSeq = Math.max(
+            1,
+            Math.min(range.minSequence, range.maxSequence),
+          );
+          const maxSeq = Math.max(range.minSequence, range.maxSequence);
+
+          const insertStmt = db.prepare(`
+            INSERT INTO messages (
+              id, channel_id, sequence, author_id, author_json, content,
+              is_encrypted, reply_to_json, is_pinned, reactions_json,
+              attachments_json, created_at, updated_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+              channel_id = excluded.channel_id,
+              sequence = excluded.sequence,
+              author_id = excluded.author_id,
+              author_json = excluded.author_json,
+              content = excluded.content,
+              is_encrypted = excluded.is_encrypted,
+              reply_to_json = excluded.reply_to_json,
+              is_pinned = excluded.is_pinned,
+              reactions_json = excluded.reactions_json,
+              attachments_json = excluded.attachments_json,
+              created_at = excluded.created_at,
+              updated_at = excluded.updated_at
+          `);
+
+          const reconcileTx = db.transaction((msgs: Message[]) => {
+            // 1. 删除区间内已被删除的消息（排除 sequence <= 0 的本地乐观未上链消息）
+            if (minSeq <= maxSeq) {
+              const validIds = (msgs || []).map((m) => m.id).filter(Boolean);
+              if (validIds.length > 0) {
+                const placeholders = validIds.map(() => "?").join(",");
+                db.prepare(
+                  `
+                  DELETE FROM messages
+                  WHERE channel_id = ?
+                    AND sequence >= ?
+                    AND sequence <= ?
+                    AND sequence > 0
+                    AND id NOT IN (${placeholders})
+                `,
+                ).run(channelId, minSeq, maxSeq, ...validIds);
+              } else {
+                db.prepare(
+                  `
+                  DELETE FROM messages
+                  WHERE channel_id = ?
+                    AND sequence >= ?
+                    AND sequence <= ?
+                    AND sequence > 0
+                `,
+                ).run(channelId, minSeq, maxSeq);
+              }
+            }
+
+            // 2. 批量写入/更新权威消息
+            if (msgs && msgs.length > 0) {
+              for (const msg of msgs) {
+                insertStmt.run(
+                  msg.id,
+                  msg.channelId || channelId,
+                  msg.sequence || 0,
+                  msg.authorId || msg.author?.id || "unknown",
+                  JSON.stringify(
+                    msg.author || { id: msg.authorId, username: "Unknown" },
+                  ),
+                  msg.content || "",
+                  msg.isEncrypted ? 1 : 0,
+                  msg.replyTo ? JSON.stringify(msg.replyTo) : null,
+                  msg.isPinned ? 1 : 0,
+                  msg.reactions ? JSON.stringify(msg.reactions) : null,
+                  msg.attachments ? JSON.stringify(msg.attachments) : null,
+                  msg.createdAt || new Date().toISOString(),
+                  msg.updatedAt || new Date().toISOString(),
+                );
+              }
+            }
+
+            pruneChannelMessages(db, channelId);
+          });
+
+          reconcileTx(messages || []);
+        }
+        result = true;
+        break;
+      }
+
       case "message-save-single": {
         const msg = payload.message as Message;
         if (msg && msg.channelId) {

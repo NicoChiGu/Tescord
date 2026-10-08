@@ -3787,6 +3787,11 @@ export interface IStorageAdapter {
   // 4. 频道消息与元数据缓存
   saveMessages(channelId: string, messages: Message[]): Promise<void>;
   saveMessage(msg: Message): Promise<void>;
+  reconcileChannelMessages(
+    channelId: string,
+    authoritativeMessages: Message[],
+    range: { minSequence: number; maxSequence: number },
+  ): Promise<void>;
   getLatestMessages(channelId: string, limit?: number): Promise<Message[]>;
   getChannelSnapshot(
     channelId: string,
@@ -3819,6 +3824,7 @@ export const STORAGE_IPC_CHANNELS = {
   TOKENS_CLEAR: "storage:tokens-clear",
   USER_SWITCH: "storage:user-switch",
   MESSAGES_SAVE_BATCH: "storage:messages-save-batch",
+  MESSAGES_RECONCILE: "storage:messages-reconcile",
   MESSAGE_SAVE_SINGLE: "storage:message-save-single",
   MESSAGES_GET_LATEST: "storage:messages-get-latest",
   CHANNEL_SNAPSHOT_GET: "storage:channel-snapshot-get",
