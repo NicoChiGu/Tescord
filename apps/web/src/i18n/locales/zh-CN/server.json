@@ -126,7 +126,12 @@
     "kickConfirmTitle": "踢出成员",
     "kickConfirmDesc": "确定要将 @{{name}} 踢出服务器吗？对方仍可通过新邀请链接重新加入。",
     "banConfirmTitle": "封禁成员",
-    "banConfirmDesc": "确定要封禁 @{{name}} 吗？对方将被移出服务器且无法再次加入，除非手动解封。"
+    "banConfirmDesc": "确定要封禁 @{{name}} 吗？对方将被移出服务器且无法再次加入，除非手动解封。",
+    "disconnectVoice": "断开连接",
+    "disconnectVoiceConfirmTitle": "将成员移出语音频道",
+    "disconnectVoiceConfirmDesc": "确定要将 @{{name}} 移出语音频道吗？对方可以随时重新加入。",
+    "disconnectVoiceSuccess": "已将成员移出语音频道",
+    "disconnectVoiceFailed": "移出语音频道失败"
   },
   "invites": {
     "title": "邀请链接管理",

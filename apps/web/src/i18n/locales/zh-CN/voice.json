@@ -5,6 +5,8 @@
   "handshaking": "正在握手",
   "networkReconnecting": "网络重连中",
   "disconnect": "断开连接",
+  "kickedFromVoiceNotice": "您已被管理员移出语音频道",
+  "disconnectSuccess": "已将成员移出语音频道",
   "muteMic": "静音",
   "unmuteMic": "取消静音",
   "deafen": "闭麦拒听",

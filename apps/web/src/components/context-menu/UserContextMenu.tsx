@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { User, Guild, UserStatus } from "@tescord/types";
+import { User, Guild, UserStatus, parseRoleIds } from "@tescord/types";
+import { API_BASE, VOICE_ENGINE } from "../../config.js";
+import { getErrorMessage } from "../../i18n/index.js";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -22,7 +24,6 @@ import { dialog } from "../../stores/useDialogStore.js";
 import { toast } from "../../stores/useToastStore.js";
 import { livekitService } from "../../services/livekit.js";
 import { cloudflareRealtimeService } from "../../services/cloudflare_realtime/index.js";
-import { VOICE_ENGINE } from "../../config.js";
 import { gatewayClient } from "../../services/gateway.js";
 import {
   AtSign,
@@ -43,6 +44,7 @@ import {
   Pin,
   PinOff,
   Phone,
+  PhoneOff,
   FileText,
   Bell,
   BellOff,
@@ -75,6 +77,7 @@ interface UserContextMenuProps {
   onOpenAudioSettings?: () => void;
   onKickMember?: (userId: string, username: string) => void;
   onBanMember?: (userId: string, username: string) => void;
+  onDisconnectVoice?: (userId: string, username: string) => void;
 }
 
 const STATUS_CONFIG: Record<
@@ -122,6 +125,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
   onOpenAudioSettings,
   onKickMember,
   onBanMember,
+  onDisconnectVoice,
 }) => {
   const { t } = useTranslation([
     "contextMenu",
@@ -129,9 +133,85 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
     "settings",
     "voice",
     "chat",
+    "server",
   ]);
   const { user: currentUser, updateProfile } = useAuthStore();
-  const { canKickMembers, canBanMembers } = usePermissions(guild);
+  const { canKickMembers, canBanMembers, canMoveMembers } = usePermissions(guild);
+
+  const canManageTarget = useMemo(() => {
+    if (!guild || !currentUser || currentUser.id === targetUser.id) return false;
+    if (guild.ownerId === targetUser.id) return false;
+    if (guild.ownerId === currentUser.id) return true;
+    const isSuperAdmin =
+      currentUser.username === "admin" ||
+      currentUser.username === "Jackey" ||
+      currentUser.username?.includes("admin") ||
+      (currentUser as any)?.role === "ADMIN";
+    if (isSuperAdmin) return true;
+
+    const myMember = guild.members?.find((m) => m.userId === currentUser.id);
+    const targetMember = guild.members?.find((m) => m.userId === targetUser.id);
+    if (!myMember) return false;
+    if (!targetMember) return true;
+
+    const roles = guild.roles || [];
+    const getHighestPos = (roleIdsRaw: any) => {
+      const roleIds = parseRoleIds(roleIdsRaw);
+      let maxPos = -1;
+      for (const r of roles) {
+        if (roleIds.includes(r.id) && r.position > maxPos) {
+          maxPos = r.position;
+        }
+      }
+      return maxPos;
+    };
+
+    const myPos = getHighestPos(myMember.roleIds);
+    const targetPos = getHighestPos(targetMember.roleIds);
+    return myPos > targetPos;
+  }, [guild, currentUser, targetUser.id]);
+
+  const handleDisconnectVoiceClick = async () => {
+    if (onDisconnectVoice) {
+      onDisconnectVoice(targetUser.id, targetUser.username);
+      return;
+    }
+    if (!guild) return;
+    const confirmed = await dialog.confirm({
+      title: t("server:members.disconnectVoiceConfirmTitle", "将成员移出语音频道"),
+      description: t("server:members.disconnectVoiceConfirmDesc", {
+        name: targetUser.username,
+        defaultValue: `确定要将 @${targetUser.username} 移出语音频道吗？对方可以随时重新加入。`,
+      }),
+      variant: "warning",
+      confirmText: t("server:members.disconnectVoice", "断开连接"),
+    });
+    if (!confirmed) return;
+
+    try {
+      const token = localStorage.getItem("tescord_access_token");
+      const res = await fetch(
+        `${API_BASE}/api/guilds/${guild.id}/members/${targetUser.id}/disconnect-voice`,
+        {
+          method: "POST",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        },
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        toast.error(getErrorMessage(err));
+        return;
+      }
+      toast.success(
+        t("server:members.disconnectVoiceSuccess", "已将成员移出语音频道"),
+      );
+    } catch (err) {
+      console.error("Failed to disconnect voice member:", err);
+      toast.error(t("server:members.disconnectVoiceFailed", "移出语音频道失败"));
+    }
+  };
   const [copiedId, setCopiedId] = useState(false);
 
   const {
@@ -722,6 +802,20 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
                     </span>
                   </div>
                 </ContextMenuItem>
+
+                {canMoveMembers && canManageTarget && (
+                  <ContextMenuItem
+                    variant="danger"
+                    onClick={handleDisconnectVoiceClick}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <PhoneOff className="w-4 h-4 text-discord-danger" />
+                      <span>
+                        {t("contextMenu:disconnectVoice", "断开语音连接")}
+                      </span>
+                    </div>
+                  </ContextMenuItem>
+                )}
               </>
             )}
 

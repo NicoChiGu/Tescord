@@ -1811,6 +1811,90 @@ export class GatewayManager {
     return true;
   }
 
+  public getVoiceState(userId: string): VoiceState | undefined {
+    return this.voiceStates.get(userId);
+  }
+
+  /**
+   * 将指定成员从其当前语音频道中断开（被动移出，非封禁，成员可随时重新进入）
+   */
+  public async disconnectVoiceUser(
+    guildId: string,
+    targetUserId: string,
+    reason: VoiceServerDisconnectPayload["reason"] = "KICKED",
+  ): Promise<boolean> {
+    const state = this.voiceStates.get(targetUserId);
+    if (!state || !state.channelId || state.guildId !== guildId) {
+      return false;
+    }
+
+    const channelId = state.channelId;
+    const sessionId = state.sessionId;
+
+    // 1. 向目标用户所有的活跃会话发送被动断开信令 VOICE_SERVER_DISCONNECT
+    const sessions = this.userSessions.get(targetUserId);
+    if (sessions) {
+      for (const conn of sessions.values()) {
+        if (conn.ws.readyState === WebSocket.OPEN) {
+          this.send(conn.ws, {
+            op: GatewayOpCode.DISPATCH,
+            t: GatewayEvents.VOICE_SERVER_DISCONNECT,
+            d: {
+              reason,
+            } satisfies VoiceServerDisconnectPayload,
+          });
+        }
+      }
+    }
+
+    // 2. 释放媒体网关与 P2P 拓扑
+    try {
+      await removeParticipantFromRoom(channelId, targetUserId);
+    } catch (e) {
+      console.warn(`[Gateway] Error removing participant from LiveKit room:`, e);
+    }
+
+    if (channelId) {
+      p2pTopologyManager.removeViewer(channelId, targetUserId);
+      if (state.streaming) {
+        p2pTopologyManager.unregisterStream(channelId, targetUserId);
+      }
+    }
+
+    for (const [id, media] of cloudflareRealtimeService.listSessions()) {
+      if (media.userId === targetUserId && media.channelId === channelId) {
+        void cloudflareRealtimeService.revokeSession(id).catch(() => {});
+      }
+    }
+
+    // 3. 清理语音内存状态
+    this.voiceStates.delete(targetUserId);
+    this.pendingVoiceJoins.delete(targetUserId);
+    const timer = this.mediaJoinTimers.get(targetUserId);
+    if (timer) clearTimeout(timer);
+    this.mediaJoinTimers.delete(targetUserId);
+
+    // 4. 向原频道所有观察者广播离开事件
+    await this.broadcastToChannelViewers(channelId, {
+      op: GatewayOpCode.DISPATCH,
+      t: GatewayEvents.VOICE_STATE_UPDATE,
+      d: {
+        userId: targetUserId,
+        channelId: null,
+        previousChannelId: channelId,
+        guildId,
+        sessionId,
+        revision: this.nextVoiceRevision(targetUserId),
+        selfMute: false,
+        selfDeaf: false,
+        selfVideo: false,
+        streaming: false,
+      },
+    });
+
+    return true;
+  }
+
   getOnlineUserCount(): number {
     return this.userSessions.size;
   }

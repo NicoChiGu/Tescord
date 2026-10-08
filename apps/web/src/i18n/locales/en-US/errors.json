@@ -36,6 +36,8 @@
   "VOICE_ROOM_FULL": "This voice channel is full.",
   "VOICE_JOIN_FAILED": "Failed to join voice channel. Please check your permissions and connection.",
   "VOICE_PERMISSION_DENIED": "Missing permissions to connect or speak in this channel.",
+  "VOICE_USER_NOT_CONNECTED": "This member is not currently connected to the voice channel.",
+  "CANNOT_MANAGE_MEMBER": "You cannot manage this member (their role is higher than or equal to yours).",
   "ADMIN_REQUIRED": "Super administrator privileges are required.",
   "ADMIN_CANNOT_BAN_SELF": "You cannot suspend or ban your own administrator account.",
   "NETWORK_ERROR": "Network connection error. Please check your network settings.",

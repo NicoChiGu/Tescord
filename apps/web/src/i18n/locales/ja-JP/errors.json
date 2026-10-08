@@ -36,6 +36,8 @@
   "VOICE_ROOM_FULL": "このボイスチャンネルは定員に達しています。",
   "VOICE_JOIN_FAILED": "ボイスチャンネルへの参加に失敗しました。接続と権限をご確認ください。",
   "VOICE_PERMISSION_DENIED": "ボイスチャンネルへの接続または発言権限がありません。",
+  "VOICE_USER_NOT_CONNECTED": "このメンバーは現在ボイスチャンネルに接続していません。",
+  "CANNOT_MANAGE_MEMBER": "このメンバーを管理する権限がありません（相手の役職が自分と同等以上です）。",
   "ADMIN_REQUIRED": "この操作にはシステム管理者権限が必要です。",
   "ADMIN_CANNOT_BAN_SELF": "現在ログイン中の管理者アカウント自身を停止・BANすることはできません。",
   "NETWORK_ERROR": "ネットワーク接続エラーが発生しました。接続状況をご確認ください。",

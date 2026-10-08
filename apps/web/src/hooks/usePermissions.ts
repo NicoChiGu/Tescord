@@ -20,6 +20,7 @@ export interface PermissionsResult {
   canViewAuditLog: boolean;
   canManageNicknames: boolean;
   canChangeNickname: boolean;
+  canMoveMembers: boolean;
   rawPermissions: number;
 }
 
@@ -44,6 +45,7 @@ export function usePermissions(
       canViewAuditLog: false,
       canManageNicknames: false,
       canChangeNickname: false,
+      canMoveMembers: false,
       rawPermissions: 0,
     };
 
@@ -72,6 +74,7 @@ export function usePermissions(
         canViewAuditLog: true,
         canManageNicknames: true,
         canChangeNickname: true,
+        canMoveMembers: true,
         rawPermissions: 0x7fffffff,
       };
     }
@@ -113,6 +116,10 @@ export function usePermissions(
       canChangeNickname: hasPermission(
         userPerms,
         PermissionFlags.CHANGE_NICKNAME,
+      ),
+      canMoveMembers: hasPermission(
+        userPerms,
+        PermissionFlags.MOVE_MEMBERS,
       ),
       rawPermissions: userPerms,
     };

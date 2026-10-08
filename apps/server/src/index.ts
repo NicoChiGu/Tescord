@@ -4467,6 +4467,93 @@ server.delete(
   },
 );
 
+// 将成员从语音频道踢出/断开（用户可再次进入）
+server.post(
+  "/api/guilds/:guildId/members/:targetUserId/disconnect-voice",
+  async (request, reply) => {
+    const { guildId, targetUserId } = request.params as {
+      guildId: string;
+      targetUserId: string;
+    };
+    const userId = await getUserIdFromRequest(request);
+    if (!userId) {
+      return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
+    }
+
+    if (userId === targetUserId) {
+      return sendApiError(
+        reply,
+        400,
+        ErrorCode.INVALID_PARAMS,
+        "无法断开自己的语音连接",
+      );
+    }
+
+    const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+    if (!guild) {
+      return sendApiError(reply, 404, ErrorCode.GUILD_NOT_FOUND, "未找到指定的服务器");
+    }
+
+    const canMove = await permissionService.hasGuildPermission(
+      userId,
+      guildId,
+      PermissionFlags.MOVE_MEMBERS,
+    );
+    if (!canMove) {
+      return sendApiError(
+        reply,
+        403,
+        ErrorCode.FORBIDDEN,
+        "缺少移动/断开成员语音权限 (MOVE_MEMBERS)",
+      );
+    }
+
+    const canManage = await permissionService.canManageMember(
+      userId,
+      targetUserId,
+      guildId,
+    );
+    if (!canManage) {
+      return sendApiError(
+        reply,
+        403,
+        ErrorCode.CANNOT_MANAGE_MEMBER,
+        "无权处置该成员（对方职级高于或等同于自身）",
+      );
+    }
+
+    const targetVoiceState = gatewayManager.getVoiceState(targetUserId);
+    if (
+      !targetVoiceState ||
+      targetVoiceState.guildId !== guildId ||
+      !targetVoiceState.channelId
+    ) {
+      return sendApiError(
+        reply,
+        400,
+        ErrorCode.VOICE_USER_NOT_CONNECTED,
+        "该成员当前未连接至语音频道",
+      );
+    }
+
+    const disconnected = await gatewayManager.disconnectVoiceUser(
+      guildId,
+      targetUserId,
+      "KICKED",
+    );
+    if (!disconnected) {
+      return sendApiError(
+        reply,
+        400,
+        ErrorCode.VOICE_USER_NOT_CONNECTED,
+        "该成员当前未连接至语音频道",
+      );
+    }
+
+    return { success: true, guildId, targetUserId };
+  },
+);
+
 // ==========================================
 // 3. 消息操作与互动 API (Messages & Reactions)
 // ==========================================

@@ -5,6 +5,8 @@
   "handshaking": "Handshaking",
   "networkReconnecting": "Network Reconnecting",
   "disconnect": "Disconnect",
+  "kickedFromVoiceNotice": "You have been disconnected from the voice channel by an administrator",
+  "disconnectSuccess": "Member has been disconnected from the voice channel",
   "muteMic": "Mute",
   "unmuteMic": "Unmute",
   "deafen": "Deafen",

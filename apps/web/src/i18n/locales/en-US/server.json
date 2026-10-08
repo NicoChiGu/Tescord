@@ -126,7 +126,12 @@
     "kickConfirmTitle": "Kick Member",
     "kickConfirmDesc": "Are you sure you want to kick @{{name}}? They can rejoin with a valid invite.",
     "banConfirmTitle": "Ban Member",
-    "banConfirmDesc": "Are you sure you want to ban @{{name}}? They will be removed and unable to rejoin unless unbanned."
+    "banConfirmDesc": "Are you sure you want to ban @{{name}}? They will be removed and unable to rejoin unless unbanned.",
+    "disconnectVoice": "Disconnect",
+    "disconnectVoiceConfirmTitle": "Disconnect Member from Voice",
+    "disconnectVoiceConfirmDesc": "Are you sure you want to disconnect @{{name}} from the voice channel? They will be able to rejoin at any time.",
+    "disconnectVoiceSuccess": "Member has been disconnected from the voice channel",
+    "disconnectVoiceFailed": "Failed to disconnect member from voice channel"
   },
   "invites": {
     "title": "Server Invites",

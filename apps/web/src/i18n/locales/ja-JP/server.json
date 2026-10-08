@@ -126,7 +126,12 @@
     "kickConfirmTitle": "メンバーのキック",
     "kickConfirmDesc": "本当に @{{name}} をサーバーからキックしますか？有効な招待リンクがあれば再参加可能です。",
     "banConfirmTitle": "メンバーのBAN",
-    "banConfirmDesc": "本当に @{{name}} をBANしますか？サーバーから除外され、手動で解除されるまで再参加できなくなります。"
+    "banConfirmDesc": "本当に @{{name}} をBANしますか？サーバーから除外され、手動で解除されるまで再参加できなくなります。",
+    "disconnectVoice": "切断",
+    "disconnectVoiceConfirmTitle": "ボイスチャンネルから切断",
+    "disconnectVoiceConfirmDesc": "本当に @{{name}} をボイスチャンネルから切断しますか？相手はいつでも再参加できます。",
+    "disconnectVoiceSuccess": "メンバーをボイスチャンネルから切断しました",
+    "disconnectVoiceFailed": "ボイスチャンネルからの切断に失敗しました"
   },
   "invites": {
     "title": "招待リンクの管理",

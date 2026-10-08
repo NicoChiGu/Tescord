@@ -2028,6 +2028,14 @@ export const App: React.FC = () => {
           await handleLeaveVoiceChannel();
           return;
         }
+        if (data.reason === "KICKED") {
+          showGlobalToast(
+            t("voice:kickedFromVoiceNotice", "您已被管理员移出语音频道"),
+            "warning",
+          );
+          await handleLeaveVoiceChannel();
+          return;
+        }
         if (data.reason === "VOICE_TRANSFER") {
           const prevChannel =
             guildsRef.current
@@ -3243,6 +3251,52 @@ export const App: React.FC = () => {
       );
     } catch (err) {
       console.error("Failed to ban member:", err);
+    }
+  };
+
+  // 业务：断开成员语音连接 (右键菜单调用)
+  const handleDisconnectVoiceMember = async (
+    userId: string,
+    username: string,
+  ) => {
+    if (!selectedGuildId) return;
+    const confirmed = await dialog.confirm({
+      title: t("server:members.disconnectVoiceConfirmTitle", "将成员移出语音频道"),
+      description: t("server:members.disconnectVoiceConfirmDesc", {
+        name: username,
+      }),
+      variant: "warning",
+      confirmText: t("server:members.disconnectVoice", "断开连接"),
+    });
+    if (!confirmed) {
+      return;
+    }
+    try {
+      const token = localStorage.getItem("tescord_access_token");
+      const res = await fetch(
+        `${API_BASE}/api/guilds/${selectedGuildId}/members/${userId}/disconnect-voice`,
+        {
+          method: "POST",
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        },
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showGlobalToast(getErrorMessage(err), "error");
+        return;
+      }
+      showGlobalToast(
+        t("server:members.disconnectVoiceSuccess", "已将成员移出语音频道"),
+        "info",
+      );
+    } catch (err) {
+      console.error("Failed to disconnect voice member:", err);
+      showGlobalToast(
+        t("server:members.disconnectVoiceFailed", "移出语音频道失败"),
+        "error",
+      );
     }
   };
 
@@ -4965,6 +5019,7 @@ export const App: React.FC = () => {
         onLeaveGuild={handleLeaveGuild}
         onMarkGuildAsRead={handleMarkGuildAsRead}
         onMarkChannelAsRead={handleMarkChannelAsRead}
+        onDisconnectVoice={handleDisconnectVoiceMember}
         channelUnreadMap={channelUnreadMap}
       />
     </>

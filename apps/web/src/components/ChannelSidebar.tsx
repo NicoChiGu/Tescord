@@ -144,6 +144,7 @@ interface ChannelSidebarProps {
   onSendMessage?: (userId: string) => void;
   onKickMember?: (userId: string, username: string) => void;
   onBanMember?: (userId: string, username: string) => void;
+  onDisconnectVoice?: (userId: string, username: string) => void;
   channelUnreadMap?: ChannelUnreadMap;
 }
 
@@ -172,6 +173,7 @@ interface SortableChannelItemProps {
   onOpenSettings: () => void;
   onKickMember?: (userId: string, username: string) => void;
   onBanMember?: (userId: string, username: string) => void;
+  onDisconnectVoice?: (userId: string, username: string) => void;
   onCancelDrag?: () => void;
 }
 
@@ -200,6 +202,7 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
   onOpenSettings,
   onKickMember,
   onBanMember,
+  onDisconnectVoice,
 }) => {
   const isSelected = selectedChannelId === channel.id;
   const isConnected = activeVoiceChannelId === channel.id;
@@ -459,6 +462,7 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
                 onOpenAudioSettings={onOpenSettings}
                 onKickMember={onKickMember}
                 onBanMember={onBanMember}
+                onDisconnectVoice={onDisconnectVoice}
               >
                 <div className="flex items-center space-x-2 py-1 px-1.5 rounded hover:bg-[#35373c] text-xs text-discord-textNormal cursor-pointer">
                   <div className="relative">
@@ -573,6 +577,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   onSendMessage,
   onKickMember,
   onBanMember,
+  onDisconnectVoice,
   onOpenInviteFriends,
   channelUnreadMap,
 }) => {
@@ -1181,6 +1186,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                       onOpenSettings={onOpenSettings}
                       onKickMember={onKickMember}
                       onBanMember={onBanMember}
+                      onDisconnectVoice={onDisconnectVoice}
                       onCancelDrag={handleDragCancel}
                     />
                   ))}
@@ -1259,6 +1265,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                                   onOpenSettings={onOpenSettings}
                                   onKickMember={onKickMember}
                                   onBanMember={onBanMember}
+                                  onDisconnectVoice={onDisconnectVoice}
                                   onCancelDrag={handleDragCancel}
                                 />
                               ))}

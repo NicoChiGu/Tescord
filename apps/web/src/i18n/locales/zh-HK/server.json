@@ -126,7 +126,12 @@
     "kickConfirmTitle": "踢出成員",
     "kickConfirmDesc": "確定要將 @{{name}} 踢出伺服器嗎？對方仍可透過新邀請連結重新加入。",
     "banConfirmTitle": "封禁成員",
-    "banConfirmDesc": "確定要封禁 @{{name}} 嗎？對方將被移出伺服器且無法再次加入，除非手動解封。"
+    "banConfirmDesc": "確定要封禁 @{{name}} 嗎？對方將被移出伺服器且無法再次加入，除非手動解封。",
+    "disconnectVoice": "中斷連線",
+    "disconnectVoiceConfirmTitle": "將成員移出語音頻道",
+    "disconnectVoiceConfirmDesc": "確定要將 @{{name}} 移出語音頻道嗎？對方可以隨時重新加入。",
+    "disconnectVoiceSuccess": "已將成員移出語音頻道",
+    "disconnectVoiceFailed": "移出語音頻道失敗"
   },
   "invites": {
     "title": "邀請連結管理",

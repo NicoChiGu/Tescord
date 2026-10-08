@@ -36,6 +36,8 @@
   "VOICE_ROOM_FULL": "该语音频道人数已达上限",
   "VOICE_JOIN_FAILED": "加入语音频道失败，请检查媒体连接与权限",
   "VOICE_PERMISSION_DENIED": "缺少进入或在语音频道讲话的权限",
+  "VOICE_USER_NOT_CONNECTED": "该成员当前未连接至语音频道",
+  "CANNOT_MANAGE_MEMBER": "无权处置该成员（对方职级高于或等同于自身）",
   "ADMIN_REQUIRED": "需要超级管理员权限方可执行此操作",
   "ADMIN_CANNOT_BAN_SELF": "无法封禁或停用当前登录的管理员账户",
   "NETWORK_ERROR": "网络连接异常，请检查您的网络设置",

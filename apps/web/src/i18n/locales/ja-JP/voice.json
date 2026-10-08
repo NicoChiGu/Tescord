@@ -5,6 +5,8 @@
   "handshaking": "ハンドシェイク中",
   "networkReconnecting": "ネットワーク再接続中",
   "disconnect": "切断",
+  "kickedFromVoiceNotice": "管理者によってボイスチャンネルから切断されました",
+  "disconnectSuccess": "メンバーをボイスチャンネルから切断しました",
   "muteMic": "ミュート",
   "unmuteMic": "ミュート解除",
   "deafen": "スピーカーミュート",

@@ -5,6 +5,8 @@
   "handshaking": "正在交握",
   "networkReconnecting": "網路重新連線中",
   "disconnect": "中斷連線",
+  "kickedFromVoiceNotice": "您已被管理員移出語音頻道",
+  "disconnectSuccess": "已將成員移出語音頻道",
   "muteMic": "靜音",
   "unmuteMic": "取消靜音",
   "deafen": "閉麥拒聽",

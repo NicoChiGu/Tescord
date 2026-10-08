@@ -36,6 +36,8 @@
   "VOICE_ROOM_FULL": "該語音頻道人數已達上限",
   "VOICE_JOIN_FAILED": "加入語音頻道失敗，請檢查媒體連線與權限",
   "VOICE_PERMISSION_DENIED": "缺少進入或在語音頻道發言的權限",
+  "VOICE_USER_NOT_CONNECTED": "該成員目前未連線至語音頻道",
+  "CANNOT_MANAGE_MEMBER": "無權處置該成員（對方職級高於或等同於自身）",
   "ADMIN_REQUIRED": "需要超級管理員權限方可執行此操作",
   "ADMIN_CANNOT_BAN_SELF": "無法封禁或停用目前登入的管理員帳號",
   "NETWORK_ERROR": "網路連線異常，請檢查您的網路設定",
