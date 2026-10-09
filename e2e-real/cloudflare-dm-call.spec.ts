@@ -307,7 +307,7 @@ test("public DM call negotiates E2EE and exchanges audio after Cloudflare SFU fa
       }),
     ).toBeVisible({ timeout: 15_000 });
     await page.waitForTimeout(1200);
-    await page.getByRole("button", { name: "私信与主页" }).click();
+    await page.getByTestId("home-nav-button").click();
     await expect(page.getByText("直接消息", { exact: true })).toBeVisible({
       timeout: 10_000,
     });
@@ -318,9 +318,30 @@ test("public DM call negotiates E2EE and exchanges audio after Cloudflare SFU fa
     await expect(page.getByTestId("dm-start-voice-call-btn")).toBeVisible();
   }
   await pages[0].getByTestId("dm-start-voice-call-btn").click();
-  await expect(pages[1].getByTestId("accept-call-btn")).toBeVisible({
-    timeout: 15_000,
-  });
+  try {
+    await expect(pages[1].getByTestId("accept-call-btn")).toBeVisible({
+      timeout: 15_000,
+    });
+  } catch (error) {
+    const states = await Promise.all(
+      pages.map((page) =>
+        page.evaluate(() => {
+          const scope = window as unknown as {
+            __dmCallStore?: { getState(): { callState: string } };
+            __gatewayClient?: { getConnectionState(): string };
+          };
+          return {
+            callState: scope.__dmCallStore?.getState().callState,
+            gatewayState: scope.__gatewayClient?.getConnectionState(),
+          };
+        }),
+      ),
+    );
+    console.log(
+      JSON.stringify({ stage: "dm_before_accept", diagnostics, states }),
+    );
+    throw error;
+  }
   await expect(pages[1].getByTestId("dm-call-encryption-status")).toContainText(
     "E2EE",
     { timeout: 15_000 },
