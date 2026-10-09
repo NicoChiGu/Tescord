@@ -3,7 +3,9 @@ import type { Page } from "@playwright/test";
 /** UI fixtures use the real signed Gateway/device/context path in a single-peer
  * P2P room. Separate RTP tests prove the media; no fabricated LiveKit token is
  * treated as a successful unencrypted connection here. */
-export async function installEncryptedVoiceUi(page: Page): Promise<void> {
+export async function installEncryptedVoiceUi(
+  page: Pick<Page, "routeWebSocket" | "addInitScript">,
+): Promise<void> {
   await page.routeWebSocket("**/gateway", (socket) => {
     const server = socket.connectToServer();
     server.onMessage((message) => {
@@ -62,22 +64,34 @@ export async function installEncryptedVoiceUi(page: Page): Promise<void> {
         input instanceof Request ? input.url : String(input),
         location.href,
       );
+      const isChannelList = /^\/api\/guilds\/[^/]+\/channels$/.test(
+        url.pathname,
+      );
       if (
-        url.pathname !== "/api/guilds" ||
+        (url.pathname !== "/api/guilds" && !isChannelList) ||
         !response.ok ||
         (init?.method || "GET") !== "GET"
       )
         return response;
-      const guilds: unknown = await response.clone().json();
-      if (!Array.isArray(guilds)) return response;
-      const updated = guilds.map((guild) => ({
-        ...guild,
-        channels: guild.channels?.map((channel: { type: string }) =>
-          channel.type === "VOICE"
-            ? { ...channel, voiceMode: "p2p_mesh" }
-            : channel,
-        ),
-      }));
+      const data: unknown = await response.clone().json();
+      if (!Array.isArray(data)) return response;
+      const applyVoiceMode = (channel: unknown) =>
+        channel &&
+        typeof channel === "object" &&
+        "type" in channel &&
+        channel.type === "VOICE"
+          ? { ...channel, voiceMode: "p2p_mesh" }
+          : channel;
+      const updated = isChannelList
+        ? data.map(applyVoiceMode)
+        : data.map((guild: unknown) =>
+            guild &&
+            typeof guild === "object" &&
+            "channels" in guild &&
+            Array.isArray(guild.channels)
+              ? { ...guild, channels: guild.channels.map(applyVoiceMode) }
+              : guild,
+          );
       const headers = new Headers(response.headers);
       headers.delete("content-length");
       headers.delete("content-encoding");
@@ -86,6 +100,7 @@ export async function installEncryptedVoiceUi(page: Page): Promise<void> {
         headers,
       });
     };
+    if (!navigator.mediaDevices?.getUserMedia) return;
     const originalCapture = navigator.mediaDevices.getUserMedia.bind(
       navigator.mediaDevices,
     );

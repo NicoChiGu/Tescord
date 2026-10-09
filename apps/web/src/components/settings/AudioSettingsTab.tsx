@@ -1,3 +1,10 @@
+import { audioOutput } from "../../services/audioOutput.js";
+import {
+  audioDevices,
+  audioDeviceLabel,
+  type AudioDeviceEntry,
+} from "../../services/audioDevices.js";
+import { toast } from "../../stores/useToastStore.js";
 import React, { useState, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import {
@@ -81,6 +88,18 @@ const ComparisonTrackPlayer: React.FC<ComparisonTrackPlayerProps> = ({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const outputBindingRef = useRef<ReturnType<
+    typeof audioOutput.register
+  > | null>(null);
+  useEffect(
+    () => () => {
+      sourceRef.current?.disconnect();
+      analyserRef.current?.disconnect();
+      outputBindingRef.current?.dispose();
+      void audioCtxRef.current?.close().catch(() => undefined);
+    },
+    [],
+  );
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -97,7 +116,14 @@ const ComparisonTrackPlayer: React.FC<ComparisonTrackPlayerProps> = ({
           analyser.smoothingTimeConstant = 0.3;
           const source = ctx.createMediaElementSource(audio);
           source.connect(analyser);
-          analyser.connect(ctx.destination);
+          const master = ctx.createGain();
+          analyser.connect(master);
+          outputBindingRef.current = audioOutput.register(ctx, master, {
+            deafenable: false,
+          });
+          void outputBindingRef.current.ready.catch((error) =>
+            console.warn("Comparison audio output failed", error),
+          );
           audioCtxRef.current = ctx;
           analyserRef.current = analyser;
           sourceRef.current = source;
@@ -288,14 +314,14 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
   const [currentVolume, setCurrentVolume] = useState(0);
 
   // 设备列表
-  const [inputDevices, setInputDevices] = useState<MediaDeviceInfo[]>([]);
-  const [outputDevices, setOutputDevices] = useState<MediaDeviceInfo[]>([]);
+  const [inputDevices, setInputDevices] = useState<AudioDeviceEntry[]>([]);
+  const [outputDevices, setOutputDevices] = useState<AudioDeviceEntry[]>([]);
   const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedInputId, setSelectedInputId] = useState<string>(
     livekitService.getAudioInputDeviceId() || "default",
   );
   const [selectedOutputId, setSelectedOutputId] = useState<string>(
-    config.outputDeviceId || "default",
+    audioOutput.getState().deviceId,
   );
   const [selectedCameraId, setSelectedCameraId] = useState<string>(
     livekitService.getCameraDeviceId() || "default",
@@ -309,15 +335,30 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
   const testVideoStreamRef = useRef<MediaStream | null>(null);
   const videoSectionRef = useRef<HTMLDivElement | null>(null);
 
-  // 输出音量与测试音频状态 (从 livekitService 读取持久化全局输出音量)
-  const [outputVolume, setOutputVolume] = useState<number>(() =>
-    (VOICE_ENGINE === "cloudflare_realtime"
-      ? cloudflareRealtimeService
-      : livekitService
-    ).getMasterVolume(),
-  );
+  const outputVolume = useSettingsStore((state) => state.outputVolume);
+  const setOutputVolume = useSettingsStore((state) => state.setOutputVolume);
   const [isPlayingTestSound, setIsPlayingTestSound] = useState(false);
-  const testAudioRef = useRef<HTMLAudioElement | null>(null);
+  const testToneRef = useRef<{
+    context: AudioContext;
+    oscillator: OscillatorNode;
+    binding: ReturnType<typeof audioOutput.register>;
+  } | null>(null);
+  const stopTestSound = () => {
+    const tone = testToneRef.current;
+    testToneRef.current = null;
+    if (!tone) return;
+    tone.oscillator.onended = null;
+    try {
+      tone.oscillator.stop();
+    } catch {
+      /* Already ended. */
+    }
+    tone.oscillator.disconnect();
+    tone.binding.dispose();
+    void tone.context.close().catch(() => undefined);
+    setIsPlayingTestSound(false);
+  };
+  useEffect(() => () => stopTestSound(), []);
 
   // 高级设置折叠状态 (默认收起，保持界面清爽)
   const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
@@ -365,60 +406,31 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
     "raw" | "rnnoise" | "dtln" | "dfn3" | null
   >(null);
 
-  // 1. 枚举系统音频与视频硬件设备
-  const refreshDevices = async () => {
-    try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-        return;
-      }
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const inputs = devices.filter((d) => d.kind === "audioinput");
-      const outputs = devices.filter((d) => d.kind === "audiooutput");
-      const cameras = devices.filter((d) => d.kind === "videoinput");
-
-      setInputDevices(inputs);
-      setOutputDevices(outputs);
-      setCameraDevices(cameras);
-
-      const activeInputId = livekitService.getAudioInputDeviceId();
-      if (activeInputId && inputs.some((i) => i.deviceId === activeInputId)) {
-        setSelectedInputId(activeInputId);
-      } else if (config.inputDeviceId) {
-        setSelectedInputId(config.inputDeviceId);
-      } else if (inputs.length > 0) {
-        setSelectedInputId(inputs[0].deviceId);
-      }
-
-      if (config.outputDeviceId) {
-        setSelectedOutputId(config.outputDeviceId);
-      } else if (outputs.length > 0) {
-        setSelectedOutputId(outputs[0].deviceId);
-      }
-
-      const activeCamId = livekitService.getCameraDeviceId();
-      if (activeCamId && cameras.some((c) => c.deviceId === activeCamId)) {
-        setSelectedCameraId(activeCamId);
-      } else if (cameras.length > 0) {
-        setSelectedCameraId(cameras[0].deviceId);
-      }
-    } catch (err) {
-      console.warn("Failed to enumerate audio and video devices:", err);
-    }
-  };
-
+  const refreshDevices = () => audioDevices.refresh();
   useEffect(() => {
-    refreshDevices();
-    navigator.mediaDevices?.addEventListener?.("devicechange", refreshDevices);
-    const unsubAudioInput = livekitService.onActiveAudioInputChange((id) => {
-      setSelectedInputId(id);
-      setConfig((prev) => ({ ...prev, inputDeviceId: id }));
-    });
-    return () => {
-      navigator.mediaDevices?.removeEventListener?.(
-        "devicechange",
-        refreshDevices,
+    const unsubscribeDevices = audioDevices.subscribe((devices) => {
+      setInputDevices(devices.inputs);
+      setOutputDevices(devices.outputs);
+      setCameraDevices(devices.cameras);
+      const cameraId = livekitService.getCameraDeviceId();
+      setSelectedCameraId(
+        devices.cameras.some((device) => device.deviceId === cameraId)
+          ? cameraId
+          : devices.cameras[0]?.deviceId || "default",
       );
-      unsubAudioInput();
+    });
+    const unsubscribeInput = livekitService.onActiveAudioInputChange((id) => {
+      setSelectedInputId(id);
+      setConfig((previous) => ({ ...previous, inputDeviceId: id }));
+      void audioDevices.refresh();
+    });
+    const unsubscribeOutput = audioOutput.subscribe((state) =>
+      setSelectedOutputId(state.deviceId),
+    );
+    return () => {
+      unsubscribeDevices();
+      unsubscribeInput();
+      unsubscribeOutput();
     };
   }, []);
 
@@ -532,11 +544,6 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
       if (!isInCall) {
         audioEngine.stop();
       }
-      // 停止测试音频
-      if (testAudioRef.current) {
-        testAudioRef.current.pause();
-        testAudioRef.current = null;
-      }
     };
   }, [isInCall]);
 
@@ -563,78 +570,60 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
     };
   }, [isRecordingKeybind, config]);
 
-  // 设备切换处理
   const handleInputChange = async (deviceId: string) => {
-    setSelectedInputId(deviceId);
-    const newCfg = { ...config, inputDeviceId: deviceId };
-    setConfig(newCfg);
-    await livekitService.switchAudioInputDevice(deviceId).catch((err) => {
-      console.warn("Failed to switch audio input device:", err);
-    });
+    try {
+      if (!(await livekitService.switchAudioInputDevice(deviceId)))
+        toast.error("errors:AUDIO_INPUT_SWITCH_FAILED");
+    } catch {
+      toast.error("errors:AUDIO_INPUT_SWITCH_FAILED");
+    }
   };
 
   const handleOutputChange = async (deviceId: string) => {
-    setSelectedOutputId(deviceId);
-    const newCfg = { ...config, outputDeviceId: deviceId };
-    setConfig(newCfg);
-    audioEngine.updateConfig({ outputDeviceId: deviceId });
-    await livekitService.switchAudioOutputDevice(deviceId).catch((err) => {
-      console.warn("Failed to switch audio output device:", err);
-    });
-
-    if (testAudioRef.current && (testAudioRef.current as any).setSinkId) {
-      try {
-        await (testAudioRef.current as any).setSinkId(deviceId);
-      } catch (err) {
-        console.warn("Failed to set audio output device (sinkId):", err);
-      }
-    }
+    const result = await audioOutput.switchDevice(deviceId);
+    if (!result.success) toast.error(`errors:${result.code}`);
+    await audioDevices.refresh();
   };
 
-  // 测试扬声器输出声音
-  const handlePlayTestSound = () => {
-    if (isPlayingTestSound) {
-      if (testAudioRef.current) {
-        testAudioRef.current.pause();
-        testAudioRef.current.currentTime = 0;
-      }
-      setIsPlayingTestSound(false);
+  const handlePlayTestSound = async () => {
+    if (testToneRef.current) {
+      stopTestSound();
       return;
     }
-
+    const context = new AudioContext();
+    const oscillator = context.createOscillator();
+    const envelope = context.createGain();
+    const master = context.createGain();
+    const binding = audioOutput.register(context, master, {
+      deafenable: false,
+    });
+    oscillator.connect(envelope).connect(master);
+    const tone = { context, oscillator, binding };
+    testToneRef.current = tone;
+    setIsPlayingTestSound(true);
     try {
-      // 创建音频测试信号（生成平滑的双音调合成声音）
-      const audioCtx = new (
-        window.AudioContext || (window as any).webkitAudioContext
-      )();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(440, audioCtx.currentTime); // A4 音
-      osc.frequency.exponentialRampToValueAtTime(
+      await context.resume();
+      await binding.ready;
+      if (testToneRef.current !== tone) return;
+      oscillator.frequency.setValueAtTime(440, context.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(
         880,
-        audioCtx.currentTime + 0.3,
-      ); // 滑音至 A5
-
-      const calculatedGain = Math.min(0.9, (outputVolume / 100) * 0.35);
-      gain.gain.setValueAtTime(calculatedGain, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
-
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-
-      osc.start();
-      setIsPlayingTestSound(true);
-
-      osc.stop(audioCtx.currentTime + 0.8);
-      setTimeout(() => {
-        setIsPlayingTestSound(false);
-        audioCtx.close().catch(() => {});
-      }, 850);
-    } catch (err) {
-      console.warn("Exception during test sound playback:", err);
-      setIsPlayingTestSound(false);
+        context.currentTime + 0.3,
+      );
+      envelope.gain.setValueAtTime(0.35, context.currentTime);
+      envelope.gain.exponentialRampToValueAtTime(
+        0.001,
+        context.currentTime + 0.8,
+      );
+      oscillator.onended = () => {
+        if (testToneRef.current === tone) stopTestSound();
+      };
+      oscillator.start();
+      oscillator.stop(context.currentTime + 0.8);
+    } catch {
+      if (testToneRef.current !== tone) return;
+      stopTestSound();
+      toast.error("errors:AUDIO_DEVICE_SWITCH_FAILED");
     }
   };
 
@@ -752,6 +741,7 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             </div>
 
             <Select
+              data-testid="audio-input-device"
               value={selectedInputId}
               onChange={(val) => handleInputChange(val)}
               options={
@@ -764,11 +754,13 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                     ]
                   : inputDevices.map((d, index) => ({
                       value: d.deviceId,
-                      label:
-                        d.label ||
+                      label: audioDeviceLabel(
+                        d,
+                        t("settings:audioVideo.defaultInputDevice"),
                         t("settings:audioVideo.inputDeviceIndex", {
                           index: index + 1,
                         }),
+                      ),
                     }))
               }
               triggerClassName="py-2 text-xs border border-[#3f4147] rounded-lg"
@@ -824,6 +816,8 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
             </div>
 
             <Select
+              data-testid="audio-output-device"
+              disabled={!audioOutput.supportsDeviceSelection()}
               value={selectedOutputId}
               onChange={(val) => handleOutputChange(val)}
               options={
@@ -836,11 +830,13 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                     ]
                   : outputDevices.map((d, index) => ({
                       value: d.deviceId,
-                      label:
-                        d.label ||
+                      label: audioDeviceLabel(
+                        d,
+                        t("settings:audioVideo.defaultOutputDevice"),
                         t("settings:audioVideo.outputDeviceIndex", {
                           index: index + 1,
                         }),
+                      ),
                     }))
               }
               triggerClassName="py-2 text-xs border border-[#3f4147] rounded-lg"
@@ -856,14 +852,9 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                 type="range"
                 min="0"
                 max="200"
+                data-testid="audio-output-volume"
                 value={outputVolume}
-                onChange={(e) => {
-                  const val = Number(e.target.value);
-                  setOutputVolume(val);
-                  livekitService.setMasterVolume(val);
-                  cloudflareRealtimeService.setMasterVolume(val);
-                  useSettingsStore.getState().setOutputVolume(val);
-                }}
+                onChange={(e) => setOutputVolume(Number(e.target.value))}
                 className="w-full h-1.5 bg-[#1e1f22] rounded-lg appearance-none cursor-pointer accent-discord-brand"
               />
             </div>

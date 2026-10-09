@@ -73,6 +73,13 @@ test.describe("语音输入配置热切换与无缝推流验收 (Audio Input Hot
           // 记录当前约束中的 deviceId
           (stream as any).__mockDeviceId =
             constraints?.audio?.deviceId?.exact || "default";
+          for (const track of stream.getAudioTracks()) {
+            const settings = track.getSettings.bind(track);
+            track.getSettings = () => ({
+              ...settings(),
+              deviceId: (stream as any).__mockDeviceId,
+            });
+          }
           return stream;
         };
       }

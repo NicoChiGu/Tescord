@@ -57,5 +57,8 @@
   "MEDIA_CONTEXT_STALE": "通話メンバーが変わりました。暗号化セッションを更新しています",
   "MEDIA_KEY_INVALID": "メディア暗号鍵の検証に失敗しました。接続を拒否しました",
   "MEDIA_NEGOTIATION_TIMEOUT": "メディア暗号化の確立がタイムアウトしました。再参加してください",
-  "ICON_PROCESS_TIMEOUT": "アイコンの処理がタイムアウトしました。より小さい GIF で再試行してください"
+  "ICON_PROCESS_TIMEOUT": "アイコンの処理がタイムアウトしました。より小さい GIF で再試行してください",
+  "AUDIO_INPUT_SWITCH_FAILED": "マイクを切り替えられません。デバイスと権限を確認してください。",
+  "AUDIO_DEVICE_SWITCH_FAILED": "出力デバイスを切り替えられません。デバイスと権限を確認してください。",
+  "AUDIO_DEVICE_UNSUPPORTED": "このブラウザーでは出力デバイスを選択できません。"
 }

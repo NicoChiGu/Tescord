@@ -1,3 +1,5 @@
+import { audioOutput } from "../audioOutput.js";
+import { useSettingsStore } from "../../stores/useSettingsStore.js";
 import {
   P2PSignalPayload,
   PeerLatencyReport,
@@ -83,9 +85,12 @@ export class VoiceMeshManager {
       stream: MediaStream;
       sourceNode?: MediaStreamAudioSourceNode;
       analyserNode?: AnalyserNode;
+      gainNode?: GainNode;
     }
   > = new Map();
   private sharedAudioContext: AudioContext | null = null;
+  private masterGain: GainNode | null = null;
+  private outputBinding: ReturnType<typeof audioOutput.register> | null = null;
   private activeSpeakers: Set<string> = new Set();
   private remoteSpeakingStates: Map<
     string,
@@ -202,14 +207,22 @@ export class VoiceMeshManager {
   }
 
   constructor() {
-    // 监听全局音量变动，动态联动 Mesh P2P 远端音频
-    livekitService.onParticipantVolumeChange((identity, vol) => {
-      const audioEl = this.remoteAudioElements.get(identity);
-      if (audioEl) {
-        // HTMLAudioElement volume 为 0.0 - 1.0 (超过 100% 依赖 Web Audio GainNode，此处做基础音量缩放)
-        audioEl.volume = Math.min(1.0, Math.max(0, vol / 100));
-      }
-    });
+    audioOutput.subscribe(() => this.updatePlaybackGains());
+    livekitService.onParticipantVolumeChange(() => this.updatePlaybackGains());
+  }
+
+  private updatePlaybackGains(): void {
+    for (const [peerId, entry] of this.participantAudioMap) {
+      if (entry.gainNode)
+        entry.gainNode.gain.setValueAtTime(
+          livekitService.isParticipantMuted(peerId)
+            ? 0
+            : clampVolume(
+                useSettingsStore.getState().userVolumes[peerId] ?? 100,
+              ) / 100,
+          entry.gainNode.context.currentTime,
+        );
+    }
   }
 
   public setContext(userId: string | null) {
@@ -515,7 +528,12 @@ export class VoiceMeshManager {
         } catch {}
       }
     }
+    for (const entry of this.participantAudioMap.values()) {
+      entry.gainNode?.disconnect();
+      entry.analyserNode?.disconnect();
+    }
     this.participantAudioMap.clear();
+    this.closePlaybackContext();
     this.remoteSpeakingStates.clear();
     if (this.activeSpeakers.size > 0) {
       this.activeSpeakers.clear();
@@ -1185,23 +1203,23 @@ export class VoiceMeshManager {
   }
 
   private attachRemoteAudio(peerId: string, stream: MediaStream) {
-    let audioEl = this.remoteAudioElements.get(peerId);
-    if (!audioEl) {
-      audioEl = document.createElement("audio");
-      audioEl.autoplay = true;
-      audioEl.style.display = "none";
-      document.body.appendChild(audioEl);
-      this.remoteAudioElements.set(peerId, audioEl);
+    let element = this.remoteAudioElements.get(peerId);
+    if (!element) {
+      element = document.createElement("audio");
+      element.autoplay = true;
+      element.muted = true;
+      element.style.display = "none";
+      document.body.append(element);
+      this.remoteAudioElements.set(peerId, element);
     }
-
-    // 设置初始音量
-    const userVol = livekitService.getParticipantVolume(peerId) ?? 100;
-    audioEl.volume = Math.min(1.0, Math.max(0, userVol / 100));
-    audioEl.srcObject = stream;
-    audioEl.play().catch(() => {});
-
-    // 挂接 Web Audio AnalyserNode 进行实时说话能量检测（仅旁路分析，不输出至 destination 以免与 audio 标签重复发声）
+    // Chromium needs a playing receiver element to keep remote PCM decoding active.
+    element.muted = true;
+    element.srcObject = stream;
+    void element
+      .play()
+      .catch((error) => console.warn("P2P receiver playback blocked", error));
     this.setupRemoteAudioAnalysis(peerId, stream);
+    this.updatePlaybackGains();
   }
 
   private async flushPendingCandidates(
@@ -1273,7 +1291,10 @@ export class VoiceMeshManager {
         audioEntry.sourceNode.disconnect();
       } catch {}
     }
+    audioEntry?.gainNode?.disconnect();
+    audioEntry?.analyserNode?.disconnect();
     this.participantAudioMap.delete(peerId);
+    if (!this.participantAudioMap.size) this.closePlaybackContext();
     this.remoteSpeakingStates.delete(peerId);
     if (this.activeSpeakers.delete(peerId)) {
       this.notifyActiveSpeakersUpdate();
@@ -1286,6 +1307,15 @@ export class VoiceMeshManager {
     this.notifyLatencyUpdate();
   }
 
+  private closePlaybackContext(): void {
+    this.outputBinding?.dispose();
+    this.outputBinding = null;
+    if (this.sharedAudioContext)
+      void this.sharedAudioContext.close().catch(() => undefined);
+    this.sharedAudioContext = null;
+    this.masterGain = null;
+  }
+
   private getOrCreateAudioContext(): AudioContext | null {
     if (typeof window === "undefined") return null;
     if (
@@ -1296,6 +1326,14 @@ export class VoiceMeshManager {
         window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return null;
       this.sharedAudioContext = new AudioCtx();
+      this.masterGain = this.sharedAudioContext.createGain();
+      this.outputBinding = audioOutput.register(
+        this.sharedAudioContext,
+        this.masterGain,
+      );
+      void this.outputBinding.ready.catch((error) =>
+        console.warn("P2P audio output failed", error),
+      );
     }
     if (this.sharedAudioContext.state === "suspended") {
       this.sharedAudioContext.resume().catch(() => {});
@@ -1312,6 +1350,7 @@ export class VoiceMeshManager {
       if (!ctx) return;
 
       const existing = this.participantAudioMap.get(peerId);
+      existing?.gainNode?.disconnect();
       if (existing?.sourceNode) {
         try {
           existing.sourceNode.disconnect();
@@ -1323,11 +1362,19 @@ export class VoiceMeshManager {
       analyserNode.fftSize = 256;
       analyserNode.smoothingTimeConstant = 0.2;
       sourceNode.connect(analyserNode);
+      const gainNode = ctx.createGain();
+      gainNode.gain.value = audioOutput.isParticipantMuted(peerId)
+        ? 0
+        : clampVolume(useSettingsStore.getState().userVolumes[peerId] ?? 100) /
+          100;
+      sourceNode.connect(gainNode);
+      gainNode.connect(this.masterGain!);
 
       this.participantAudioMap.set(peerId, {
         stream,
         sourceNode,
         analyserNode,
+        gainNode,
       });
       this.startRemoteAudioEnergyMonitoring();
     } catch (e) {

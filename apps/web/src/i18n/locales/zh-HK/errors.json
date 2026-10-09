@@ -57,5 +57,8 @@
   "MEDIA_CONTEXT_STALE": "語音成員已變更，正在更新加密工作階段",
   "MEDIA_KEY_INVALID": "媒體密鑰驗證失敗，已拒絕連線",
   "MEDIA_NEGOTIATION_TIMEOUT": "媒體加密協商逾時，請重新加入",
-  "ICON_PROCESS_TIMEOUT": "圖示處理逾時，請選擇較小的 GIF 後重試"
+  "ICON_PROCESS_TIMEOUT": "圖示處理逾時，請選擇較小的 GIF 後重試",
+  "AUDIO_INPUT_SWITCH_FAILED": "無法切換咪高峰，請檢查裝置及權限。",
+  "AUDIO_DEVICE_SWITCH_FAILED": "無法切換輸出裝置，請檢查裝置及權限。",
+  "AUDIO_DEVICE_UNSUPPORTED": "此瀏覽器不支援選擇輸出裝置。"
 }

@@ -1,3 +1,5 @@
+import { audioOutput } from "./audioOutput.js";
+import { audioDevices } from "./audioDevices.js";
 import {
   Room,
   RoomEvent,
@@ -267,7 +269,8 @@ export class LiveKitService {
   private playbackAudioContext: AudioContext | null = null;
   private masterCompressor: DynamicsCompressorNode | null = null;
   private masterGainNode: GainNode | null = null;
-  private masterVolume: number = 100;
+  private outputBinding: ReturnType<typeof audioOutput.register> | null = null;
+  private inputSwitchQueue: Promise<unknown> = Promise.resolve();
 
   // 音频播放与系统中断状态管理 (支持 WebKit "interrupted" 状态捕获与生命周期唤醒)
   private audioPlaybackStatus: AudioPlaybackStatus = {
@@ -384,19 +387,57 @@ export class LiveKitService {
     new Set();
 
   constructor() {
+    audioOutput.subscribe(() => {
+      for (const [identity, ctrl] of this.participantAudioMap) {
+        ctrl.volume = this.getParticipantVolume(identity);
+        ctrl.muted = audioOutput.isParticipantMuted(identity);
+        for (const entry of ctrl.tracks.values()) {
+          entry.gainNode?.gain.setValueAtTime(
+            this.getTrackGain(identity, entry.source, ctrl.muted),
+            entry.gainNode.context.currentTime,
+          );
+          if (!entry.gainNode) entry.element.muted = true;
+        }
+      }
+      this.notifyActiveAudioOutputChanged();
+    });
+    audioDevices.subscribe((devices, hotplug) => {
+      const input = this.getAudioInputDeviceId();
+      if (
+        (hotplug ||
+          devices.inputs.some(
+            (device) => device.label && device.deviceId !== "default",
+          )) &&
+        input !== "default" &&
+        !devices.inputs.some((device) => device.deviceId === input)
+      )
+        void this.switchAudioInputDevice("default").catch(() => undefined);
+      const output = audioOutput.getState().deviceId;
+      if (
+        (hotplug ||
+          devices.outputs.some(
+            (device) => device.label && device.deviceId !== "default",
+          )) &&
+        output !== "default" &&
+        !devices.outputs.some((device) => device.deviceId === output)
+      )
+        void audioOutput.switchDevice("default");
+    });
     // 读取持久化的用户音量与全局输出音量
     try {
       if (typeof localStorage !== "undefined") {
         const savedVols = localStorage.getItem("tescord_user_volumes");
         if (savedVols) {
-          const parsed = JSON.parse(savedVols);
+          const parsed: unknown = JSON.parse(savedVols);
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+            throw new Error("Invalid user volume preferences");
           for (const [k, v] of Object.entries(parsed)) {
-            this.userVolumeCache.set(k, Number(v));
+            if (typeof v !== "number" || !Number.isFinite(v)) continue;
+            const volume = clampVolume(v);
+            this.userVolumeCache.set(k, volume);
+            if (useSettingsStore.getState().userVolumes[k] === undefined)
+              useSettingsStore.getState().setUserVolume(k, volume);
           }
-        }
-        const savedMaster = localStorage.getItem("tescord_master_volume");
-        if (savedMaster !== null) {
-          this.masterVolume = clampVolume(Number(savedMaster));
         }
       }
     } catch (e) {
@@ -408,6 +449,8 @@ export class LiveKitService {
 
     // 监听 AudioEngine 底层流重构或热换流事件，通话中自动热替换麦克风推流轨
     audioEngine.onStreamChange(async (stream) => {
+      this.notifyActiveAudioInputChanged();
+      void audioDevices.refresh();
       if (this.room && this.isConnected) {
         console.log(
           "🔄 检测到麦克风音频流变更，自动热同步 LiveKit 麦克风推流轨",
@@ -544,26 +587,18 @@ export class LiveKitService {
 
       // 全局母带输出音量控制 (Master Gain Node): 0% ~ 200% (0.0x ~ 2.0x)
       this.masterGainNode = this.playbackAudioContext.createGain();
-      this.masterGainNode.gain.setValueAtTime(
-        this.masterVolume / 100,
-        this.playbackAudioContext.currentTime,
-      );
-
-      // 串联: masterCompressor -> masterGainNode -> destination
       this.masterCompressor.connect(this.masterGainNode);
-      this.masterGainNode.connect(this.playbackAudioContext.destination);
-
-      if (
-        this.selectedAudioOutputDeviceId &&
-        this.selectedAudioOutputDeviceId !== "default" &&
-        typeof (this.playbackAudioContext as any).setSinkId === "function"
-      ) {
-        (this.playbackAudioContext as any)
-          .setSinkId(this.selectedAudioOutputDeviceId)
-          .catch((e: any) =>
-            console.warn("[LiveKit] AudioContext setSinkId failed:", e),
-          );
-      }
+      this.outputBinding = audioOutput.register(
+        this.playbackAudioContext,
+        this.masterGainNode,
+      );
+      void this.outputBinding.ready.catch((error) =>
+        this.setAudioPlaybackStatus({
+          canPlay: false,
+          isInterrupted: true,
+          error: String(error),
+        }),
+      );
     }
 
     if (this.playbackAudioContext.state === "suspended") {
@@ -574,23 +609,11 @@ export class LiveKitService {
   }
 
   public setMasterVolume(volumePercent: number) {
-    const clamped = clampVolume(volumePercent);
-    this.masterVolume = clamped;
-    try {
-      if (typeof localStorage !== "undefined") {
-        localStorage.setItem("tescord_master_volume", String(clamped));
-      }
-    } catch {}
-    if (this.masterGainNode && this.playbackAudioContext) {
-      this.masterGainNode.gain.setValueAtTime(
-        clamped / 100,
-        this.playbackAudioContext.currentTime,
-      );
-    }
+    useSettingsStore.getState().setOutputVolume(clampVolume(volumePercent));
   }
 
   public getMasterVolume(): number {
-    return this.masterVolume;
+    return clampVolume(useSettingsStore.getState().outputVolume);
   }
 
   public setConnectionStatus(status: VoiceConnectionStatus) {
@@ -1048,25 +1071,20 @@ export class LiveKitService {
     participant: RemoteParticipant,
   ) {
     const identity = participant.identity;
-    const audioElement = track.attach() as HTMLAudioElement;
-
-    // 路由远端音频输出设备
-    const outputId = this.getAudioOutputDeviceId();
-    if (
-      outputId &&
-      outputId !== "default" &&
-      typeof (audioElement as any).setSinkId === "function"
-    ) {
-      (audioElement as any).setSinkId(outputId).catch((err: any) => {
-        console.warn(
-          `[LiveKit] Failed to setSinkId on audio element for ${identity}:`,
-          err,
-        );
-      });
+    const audioElement = document.createElement("audio");
+    audioElement.muted = true;
+    audioElement.autoplay = true;
+    audioElement.style.display = "none";
+    const mediaTrack: MediaStreamTrack | undefined =
+      track.mediaStreamTrack || track.track;
+    if (mediaTrack) {
+      audioElement.srcObject = new MediaStream([mediaTrack]);
+      document.body.appendChild(audioElement);
+      void audioElement.play().catch(() => undefined);
     }
 
     // 优先读取本地持久化的音量记忆
-    const persistentVol = this.userVolumeCache.get(identity) ?? 100;
+    const persistentVol = this.getParticipantVolume(identity);
 
     let ctrl = this.participantAudioMap.get(identity);
     if (!ctrl) {
@@ -1080,6 +1098,7 @@ export class LiveKitService {
     } else if (this.userVolumeCache.has(identity)) {
       ctrl.volume = persistentVol;
     }
+    ctrl.muted = audioOutput.isParticipantMuted(identity);
 
     const trackId =
       track.sid ||
@@ -1091,9 +1110,6 @@ export class LiveKitService {
     let analyserNode: AnalyserNode | undefined;
 
     try {
-      // 提取底层的真实 MediaStreamTrack 节点
-      const mediaTrack: MediaStreamTrack | undefined =
-        track.mediaStreamTrack || track.track;
       if (mediaTrack) {
         const ctx = this.getOrCreatePlaybackContext();
         const mediaStream = new MediaStream([mediaTrack]);
@@ -1114,7 +1130,7 @@ export class LiveKitService {
         }
 
         // 换算 0% ~ 200% 增益 (Gain 系数 0.0 ~ 2.0)
-        const gainVal = computeGain(ctrl.volume, ctrl.muted);
+        const gainVal = this.getTrackGain(identity, track.source, ctrl.muted);
         gainNode.gain.setValueAtTime(gainVal, ctx.currentTime);
 
         // 串联至中央母带软压限器: sourceNode -> participantGainNode -> masterCompressor -> destination
@@ -1124,16 +1140,23 @@ export class LiveKitService {
         // 原生 HTMLAudioElement 设为静音，全权由 Web Audio 压限总线混音输出，避免声音重叠或爆音
         audioElement.muted = true;
       } else {
-        audioElement.volume = ctrl.muted ? 0 : Math.min(1.0, ctrl.volume / 100);
+        audioElement.muted = true;
       }
     } catch (e) {
       console.warn(
         `Web Audio routing failed for remote participant ${identity}, fallback to HTMLAudio:`,
         e,
       );
-      audioElement.volume = ctrl.muted ? 0 : Math.min(1.0, ctrl.volume / 100);
+      audioElement.muted = true;
+      this.setAudioPlaybackStatus({
+        canPlay: false,
+        isInterrupted: true,
+        error: String(e),
+      });
     }
 
+    const previous = ctrl.tracks.get(trackId);
+    if (previous) this.disposeRemoteAudioTrack(previous);
     ctrl.tracks.set(trackId, {
       trackId,
       source: track.source || "microphone",
@@ -1149,6 +1172,34 @@ export class LiveKitService {
     }
   }
 
+  private disposeRemoteAudioTrack(entry: RemoteAudioTrackEntry): void {
+    for (const node of [entry.analyserNode, entry.gainNode, entry.sourceNode]) {
+      try {
+        node?.disconnect();
+      } catch {}
+    }
+    entry.element.pause();
+    entry.element.srcObject = null;
+    entry.element.remove();
+  }
+
+  private closePlaybackContext(): void {
+    this.outputBinding?.dispose();
+    this.outputBinding = null;
+    this.masterGainNode = null;
+    this.masterCompressor?.disconnect();
+    this.masterCompressor = null;
+    const context = this.playbackAudioContext;
+    this.playbackAudioContext = null;
+    if (context && context.state !== "closed") {
+      context.removeEventListener(
+        "statechange",
+        this.handlePlaybackContextStateChange,
+      );
+      void context.close().catch(() => undefined);
+    }
+  }
+
   private handleRemoteAudioUnsubscribed(identity: string, track?: any) {
     const ctrl = this.participantAudioMap.get(identity);
     if (!ctrl) return;
@@ -1156,26 +1207,7 @@ export class LiveKitService {
     const trackId = track?.sid || track?.mediaStreamTrack?.id;
     if (trackId && ctrl.tracks.has(trackId)) {
       const entry = ctrl.tracks.get(trackId)!;
-      if (entry.analyserNode) {
-        try {
-          entry.analyserNode.disconnect();
-        } catch {}
-      }
-      if (entry.gainNode) {
-        try {
-          entry.gainNode.disconnect();
-        } catch {}
-      }
-      if (entry.sourceNode) {
-        try {
-          entry.sourceNode.disconnect();
-        } catch {}
-      }
-      if (entry.track && entry.element) {
-        try {
-          entry.track.detach(entry.element);
-        } catch {}
-      }
+      this.disposeRemoteAudioTrack(entry);
       ctrl.tracks.delete(trackId);
       // 若该成员所有音轨均已移除，则清理该控制结构
       if (ctrl.tracks.size === 0) {
@@ -1187,26 +1219,7 @@ export class LiveKitService {
     } else {
       // 未指定 track 时，移除该成员名下的全部音轨 (如成员断开房间)
       ctrl.tracks.forEach((entry) => {
-        if (entry.analyserNode) {
-          try {
-            entry.analyserNode.disconnect();
-          } catch {}
-        }
-        if (entry.gainNode) {
-          try {
-            entry.gainNode.disconnect();
-          } catch {}
-        }
-        if (entry.sourceNode) {
-          try {
-            entry.sourceNode.disconnect();
-          } catch {}
-        }
-        if (entry.track && entry.element) {
-          try {
-            entry.track.detach(entry.element);
-          } catch {}
-        }
+        this.disposeRemoteAudioTrack(entry);
       });
       ctrl.tracks.clear();
       this.participantAudioMap.delete(identity);
@@ -1215,12 +1228,28 @@ export class LiveKitService {
       this.syncCombinedActiveSpeakers();
     }
 
-    if (this.participantAudioMap.size === 0) {
+    if (
+      [...this.participantAudioMap.values()].every((ctrl) => !ctrl.tracks.size)
+    ) {
       this.stopRemoteAudioEnergyMonitoring();
+      this.closePlaybackContext();
     }
   }
 
   // 5. 多路远端语音独立音量控制 (0% ~ 200%)
+  private getTrackGain(
+    identity: string,
+    source: string,
+    muted: boolean,
+  ): number {
+    return computeGain(
+      source === Track.Source.ScreenShareAudio
+        ? audioOutput.getStreamVolume(identity)
+        : this.getParticipantVolume(identity),
+      muted,
+    );
+  }
+
   setParticipantVolume(identity: string, volumePercent: number) {
     const clampedVolume = clampVolume(volumePercent);
 
@@ -1257,8 +1286,8 @@ export class LiveKitService {
       ctrl.volume = clampedVolume;
     }
 
-    const targetGain = computeGain(clampedVolume, ctrl.muted);
     ctrl.tracks.forEach((entry) => {
+      const targetGain = this.getTrackGain(identity, entry.source, ctrl.muted);
       if (entry.gainNode) {
         entry.gainNode.gain.setTargetAtTime(
           targetGain,
@@ -1276,14 +1305,15 @@ export class LiveKitService {
   }
 
   getParticipantVolume(identity: string): number {
-    if (this.userVolumeCache.has(identity)) {
-      return this.userVolumeCache.get(identity)!;
-    }
-    const ctrl = this.participantAudioMap.get(identity);
-    return ctrl ? ctrl.volume : 100;
+    return clampVolume(
+      useSettingsStore.getState().userVolumes[identity] ??
+        this.userVolumeCache.get(identity) ??
+        100,
+    );
   }
 
   setParticipantMuted(identity: string, muted: boolean) {
+    audioOutput.setParticipantMuted(identity, muted);
     let ctrl = this.participantAudioMap.get(identity);
     if (!ctrl) {
       ctrl = {
@@ -1297,8 +1327,9 @@ export class LiveKitService {
       ctrl.muted = muted;
     }
 
-    const targetGain = computeGain(ctrl.volume, muted);
+    audioOutput.refresh();
     ctrl.tracks.forEach((entry) => {
+      const targetGain = this.getTrackGain(identity, entry.source, muted);
       if (entry.gainNode) {
         entry.gainNode.gain.setTargetAtTime(
           targetGain,
@@ -1312,8 +1343,7 @@ export class LiveKitService {
   }
 
   isParticipantMuted(identity: string): boolean {
-    const ctrl = this.participantAudioMap.get(identity);
-    return ctrl ? ctrl.muted : false;
+    return audioOutput.isParticipantMuted(identity);
   }
 
   // 6. 实时网络健康看板与 WebRTC 统计 (RTT, Packet Loss, Jitter)
@@ -1707,24 +1737,21 @@ export class LiveKitService {
   }
 
   async switchAudioInputDevice(deviceId: string): Promise<boolean> {
-    this.selectedAudioInputDeviceId = deviceId;
-    if (typeof localStorage !== "undefined") {
-      localStorage.setItem("tescord_selected_audio_input_id", deviceId);
-    }
-    // 联动 AudioEngine 热换流
-    const switching = audioEngine.switchInputDevice(deviceId);
-    // switchInputDevice updates the active configuration synchronously. Notify
-    // after that update so observers cannot restore the previous selection.
-    this.notifyActiveAudioInputChanged();
-    const stream = await switching;
-    if (stream && this.room && this.isConnected) {
-      await this.publishMicrophoneStream(stream, this.currentAudioBitrate);
-    }
-    return true;
+    const pending = this.inputSwitchQueue.then(async () => {
+      const stream = await audioEngine.switchInputDevice(deviceId);
+      if (!stream) return false;
+      this.selectedAudioInputDeviceId =
+        audioEngine.config.inputDeviceId || "default";
+      this.notifyActiveAudioInputChanged();
+      await audioDevices.refresh();
+      return true;
+    });
+    this.inputSwitchQueue = pending.catch(() => undefined);
+    return pending;
   }
 
   getAudioOutputDeviceId(): string {
-    return this.selectedAudioOutputDeviceId || "default";
+    return audioOutput.getState().deviceId;
   }
 
   onActiveAudioOutputChange(callback: (deviceId: string) => void): () => void {
@@ -1737,74 +1764,12 @@ export class LiveKitService {
 
   private notifyActiveAudioOutputChanged() {
     const activeId = this.getAudioOutputDeviceId();
-    this.onActiveAudioOutputChangedCallbacks.forEach((cb) => {
-      try {
-        cb(activeId);
-      } catch (err) {
-        console.warn("Active audio output callback error:", err);
-      }
-    });
+    for (const callback of this.onActiveAudioOutputChangedCallbacks)
+      callback(activeId);
   }
 
   async switchAudioOutputDevice(deviceId: string): Promise<boolean> {
-    this.selectedAudioOutputDeviceId = deviceId;
-    if (typeof localStorage !== "undefined") {
-      localStorage.setItem("tescord_selected_audio_output_id", deviceId);
-    }
-    this.notifyActiveAudioOutputChanged();
-
-    const targetSink = deviceId === "default" ? "" : deviceId;
-
-    // 1. 设置 Web Audio PlaybackContext 的 sinkId
-    if (
-      this.playbackAudioContext &&
-      typeof (this.playbackAudioContext as any).setSinkId === "function"
-    ) {
-      try {
-        await (this.playbackAudioContext as any).setSinkId(targetSink);
-      } catch (e) {
-        console.warn(
-          "[LiveKit] Failed to setSinkId on playbackAudioContext:",
-          e,
-        );
-      }
-    }
-
-    // 2. 遍历所有附加的远端音频元素并设置 sinkId
-    for (const ctrl of this.participantAudioMap.values()) {
-      for (const trackEntry of ctrl.tracks.values()) {
-        if (
-          trackEntry.element &&
-          typeof (trackEntry.element as any).setSinkId === "function"
-        ) {
-          try {
-            await (trackEntry.element as any).setSinkId(targetSink);
-          } catch (e) {
-            console.warn("[LiveKit] Failed to setSinkId on audioElement:", e);
-          }
-        }
-      }
-    }
-
-    // 3. 同步 LiveKit room 的 active device（若支持）
-    if (
-      this.room &&
-      typeof (this.room as any).switchActiveDevice === "function"
-    ) {
-      try {
-        await (this.room as any).switchActiveDevice("audiooutput", targetSink);
-      } catch (e) {
-        console.warn(
-          "[LiveKit] room.switchActiveDevice audiooutput failed:",
-          e,
-        );
-      }
-    }
-
-    // 4. 同步提示音管理器
-    await soundManager.setSinkId(deviceId);
-
-    return true;
+    return (await audioOutput.switchDevice(deviceId)).success;
   }
 
   getCameraDeviceId(): string {
@@ -2555,38 +2520,13 @@ export class LiveKitService {
     // 清理所有远端 Web Audio 节点与音轨
     this.participantAudioMap.forEach((ctrl) => {
       ctrl.tracks.forEach((entry) => {
-        if (entry.analyserNode) {
-          try {
-            entry.analyserNode.disconnect();
-          } catch {}
-        }
-        if (entry.gainNode) {
-          try {
-            entry.gainNode.disconnect();
-          } catch {}
-        }
-        if (entry.sourceNode) {
-          try {
-            entry.sourceNode.disconnect();
-          } catch {}
-        }
-        if (entry.track && entry.element) {
-          try {
-            entry.track.detach(entry.element);
-          } catch {}
-        }
+        this.disposeRemoteAudioTrack(entry);
       });
       ctrl.tracks.clear();
     });
     this.participantAudioMap.clear();
 
-    // 释放母带软压限器并关闭回放 AudioContext，避免内存及硬件声卡资源泄漏
-    if (this.masterCompressor) {
-      try {
-        this.masterCompressor.disconnect();
-      } catch {}
-      this.masterCompressor = null;
-    }
+    this.closePlaybackContext();
 
     this.unbindLifecycleListeners();
     this.setAudioPlaybackStatus({
@@ -2594,20 +2534,6 @@ export class LiveKitService {
       isInterrupted: false,
       error: undefined,
     });
-
-    if (
-      this.playbackAudioContext &&
-      this.playbackAudioContext.state !== "closed"
-    ) {
-      try {
-        this.playbackAudioContext.removeEventListener(
-          "statechange",
-          this.handlePlaybackContextStateChange,
-        );
-        this.playbackAudioContext.close();
-      } catch {}
-      this.playbackAudioContext = null;
-    }
 
     this.localAudioPublication = null;
   }
@@ -2748,7 +2674,7 @@ export class LiveKitService {
       const state = this.playbackAudioContext.state as string;
       if (state === "suspended" || state === "interrupted") {
         try {
-          await this.playbackAudioContext.resume();
+          await audioOutput.resumeContext(this.playbackAudioContext);
         } catch (e) {
           console.warn("[LiveKit] resume playbackAudioContext failed:", e);
           allOk = false;
@@ -2778,6 +2704,7 @@ export class LiveKitService {
     // 4. 重试所有远端绑定的 HTMLAudioElement 播放
     this.participantAudioMap.forEach((ctrl) => {
       ctrl.tracks.forEach((entry) => {
+        entry.element.muted = true;
         if (entry.element && entry.element.paused) {
           entry.element.play().catch(() => {});
         }

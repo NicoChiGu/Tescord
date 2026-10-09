@@ -1381,6 +1381,20 @@ export interface ParticipantAudioSettings {
   muted: boolean; // 是否对该用户单独静音
 }
 
+export interface AudioOutputState {
+  deviceId: string;
+  volume: number;
+  deafened: boolean;
+}
+
+export type AudioDeviceSelectionResult =
+  | { success: true; deviceId: string }
+  | {
+      success: false;
+      deviceId: string;
+      code: "AUDIO_DEVICE_UNSUPPORTED" | "AUDIO_DEVICE_SWITCH_FAILED";
+    };
+
 // 7.1 音频算法与工具函数 (Audio Utilities & Helpers)
 export function clampVolume(vol: number): number {
   if (isNaN(vol)) return 100;
@@ -3213,6 +3227,9 @@ export const SUPPORTED_LOCALES: LocaleOption[] = [
 export enum ErrorCode {
   // 通用错误
   INTERNAL_ERROR = "INTERNAL_ERROR",
+  AUDIO_INPUT_SWITCH_FAILED = "AUDIO_INPUT_SWITCH_FAILED",
+  AUDIO_DEVICE_SWITCH_FAILED = "AUDIO_DEVICE_SWITCH_FAILED",
+  AUDIO_DEVICE_UNSUPPORTED = "AUDIO_DEVICE_UNSUPPORTED",
   AUDIO_PROCESSING_UNSUPPORTED = "AUDIO_PROCESSING_UNSUPPORTED",
   INVALID_PARAMS = "INVALID_PARAMS",
   NOT_FOUND = "NOT_FOUND",

@@ -254,11 +254,24 @@ export class AudioEngine {
     try {
       const savedAudio = useSettingsStore.getState().audio;
       if (savedAudio) {
-        this.config = { ...this.config, ...savedAudio };
+        this.config = {
+          ...this.config,
+          ...savedAudio,
+          inputDeviceId: savedAudio.inputDeviceId ?? this.config.inputDeviceId,
+          outputDeviceId:
+            savedAudio.outputDeviceId ?? this.config.outputDeviceId,
+        };
       }
       useSettingsStore.subscribe((state) => {
         if (state.audio) {
-          this.config = { ...this.config, ...state.audio };
+          this.config = {
+            ...this.config,
+            ...state.audio,
+            inputDeviceId:
+              state.audio.inputDeviceId ?? this.config.inputDeviceId,
+            outputDeviceId:
+              state.audio.outputDeviceId ?? this.config.outputDeviceId,
+          };
         }
       });
     } catch (e) {
@@ -355,7 +368,8 @@ export class AudioEngine {
           echoCancellation: this.config.echoCancellation,
           noiseSuppression: false, // 禁用系统低质降噪，全权由 RNNoise/DTLN/DFNv3 神经网络处理
           autoGainControl: false,
-          ...(this.config.inputDeviceId
+          ...(this.config.inputDeviceId &&
+          this.config.inputDeviceId !== "default"
             ? { deviceId: { exact: this.config.inputDeviceId } }
             : {}),
         },
@@ -407,10 +421,19 @@ export class AudioEngine {
 
   // 1.1 无缝热换硬件输入源 (Zero-glitch hot swap)
   async switchInputDevice(deviceId: string): Promise<MediaStream | null> {
-    this.config.inputDeviceId = deviceId;
-    if (typeof localStorage !== "undefined") {
-      localStorage.setItem("tescord_selected_audio_input_id", deviceId);
-    }
+    const previousDeviceId = this.config.inputDeviceId;
+    const commit = (stream: MediaStream) => {
+      const actualId = stream.getAudioTracks()[0]?.getSettings().deviceId;
+      const selectedId =
+        deviceId === "default" ? "default" : actualId || deviceId;
+      this.config.inputDeviceId = selectedId;
+      try {
+        localStorage.setItem("tescord_selected_audio_input_id", selectedId);
+      } catch (error) {
+        console.warn("Audio input preference persistence failed", error);
+      }
+      useSettingsStore.getState().setAudioConfig({ inputDeviceId: selectedId });
+    };
 
     // 若当前 Web Audio 上下文与图元输出节点处于活跃状态，无缝热替换物理输入源
     if (
@@ -481,6 +504,7 @@ export class AudioEngine {
         const previousStream = this.rawMediaStream;
         this.sourceNode = replacementSource;
         this.rawMediaStream = replacement;
+        commit(replacement);
         this.reportCaptureSettings();
         try {
           previousSource.disconnect();
@@ -497,14 +521,20 @@ export class AudioEngine {
           "AudioEngine switchInputDevice hot swap 失败，保留原麦克风:",
           err,
         );
-        this.lastError = String(err);
-        this.onErrorCallbacks.forEach((cb) => cb(this.lastError!));
-        return this.processedStream;
+        throw err;
       }
     }
 
     // 否则执行完整麦克风管线初始化
-    return await this.initMicrophone();
+    this.config.inputDeviceId = deviceId;
+    const stream = await this.initMicrophone();
+    if (!stream || !this.rawMediaStream) {
+      this.config.inputDeviceId = previousDeviceId;
+      throw new Error("AUDIO_INPUT_SWITCH_FAILED");
+    }
+    commit(this.rawMediaStream);
+    this.notifyStreamChange(stream);
+    return stream;
   }
 
   // 2. 搭建 Web Audio 图元与 RNNoise WASM / VAD / AGC 门限管线
@@ -1188,8 +1218,9 @@ export class AudioEngine {
     });
 
     // VAD uses the gain envelope; disabling the track at every VAD edge cuts phonemes.
-    if (this.processedStream) {
-      this.processedStream.getAudioTracks().forEach((track) => {
+    const output = this.getStream();
+    if (output) {
+      output.getAudioTracks().forEach((track) => {
         track.enabled =
           !this.isManualMuted &&
           ((this.config.inputMode !== "PTT" && !this.config.pushToTalk) ||

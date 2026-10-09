@@ -295,6 +295,9 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
   };
 
   const isMe = currentUser?.id === targetUser.id;
+  const [audioMuted, setAudioMuted] = useState(() =>
+    livekitService.isParticipantMuted(targetUser.id),
+  );
 
   // 远端用户音量 (0 - 200)
   const [volume, setVolume] = useState<number>(() => {
@@ -360,7 +363,10 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
   };
 
   const handleToggleMute = () => {
-    const nextVol = volume === 0 ? 100 : 0;
+    const nextMuted = !(audioMuted || volume === 0);
+    livekitService.setParticipantMuted(targetUser.id, nextMuted);
+    setAudioMuted(nextMuted);
+    const nextVol = nextMuted ? 0 : 100;
     handleVolumeChange(nextVol);
   };
 
@@ -378,6 +384,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
     <ContextMenu
       onOpenChange={(open) => {
         if (open && !isMe) {
+          setAudioMuted(livekitService.isParticipantMuted(targetUser.id));
           // 菜单弹出瞬间强制同步最新音量快照，防止旧值反向覆盖
           const latestVol = (
             VOICE_ENGINE === "cloudflare_realtime"
@@ -751,7 +758,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
                 >
                   <div className="flex items-center justify-between text-xs text-discord-textMuted font-medium">
                     <span className="flex items-center space-x-1.5">
-                      {volume === 0 ? (
+                      {audioMuted || volume === 0 ? (
                         <VolumeX className="w-3.5 h-3.5 text-discord-danger" />
                       ) : (
                         <Volume2 className="w-3.5 h-3.5" />
@@ -788,13 +795,15 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
                   className="hover:bg-discord-brand"
                 >
                   <div className="flex items-center space-x-2">
-                    {volume === 0 ? (
+                    {audioMuted || volume === 0 ? (
                       <Volume2 className="w-4 h-4 text-discord-green" />
                     ) : (
                       <VolumeX className="w-4 h-4 text-discord-textMuted" />
                     )}
                     <span>
-                      {volume === 0 ? t("unmuteUser") : t("muteUser")}
+                      {audioMuted || volume === 0
+                        ? t("unmuteUser")
+                        : t("muteUser")}
                     </span>
                   </div>
                 </ContextMenuItem>

@@ -1,3 +1,4 @@
+import { audioOutput } from "../audioOutput.js";
 import {
   CfCallsCreateSessionResponse,
   CfCallsHeartbeatResponse,
@@ -104,7 +105,7 @@ export class CloudflareRealtimeService {
   >();
   private playbackContext: AudioContext | null = null;
   private masterGain: GainNode | null = null;
-  private masterVolume = 100;
+  private outputBinding: ReturnType<typeof audioOutput.register> | null = null;
   private audioPlaybackStatus: AudioPlaybackStatus = {
     canPlay: true,
     isInterrupted: false,
@@ -114,7 +115,6 @@ export class CloudflareRealtimeService {
   >();
   private playbackLifecycleBound = false;
   private deafened = false;
-  private streamVolumes = new Map<string, number>();
   private activeSpeakers = new Set<string>();
   private speakerTimer: ReturnType<typeof setInterval> | null = null;
   private speakerListeners = new Set<(speakers: string[]) => void>();
@@ -271,26 +271,15 @@ export class CloudflareRealtimeService {
   private remoteByMid = new Map<string, CfMediaPublication>();
 
   constructor() {
-    const settings = useSettingsStore.getState();
-    this.masterVolume = clampVolume(settings.outputVolume);
-    try {
-      const saved = JSON.parse(
-        localStorage.getItem("tescord_stream_volumes") || "{}",
-      ) as Record<string, unknown>;
-      for (const [userId, volume] of Object.entries(saved)) {
-        if (typeof volume === "number")
-          this.streamVolumes.set(userId, clampVolume(volume));
-      }
-    } catch {
-      /* Invalid preferences must not interrupt media setup. */
-    }
+    audioOutput.subscribe((state) => {
+      this.deafened = state.deafened;
+      this.updatePlaybackGains();
+    });
     this.unbindSettings = useSettingsStore.subscribe((state, previous) => {
       if (state.outputVolume !== previous.outputVolume)
         this.setMasterVolume(state.outputVolume);
       if (state.userVolumes !== previous.userVolumes)
         this.updatePlaybackGains();
-      if (state.audio.outputDeviceId !== previous.audio.outputDeviceId)
-        void this.applyOutputDevice();
     });
   }
 
@@ -302,9 +291,18 @@ export class CloudflareRealtimeService {
         this.handlePlaybackContextStateChange,
       );
       this.masterGain = this.playbackContext.createGain();
-      this.masterGain.connect(this.playbackContext.destination);
+      this.outputBinding = audioOutput.register(
+        this.playbackContext,
+        this.masterGain,
+      );
+      void this.outputBinding.ready.catch((error) =>
+        this.setAudioPlaybackStatus({
+          canPlay: false,
+          isInterrupted: true,
+          error: String(error),
+        }),
+      );
       this.updatePlaybackGains();
-      void this.applyOutputDevice();
       this.bindPlaybackLifecycleListeners();
     }
     if (this.playbackContext.state === "suspended")
@@ -387,7 +385,7 @@ export class CloudflareRealtimeService {
       const state = this.playbackContext.state as string;
       if (state === "suspended" || state === "interrupted") {
         try {
-          await this.playbackContext.resume();
+          await audioOutput.resumeContext(this.playbackContext);
         } catch (error) {
           console.warn("[CF Realtime] Resume AudioContext failed", error);
           canPlay = false;
@@ -421,38 +419,7 @@ export class CloudflareRealtimeService {
     });
   }
 
-  private async applyOutputDevice(): Promise<void> {
-    const deviceId =
-      useSettingsStore.getState().audio.outputDeviceId || "default";
-    const context = this.playbackContext as
-      (AudioContext & { setSinkId?: (id: string) => Promise<void> }) | null;
-    if (context?.setSinkId) {
-      await context
-        .setSinkId(deviceId)
-        .catch((error) =>
-          console.warn("[CF Realtime] Output device change failed", error),
-        );
-    }
-    for (const audio of this.audioElements.values()) {
-      const sinkAudio = audio as HTMLAudioElement & {
-        setSinkId?: (id: string) => Promise<void>;
-      };
-      if (
-        !this.audioRoutes.has(audio.dataset.trackId || "") &&
-        sinkAudio.setSinkId
-      ) {
-        await sinkAudio.setSinkId(deviceId).catch(() => undefined);
-      }
-    }
-  }
-
   private updatePlaybackGains(): void {
-    if (this.masterGain && this.playbackContext) {
-      this.masterGain.gain.setValueAtTime(
-        this.deafened ? 0 : this.masterVolume / 100,
-        this.playbackContext.currentTime,
-      );
-    }
     for (const [trackId, route] of this.audioRoutes) {
       const identity = route.publication?.userId;
       const volume =
@@ -460,7 +427,7 @@ export class CloudflareRealtimeService {
           ? this.getStreamVolume(identity || "")
           : this.getParticipantVolume(identity || "");
       route.gain.gain.setValueAtTime(
-        volume / 100,
+        audioOutput.isParticipantMuted(identity || "") ? 0 : volume / 100,
         this.playbackContext?.currentTime || 0,
       );
       const fallback = this.audioElements.get(trackId);
@@ -468,33 +435,19 @@ export class CloudflareRealtimeService {
     }
     for (const [trackId, audio] of this.audioElements) {
       if (this.audioRoutes.has(trackId)) continue;
-      const publication = this.audioPublicationByTrackId(trackId);
-      const volume =
-        publication?.source === "screen-audio"
-          ? this.getStreamVolume(publication.userId)
-          : this.getParticipantVolume(publication?.userId || "");
-      audio.muted = this.deafened;
-      audio.volume = Math.min(1, (volume / 100) * (this.masterVolume / 100));
+      audio.muted = true;
     }
   }
 
-  private audioPublicationByTrackId(
-    trackId: string,
-  ): CfMediaPublication | undefined {
-    for (const route of this.audioRoutes.values())
-      if (route.track.id === trackId) return route.publication;
-    return undefined;
-  }
-
   public setMasterVolume(volume: number): void {
-    this.masterVolume = clampVolume(volume);
-    if (useSettingsStore.getState().outputVolume !== this.masterVolume)
-      useSettingsStore.getState().setOutputVolume(this.masterVolume);
+    const clamped = clampVolume(volume);
+    if (useSettingsStore.getState().outputVolume !== clamped)
+      useSettingsStore.getState().setOutputVolume(clamped);
     this.updatePlaybackGains();
   }
 
   public getMasterVolume(): number {
-    return this.masterVolume;
+    return clampVolume(useSettingsStore.getState().outputVolume);
   }
 
   public setParticipantVolume(identity: string, volume: number): void {
@@ -521,20 +474,11 @@ export class CloudflareRealtimeService {
   }
 
   public setStreamVolume(identity: string, volume: number): void {
-    this.streamVolumes.set(identity, clampVolume(volume));
-    try {
-      localStorage.setItem(
-        "tescord_stream_volumes",
-        JSON.stringify(Object.fromEntries(this.streamVolumes)),
-      );
-    } catch {
-      /* Best effort. */
-    }
-    this.updatePlaybackGains();
+    audioOutput.setStreamVolume(identity, volume);
   }
 
   public getStreamVolume(identity: string): number {
-    return this.streamVolumes.get(identity) ?? 100;
+    return audioOutput.getStreamVolume(identity);
   }
 
   public onActiveSpeakersChange(
@@ -1060,6 +1004,7 @@ export class CloudflareRealtimeService {
               new MediaStream([event.track]),
             );
             const gain = context.createGain();
+            gain.gain.value = 0;
             source.connect(gain);
             gain.connect(this.masterGain!);
             let analyser: AnalyserNode | undefined;
@@ -1078,19 +1023,12 @@ export class CloudflareRealtimeService {
             });
             audioEl.muted = true;
           } catch (error) {
-            console.warn(
-              "[CF Realtime] Web Audio unavailable; falling back to HTMLAudioElement",
-              error,
-            );
-            void this.applyOutputDevice();
-            audioEl
-              .play()
-              .catch((playErr) =>
-                console.warn(
-                  "[CF Realtime] Remote audio autoplay blocked",
-                  playErr,
-                ),
-              );
+            audioEl.muted = true;
+            this.setAudioPlaybackStatus({
+              canPlay: false,
+              isInterrupted: true,
+              error: String(error),
+            });
           }
           this.updatePlaybackGains();
           event.track.addEventListener(
@@ -1239,6 +1177,7 @@ export class CloudflareRealtimeService {
     if (audio) {
       audio.pause();
       audio.srcObject = null;
+      audio.remove();
       this.audioElements.delete(trackId);
     }
     if (
@@ -1246,9 +1185,22 @@ export class CloudflareRealtimeService {
       this.activeSpeakers.delete(route.publication.userId)
     )
       this.emitSpeakers();
-    if (!this.audioRoutes.size && this.speakerTimer) {
-      clearInterval(this.speakerTimer);
+    if (!this.audioRoutes.size) {
+      if (this.speakerTimer) clearInterval(this.speakerTimer);
       this.speakerTimer = null;
+      this.outputBinding?.dispose();
+      this.outputBinding = null;
+      this.masterGain = null;
+      const context = this.playbackContext;
+      this.playbackContext = null;
+      if (context && context.state !== "closed") {
+        context.removeEventListener(
+          "statechange",
+          this.handlePlaybackContextStateChange,
+        );
+        void context.close().catch(() => undefined);
+      }
+      this.unbindPlaybackLifecycleListeners();
     }
   }
 
@@ -2753,8 +2705,7 @@ export class CloudflareRealtimeService {
   }
 
   public setDeafened(deafened: boolean): void {
-    this.deafened = deafened;
-    this.updatePlaybackGains();
+    audioOutput.setDeafened(deafened);
   }
 
   private scheduleTurnRefresh(expiresAt: number): void {
@@ -2852,6 +2803,8 @@ export class CloudflareRealtimeService {
     for (const trackId of [...this.audioElements.keys()])
       this.releaseRemoteTrack(trackId);
     this.unbindPlaybackLifecycleListeners();
+    this.outputBinding?.dispose();
+    this.outputBinding = null;
     if (this.playbackContext) {
       this.playbackContext.removeEventListener(
         "statechange",

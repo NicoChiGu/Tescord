@@ -57,5 +57,8 @@
   "MEDIA_CONTEXT_STALE": "Voice membership changed; refreshing the encrypted session",
   "MEDIA_KEY_INVALID": "Media key verification failed; connection refused",
   "MEDIA_NEGOTIATION_TIMEOUT": "Media encryption negotiation timed out. Rejoin to retry.",
-  "ICON_PROCESS_TIMEOUT": "Icon processing timed out. Try a smaller GIF."
+  "ICON_PROCESS_TIMEOUT": "Icon processing timed out. Try a smaller GIF.",
+  "AUDIO_INPUT_SWITCH_FAILED": "Unable to switch microphone. Check the device and permissions.",
+  "AUDIO_DEVICE_SWITCH_FAILED": "Unable to switch output device. Check the device and permissions.",
+  "AUDIO_DEVICE_UNSUPPORTED": "This browser does not support output device selection."
 }

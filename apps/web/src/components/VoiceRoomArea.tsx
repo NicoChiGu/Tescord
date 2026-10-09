@@ -1,3 +1,10 @@
+import { toast } from "../stores/useToastStore.js";
+import { audioOutput } from "../services/audioOutput.js";
+import {
+  audioDevices,
+  audioDeviceLabel,
+  type AudioDeviceEntry,
+} from "../services/audioDevices.js";
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Channel,
@@ -1015,7 +1022,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
 
   // 麦克风快速选择菜单状态
   const [isMicMenuOpen, setIsMicMenuOpen] = useState(false);
-  const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
+  const [micDevices, setMicDevices] = useState<AudioDeviceEntry[]>([]);
   const [activeMicId, setActiveMicId] = useState<string>(
     livekitService.getAudioInputDeviceId() || "default",
   );
@@ -1034,17 +1041,10 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
 
   // 获取并监听系统摄像头与麦克风设备变动与当前激活设备
   useEffect(() => {
-    const fetchDevices = async () => {
-      try {
-        if (navigator.mediaDevices?.enumerateDevices) {
-          const devices = await navigator.mediaDevices.enumerateDevices();
-          setCameraDevices(devices.filter((d) => d.kind === "videoinput"));
-          setMicDevices(devices.filter((d) => d.kind === "audioinput"));
-        }
-      } catch {}
-    };
-    fetchDevices();
-    navigator.mediaDevices?.addEventListener?.("devicechange", fetchDevices);
+    const cleanupDevices = audioDevices.subscribe((devices) => {
+      setCameraDevices(devices.cameras);
+      setMicDevices(devices.inputs);
+    });
     const cleanupActiveCam = livekitService.onActiveCameraChange((id) => {
       setActiveCameraId(id);
     });
@@ -1053,10 +1053,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
     });
 
     return () => {
-      navigator.mediaDevices?.removeEventListener?.(
-        "devicechange",
-        fetchDevices,
-      );
+      cleanupDevices();
       cleanupActiveCam();
       cleanupActiveMic();
     };
@@ -1099,9 +1096,12 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
   };
 
   const handleSelectMic = async (deviceId: string) => {
-    setActiveMicId(deviceId);
-    await livekitService.switchAudioInputDevice(deviceId);
-    setIsMicMenuOpen(false);
+    try {
+      await livekitService.switchAudioInputDevice(deviceId);
+      setIsMicMenuOpen(false);
+    } catch {
+      toast.error("errors:AUDIO_INPUT_SWITCH_FAILED");
+    }
   };
 
   const handleSelectNoiseMode = (mode: "off" | "rnnoise" | "dtln" | "dfn3") => {
@@ -1200,10 +1200,6 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
   >(null);
   const p2pAudioContextRef = useRef<AudioContext | null>(null);
   const p2pAudioGainRef = useRef<GainNode | null>(null);
-  const outputVolume = useSettingsStore((state) => state.outputVolume);
-  const outputDeviceId = useSettingsStore(
-    (state) => state.audio.outputDeviceId,
-  );
   const [micMixGain, setMicMixGain] = useState(audioMixer.config.micVolume);
   const [systemMixGain, setSystemMixGain] = useState(
     audioMixer.config.systemAudioVolume,
@@ -1327,28 +1323,27 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
     const context = new AudioContext();
     const source = context.createMediaStreamSource(audio);
     const gain = context.createGain();
-    source.connect(gain).connect(context.destination);
+    gain.gain.value = audioOutput.isParticipantMuted(p2pRemoteAudio.userId)
+      ? 0
+      : audioOutput.getStreamVolume(p2pRemoteAudio.userId) / 100;
+    const master = context.createGain();
+    source.connect(gain).connect(master);
+    const binding = audioOutput.register(context, master);
+    void binding.ready.catch((error) =>
+      console.warn("Screen audio output failed", error),
+    );
     p2pAudioContextRef.current = context;
     p2pAudioGainRef.current = gain;
-    if (outputDeviceId && "setSinkId" in context) {
-      void (context as AudioContext & { setSinkId(id: string): Promise<void> })
-        .setSinkId(outputDeviceId)
-        .catch(console.warn);
-    }
     void context.resume();
     return () => {
+      binding.dispose();
       source.disconnect();
       gain.disconnect();
       p2pAudioGainRef.current = null;
       p2pAudioContextRef.current = null;
       void context.close();
     };
-  }, [
-    p2pRemoteAudio?.stream,
-    p2pRemoteAudio?.userId,
-    watchedP2PStreamerId,
-    outputDeviceId,
-  ]);
+  }, [p2pRemoteAudio?.stream, p2pRemoteAudio?.userId, watchedP2PStreamerId]);
 
   useEffect(() => {
     if (
@@ -1357,13 +1352,16 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
       !p2pRemoteAudio
     )
       return;
-    p2pAudioGainRef.current.gain.setTargetAtTime(
-      ((streamVolumes.get(p2pRemoteAudio.userId) ?? 100) / 100) *
-        (outputVolume / 100),
-      p2pAudioContextRef.current.currentTime,
-      0.02,
-    );
-  }, [streamVolumes, outputVolume, p2pRemoteAudio?.userId]);
+    return audioOutput.subscribe(() => {
+      if (!p2pAudioGainRef.current || !p2pAudioContextRef.current) return;
+      p2pAudioGainRef.current.gain.setValueAtTime(
+        audioOutput.isParticipantMuted(p2pRemoteAudio.userId)
+          ? 0
+          : audioOutput.getStreamVolume(p2pRemoteAudio.userId) / 100,
+        p2pAudioContextRef.current.currentTime,
+      );
+    });
+  }, [p2pRemoteAudio?.userId]);
 
   // 筛选出当前频道的成员
   const currentParticipants = voiceStates.filter(
@@ -2586,19 +2584,17 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                 >
                   <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
                     <Mic className="w-3.5 h-3.5 text-discord-brand" />
-                    <span>选择麦克风设备</span>
+                    <span>{t("settings:audioVideo.inputDeviceLabel")}</span>
                   </div>
 
                   <div className="space-y-0.5 mt-1 max-h-48 overflow-y-auto">
                     {micDevices.length === 0 ? (
                       <div className="px-2 py-1.5 text-xs text-gray-500">
-                        未检测到可用麦克风
+                        {t("settings:audioVideo.defaultInputDevice")}
                       </div>
                     ) : (
                       micDevices.map((d, index) => {
-                        const isSelected =
-                          activeMicId === d.deviceId ||
-                          (!activeMicId && index === 0);
+                        const isSelected = activeMicId === d.deviceId;
                         return (
                           <button
                             key={d.deviceId || index}
@@ -2612,7 +2608,13 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                             }`}
                           >
                             <span className="truncate pr-2">
-                              {d.label || `麦克风设备 ${index + 1}`}
+                              {audioDeviceLabel(
+                                d,
+                                t("settings:audioVideo.defaultInputDevice"),
+                                t("settings:audioVideo.inputDeviceIndex", {
+                                  index: index + 1,
+                                }),
+                              )}
                             </span>
                             {isSelected && (
                               <Check className="w-3.5 h-3.5 text-discord-brand shrink-0" />

@@ -87,6 +87,7 @@ import {
 import { useAuthStore } from "./stores/useAuthStore.js";
 import { usePresenceStore } from "./stores/usePresenceStore.js";
 import { gatewayClient } from "./services/gateway.js";
+import { audioOutput } from "./services/audioOutput.js";
 import { audioEngine } from "./services/audioEngine.js";
 import { useMessageHistory } from "./hooks/useMessageHistory.js";
 import { livekitService, ActiveScreenShare } from "./services/livekit.js";
@@ -4054,9 +4055,16 @@ export const App: React.FC = () => {
       const dmChannel =
         dmChannels.find((candidate) => candidate.id === channelId) ||
         (selectedChannel?.id === channelId ? selectedChannel : null);
-      const peerId = dmChannel?.recipients?.find(
-        (recipient) => recipient.id !== currentUser.id,
-      )?.id;
+      const currentCall = useDMCallStore.getState();
+      const peerId =
+        (currentCall.callId === callId &&
+        currentCall.channelId === channelId &&
+        currentCall.targetUser?.id !== currentUser.id
+          ? currentCall.targetUser?.id
+          : undefined) ||
+        dmChannel?.recipients?.find(
+          (recipient) => recipient.id !== currentUser.id,
+        )?.id;
 
       // 1v1 默认先建立端到端加密的 WebRTC 直连；ICE 配置中包含自建 TURN，
       // 因此 host/srflx/relay 都属于 P2P 阶段。只有该阶段确认失败才进入 SFU。
@@ -4356,7 +4364,7 @@ export const App: React.FC = () => {
     const nextDeafened = !isDeafenedRef.current;
     isDeafenedRef.current = nextDeafened;
     setIsDeafened(nextDeafened);
-    cloudflareRealtimeService.setDeafened(nextDeafened);
+    audioOutput.setDeafened(nextDeafened);
     // 播放关闭/开启声音提示音
     soundManager.play(nextDeafened ? "DEAFEN" : "UNDEAFEN");
     if (!isMutedRef.current && nextDeafened) {

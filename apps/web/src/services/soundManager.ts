@@ -1,3 +1,4 @@
+import { audioOutput } from "./audioOutput.js";
 import { SoundEffectType } from "@tescord/types";
 
 /**
@@ -10,6 +11,8 @@ import { SoundEffectType } from "@tescord/types";
  */
 class SoundEffectManager {
   private ctx: AudioContext | null = null;
+  private outputGain: GainNode | null = null;
+  private outputBinding: ReturnType<typeof audioOutput.register> | null = null;
   private lastPlayedMap: Map<SoundEffectType, number> = new Map();
   private readonly THROTTLE_MS = 60; // 同类音效触发节流时间
 
@@ -27,7 +30,16 @@ class SoundEffectManager {
     if (!AudioContextClass) return null;
 
     if (!this.ctx || this.ctx.state === "closed") {
+      this.outputBinding?.dispose();
       this.ctx = new AudioContextClass();
+      this.outputGain = this.ctx.createGain();
+      this.outputBinding = audioOutput.register(this.ctx, this.outputGain, {
+        deafenable: false,
+        masterVolume: false,
+      });
+      void this.outputBinding.ready.catch((error) =>
+        console.warn("Sound output failed", error),
+      );
     }
 
     if (this.ctx.state === "suspended") {
@@ -67,7 +79,7 @@ class SoundEffectManager {
     );
 
     osc.connect(gainNode);
-    gainNode.connect(ctx.destination);
+    gainNode.connect(this.outputGain!);
 
     osc.start(startTime);
     const stopTime = startTime + duration + releaseTime;
@@ -347,14 +359,8 @@ class SoundEffectManager {
    * 路由提示音输出设备 (setSinkId)
    */
   public async setSinkId(deviceId: string): Promise<void> {
-    const ctx = this.getAudioContext();
-    if (ctx && typeof (ctx as any).setSinkId === "function") {
-      try {
-        await (ctx as any).setSinkId(deviceId === "default" ? "" : deviceId);
-      } catch (err) {
-        console.warn("[SoundManager] setSinkId failed:", err);
-      }
-    }
+    const result = await audioOutput.switchDevice(deviceId);
+    if (!result.success) throw new Error(result.code);
   }
 }
 

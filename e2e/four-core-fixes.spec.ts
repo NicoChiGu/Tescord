@@ -264,6 +264,31 @@ test.describe("4项核心缺陷与体验优化验收 (Four Core Fixes E2E)", () 
         "tescord_selected_audio_output_id",
         "mock_local_speaker_uuid_456",
       );
+      navigator.mediaDevices.enumerateDevices = async () =>
+        [
+          {
+            kind: "audioinput",
+            deviceId: "mock_local_mic_uuid_123",
+            label: "Local microphone",
+            groupId: "mic",
+          },
+          {
+            kind: "audiooutput",
+            deviceId: "mock_local_speaker_uuid_456",
+            label: "Local speaker",
+            groupId: "speaker",
+          },
+          {
+            kind: "videoinput",
+            deviceId: "mock_local_cam_uuid_789",
+            label: "Local camera",
+            groupId: "camera",
+          },
+        ] as MediaDeviceInfo[];
+      Object.defineProperty(AudioContext.prototype, "setSinkId", {
+        configurable: true,
+        value: async () => undefined,
+      });
     });
 
     await page.goto("/");

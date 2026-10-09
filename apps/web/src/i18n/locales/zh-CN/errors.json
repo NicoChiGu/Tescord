@@ -57,5 +57,8 @@
   "MEDIA_CONTEXT_STALE": "语音成员已变化，正在更新加密会话",
   "MEDIA_KEY_INVALID": "媒体密钥校验失败，已拒绝连接",
   "MEDIA_NEGOTIATION_TIMEOUT": "媒体加密协商超时，请重新加入",
-  "ICON_PROCESS_TIMEOUT": "图标处理超时，请选择较小的 GIF 后重试"
+  "ICON_PROCESS_TIMEOUT": "图标处理超时，请选择较小的 GIF 后重试",
+  "AUDIO_INPUT_SWITCH_FAILED": "无法切换麦克风，请检查设备和权限。",
+  "AUDIO_DEVICE_SWITCH_FAILED": "无法切换输出设备，请检查设备和权限。",
+  "AUDIO_DEVICE_UNSUPPORTED": "此浏览器不支持选择输出设备。"
 }
