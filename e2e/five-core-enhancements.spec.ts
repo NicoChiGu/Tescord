@@ -282,20 +282,22 @@ test.describe("Tescord 五大音视频与状态同步核心能力 E2E 自动化�
     // 页面能正常加载
     await expect(page.locator("body")).toBeVisible();
 
-    // 验证左下角音频与视频看板 Tab 结构与功能
-    const tabLabels = await page.evaluate(() => {
-      // 检查当前组件与状态是否健全
-      const mesh = (window as any).voiceMeshManager;
-      const p2p = (window as any).p2pStreamManager;
-      return {
-        hasMesh: !!mesh,
-        hasP2P: !!p2p,
-        meshFallback: mesh?.getIsFallbackToSFU?.() ?? false,
-      };
-    });
-
-    expect(tabLabels.hasMesh).toBe(true);
-    expect(tabLabels.hasP2P).toBe(true);
-    expect(tabLabels.meshFallback).toBe(false);
+    // App exposes the stream manager from its authenticated-user effect, after
+    // DOMContentLoaded. Keep all assertions while waiting for that real binding.
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const scope = window as unknown as {
+            voiceMeshManager?: { getIsFallbackToSFU(): boolean };
+            p2pStreamManager?: object;
+          };
+          return {
+            hasMesh: Boolean(scope.voiceMeshManager),
+            hasP2P: Boolean(scope.p2pStreamManager),
+            meshFallback: scope.voiceMeshManager?.getIsFallbackToSFU() ?? null,
+          };
+        }),
+      )
+      .toEqual({ hasMesh: true, hasP2P: true, meshFallback: false });
   });
 });

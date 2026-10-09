@@ -1,5 +1,7 @@
 # 媒体加密快照同步迁移至 Gateway WebSocket
 
+后续依赖修复已升级 global-agent 并移除 sprintf-js，为 braces 固定源码补丁；原始审计变为 1 高危、0 中危。下文保留本次同步迁移验收时的审计快照，最新依赖验证及发布边界见[依赖安全修复记录](dependency-security-2026-10-09.md)。
+
 ## 行为与兼容
 
 `/api/channels/:channelId/media-encryption/sync` 的客户端调用优先迁移到现有 Gateway：`MEDIA_ENCRYPTION_SYNC` 请求及 `MEDIA_ENCRYPTION_SYNC_RESULT` 响应。服务端在 `READY.mediaEncryptionSync` 声明支持；支持 v3 但未声明该能力的已认证旧服务端继续使用 HTTP。

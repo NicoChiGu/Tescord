@@ -22,6 +22,7 @@
     "test:e2e:electron": "playwright test --config playwright.electron.config.ts",
     "test:minio-compat": "node scripts/test-minio-compat.mjs",
     "test:security-media": "pnpm --filter @tescord/server exec tsx ../../scripts/verify-media-crypto.ts",
+    "test:dependency-security": "node --test scripts/test-dependency-security.mjs scripts/test-dependency-proxy.mjs",
     "test:updater": "node ./scripts/test-updater-service.mjs && pnpm --filter @tescord/server exec tsx ../../scripts/test-updater-archive.ts",
     "test:cache-headers": "pnpm --filter @tescord/server exec tsx ../../scripts/test-cache-headers.mjs",
     "test:e2e:ui": "playwright test --ui",

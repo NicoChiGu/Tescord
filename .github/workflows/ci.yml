@@ -76,6 +76,9 @@ jobs:
       - name: Install Chromium for Playwright
         run: pnpm exec playwright install --with-deps chromium
 
+      - name: Dependency Security and Proxy Compatibility Tests
+        run: pnpm test:dependency-security
+
       - name: Security and Media Tests
         run: pnpm test:security-media
 

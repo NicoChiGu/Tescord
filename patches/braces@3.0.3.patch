@@ -1,0 +1,112 @@
+diff --git a/lib/compile.js b/lib/compile.js
+index dce69beb90ece5c3b0ca234a949418f9f34eedbc..56f643e678a899d2be21e957b91f293da3194844 100644
+--- a/lib/compile.js
++++ b/lib/compile.js
+@@ -2,8 +2,10 @@
+ 
+ const fill = require('fill-range');
+ const utils = require('./utils');
++const { validateDepth } = require('./validate-depth');
+ 
+ const compile = (ast, options = {}) => {
++  validateDepth(ast);
+   const walk = (node, parent = {}) => {
+     const invalidBlock = utils.isInvalidBrace(parent);
+     const invalidNode = node.invalid === true && options.escapeInvalid === true;
+diff --git a/lib/expand.js b/lib/expand.js
+index 35b2c41d6afdb8f0197959e26079f266e48370d3..8df52a0b35f5ff08c2fb282d30e9af7cc446f45e 100644
+--- a/lib/expand.js
++++ b/lib/expand.js
+@@ -3,6 +3,7 @@
+ const fill = require('fill-range');
+ const stringify = require('./stringify');
+ const utils = require('./utils');
++const { validateDepth } = require('./validate-depth');
+ 
+ const append = (queue = '', stash = '', enclose = false) => {
+   const result = [];
+@@ -31,6 +32,7 @@ const append = (queue = '', stash = '', enclose = false) => {
+ };
+ 
+ const expand = (ast, options = {}) => {
++  validateDepth(ast);
+   const rangeLimit = options.rangeLimit === undefined ? 1000 : options.rangeLimit;
+ 
+   const walk = (node, parent = {}) => {
+diff --git a/lib/parse.js b/lib/parse.js
+index 3a6988e629f52aee6609dc5ec290a5e9ff47cecb..cd3d51b1d35224dce953902a5b566d7985f1001e 100644
+--- a/lib/parse.js
++++ b/lib/parse.js
+@@ -1,6 +1,7 @@
+ 'use strict';
+ 
+ const stringify = require('./stringify');
++const { MAX_DEPTH } = require('./validate-depth');
+ 
+ /**
+  * Constants
+@@ -143,6 +144,9 @@ const parse = (input, options = {}) => {
+      */
+ 
+     if (value === CHAR_LEFT_PARENTHESES) {
++      if (stack.length >= MAX_DEPTH) {
++        throw new SyntaxError(`Brace pattern exceeds maximum nesting depth (${MAX_DEPTH})`);
++      }
+       block = push({ type: 'paren', nodes: [] });
+       stack.push(block);
+       push({ type: 'text', value });
+@@ -195,6 +199,9 @@ const parse = (input, options = {}) => {
+      */
+ 
+     if (value === CHAR_LEFT_CURLY_BRACE) {
++      if (stack.length >= MAX_DEPTH) {
++        throw new SyntaxError(`Brace pattern exceeds maximum nesting depth (${MAX_DEPTH})`);
++      }
+       depth++;
+ 
+       const dollar = prev.value && prev.value.slice(-1) === '$' || block.dollar === true;
+diff --git a/lib/stringify.js b/lib/stringify.js
+index 8bcf872c31894f81a8c64d9202fd607e4fd7ea2b..ed6dd2ae188f9ea44098c6707ff5528216afce31 100644
+--- a/lib/stringify.js
++++ b/lib/stringify.js
+@@ -1,8 +1,10 @@
+ 'use strict';
+ 
+ const utils = require('./utils');
++const { validateDepth } = require('./validate-depth');
+ 
+ module.exports = (ast, options = {}) => {
++  validateDepth(ast);
+   const stringify = (node, parent = {}) => {
+     const invalidBlock = options.escapeInvalid && utils.isInvalidBrace(parent);
+     const invalidNode = node.invalid === true && options.escapeInvalid === true;
+diff --git a/lib/validate-depth.js b/lib/validate-depth.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..5d98733cd9955678bc491f368123f460819dfe99
+--- /dev/null
++++ b/lib/validate-depth.js
+@@ -0,0 +1,24 @@
++'use strict';
++
++// Bound every recursive AST walker, including callers that provide their own AST.
++// Parent/prev links are intentionally excluded: braces ASTs contain back links.
++const MAX_DEPTH = 100;
++
++const validateDepth = ast => {
++  const stack = [{ node: ast, depth: 0 }];
++  const seen = new WeakSet();
++  while (stack.length) {
++    const { node, depth } = stack.pop();
++    if (depth > MAX_DEPTH) {
++      throw new SyntaxError(`Brace pattern exceeds maximum AST depth (${MAX_DEPTH})`);
++    }
++    if (!node || typeof node !== 'object') continue;
++    if (seen.has(node)) throw new SyntaxError('Brace AST must not contain shared or cyclic nodes');
++    seen.add(node);
++    if (Array.isArray(node.nodes)) {
++      for (const child of node.nodes) stack.push({ node: child, depth: depth + 1 });
++    }
++  }
++};
++
++module.exports = { MAX_DEPTH, validateDepth };
