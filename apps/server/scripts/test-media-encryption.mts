@@ -5,6 +5,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
 import { webcrypto } from "node:crypto";
+import { WebSocket, WebSocketServer } from "ws";
 import type {
   VoiceState,
   MediaEncryptionJoinRequest,
@@ -18,6 +19,9 @@ import type {
 import {
   PermissionFlags,
   MEDIA_ENCRYPTION_VERSION,
+  GatewayOpCode,
+  GatewayEvents,
+  isMediaEncryptionSyncResult,
   mediaStreamEnvelopeSigningBytes,
 } from "@tescord/types";
 const directory = mkdtempSync(join(tmpdir(), "tescord-media-encryption-test-"));
@@ -947,6 +951,266 @@ await test("HTTP stale contexts are retryable 409 and old protocol is rejected",
     mediaEncryptionRegistry.snapshot = snapshot;
   }
 });
+// Exercise the real Gateway parser and registry over loopback WebSockets.
+const { gatewayManager } = await import("../src/gateway.js");
+gatewayManager.setTokenVerifier(async (token) =>
+  app.jwt.verify<Record<string, unknown>>(token),
+);
+await prisma.refreshToken.create({
+  data: {
+    id: "login-alice",
+    userId: "alice",
+    tokenHash: "restored-alice",
+    expiresAt: new Date(Date.now() + 3600000),
+  },
+});
+const alice = await prisma.user.findUniqueOrThrow({ where: { id: "alice" } });
+const validToken = () =>
+  app.jwt.sign({
+    sub: "alice",
+    sessionId: "login-alice",
+    sessionVersion: alice.sessionVersion,
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  });
+const socketServer = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+socketServer.on("connection", (socket) =>
+  gatewayManager.handleConnection(socket),
+);
+await new Promise<void>((resolve) => socketServer.once("listening", resolve));
+const address = socketServer.address();
+assert.ok(address && typeof address === "object");
+const clients: WebSocket[] = [];
+const openClient = async () => {
+  const socket = new WebSocket(`ws://127.0.0.1:${address.port}`);
+  clients.push(socket);
+  const events: GatewayPayload<unknown>[] = [];
+  const wait = (predicate: (event: GatewayPayload<unknown>) => boolean) =>
+    new Promise<GatewayPayload<unknown>>((resolve, reject) => {
+      const found = events.find(predicate);
+      if (found) return resolve(found);
+      const timer = setTimeout(() => {
+        socket.off("message", listener);
+        reject(new Error("Gateway test timed out"));
+      }, 5000);
+      const listener = (raw: Buffer) => {
+        const event = JSON.parse(raw.toString()) as GatewayPayload<unknown>;
+        if (!predicate(event)) return;
+        clearTimeout(timer);
+        socket.off("message", listener);
+        resolve(event);
+      };
+      socket.on("message", listener);
+    });
+  socket.on("message", (raw: Buffer) =>
+    events.push(JSON.parse(raw.toString()) as GatewayPayload<unknown>),
+  );
+  await wait((event) => event.op === GatewayOpCode.HELLO);
+  return { socket, events, wait };
+};
+let syncSequence = 0;
+const syncPacket = (extra: Record<string, unknown> = {}) => ({
+  op: GatewayOpCode.DISPATCH,
+  t: GatewayEvents.MEDIA_ENCRYPTION_SYNC,
+  d: {
+    ...body("alice"),
+    channelId: "voice",
+    requestId: `sync-${++syncSequence}`,
+    ...extra,
+  },
+});
+const exchange = async (
+  client: Awaited<ReturnType<typeof openClient>>,
+  extra: Record<string, unknown> = {},
+) => {
+  const packet = syncPacket(extra);
+  const resultPromise = client.wait(
+    (event) =>
+      event.t === GatewayEvents.MEDIA_ENCRYPTION_SYNC_RESULT &&
+      (event.d as { requestId?: string })?.requestId === packet.d.requestId,
+  );
+  client.socket.send(JSON.stringify(packet));
+  const result = (await resultPromise).d;
+  assert.ok(isMediaEncryptionSyncResult(result));
+  return result;
+};
+const identify = async (
+  client: Awaited<ReturnType<typeof openClient>>,
+  token = validToken(),
+) => {
+  const ready = client.wait((event) => event.t === "READY");
+  client.socket.send(
+    JSON.stringify({
+      op: GatewayOpCode.IDENTIFY,
+      d: { token, sessionId: "gateway-alice" },
+    }),
+  );
+  return ready;
+};
+try {
+  await test("WebSocket sync rejects unidentified, forged and expired credentials", async () => {
+    const anonymous = await openClient();
+    const result = await exchange(anonymous);
+    assert.equal(result.success, false);
+    if (!result.success) assert.equal(result.code, "UNAUTHORIZED");
+    anonymous.socket.close();
+    for (const token of [
+      "forged",
+      app.jwt.sign({
+        sub: "alice",
+        sessionId: "login-alice",
+        sessionVersion: alice.sessionVersion,
+        exp: 1,
+      }),
+    ]) {
+      const client = await openClient();
+      const closed = new Promise<number>((resolve) =>
+        client.socket.once("close", resolve),
+      );
+      client.socket.send(
+        JSON.stringify({
+          op: GatewayOpCode.IDENTIFY,
+          d: { token, sessionId: "gateway-alice" },
+        }),
+      );
+      assert.equal(await closed, 4001);
+      assert.equal(
+        client.events.some(
+          (event) =>
+            event.t === "READY" ||
+            event.t === GatewayEvents.MEDIA_ENCRYPTION_SYNC_RESULT,
+        ),
+        false,
+      );
+    }
+  });
+  const client = await openClient();
+  const ready = await identify(client);
+  assert.equal(
+    (ready.d as { mediaEncryptionSync?: boolean }).mediaEncryptionSync,
+    true,
+  );
+  const joined = client.wait(
+    (event) =>
+      event.t === "VOICE_STATE_UPDATE" &&
+      (event.d as VoiceState)?.userId === "alice" &&
+      (event.d as VoiceState)?.channelId === "voice",
+  );
+  client.socket.send(
+    JSON.stringify({
+      op: GatewayOpCode.VOICE_STATE_UPDATE,
+      d: {
+        guildId: "guild",
+        channelId: "voice",
+        selfMute: false,
+        selfDeaf: false,
+        mediaEncryptionVersion: MEDIA_ENCRYPTION_VERSION,
+      },
+    }),
+  );
+  await joined;
+  await mediaEncryptionRegistry.join(
+    "alice",
+    "login-alice",
+    "voice",
+    body("alice"),
+  );
+  await test("WebSocket sync returns a correlated authorized v3 snapshot", async () => {
+    const result = await exchange(client);
+    assert.equal(result.success, true);
+    if (result.success)
+      assert.equal(
+        result.snapshot.context.devices[0].registrationId,
+        body("alice").registrationId,
+      );
+  });
+  await prisma.guild.create({
+    data: { id: "foreign-guild", name: "isolated-foreign", ownerId: "eve" },
+  });
+  await prisma.channel.create({
+    data: {
+      id: "foreign-voice",
+      name: "foreign",
+      type: "VOICE",
+      guildId: "foreign-guild",
+    },
+  });
+  await test("WebSocket sync rejects cross-channel, cross-guild, foreign session/device, stale registration and invalid bodies", async () => {
+    for (const [extra, code] of [
+      [{ channelId: "other" }, "FORBIDDEN"],
+      [{ channelId: "foreign-voice" }, "FORBIDDEN"],
+      [{ gatewaySessionId: "gateway-bob" }, "UNAUTHORIZED"],
+      [{ deviceId: "device-bob" }, "UNAUTHORIZED"],
+      [{ registrationId: "previous-registration" }, "MEDIA_CONTEXT_STALE"],
+      [{ callId: "forged-call" }, "FORBIDDEN"],
+      [{ deviceId: [] }, "INVALID_PARAMS"],
+      [{ version: 2 }, "MEDIA_E2EE_UNSUPPORTED"],
+    ] as const) {
+      const result = await exchange(client, extra);
+      assert.equal(result.success, false);
+      if (!result.success) assert.equal(result.code, code);
+    }
+  });
+  await test("WebSocket sync rejects revoked devices without exposing a snapshot", async () => {
+    await prisma.deviceKey.updateMany({
+      where: { userId: "alice" },
+      data: { revokedAt: new Date() },
+    });
+    const result = await exchange(client);
+    assert.equal(result.success, false);
+    if (!result.success) assert.equal(result.code, "UNAUTHORIZED");
+    await prisma.deviceKey.updateMany({
+      where: { userId: "alice" },
+      data: { revokedAt: null },
+    });
+  });
+  await test("WebSocket sync closes banned users before registry dispatch", async () => {
+    await prisma.user.update({
+      where: { id: "alice" },
+      data: { isBanned: true },
+    });
+    const closed = new Promise<number>((resolve) =>
+      client.socket.once("close", resolve),
+    );
+    const packet = syncPacket();
+    client.socket.send(JSON.stringify(packet));
+    assert.equal(await closed, 4003);
+    assert.equal(
+      client.events.some(
+        (event) =>
+          (event.d as { requestId?: string })?.requestId === packet.d.requestId,
+      ),
+      false,
+    );
+    await prisma.user.update({
+      where: { id: "alice" },
+      data: { isBanned: false },
+    });
+  });
+  await test("WebSocket sync closes revoked login sessions before registry dispatch", async () => {
+    const revoked = await openClient();
+    await identify(revoked);
+    await prisma.refreshToken.delete({ where: { id: "login-alice" } });
+    const closed = new Promise<number>((resolve) =>
+      revoked.socket.once("close", resolve),
+    );
+    const packet = syncPacket();
+    revoked.socket.send(JSON.stringify(packet));
+    assert.equal(await closed, 4004);
+    assert.equal(
+      revoked.events.some(
+        (event) =>
+          (event.d as { requestId?: string })?.requestId === packet.d.requestId,
+      ),
+      false,
+    );
+  });
+} finally {
+  for (const socket of clients)
+    if (socket.readyState !== WebSocket.CLOSED) socket.terminate();
+  await new Promise<void>((resolve) => socketServer.close(() => resolve()));
+  // Await the existing offline grace cleanup before disconnecting the isolated DB.
+  await new Promise((resolve) => setTimeout(resolve, 4000));
+}
 await app.close();
 await prisma.$disconnect();
 assert.equal(dirname(resolve(directory)), resolve(tmpdir()));

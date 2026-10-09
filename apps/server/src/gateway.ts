@@ -13,6 +13,9 @@ import {
   VoiceServerDisconnectPayload,
   GatewayEvents,
   MEDIA_ENCRYPTION_VERSION,
+  ErrorCode,
+  isMediaEncryptionSyncRequest,
+  MediaEncryptionSyncResult,
   P2PSignalPayload,
   P2PNodeMetrics,
   UserStatus,
@@ -49,6 +52,7 @@ interface ClientConnection {
   heartbeatIntervalTimer?: NodeJS.Timeout;
   authTimer?: NodeJS.Timeout;
   sessionStatus?: "ONLINE" | "IDLE";
+  mediaSyncPending?: number;
 }
 
 export class GatewayManager {
@@ -555,6 +559,7 @@ export class GatewayManager {
           t: "READY",
           d: {
             sessionId,
+            mediaEncryptionSync: true,
             user: {
               id: user.id,
               username: user.username,
@@ -908,6 +913,10 @@ export class GatewayManager {
       }
 
       case GatewayOpCode.DISPATCH: {
+        if (payload.t === GatewayEvents.MEDIA_ENCRYPTION_SYNC) {
+          await this.syncMediaEncryption(conn, payload.d as unknown);
+          return;
+        }
         if (payload.t === GatewayEvents.CALL_OFFER) {
           if (!conn.userId || !conn.sessionId) return;
           const data = payload.d as DMCallOfferPayload | undefined;
@@ -1292,6 +1301,97 @@ export class GatewayManager {
 
       default:
         break;
+    }
+  }
+
+  /** Entry: identified socket; identity comes only from conn, never the packet.
+   * Resource: registered device in current voice/DM call. The registry rechecks
+   * login/device revocation, CONNECT/DM membership and registration generation.
+   * Invalid/unidentified/cross-session requests fail closed, without snapshots.
+   */
+  private async syncMediaEncryption(
+    conn: ClientConnection,
+    value: unknown,
+  ): Promise<void> {
+    const raw =
+      value && typeof value === "object"
+        ? (value as Record<string, unknown>)
+        : {};
+    // Echo only bounded correlation fields. Malformed uncorrelatable packets are dropped.
+    if (
+      !["requestId", "channelId", "registrationId"].every(
+        (key) =>
+          typeof raw[key] === "string" &&
+          raw[key].length > 0 &&
+          raw[key].length <= 160,
+      )
+    )
+      return;
+    const correlation = {
+      requestId: raw.requestId as string,
+      channelId: raw.channelId as string,
+      registrationId: raw.registrationId as string,
+    };
+    const reply = (result: MediaEncryptionSyncResult) =>
+      this.send(conn.ws, {
+        op: GatewayOpCode.DISPATCH,
+        t: GatewayEvents.MEDIA_ENCRYPTION_SYNC_RESULT,
+        d: result,
+      });
+    let counted = false;
+    try {
+      if (
+        !conn.userId ||
+        !conn.authSessionId ||
+        !conn.sessionId ||
+        this.userSessions.get(conn.userId)?.get(conn.sessionId) !== conn ||
+        !this.hasIdentifiedLoginSession(
+          conn.userId,
+          conn.sessionId,
+          conn.authSessionId,
+          conn.sessionVersion,
+        )
+      )
+        throw new Error(ErrorCode.UNAUTHORIZED);
+      if (raw.version !== MEDIA_ENCRYPTION_VERSION)
+        throw new Error(ErrorCode.MEDIA_E2EE_UNSUPPORTED);
+      if (!isMediaEncryptionSyncRequest(value))
+        throw new Error(ErrorCode.INVALID_PARAMS);
+      if (value.gatewaySessionId !== conn.sessionId)
+        throw new Error(ErrorCode.UNAUTHORIZED);
+      if ((conn.mediaSyncPending ?? 0) >= 4)
+        throw new Error(ErrorCode.INVALID_PARAMS);
+      conn.mediaSyncPending = (conn.mediaSyncPending ?? 0) + 1;
+      counted = true;
+      const { mediaEncryptionRegistry } =
+        await import("./services/media-encryption.service.js");
+      const snapshot = await mediaEncryptionRegistry.snapshot(
+        conn.userId,
+        conn.authSessionId,
+        value.channelId,
+        value,
+      );
+      // Send exclusively to the requesting socket, never another device/reconnect.
+      if (
+        this.userSessions.get(conn.userId)?.get(conn.sessionId) !== conn ||
+        !this.hasIdentifiedLoginSession(
+          conn.userId,
+          conn.sessionId,
+          conn.authSessionId,
+          conn.sessionVersion,
+        )
+      )
+        throw new Error(ErrorCode.UNAUTHORIZED);
+      reply({ ...correlation, success: true, snapshot });
+    } catch (error) {
+      const code =
+        error instanceof Error &&
+        Object.values(ErrorCode).includes(error.message as ErrorCode)
+          ? (error.message as ErrorCode)
+          : ErrorCode.MEDIA_KEY_UNAVAILABLE;
+      reply({ ...correlation, success: false, code });
+    } finally {
+      if (counted) conn.mediaSyncPending = (conn.mediaSyncPending ?? 1) - 1;
     }
   }
 

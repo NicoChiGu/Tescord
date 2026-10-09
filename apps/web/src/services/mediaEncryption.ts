@@ -397,13 +397,55 @@ export class MediaEncryptionService {
     const generation = this.generation;
     for (let attempt = 0; ; attempt++) {
       try {
+        if (operation === "sync") {
+          const options = this.options,
+            body = this.body,
+            controller = this.controller;
+          if (
+            !options ||
+            !body ||
+            !controller ||
+            this.state.phase === "failed" ||
+            useAuthStore.getState().user?.id !== options.userId
+          )
+            throw new Error("MEDIA_CONTEXT_STALE");
+          // An unavailable Gateway cannot authorize media. HTTP compatibility is
+          // used only for an identified older server that did not advertise sync.
+          if (!gatewayClient.isReadyForUser(options.userId))
+            throw new TypeError("Gateway unavailable");
+          if (gatewayClient.supportsMediaEncryptionSync()) {
+            const result = await gatewayClient.requestMediaEncryptionSync(
+              options.userId,
+              { ...body, channelId: options.channelId },
+              controller.signal,
+            );
+            if (
+              generation !== this.generation ||
+              useAuthStore.getState().user?.id !== options.userId
+            )
+              throw new DOMException("Cancelled", "AbortError");
+            if (!result.success) {
+              if (result.code === "MEDIA_CONTEXT_STALE")
+                throw new MediaContextResponseStale();
+              throw new Error(result.code);
+            }
+            return result.snapshot;
+          }
+        }
         return await this.request<MediaEncryptionSnapshot>(operation);
       } catch (error) {
+        const transportFailure =
+          operation === "sync" &&
+          (error instanceof TypeError ||
+            (error instanceof DOMException && error.name === "TimeoutError"));
         if (
-          !(error instanceof MediaContextResponseStale) ||
-          attempt >= 3 ||
+          (!(error instanceof MediaContextResponseStale) &&
+            !transportFailure) ||
+          attempt >= (transportFailure ? 2 : 3) ||
           generation !== this.generation ||
-          !this.options
+          !this.options ||
+          this.controller?.signal.aborted ||
+          this.state.phase === "failed"
         )
           throw error;
         await new Promise<void>((resolve) =>

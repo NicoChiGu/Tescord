@@ -2,6 +2,8 @@ import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { GatewayPayload, P2PSignalPayload } from "@tescord/types";
+import { isMediaEncryptionSyncResult } from "@tescord/types";
+import type { MediaEpochUpdatePushPayload } from "@tescord/types";
 import { CURRENT_APP_VERSION } from "../apps/web/src/data/changelogs";
 import { createMultiplayerRoom } from "./helpers/encrypted-multiplayer";
 
@@ -115,6 +117,16 @@ test("three real signed devices negotiate stream keys, render encrypted mesh aud
   const errors: string[] = [];
   const logs: string[] = [];
   const memberships = new Map<Page, string>();
+  const revisions = new Map<Page, number>();
+  const recordMembership = (
+    page: Page,
+    context: { membershipVersion: string; contextRevision: number },
+  ) => {
+    if (context.contextRevision >= (revisions.get(page) ?? 0)) {
+      revisions.set(page, context.contextRevision);
+      memberships.set(page, context.membershipVersion);
+    }
+  };
   const heldOffers = new Map<string, () => void>();
   let forcedGlare = false;
   let releaseOffers = false;
@@ -238,6 +250,21 @@ test("three real signed devices negotiate stream keys, render encrypted mesh aud
         });
         server.onMessage((message) => {
           if (typeof message === "string") {
+            const event = JSON.parse(message) as GatewayPayload<unknown>;
+            if (
+              event.t === "MEDIA_ENCRYPTION_SYNC_RESULT" &&
+              isMediaEncryptionSyncResult(event.d) &&
+              event.d.success
+            )
+              recordMembership(page, event.d.snapshot.context);
+            if (event.t === "MEDIA_EPOCH_UPDATE") {
+              const update = event.d as MediaEpochUpdatePushPayload;
+              if (
+                update?.channelId === channel.id &&
+                update.context?.version === 3
+              )
+                recordMembership(page, update.context);
+            }
             const packet = JSON.parse(
               message,
             ) as GatewayPayload<P2PSignalPayload>;
@@ -282,10 +309,9 @@ test("three real signed devices negotiate stream keys, render encrypted mesh aud
       page.on("response", async (response) => {
         if (response.url().includes("media-encryption") && response.ok()) {
           const snapshot = (await response.json().catch(() => null)) as {
-            context?: { membershipVersion: string };
+            context?: { membershipVersion: string; contextRevision: number };
           } | null;
-          if (snapshot?.context)
-            memberships.set(page, snapshot.context.membershipVersion);
+          if (snapshot?.context) recordMembership(page, snapshot.context);
         }
         if (
           response.url().includes("media-encryption") &&
@@ -429,6 +455,10 @@ test("three real signed devices negotiate stream keys, render encrypted mesh aud
               result.peers.length === 1 &&
               result.peers[0].rms > 0.0001 &&
               result.phase === "active" &&
+              result.crypto.encrypted >
+                before[pages.indexOf(page)].crypto.encrypted &&
+              result.crypto.decrypted >
+                before[pages.indexOf(page)].crypto.decrypted &&
               memberships.get(page) !== membershipBeforeLeave.get(page) &&
               result.peers[0].received >
                 before[pages.indexOf(page)].peers.find(

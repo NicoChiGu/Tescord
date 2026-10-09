@@ -50,7 +50,7 @@ const identity = (userId: string, deviceId: string) =>
 function reject(code = "MEDIA_CONTEXT_STALE"): never {
   throw new Error(code);
 }
-/** Entry: verified HTTP session + identified Gateway session. Keys are ciphertext only.
+/** Entry: verified HTTP session or identified Gateway socket. Keys are ciphertext only.
  * Resource: current voice/call session. Authorization: active CONNECT/DM participation,
  * matching login/Gateway/device identity, current roster epoch. Denial is fail closed.
  */

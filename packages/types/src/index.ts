@@ -916,6 +916,8 @@ export interface VoiceServerDisconnectPayload {
 
 export interface ReadyPayload {
   sessionId?: string;
+  /** Advertises correlated media snapshot requests over this Gateway. */
+  mediaEncryptionSync?: true;
   user: Partial<User>;
   guilds: Guild[];
   voiceStates: VoiceState[];
@@ -1535,6 +1537,8 @@ export const GatewayEvents = {
   MEDIA_KEY_ENVELOPE: "MEDIA_KEY_ENVELOPE",
   MEDIA_KEY_ACK: "MEDIA_KEY_ACK",
   MEDIA_EPOCH_UPDATE: "MEDIA_EPOCH_UPDATE",
+  MEDIA_ENCRYPTION_SYNC: "MEDIA_ENCRYPTION_SYNC",
+  MEDIA_ENCRYPTION_SYNC_RESULT: "MEDIA_ENCRYPTION_SYNC_RESULT",
   // P2P 直连与智能接力信令
   P2P_SIGNAL: "P2P_SIGNAL",
   P2P_TOPOLOGY_UPDATE: "P2P_TOPOLOGY_UPDATE",

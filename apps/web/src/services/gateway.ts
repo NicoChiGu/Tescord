@@ -12,6 +12,9 @@ import {
   UserStatus,
   MaintenanceUpdatePayload,
   MEDIA_ENCRYPTION_VERSION,
+  MediaEncryptionSyncRequest,
+  MediaEncryptionSyncResult,
+  isMediaEncryptionSyncResult,
 } from "@tescord/types";
 import { GATEWAY_URL } from "../config.js";
 import { useAuthStore } from "../stores/useAuthStore.js";
@@ -31,6 +34,14 @@ export class GatewayClient {
   private expectedUserId: string | null = null;
   private authenticatedUserId: string | null = null;
   private ready = false;
+  private mediaEncryptionSyncSupported = false;
+  private pendingMediaSync = new Map<
+    string,
+    {
+      request: MediaEncryptionSyncRequest;
+      finish(result?: MediaEncryptionSyncResult, error?: Error): void;
+    }
+  >();
   private connectionState: GatewayConnectionState = "disconnected";
   private pingStats: GatewayPingStats | null = null;
   private lastHeartbeatSentAt: number = 0;
@@ -325,7 +336,35 @@ export class GatewayClient {
           if (ready.sessionId) this.sessionId = ready.sessionId;
           this.authenticatedUserId = readyUserId;
           this.ready = true;
+          this.mediaEncryptionSyncSupported =
+            ready.mediaEncryptionSync === true;
           this.setConnectionState("connected");
+        }
+        if (payload.t === GatewayEvents.MEDIA_ENCRYPTION_SYNC_RESULT) {
+          const data: unknown = payload.d;
+          if (!isMediaEncryptionSyncResult(data)) {
+            const requestId =
+              data && typeof data === "object"
+                ? (data as Record<string, unknown>).requestId
+                : undefined;
+            if (typeof requestId === "string")
+              this.pendingMediaSync
+                .get(requestId)
+                ?.finish(undefined, new Error("MEDIA_KEY_INVALID"));
+            return;
+          }
+          const pending = this.pendingMediaSync.get(data.requestId);
+          if (!pending) return;
+          if (
+            data.channelId !== pending.request.channelId ||
+            data.registrationId !== pending.request.registrationId ||
+            (data.success &&
+              (data.snapshot.context.channelId !== data.channelId ||
+                data.snapshot.context.callId !== pending.request.callId))
+          ) {
+            pending.finish(undefined, new Error("MEDIA_KEY_INVALID"));
+          } else pending.finish(data);
+          return;
         }
         if (payload.t === GatewayEvents.AUTH_SESSION_EXPIRED) {
           useAuthStore
@@ -368,6 +407,10 @@ export class GatewayClient {
   }
 
   private cleanup() {
+    this.ready = false;
+    this.mediaEncryptionSyncSupported = false;
+    for (const pending of this.pendingMediaSync.values())
+      pending.finish(undefined, new TypeError("Gateway disconnected"));
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
@@ -426,6 +469,64 @@ export class GatewayClient {
       this.expectedUserId === userId &&
       this.authenticatedUserId === userId
     );
+  }
+
+  supportsMediaEncryptionSync(): boolean {
+    return this.mediaEncryptionSyncSupported;
+  }
+
+  requestMediaEncryptionSync(
+    userId: string,
+    request: Omit<MediaEncryptionSyncRequest, "requestId">,
+    signal: AbortSignal,
+  ): Promise<MediaEncryptionSyncResult> {
+    if (signal.aborted)
+      return Promise.reject(new DOMException("Cancelled", "AbortError"));
+    if (
+      !this.isReadyForUser(userId) ||
+      !this.mediaEncryptionSyncSupported ||
+      this.ws?.readyState !== WebSocket.OPEN
+    )
+      return Promise.reject(new TypeError("Gateway unavailable"));
+    if (request.gatewaySessionId !== this.sessionId)
+      return Promise.reject(new Error("MEDIA_CONTEXT_STALE"));
+    const socket = this.ws;
+    const data: MediaEncryptionSyncRequest = {
+      ...request,
+      requestId: crypto.randomUUID(),
+    };
+    return new Promise((resolve, reject) => {
+      const finish = (result?: MediaEncryptionSyncResult, error?: Error) => {
+        if (!this.pendingMediaSync.delete(data.requestId)) return;
+        clearTimeout(timer);
+        signal.removeEventListener("abort", abort);
+        if (error) reject(error);
+        else if (result) resolve(result);
+      };
+      const abort = () =>
+        finish(undefined, new DOMException("Cancelled", "AbortError"));
+      const timer = setTimeout(
+        () =>
+          finish(
+            undefined,
+            new DOMException("Gateway sync timed out", "TimeoutError"),
+          ),
+        5000,
+      );
+      this.pendingMediaSync.set(data.requestId, { request: data, finish });
+      signal.addEventListener("abort", abort, { once: true });
+      try {
+        socket.send(
+          JSON.stringify({
+            op: GatewayOpCode.DISPATCH,
+            t: GatewayEvents.MEDIA_ENCRYPTION_SYNC,
+            d: data,
+          }),
+        );
+      } catch {
+        finish(undefined, new TypeError("Gateway send failed"));
+      }
+    });
   }
 
   async waitUntilReady(userId: string, timeoutMs = 8000): Promise<boolean> {
