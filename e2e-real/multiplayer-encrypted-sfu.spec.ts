@@ -1,6 +1,17 @@
 import { test, expect } from "@playwright/test";
 import { writeFile } from "node:fs/promises";
 import { createMultiplayerRoom } from "../e2e/helpers/encrypted-multiplayer";
+import { exerciseMemberLeave } from "../e2e/helpers/member-leave-scenario";
+
+for (const count of [3, 5]) {
+  test(`${count} signed devices: member leave preserves remaining keys after retired receiver errors`, async ({
+    browser,
+    request,
+  }, info) => {
+    test.setTimeout(180000);
+    await exerciseMemberLeave(browser, request, info, count, "cloudflare_sfu");
+  });
+}
 
 test.afterAll(async ({ request }, info) => {
   const denied = await request.post("http://127.0.0.1:3102/__e2e/media/drain", {

@@ -9,6 +9,17 @@ import type {
   MediaEncryptionSyncResult,
 } from "@tescord/types";
 import { createMultiplayerRoom } from "./helpers/encrypted-multiplayer";
+import { exerciseMemberLeave } from "./helpers/member-leave-scenario";
+
+for (const count of [3, 5]) {
+  test(`${count} signed devices: member leave preserves remaining keys after retired receiver errors`, async ({
+    browser,
+    request,
+  }, info) => {
+    test.setTimeout(180000);
+    await exerciseMemberLeave(browser, request, info, count, "p2p_mesh");
+  });
+}
 
 for (const count of [3, 5]) {
   test(`${count} signed devices recover a lost WebSocket sync without HTTP polling`, async ({

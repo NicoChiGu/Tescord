@@ -1026,10 +1026,12 @@ export class CloudflareRealtimeService {
             `${publication.sessionId}:${publication.trackName}`,
           )?.userId !== publication.userId
         ) {
+          sframeManager.detachReceiver(event.receiver);
           event.track.stop();
           return;
         }
         if (!publication) {
+          sframeManager.detachReceiver(event.receiver);
           event.track.stop();
           return;
         }
@@ -1221,6 +1223,11 @@ export class CloudflareRealtimeService {
   }
 
   private releaseRemoteTrack(trackId: string): void {
+    // MediaStreamTrack.stop() does not emit "ended". Revoke the transform before
+    // stopping a vanished subscription so its Worker cannot fail the whole call
+    // or remain in the next epoch's receiver-key acknowledgement set.
+    for (const receiver of this.pc?.getReceivers() || [])
+      if (receiver.track.id === trackId) sframeManager.detachReceiver(receiver);
     const route = this.audioRoutes.get(trackId);
     if (route) {
       route.analyser?.disconnect();

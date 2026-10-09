@@ -70,6 +70,7 @@ export class SFrameManager {
     null;
   private senders = new Map<RTCRtpSender, SenderState>();
   private receivers = new Map<RTCRtpReceiver, Worker | null>();
+  private receiverEndListeners = new Map<RTCRtpReceiver, () => void>();
   private workers = new Set<Worker>();
   private generation = 0;
   private paused = false;
@@ -476,6 +477,26 @@ export class SFrameManager {
         });
     }
     this.receivers.set(receiver, receiverWorker);
+    const ended = () => this.detachReceiver(receiver);
+    this.receiverEndListeners.set(receiver, ended);
+    receiver.track.addEventListener("ended", ended, { once: true });
+    // The remote track may have ended while the transform was being attached.
+    if (receiver.track.readyState === "ended") this.detachReceiver(receiver);
+  }
+  /** Release one vanished SFU subscription without stopping other encrypted peers. */
+  public detachReceiver(receiver: RTCRtpReceiver): void {
+    const worker = this.receivers.get(receiver);
+    this.receivers.delete(receiver);
+    const ended = this.receiverEndListeners.get(receiver);
+    if (ended) receiver.track.removeEventListener("ended", ended);
+    this.receiverEndListeners.delete(receiver);
+    if (worker) {
+      // Invalidate ownership before termination: queued fatal/ACK callbacks from
+      // a removed track must not complete or fail the surviving media context.
+      this.workers.delete(worker);
+      worker.terminate();
+    }
+    this.settleDetachedInstallations();
   }
   public detachPeerConnection(pc: RTCPeerConnection): void {
     for (const sender of pc.getSenders()) {
@@ -489,14 +510,10 @@ export class SFrameManager {
       }
       this.senders.delete(sender);
     }
-    for (const receiver of pc.getReceivers()) {
-      const worker = this.receivers.get(receiver);
-      if (worker) {
-        worker.terminate();
-        this.workers.delete(worker);
-      }
-      this.receivers.delete(receiver);
-    }
+    for (const receiver of pc.getReceivers()) this.detachReceiver(receiver);
+    this.settleDetachedInstallations();
+  }
+  private settleDetachedInstallations(): void {
     for (const [id, pending] of this.installations) {
       for (const worker of pending.remaining)
         if (!this.workers.has(worker)) pending.remaining.delete(worker);
@@ -578,6 +595,9 @@ export class SFrameManager {
     this.keys.clear();
     this.replayFilters.clear();
     this.senders.clear();
+    for (const [receiver, ended] of this.receiverEndListeners)
+      receiver.track.removeEventListener("ended", ended);
+    this.receiverEndListeners.clear();
     this.receivers.clear();
     for (const worker of this.workers) worker.terminate();
     this.workers.clear();
