@@ -116,6 +116,85 @@ async function run() {
       0,
     );
     console.log("storage worker: 9 scope/order checks passed");
+
+    await request("messages-save-batch", {
+      userId: "user-a",
+      channelId: "channel-a",
+      messages: [{ ...messages[0], id: "pending", sequence: 0 }],
+    });
+    await request("messages-save-batch", {
+      userId: "user-a",
+      channelId: "channel-b",
+      messages: [
+        { ...messages[1], id: "other-channel", channelId: "channel-b" },
+      ],
+    });
+    assert.equal(
+      (
+        await request("messages-search-fts", {
+          userId: "user-a",
+          keyword: "message 2",
+          channelId: "channel-a",
+        })
+      ).length,
+      1,
+    );
+    await request("messages-reconcile", {
+      userId: "user-a",
+      channelId: "channel-a",
+      messages: [],
+      range: { minSequence: 2, maxSequence: 2 },
+    });
+    const bounded = await request("messages-get-latest", {
+      userId: "user-a",
+      channelId: "channel-a",
+    });
+    assert.deepEqual(
+      bounded.map(({ id }) => id),
+      ["pending", "message-1", "message-3"],
+    );
+    assert.deepEqual(
+      await request("messages-search-fts", {
+        userId: "user-a",
+        keyword: "message 2",
+        channelId: "channel-a",
+      }),
+      [],
+    );
+    await request("messages-reconcile", {
+      userId: "user-a",
+      channelId: "channel-a",
+      messages: [],
+      range: { minSequence: 1, maxSequence: Number.MAX_SAFE_INTEGER },
+    });
+    assert.deepEqual(
+      (
+        await request("messages-get-latest", {
+          userId: "user-a",
+          channelId: "channel-a",
+        })
+      ).map(({ id }) => id),
+      ["pending"],
+    );
+    assert.deepEqual(
+      (
+        await request("messages-get-latest", {
+          userId: "user-a",
+          channelId: "channel-b",
+        })
+      ).map(({ id }) => id),
+      ["other-channel"],
+    );
+    assert.deepEqual(
+      await request("messages-get-latest", {
+        userId: "user-b",
+        channelId: "channel-a",
+      }),
+      [],
+    );
+    console.log(
+      "storage worker: 6 real reconciliation/FTS/empty-history checks passed",
+    );
   } finally {
     if (!exited) {
       await new Promise((resolve) => {

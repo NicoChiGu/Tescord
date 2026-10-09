@@ -4475,9 +4475,14 @@ server.post(
       guildId: string;
       targetUserId: string;
     };
-    const userId = await getUserIdFromRequest(request);
+    const userId = await getActiveUserIdFromRequest(request);
     if (!userId) {
-      return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
+      return sendApiError(
+        reply,
+        401,
+        ErrorCode.UNAUTHORIZED,
+        ErrorCode.UNAUTHORIZED,
+      );
     }
 
     if (userId === targetUserId) {
@@ -4485,7 +4490,7 @@ server.post(
         reply,
         400,
         ErrorCode.INVALID_PARAMS,
-        "无法断开自己的语音连接",
+        ErrorCode.INVALID_PARAMS,
       );
     }
 
@@ -4495,7 +4500,7 @@ server.post(
         reply,
         404,
         ErrorCode.GUILD_NOT_FOUND,
-        "未找到指定的服务器",
+        ErrorCode.GUILD_NOT_FOUND,
       );
     }
 
@@ -4505,12 +4510,7 @@ server.post(
       PermissionFlags.MOVE_MEMBERS,
     );
     if (!canMove) {
-      return sendApiError(
-        reply,
-        403,
-        ErrorCode.FORBIDDEN,
-        "缺少移动/断开成员语音权限 (MOVE_MEMBERS)",
-      );
+      return sendApiError(reply, 403, ErrorCode.FORBIDDEN, ErrorCode.FORBIDDEN);
     }
 
     const canManage = await permissionService.canManageMember(
@@ -4523,7 +4523,7 @@ server.post(
         reply,
         403,
         ErrorCode.CANNOT_MANAGE_MEMBER,
-        "无权处置该成员（对方职级高于或等同于自身）",
+        ErrorCode.CANNOT_MANAGE_MEMBER,
       );
     }
 
@@ -4537,7 +4537,7 @@ server.post(
         reply,
         400,
         ErrorCode.VOICE_USER_NOT_CONNECTED,
-        "该成员当前未连接至语音频道",
+        ErrorCode.VOICE_USER_NOT_CONNECTED,
       );
     }
 
@@ -4551,7 +4551,7 @@ server.post(
         reply,
         400,
         ErrorCode.VOICE_USER_NOT_CONNECTED,
-        "该成员当前未连接至语音频道",
+        ErrorCode.VOICE_USER_NOT_CONNECTED,
       );
     }
 

@@ -1,6 +1,7 @@
 **/node_modules
 **/dist
 **/dist-cjs
+**/build
 **/release
 **/uploads
 **/*.db
@@ -12,5 +13,8 @@
 docker/certs
 docker/**/datas
 playwright-report
+playwright-*-report
 test-results
+release-keys
+docker/backups
 .turbo

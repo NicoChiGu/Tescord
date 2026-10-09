@@ -117,10 +117,7 @@ export function usePermissions(
         userPerms,
         PermissionFlags.CHANGE_NICKNAME,
       ),
-      canMoveMembers: hasPermission(
-        userPerms,
-        PermissionFlags.MOVE_MEMBERS,
-      ),
+      canMoveMembers: hasPermission(userPerms, PermissionFlags.MOVE_MEMBERS),
       rawPermissions: userPerms,
     };
   }, [guild, userId, currentUser]);

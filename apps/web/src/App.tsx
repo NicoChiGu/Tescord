@@ -3291,23 +3291,26 @@ export const App: React.FC = () => {
     userId: string,
     username: string,
   ) => {
-    if (!selectedGuildId) return;
+    if (!selectedGuildId || !currentUser) return;
+    const accountEpoch = accountEpochRef.current;
     const confirmed = await dialog.confirm({
-      title: t(
-        "server:members.disconnectVoiceConfirmTitle",
-        "将成员移出语音频道",
-      ),
+      title: t("server:members.disconnectVoiceConfirmTitle"),
       description: t("server:members.disconnectVoiceConfirmDesc", {
         name: username,
       }),
       variant: "warning",
-      confirmText: t("server:members.disconnectVoice", "断开连接"),
+      confirmText: t("server:members.disconnectVoice"),
     });
     if (!confirmed) {
       return;
     }
     try {
-      const token = localStorage.getItem("tescord_access_token");
+      if (
+        accountEpochRef.current !== accountEpoch ||
+        useAuthStore.getState().user?.id !== currentUser.id
+      )
+        return;
+      const token = useAuthStore.getState().accessToken;
       const res = await fetch(
         `${API_BASE}/api/guilds/${selectedGuildId}/members/${userId}/disconnect-voice`,
         {
@@ -3322,16 +3325,10 @@ export const App: React.FC = () => {
         showGlobalToast(getErrorMessage(err), "error");
         return;
       }
-      showGlobalToast(
-        t("server:members.disconnectVoiceSuccess", "已将成员移出语音频道"),
-        "info",
-      );
+      showGlobalToast(t("server:members.disconnectVoiceSuccess"), "info");
     } catch (err) {
       console.error("Failed to disconnect voice member:", err);
-      showGlobalToast(
-        t("server:members.disconnectVoiceFailed", "移出语音频道失败"),
-        "error",
-      );
+      showGlobalToast(t("server:members.disconnectVoiceFailed"), "error");
     }
   };
 

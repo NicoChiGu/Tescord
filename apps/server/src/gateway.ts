@@ -1870,6 +1870,31 @@ export class GatewayManager {
     const channelId = state.channelId;
     const sessionId = state.sessionId;
 
+    // Revoke the captured incarnation before any asynchronous cleanup. A
+    // rejoin during remote teardown must never be deleted by this operation.
+    this.voiceStates.delete(targetUserId);
+    this.pendingVoiceJoins.delete(targetUserId);
+    const timer = this.mediaJoinTimers.get(targetUserId);
+    if (timer) clearTimeout(timer);
+    this.mediaJoinTimers.delete(targetUserId);
+    const revision = this.nextVoiceRevision(targetUserId);
+    p2pTopologyManager.removeViewer(channelId, targetUserId);
+    if (state.streaming)
+      p2pTopologyManager.unregisterStream(channelId, targetUserId);
+    for (const [id, media] of cloudflareRealtimeService.listSessions()) {
+      if (
+        media.userId === targetUserId &&
+        media.channelId === channelId &&
+        media.gatewaySessionId === sessionId
+      ) {
+        void cloudflareRealtimeService
+          .revokeSession(id)
+          .catch((error) =>
+            console.warn("[Gateway] Voice media teardown failed", error),
+          );
+      }
+    }
+
     // 1. 向目标用户所有的活跃会话发送被动断开信令 VOICE_SERVER_DISCONNECT
     const sessions = this.userSessions.get(targetUserId);
     if (sessions) {
@@ -1886,36 +1911,6 @@ export class GatewayManager {
       }
     }
 
-    // 2. 释放媒体网关与 P2P 拓扑
-    try {
-      await removeParticipantFromRoom(channelId, targetUserId);
-    } catch (e) {
-      console.warn(
-        `[Gateway] Error removing participant from LiveKit room:`,
-        e,
-      );
-    }
-
-    if (channelId) {
-      p2pTopologyManager.removeViewer(channelId, targetUserId);
-      if (state.streaming) {
-        p2pTopologyManager.unregisterStream(channelId, targetUserId);
-      }
-    }
-
-    for (const [id, media] of cloudflareRealtimeService.listSessions()) {
-      if (media.userId === targetUserId && media.channelId === channelId) {
-        void cloudflareRealtimeService.revokeSession(id).catch(() => {});
-      }
-    }
-
-    // 3. 清理语音内存状态
-    this.voiceStates.delete(targetUserId);
-    this.pendingVoiceJoins.delete(targetUserId);
-    const timer = this.mediaJoinTimers.get(targetUserId);
-    if (timer) clearTimeout(timer);
-    this.mediaJoinTimers.delete(targetUserId);
-
     // 4. 向原频道所有观察者广播离开事件
     await this.broadcastToChannelViewers(channelId, {
       op: GatewayOpCode.DISPATCH,
@@ -1926,13 +1921,19 @@ export class GatewayManager {
         previousChannelId: channelId,
         guildId,
         sessionId,
-        revision: this.nextVoiceRevision(targetUserId),
+        revision,
         selfMute: false,
         selfDeaf: false,
         selfVideo: false,
         streaming: false,
       },
     });
+
+    if (
+      process.env.VOICE_ENGINE !== "cloudflare_realtime" &&
+      !this.voiceStates.has(targetUserId)
+    )
+      await removeParticipantFromRoom(channelId, targetUserId);
 
     return true;
   }

@@ -23,6 +23,7 @@ onlyBuiltDependencies:
   - better-sqlite3
 
 overrides:
+  "fast-jwt@<6.3.4": 6.3.4
   "@peculiar/asn1-schema": 2.10.0
   "minio>query-string": 9.5.1
   "minio>stream-json": 3.7.0

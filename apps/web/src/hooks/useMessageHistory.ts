@@ -179,8 +179,11 @@ export function useMessageHistory(
             void messageDb.saveMessages(channel.id, combined);
           }
         } else {
-          if (pendingLive.current.size === 0) {
-            void messageDb.clearChannel(channel.id);
+          if (!page.hasOlder && !page.hasNewer) {
+            void messageDb.reconcileChannelMessages(channel.id, combined, {
+              minSequence: 1,
+              maxSequence: Number.MAX_SAFE_INTEGER,
+            });
           } else {
             void messageDb.saveMessages(channel.id, combined);
           }
@@ -324,6 +327,15 @@ export function useMessageHistory(
             } else {
               void messageDb.saveMessages(channel.id, incoming);
             }
+          } else if (
+            (direction === "older" && !page.hasOlder && cursor > 1) ||
+            (direction === "newer" && !page.hasNewer)
+          ) {
+            void messageDb.reconcileChannelMessages(channel.id, incoming, {
+              minSequence: direction === "older" ? 1 : cursor + 1,
+              maxSequence:
+                direction === "older" ? cursor - 1 : Number.MAX_SAFE_INTEGER,
+            });
           } else {
             void messageDb.saveMessages(channel.id, incoming);
           }

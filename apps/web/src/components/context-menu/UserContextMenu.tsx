@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { User, Guild, UserStatus, parseRoleIds } from "@tescord/types";
 import { API_BASE, VOICE_ENGINE } from "../../config.js";
 import { getErrorMessage } from "../../i18n/index.js";
+import { apiFetch } from "../../services/apiClient.js";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -136,28 +137,23 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
     "server",
   ]);
   const { user: currentUser, updateProfile } = useAuthStore();
-  const { canKickMembers, canBanMembers, canMoveMembers } = usePermissions(guild);
+  const { canKickMembers, canBanMembers, canMoveMembers } =
+    usePermissions(guild);
 
   const canManageTarget = useMemo(() => {
-    if (!guild || !currentUser || currentUser.id === targetUser.id) return false;
+    if (!guild || !currentUser || currentUser.id === targetUser.id)
+      return false;
     if (guild.ownerId === targetUser.id) return false;
     if (guild.ownerId === currentUser.id) return true;
-    const isSuperAdmin =
-      currentUser.username === "admin" ||
-      currentUser.username === "Jackey" ||
-      currentUser.username?.includes("admin") ||
-      (currentUser as any)?.role === "ADMIN";
-    if (isSuperAdmin) return true;
-
     const myMember = guild.members?.find((m) => m.userId === currentUser.id);
     const targetMember = guild.members?.find((m) => m.userId === targetUser.id);
     if (!myMember) return false;
-    if (!targetMember) return true;
+    if (!targetMember) return false;
 
     const roles = guild.roles || [];
-    const getHighestPos = (roleIdsRaw: any) => {
+    const getHighestPos = (roleIdsRaw: Parameters<typeof parseRoleIds>[0]) => {
       const roleIds = parseRoleIds(roleIdsRaw);
-      let maxPos = -1;
+      let maxPos = 0;
       for (const r of roles) {
         if (roleIds.includes(r.id) && r.position > maxPos) {
           maxPos = r.position;
@@ -178,24 +174,26 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
     }
     if (!guild) return;
     const confirmed = await dialog.confirm({
-      title: t("server:members.disconnectVoiceConfirmTitle", "将成员移出语音频道"),
+      title: t("server:members.disconnectVoiceConfirmTitle"),
       description: t("server:members.disconnectVoiceConfirmDesc", {
         name: targetUser.username,
-        defaultValue: `确定要将 @${targetUser.username} 移出语音频道吗？对方可以随时重新加入。`,
       }),
       variant: "warning",
-      confirmText: t("server:members.disconnectVoice", "断开连接"),
+      confirmText: t("server:members.disconnectVoice"),
     });
     if (!confirmed) return;
 
     try {
-      const token = localStorage.getItem("tescord_access_token");
-      const res = await fetch(
+      const active = useAuthStore.getState();
+      if (!currentUser || active.user?.id !== currentUser.id) return;
+      const res = await apiFetch(
         `${API_BASE}/api/guilds/${guild.id}/members/${targetUser.id}/disconnect-voice`,
         {
           method: "POST",
           headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(active.accessToken
+              ? { Authorization: `Bearer ${active.accessToken}` }
+              : {}),
           },
         },
       );
@@ -204,12 +202,10 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
         toast.error(getErrorMessage(err));
         return;
       }
-      toast.success(
-        t("server:members.disconnectVoiceSuccess", "已将成员移出语音频道"),
-      );
+      toast.success(t("server:members.disconnectVoiceSuccess"));
     } catch (err) {
       console.error("Failed to disconnect voice member:", err);
-      toast.error(t("server:members.disconnectVoiceFailed", "移出语音频道失败"));
+      toast.error(t("server:members.disconnectVoiceFailed"));
     }
   };
   const [copiedId, setCopiedId] = useState(false);
@@ -810,9 +806,7 @@ export const UserContextMenu: React.FC<UserContextMenuProps> = ({
                   >
                     <div className="flex items-center space-x-2">
                       <PhoneOff className="w-4 h-4 text-discord-danger" />
-                      <span>
-                        {t("contextMenu:disconnectVoice", "断开语音连接")}
-                      </span>
+                      <span>{t("contextMenu:disconnectVoice")}</span>
                     </div>
                   </ContextMenuItem>
                 )}

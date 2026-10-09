@@ -130,7 +130,9 @@ test.describe("管理员踢出/断开语音频道成员专项端到端与安全�
 
     // 验证控制台无严重未捕获错误
     const criticalErrors = consoleErrors.filter(
-      (err) => !err.includes("Failed to load resource") && !err.includes("net::ERR_CONNECTION_REFUSED"),
+      (err) =>
+        !err.includes("Failed to load resource") &&
+        !err.includes("net::ERR_CONNECTION_REFUSED"),
     );
     expect(criticalErrors).toHaveLength(0);
   });
