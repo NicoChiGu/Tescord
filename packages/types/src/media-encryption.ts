@@ -1,11 +1,12 @@
 /** Media encryption is mandatory and independent of text-channel encryption. */
-export const MEDIA_ENCRYPTION_VERSION = 2 as const;
+export const MEDIA_ENCRYPTION_VERSION = 3 as const;
 export type MediaEncryptionPhase =
   "negotiating" | "ready" | "active" | "failed";
 export interface MediaEncryptionDevice {
   userId: string;
   deviceId: string;
   gatewaySessionId: string;
+  registrationId: string;
   signingPublicKey: string;
   agreementPublicKey: string;
   fingerprint: string;
@@ -14,6 +15,7 @@ export interface MediaEncryptionJoinRequest {
   version: typeof MEDIA_ENCRYPTION_VERSION;
   deviceId: string;
   gatewaySessionId: string;
+  registrationId: string;
   callId?: string;
 }
 export interface MediaEncryptionContext {
@@ -22,6 +24,7 @@ export interface MediaEncryptionContext {
   channelId: string;
   callId?: string;
   membershipVersion: string;
+  contextRevision: number;
   devices: MediaEncryptionDevice[];
   expiresAt: string;
   complete: boolean;
@@ -30,6 +33,7 @@ export interface MediaStreamKeyEnvelope {
   version: typeof MEDIA_ENCRYPTION_VERSION;
   contextId: string;
   membershipVersion: string;
+  contextRevision: number;
   streamId: string;
   keyId: number;
   senderId: string;
@@ -45,9 +49,16 @@ export interface MediaStreamKeyEnvelope {
 export interface MediaStreamKeyPublishRequest {
   contextId: string;
   membershipVersion: string;
+  contextRevision: number;
   streamId: string;
   keyId: number;
   envelopes: MediaStreamKeyEnvelope[];
+}
+export interface MediaStreamKeyAcknowledgeRequest {
+  contextId: string;
+  membershipVersion: string;
+  contextRevision: number;
+  keyId: number;
 }
 export interface MediaEncryptionSnapshot {
   context: MediaEncryptionContext;
@@ -63,6 +74,7 @@ export function mediaStreamEnvelopeSigningBytes(
       envelope.version,
       envelope.contextId,
       envelope.membershipVersion,
+      envelope.contextRevision,
       envelope.streamId,
       envelope.keyId,
       envelope.senderId,
@@ -105,6 +117,7 @@ export interface MediaKeyEnvelopePushPayload {
   callId?: string;
   contextId: string;
   membershipVersion: string;
+  contextRevision: number;
   envelope: MediaStreamKeyEnvelope;
 }
 
@@ -113,6 +126,7 @@ export interface MediaKeyAckPushPayload {
   callId?: string;
   contextId: string;
   membershipVersion: string;
+  contextRevision: number;
   keyId: number;
   acknowledged: boolean;
 }
@@ -121,4 +135,22 @@ export interface MediaEpochUpdatePushPayload {
   channelId: string;
   callId?: string;
   context: MediaEncryptionContext;
+}
+
+export type MediaJoinStage =
+  | "joinStarted"
+  | "deviceRegistered"
+  | "contextReady"
+  | "keyAcknowledged"
+  | "iceReady"
+  | "published"
+  | "subscribed"
+  | "connected"
+  | "firstPlayableAudio";
+/** Durations from startedAt, in milliseconds; never interpreted as media latency. */
+export interface MediaJoinTimingTrace {
+  channelId: string;
+  operationEpoch: number;
+  startedAt: number;
+  stages: Partial<Record<MediaJoinStage, number>>;
 }

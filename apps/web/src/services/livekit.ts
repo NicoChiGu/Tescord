@@ -1711,10 +1711,12 @@ export class LiveKitService {
     if (typeof localStorage !== "undefined") {
       localStorage.setItem("tescord_selected_audio_input_id", deviceId);
     }
-    this.notifyActiveAudioInputChanged();
-
     // 联动 AudioEngine 热换流
-    const stream = await audioEngine.switchInputDevice(deviceId);
+    const switching = audioEngine.switchInputDevice(deviceId);
+    // switchInputDevice updates the active configuration synchronously. Notify
+    // after that update so observers cannot restore the previous selection.
+    this.notifyActiveAudioInputChanged();
+    const stream = await switching;
     if (stream && this.room && this.isConnected) {
       await this.publishMicrophoneStream(stream, this.currentAudioBitrate);
     }

@@ -174,7 +174,8 @@ test.describe("屏幕分享伴音异常与自动优雅降级 (NotReadableError A
     expect(calls[1].audio).toBe(false);
 
     // (3) 验证屏幕分享成功启动（按钮变为“停止共享”）
-    await expect(centerScreenBtn).toHaveAttribute("title", "停止共享", {
+    await centerScreenBtn.hover();
+    await expect(page.getByTestId("tooltip-bubble")).toHaveText("停止共享", {
       timeout: 5000,
     });
 

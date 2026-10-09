@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { GatewayPayload, P2PSignalPayload } from "@tescord/types";
 import { CURRENT_APP_VERSION } from "../apps/web/src/data/changelogs";
+import { createMultiplayerRoom } from "./helpers/encrypted-multiplayer";
 
 interface Session {
   accessToken: string;
@@ -519,3 +520,77 @@ test("three real signed devices negotiate stream keys, render encrypted mesh aud
     for (const context of contexts) await context.close();
   }
 });
+
+for (const count of [3, 5]) {
+  test(`${count} signed devices: sequential mesh joins, sustained encryption and device lifecycle`, async ({
+    browser,
+    request,
+  }, info) => {
+    test.setTimeout(300000);
+    const room = await createMultiplayerRoom(
+      browser,
+      request,
+      info,
+      count,
+      "p2p_mesh",
+    );
+    try {
+      const active = [];
+      for (const endpoint of room.endpoints) {
+        await room.join(endpoint);
+        active.push(endpoint);
+        if (active.length === 1) await room.firstReady(endpoint);
+        else await room.waitForMedia(active);
+      }
+      await room.sustain(active, 60000);
+      const last = active[active.length - 1];
+      await room.leave(last);
+      await room.waitForMedia(active.slice(0, -1));
+      await room.join(last);
+      await room.waitForMedia(active);
+      await room.leave(active[0]);
+      await room.waitForMedia(active.slice(1));
+      await room.join(active[0]);
+      await room.waitForMedia(active);
+      await room.transfer(active[1], active);
+      expect(room.errors).toEqual([]);
+    } finally {
+      await room.cleanup();
+    }
+  });
+
+  test(`${count} signed devices: ten concurrent mesh joins and ten rotation joins`, async ({
+    browser,
+    request,
+  }, info) => {
+    test.setTimeout(1800000);
+    for (let iteration = 0; iteration < 20; iteration++) {
+      const room = await createMultiplayerRoom(
+        browser,
+        request,
+        info,
+        count,
+        "p2p_mesh",
+      );
+      try {
+        await room.join(room.endpoints[0]);
+        await room.firstReady(room.endpoints[0]);
+        if (iteration % 2) {
+          const gate = await room.holdNextPublication(room.endpoints[0]);
+          try {
+            await room.join(room.endpoints[1]);
+            await gate.wait();
+            await Promise.all(room.endpoints.slice(2).map(room.join));
+          } finally {
+            await gate.release();
+          }
+        } else await Promise.all(room.endpoints.slice(1).map(room.join));
+        await room.waitForMedia(room.endpoints);
+        await room.sustain(room.endpoints, 5000);
+        expect(room.errors).toEqual([]);
+      } finally {
+        await room.cleanup();
+      }
+    }
+  });
+}

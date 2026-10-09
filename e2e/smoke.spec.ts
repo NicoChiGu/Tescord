@@ -90,11 +90,15 @@ test.describe("Tescord Web 端到端冒烟与核心交互验收", () => {
     await expect(generalChannel).toBeVisible({ timeout: 5000 });
 
     // 3. 确认底部用户控制栏与语音状态按钮
-    await expect(page.getByRole("button", { name: "静音" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "闭麦拒听" })).toBeVisible();
-    const audioSettingsBtn = page.getByRole("button", {
-      name: "音频与降噪设置",
-    });
+    const micButton = page.getByTestId("user-bar-mic-btn");
+    const deafenButton = page.getByTestId("user-bar-deafen-btn");
+    await expect(micButton).toBeVisible();
+    await micButton.hover();
+    await expect(page.getByTestId("tooltip-bubble")).toHaveText("静音");
+    await expect(deafenButton).toBeVisible();
+    await deafenButton.hover();
+    await expect(page.getByTestId("tooltip-bubble")).toHaveText("闭麦拒听");
+    const audioSettingsBtn = page.getByTestId("user-settings-gear-btn");
     await expect(audioSettingsBtn).toBeVisible();
 
     // 4. 验证 Radix UI 右键菜单唤起与关闭 (ServerContextMenu)，并严格断言防初始锚点 (0, 0) 闪烁
@@ -137,7 +141,7 @@ test.describe("Tescord Web 端到端冒烟与核心交互验收", () => {
     await expect(page.getByText("RNNoise 标准轻量")).toBeVisible();
 
     // 点击右上角关闭按钮
-    const closeBtn = page.getByRole("button", { name: "关闭" });
+    const closeBtn = page.getByTestId("close-user-settings-btn");
     await expect(closeBtn).toBeVisible();
     await closeBtn.click();
     await expect(modalHeading).not.toBeVisible();

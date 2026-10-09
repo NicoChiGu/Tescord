@@ -34,11 +34,13 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",
+    "@tescord/types": "workspace:*",
     "adm-zip": "^0.6.1",
     "playwright": "^1.63.0",
     "prettier": "^3.5.3",
     "turbo": "^2.4.4",
-    "typescript": "^5.8.2"
+    "typescript": "^5.8.2",
+    "ws": "^8.21.3"
   },
   "packageManager": "pnpm@11.9.0"
 }

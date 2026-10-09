@@ -108,7 +108,8 @@ test.describe("语音频道传输拓扑模式 (Voice Channel Topology: SFU vs P2
 
     // 2. 选择左侧公会服务器
     const serverButton = page
-      .locator("button[data-testid^='guild-item-'], button[title*='极客']")
+      .getByTestId("server-list-container")
+      .getByRole("button", { name: /极客/ })
       .first();
     await expect(serverButton).toBeVisible({ timeout: 5000 });
     {
@@ -118,7 +119,7 @@ test.describe("语音频道传输拓扑模式 (Voice Channel Topology: SFU vs P2
     // 3. 找到语音频道右侧的设置小齿轮或者右键菜单
     const voiceChannel = page
       .locator(
-        "button[data-channel-type='VOICE'], button:has-text('语音'), button:has-text('Voice')",
+        'button[data-testid^="channel-button-"]:has(svg.lucide-volume-2)',
       )
       .first();
     await expect(voiceChannel).toBeVisible({ timeout: 5000 });

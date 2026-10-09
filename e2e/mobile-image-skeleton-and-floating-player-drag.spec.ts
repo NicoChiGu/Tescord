@@ -70,6 +70,7 @@ test.describe("移动端消息图片骨架屏动态等比缩减 & 迷你悬浮�
 
     await page.goto("/");
     await expect(page.locator("#root")).toBeVisible({ timeout: 15000 });
+    await page.getByTestId("toggle-mobile-drawer-btn").click();
 
     const generalChannel = page.locator('text="general"').first();
     await expect(generalChannel).toBeVisible({ timeout: 15000 });
@@ -175,6 +176,7 @@ test.describe("移动端消息图片骨架屏动态等比缩减 & 迷你悬浮�
 
     await page.goto("/");
     await expect(page.locator("#root")).toBeVisible({ timeout: 15000 });
+    await page.getByTestId("toggle-mobile-drawer-btn").click();
 
     const generalChannel = page.locator('text="general"').first();
     await expect(generalChannel).toBeVisible({ timeout: 15000 });

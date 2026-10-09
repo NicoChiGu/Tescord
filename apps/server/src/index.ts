@@ -4491,7 +4491,12 @@ server.post(
 
     const guild = await prisma.guild.findUnique({ where: { id: guildId } });
     if (!guild) {
-      return sendApiError(reply, 404, ErrorCode.GUILD_NOT_FOUND, "未找到指定的服务器");
+      return sendApiError(
+        reply,
+        404,
+        ErrorCode.GUILD_NOT_FOUND,
+        "未找到指定的服务器",
+      );
     }
 
     const canMove = await permissionService.hasGuildPermission(
@@ -7641,8 +7646,9 @@ async function cfCanUseChannel(
 async function cfSessionForRequest(
   request: FastifyRequest,
   sessionId: string | undefined,
+  cleanup = false,
 ) {
-  const userId = await getUserIdFromRequest(request);
+  const userId = await getActiveUserIdFromRequest(request);
   if (
     !userId ||
     !sessionId ||
@@ -7654,6 +7660,9 @@ async function cfSessionForRequest(
   )
     return null;
   const session = cloudflareRealtimeService.getSession(sessionId);
+  // An authenticated owner must be able to release its transport after the
+  // Gateway has already removed voice membership. This grants cleanup only.
+  if (session && cleanup) return { ...session, sessionId };
   if (!session || !(await cfCanUseChannel(userId, session.channelId)))
     return null;
   const channel = await prisma.channel.findUnique({
@@ -7681,6 +7690,7 @@ async function cfSessionForRequest(
       userId,
       session.gatewaySessionId || "",
       session.callId,
+      cfLoginSession(request),
     );
   } catch {
     return null;
@@ -7697,7 +7707,11 @@ async function cfSendTracks(channelId: string) {
   const payload = {
     op: GatewayOpCode.DISPATCH,
     t: GatewayEvents.CF_MEDIA_TRACKS,
-    d: { channelId, tracks: cloudflareRealtimeService.getTracks(channelId) },
+    d: {
+      channelId,
+      tracks: cloudflareRealtimeService.getTracks(channelId),
+      revision: cloudflareRealtimeService.getTracksRevision(channelId),
+    },
   };
   if (channel.type === "DM" || channel.type === "GROUP_DM") {
     for (const recipient of channel.recipients)
@@ -7821,6 +7835,7 @@ server.post("/api/cloudflare-realtime/session/new", async (request, reply) => {
       userId,
       gatewaySessionId || "",
       callId,
+      cfLoginSession(request),
     );
   } catch (cause) {
     const code =
@@ -7841,10 +7856,17 @@ server.post("/api/cloudflare-realtime/session/new", async (request, reply) => {
       callId,
       gatewaySessionId,
     );
+    if (!(await cfSessionForRequest(request, session.sessionId))) {
+      await cloudflareRealtimeService
+        .revokeSession(session.sessionId)
+        .catch(() => undefined);
+      return sendApiError(reply, 403, ErrorCode.FORBIDDEN, ErrorCode.FORBIDDEN);
+    }
     await cfSendViewerEvents();
     return {
       ...session,
       tracks: cloudflareRealtimeService.getTracks(channelId),
+      tracksRevision: cloudflareRealtimeService.getTracksRevision(channelId),
       requiresE2EE: true,
     };
   } catch (err: any) {
@@ -7902,6 +7924,23 @@ server.post(
       const result = await cloudflareRealtimeService.publishTracks(
         body as CfCallsPublishTrackRequest,
       );
+      if (
+        !(await cfSessionForRequest(request, session.sessionId)) ||
+        !(await cfCanUseChannel(userId, session.channelId, true))
+      ) {
+        await cloudflareRealtimeService
+          .revokeSession(
+            session.sessionId,
+            result.tracks.flatMap((track) => (track.mid ? [track.mid] : [])),
+          )
+          .catch(() => undefined);
+        return sendApiError(
+          reply,
+          403,
+          ErrorCode.FORBIDDEN,
+          ErrorCode.FORBIDDEN,
+        );
+      }
       cloudflareRealtimeService.addTracks(
         body.tracks.map((t) => ({
           sessionId: session.sessionId,
@@ -7987,6 +8026,7 @@ server.post(
         body as CfCallsSubscribeTrackRequest,
       );
       if (
+        !(await cfSessionForRequest(request, session.sessionId)) ||
         requestedScreenTracks.some((track) =>
           cloudflareRealtimeService.isStreamViewerKicked(
             track.publisherSessionId!,
@@ -7997,7 +8037,7 @@ server.post(
         await cloudflareRealtimeService.closeTracks({
           sessionId: session.sessionId,
           tracks: result.tracks
-            .filter((track) => !!track.mid)
+            .filter((track) => !track.errorCode && !!track.mid)
             .map((track) => ({ mid: track.mid! })),
         });
         return sendApiError(
@@ -8009,11 +8049,22 @@ server.post(
       }
       cloudflareRealtimeService.recordSubscriptions(
         session.sessionId,
-        result.tracks.map((track, index) => ({
-          mid: track.mid!,
-          publisherSessionId: body.tracks![index].publisherSessionId!,
-          trackName: body.tracks![index].trackName!,
-        })),
+        result.tracks.flatMap((track) => {
+          if (track.errorCode || !track.mid) return [];
+          const publication = body.tracks!.find(
+            (requested) =>
+              requested.trackName === track.trackName &&
+              (!track.sessionId ||
+                requested.publisherSessionId === track.sessionId),
+          )!;
+          return [
+            {
+              mid: track.mid,
+              publisherSessionId: publication.publisherSessionId!,
+              trackName: publication.trackName!,
+            },
+          ];
+        }),
       );
       return result;
     } catch (err: any) {
@@ -8188,34 +8239,62 @@ server.put(
   "/api/cloudflare-realtime/tracks/renegotiate",
   async (request, reply) => {
     if (!cloudflareRealtimeService.isSfuConfigured) {
-      return reply
-        .status(503)
-        .send({ error: "Cloudflare Calls SFU is not configured" });
+      return sendApiError(
+        reply,
+        503,
+        ErrorCode.INTERNAL_ERROR,
+        ErrorCode.INTERNAL_ERROR,
+      );
     }
     const userId = await getUserIdFromRequest(request);
-    if (!userId) return reply.status(401).send({ error: "Unauthorized" });
+    if (!userId)
+      return sendApiError(
+        reply,
+        401,
+        ErrorCode.UNAUTHORIZED,
+        ErrorCode.UNAUTHORIZED,
+      );
 
     const body = cfBody(request);
     if (!(await cfSessionForRequest(request, body.sessionId)))
-      return reply.status(403).send({ error: "Invalid media session" });
+      return sendApiError(reply, 403, ErrorCode.FORBIDDEN, ErrorCode.FORBIDDEN);
     if (
       body.sessionDescription?.type !== "answer" ||
       typeof body.sessionDescription.sdp !== "string"
     ) {
-      return reply
-        .status(400)
-        .send({ error: "Invalid renegotiate request body" });
+      return sendApiError(
+        reply,
+        400,
+        ErrorCode.INVALID_PARAMS,
+        ErrorCode.INVALID_PARAMS,
+      );
     }
 
     try {
-      await cloudflareRealtimeService.renegotiate(
+      const confirmed = await cloudflareRealtimeService.renegotiate(
         body as CfCallsRenegotiateRequest,
+        async () => Boolean(await cfSessionForRequest(request, body.sessionId)),
       );
-      cloudflareRealtimeService.confirmSubscriptions(body.sessionId!);
+      if (!confirmed)
+        return sendApiError(
+          reply,
+          403,
+          ErrorCode.FORBIDDEN,
+          ErrorCode.FORBIDDEN,
+        );
       return { ok: true };
-    } catch (err: any) {
+    } catch (err: unknown) {
       server.log.error(err, "Failed to renegotiate Cloudflare Calls session");
-      return reply.status(502).send({ error: "Failed to renegotiate" });
+      console.warn(
+        "[CF media] renegotiate failed:",
+        err instanceof Error ? err.message : "unknown",
+      );
+      return sendApiError(
+        reply,
+        502,
+        ErrorCode.MEDIA_CONTEXT_STALE,
+        ErrorCode.MEDIA_CONTEXT_STALE,
+      );
     }
   },
 );
@@ -8284,14 +8363,29 @@ server.post("/api/cloudflare-realtime/tracks/ready", async (request, reply) => {
 server.post(
   "/api/cloudflare-realtime/session/heartbeat",
   async (request, reply) => {
-    const session = await cfSessionForRequest(
-      request,
-      cfBody(request).sessionId,
-    );
-    if (!session)
+    const sessionId = cfBody(request).sessionId;
+    const session = await cfSessionForRequest(request, sessionId);
+    if (!session) {
+      const userId = await getActiveUserIdFromRequest(request);
+      if (
+        userId &&
+        sessionId &&
+        (cloudflareRealtimeService.ownsSession(
+          sessionId,
+          userId,
+          cfLoginSession(request),
+        ) ||
+          cloudflareRealtimeService.ownsRetiredSession(
+            sessionId,
+            userId,
+            cfLoginSession(request),
+          ))
+      )
+        return { active: false };
       return reply.status(403).send({ error: "Invalid media session" });
+    }
     cloudflareRealtimeService.touchSession(session.sessionId);
-    return { ok: true };
+    return { active: true };
   },
 );
 
@@ -8299,10 +8393,22 @@ server.post(
   "/api/cloudflare-realtime/session/leave",
   async (request, reply) => {
     const body = cfBody(request);
-    const session = await cfSessionForRequest(request, body.sessionId);
-    if (!session)
-      return reply.status(403).send({ error: "Invalid media session" });
-    await cloudflareRealtimeService
+    const session = await cfSessionForRequest(request, body.sessionId, true);
+    if (!session) {
+      const userId = await getActiveUserIdFromRequest(request);
+      if (
+        userId &&
+        typeof body.sessionId === "string" &&
+        cloudflareRealtimeService.ownsRetiredSession(
+          body.sessionId,
+          userId,
+          cfLoginSession(request),
+        )
+      )
+        return { ok: true };
+      return sendApiError(reply, 403, ErrorCode.FORBIDDEN, "FORBIDDEN");
+    }
+    void cloudflareRealtimeService
       .revokeSession(session.sessionId)
       .catch((error) =>
         request.log.warn({ error }, "Cloudflare session teardown incomplete"),
@@ -8357,6 +8463,10 @@ const cloudflareMediaSweep = setInterval(async () => {
   }
 }, 10_000);
 cloudflareMediaSweep.unref();
+server.addHook("onClose", async () => {
+  clearInterval(cloudflareMediaSweep);
+  await cloudflareRealtimeService.drainTeardowns();
+});
 
 // ==========================================
 // 7. 超级管理员系统运维与治理 API (Super Admin)

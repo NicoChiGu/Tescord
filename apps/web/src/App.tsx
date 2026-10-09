@@ -243,7 +243,17 @@ export const App: React.FC = () => {
   );
   const messageHistoryRef = useRef(messageHistory);
   messageHistoryRef.current = messageHistory;
-  const [voiceStates, setVoiceStates] = useState<VoiceState[]>([]);
+  const [voiceStates, setVoiceStatesState] = useState<VoiceState[]>([]);
+  const voiceStatesRef = useRef<VoiceState[]>([]);
+  const setVoiceStates = useCallback(
+    (update: React.SetStateAction<VoiceState[]>) => {
+      const next =
+        typeof update === "function" ? update(voiceStatesRef.current) : update;
+      voiceStatesRef.current = next;
+      setVoiceStatesState(next);
+    },
+    [],
+  );
   const voiceRevisionRef = useRef<Map<string, number>>(new Map());
   const [voiceTransferNotice, setVoiceTransferNotice] =
     useState<VoiceTransferNotice | null>(null);
@@ -721,6 +731,7 @@ export const App: React.FC = () => {
         p2pStreamManager.setContext(null);
         audioEngine.stop();
         mediaEncryptionService.stop();
+        deviceKeyService.clear();
         screenShareGenerationRef.current++;
         displayCaptureCleanupRef.current?.();
         displayCaptureCleanupRef.current = null;
@@ -917,6 +928,7 @@ export const App: React.FC = () => {
     if (!isAuthenticated || !currentUser?.id || !token || !window.indexedDB)
       return;
     deviceKeyService.ensureAndRegister(currentUser.id, token).catch((error) => {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       console.error("Failed to initialize account-scoped device keys:", error);
       showGlobalToast("设备身份密钥初始化失败，E2EE 媒体将保持禁用", "error");
     });
@@ -1046,6 +1058,19 @@ export const App: React.FC = () => {
           signal?.type === "VOICE_ICE_CANDIDATE" ||
           signal?.type === "VOICE_LEAVE"
         ) {
+          if (!signal.callId) {
+            const remote = voiceStatesRef.current.find(
+              (state) =>
+                state.userId === signal.senderId &&
+                state.channelId === signal.channelId,
+            );
+            if (
+              !signal.senderSessionId ||
+              !remote ||
+              (remote.sessionId && remote.sessionId !== signal.senderSessionId)
+            )
+              return;
+          }
           voiceMeshManager.handleVoiceSignal(signal);
         } else {
           p2pStreamManager.handleP2PSignal(signal);
@@ -1859,9 +1884,16 @@ export const App: React.FC = () => {
             const oldState = prev.find((p) => p.userId === vs.userId);
             const wasInMyChannel = oldState?.channelId === currentVoiceId;
             const isNowInMyChannel = vs.channelId === currentVoiceId;
+            const replacedDevice =
+              wasInMyChannel &&
+              isNowInMyChannel &&
+              Boolean(vs.sessionId) &&
+              Boolean(oldState?.sessionId) &&
+              vs.sessionId !== oldState?.sessionId;
+            if (replacedDevice) voiceMeshManager.closePeer(vs.userId);
 
-            if (!wasInMyChannel && isNowInMyChannel) {
-              soundManager.play("USER_JOIN");
+            if ((!wasInMyChannel && isNowInMyChannel) || replacedDevice) {
+              if (!replacedDevice) soundManager.play("USER_JOIN");
               // 同步更新 VoiceMeshManager 成员列表
               const nextOtherMembers = [
                 ...prev
@@ -3261,7 +3293,10 @@ export const App: React.FC = () => {
   ) => {
     if (!selectedGuildId) return;
     const confirmed = await dialog.confirm({
-      title: t("server:members.disconnectVoiceConfirmTitle", "将成员移出语音频道"),
+      title: t(
+        "server:members.disconnectVoiceConfirmTitle",
+        "将成员移出语音频道",
+      ),
       description: t("server:members.disconnectVoiceConfirmDesc", {
         name: username,
       }),
@@ -3437,8 +3472,22 @@ export const App: React.FC = () => {
     setActiveVoiceChannelId(channel.id);
     setSelectedChannel(channel);
     livekitService.setConnectionStatus("connecting");
+    const effectiveVoiceMode =
+      channel.voiceMode ||
+      useSettingsStore.getState().voiceTransmissionMode ||
+      "sfu";
+    const isP2PMesh = effectiveVoiceMode === "p2p_mesh";
+    const isCloudflareActive =
+      !isP2PMesh &&
+      (effectiveVoiceMode === "cloudflare_realtime" ||
+        VOICE_ENGINE === "cloudflare_realtime");
+    const icePreparation = isCloudflareActive
+      ? cloudflareRealtimeService.prepareIceServers()
+      : null;
+    void icePreparation?.catch(() => {});
 
     try {
+      cloudflareRealtimeService.beginJoinTiming(channel.id);
       if (
         !channel.guildId ||
         !(await gatewayClient.updateVoiceStateAndWait(
@@ -3451,17 +3500,24 @@ export const App: React.FC = () => {
       if (!isCurrentVoiceOp()) return;
       const token = useAuthStore.getState().token;
       if (!token) throw new Error("UNAUTHORIZED");
-      await mediaEncryptionService.prepare({
-        channelId: channel.id,
-        gatewaySessionId: gatewayClient.getSessionId(),
-        userId: joiningUserId,
-        token,
-        onFailure: (error) => {
-          if (!isCurrentVoiceOp()) return;
-          showGlobalToast(getErrorMessage({ code: error.message }), "error");
-          void handleLeaveVoiceChannel();
-        },
-      });
+      await Promise.all([
+        audioEngine.initMicrophone(),
+        mediaEncryptionService.prepare({
+          channelId: channel.id,
+          gatewaySessionId: gatewayClient.getSessionId(),
+          userId: joiningUserId,
+          token,
+          onStage: (stage) => {
+            if (isCurrentVoiceOp())
+              cloudflareRealtimeService.markJoinStage(stage);
+          },
+          onFailure: (error) => {
+            if (!isCurrentVoiceOp()) return;
+            showGlobalToast(getErrorMessage({ code: error.message }), "error");
+            void handleLeaveVoiceChannel();
+          },
+        }),
+      ]);
       if (!isCurrentVoiceOp()) return;
     } catch (error) {
       if (isCurrentVoiceOp()) {
@@ -3478,7 +3534,6 @@ export const App: React.FC = () => {
       return;
     }
 
-    await audioEngine.initMicrophone();
     if (!isCurrentVoiceOp()) return;
     // A rebuilt capture graph must inherit the current mute before it is published.
     audioEngine.setMute(isMutedRef.current);
@@ -3487,18 +3542,8 @@ export const App: React.FC = () => {
     const processedStream = audioEngine.getStream();
 
     let joinSuccess = false;
-    const effectiveVoiceMode =
-      channel.voiceMode ||
-      useSettingsStore.getState().voiceTransmissionMode ||
-      "sfu";
-    const isP2PMesh = effectiveVoiceMode === "p2p_mesh";
-    const isCloudflareActive =
-      !isP2PMesh &&
-      (effectiveVoiceMode === "cloudflare_realtime" ||
-        VOICE_ENGINE === "cloudflare_realtime");
-
     if (isP2PMesh && processedStream && channel.guildId) {
-      const otherMembers = voiceStates
+      const otherMembers = voiceStatesRef.current
         .filter(
           (state) =>
             state.channelId === channel.id && state.userId !== currentUser.id,
@@ -3533,6 +3578,7 @@ export const App: React.FC = () => {
           {
             audioStream: processedStream,
             audioBitrate: bitrate,
+            iceServers: icePreparation ? await icePreparation : undefined,
             gatewaySessionId: gatewayClient.getSessionId(),
           },
         );
@@ -3980,22 +4026,28 @@ export const App: React.FC = () => {
       activeVoiceChannelIdRef.current = channelId;
       setActiveVoiceChannelId(channelId);
       livekitService.setConnectionStatus("connecting");
-      await mediaEncryptionService.prepare({
-        channelId,
-        callId,
-        gatewaySessionId: gatewayClient.getSessionId(),
-        userId: currentUser.id,
-        token,
-        onFailure: (error) => {
-          if (!isCurrent()) return;
-          setCallEncryption({ status: "failed" });
-          showGlobalToast(getErrorMessage({ code: error.message }), "error");
-          void handleLeaveVoiceChannel();
-        },
-      });
+      cloudflareRealtimeService.beginJoinTiming(channelId);
+      await Promise.all([
+        audioEngine.initMicrophone(),
+        mediaEncryptionService.prepare({
+          channelId,
+          callId,
+          gatewaySessionId: gatewayClient.getSessionId(),
+          userId: currentUser.id,
+          token,
+          onStage: (stage) => {
+            if (isCurrent()) cloudflareRealtimeService.markJoinStage(stage);
+          },
+          onFailure: (error) => {
+            if (!isCurrent()) return;
+            setCallEncryption({ status: "failed" });
+            showGlobalToast(getErrorMessage({ code: error.message }), "error");
+            void handleLeaveVoiceChannel();
+          },
+        }),
+      ]);
       if (!isCurrent()) return;
       setCallEncryption({ status: "tofu" });
-      await audioEngine.initMicrophone();
       audioEngine.setMute(isMutedRef.current);
       if (!isCurrent()) return;
       const bitrate = 64000;
@@ -5549,7 +5601,12 @@ export const App: React.FC = () => {
                 g.id === selectedGuildId
                   ? {
                       ...g,
-                      categories: [...(g.categories || []), newCat],
+                      categories: [
+                        ...(g.categories || []).filter(
+                          (category) => category.id !== newCat.id,
+                        ),
+                        newCat,
+                      ].sort((a, b) => a.position - b.position),
                     }
                   : g,
               ),

@@ -9,10 +9,11 @@ export interface EncodedFrameLayout {
 }
 export type MediaTransformControl =
   | { type: "sender-key"; keyId: number; key: Uint8Array; generation: number }
-  | { type: "receiver-key"; keyId: number; key: Uint8Array }
+  | { type: "receiver-key"; keyId: number; key: Uint8Array; requestId?: number }
   | { type: "pause" | "resume" | "clear-keys" }
   | { type: "codecs"; codecs: { payloadType: number; mimeType: string }[] };
 export type MediaTransformEvent =
+  | { type: "key-installed"; requestId: number }
   | { type: "stats"; encrypted: number; decrypted: number; replay: number }
   | { type: "fatal"; error: string }
   | { type: "codecs-needed" };

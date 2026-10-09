@@ -298,9 +298,11 @@ test.describe("Discord 级体验增强核心交互验证 (问题2/3/4/5/6)", () 
       await confirmLiveBtn.click();
 
       // 验证推流成功开启：卡片呈现 LIVE 徽章与显式“停止直播”按钮
-      await expect(toggleScreenBtn).toHaveAttribute("title", "停止共享", {
-        timeout: 5000,
-      });
+      await toggleScreenBtn.hover();
+      await expect(page.getByTestId("tooltip-bubble")).toContainText(
+        "停止共享",
+        { timeout: 5000 },
+      );
       const stopLiveBtn = page.getByTestId("participant-stop-screen-btn");
       await expect(stopLiveBtn).toBeVisible({ timeout: 5000 });
       await expect(stopLiveBtn).toContainText("停止直播");
@@ -315,9 +317,11 @@ test.describe("Discord 级体验增强核心交互验证 (问题2/3/4/5/6)", () 
 
       // 验证直播已彻底停止：停止直播按钮消失，底部按钮状态复原为“屏幕共享”
       await expect(stopLiveBtn).not.toBeVisible({ timeout: 5000 });
-      await expect(toggleScreenBtn).toHaveAttribute("title", "屏幕共享", {
-        timeout: 5000,
-      });
+      await toggleScreenBtn.hover();
+      await expect(page.getByTestId("tooltip-bubble")).toContainText(
+        "屏幕共享",
+        { timeout: 5000 },
+      );
     } finally {
       await page.close();
       const deleted = await request.delete(`/api/guilds/${guild.id}`, {

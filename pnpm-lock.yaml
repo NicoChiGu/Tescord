@@ -27,6 +27,9 @@ importers:
       '@playwright/test':
         specifier: ^1.63.0
         version: 1.63.0
+      '@tescord/types':
+        specifier: workspace:*
+        version: link:packages/types
       adm-zip:
         specifier: 0.6.1
         version: 0.6.1
@@ -42,6 +45,9 @@ importers:
       typescript:
         specifier: ^5.8.2
         version: 5.8.2
+      ws:
+        specifier: ^8.21.3
+        version: 8.21.3
 
   apps/desktop:
     dependencies:

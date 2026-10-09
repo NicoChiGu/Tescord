@@ -1,19 +1,20 @@
 import { test, expect } from "@playwright/test";
 
 test.describe("6 项系统功能调整与体验优化自动化验收 (six-features-adjustment)", () => {
-  test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
+  test.beforeEach(async ({ page }, testInfo) => {
+    await page.addInitScript((normalUser) => {
       localStorage.setItem("tescord_locale", "zh-CN");
+      const prefix = normalUser ? "tescord_e2e_normal" : "tescord_e2e";
       localStorage.setItem(
         "tescord_access_token",
-        localStorage.getItem("tescord_e2e_access_token") || "mock_e2e_token",
+        localStorage.getItem(`${prefix}_access_token`) || "mock_e2e_token",
       );
       localStorage.setItem(
         "tescord_refresh_token",
-        localStorage.getItem("tescord_e2e_refresh_token") ||
-          "mock_refresh_token",
+        localStorage.getItem(`${prefix}_refresh_token`) || "mock_refresh_token",
       );
-    });
+      if (normalUser) localStorage.removeItem("tescord_last_user");
+    }, testInfo.title.startsWith("4."));
   });
 
   test("1. 外观与版面：移除客户端缩放，提供 13px~20px 全局文字大小调节与重置", async ({
@@ -121,18 +122,6 @@ test.describe("6 项系统功能调整与体验优化自动化验收 (six-featur
   test("4. 超级管理员建服控制：普通用户在受限模式下展示专属单服提示并引导加入", async ({
     page,
   }) => {
-    // 切换为真实的数据库普通用户 Alice
-    await page.addInitScript(() => {
-      const normalToken = localStorage.getItem(
-        "tescord_e2e_normal_access_token",
-      );
-      if (normalToken) {
-        localStorage.setItem("tescord_access_token", normalToken);
-        localStorage.removeItem("tescord_refresh_token");
-        localStorage.removeItem("tescord_last_user");
-      }
-    });
-
     // 覆盖注册状态接口，模拟服务端禁止非超管建服
     await page.route("**/api/auth/registration-status", (route) => {
       route.fulfill({
@@ -150,8 +139,12 @@ test.describe("6 项系统功能调整与体验优化自动化验收 (six-featur
     await expect(root).toBeVisible({ timeout: 10000 });
 
     // 点击添加服务器按钮
-    const addServerBtn = page.locator('button[title*="添加服务器"]').first();
+    const addServerBtn = page
+      .getByTestId("servers-sidebar")
+      .locator("button:has(svg.lucide-plus)");
     await expect(addServerBtn).toBeVisible({ timeout: 10000 });
+    await addServerBtn.hover();
+    await expect(page.getByTestId("tooltip-bubble")).toHaveText("添加服务器");
     await addServerBtn.click();
 
     // 验证非超管弹出的单服务器限制提示与加入已有服务器引导

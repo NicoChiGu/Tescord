@@ -377,7 +377,8 @@ test.describe("P2P 直连与智能接力直播传输模式端到端自动化验�
     await startStreamBtn.click();
 
     // 4. 验证开播后按钮状态切换为“停止共享”
-    await expect(shareScreenBtn).toHaveAttribute("title", "停止共享", {
+    await shareScreenBtn.hover();
+    await expect(page.getByTestId("tooltip-bubble")).toHaveText("停止共享", {
       timeout: 5000,
     });
 

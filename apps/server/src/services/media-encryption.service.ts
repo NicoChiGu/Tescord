@@ -17,6 +17,7 @@ import type {
   MediaEncryptionJoinRequest,
   MediaEncryptionSnapshot,
   MediaStreamKeyPublishRequest,
+  MediaStreamKeyAcknowledgeRequest,
   MediaKeyEnvelopePushPayload,
   MediaKeyAckPushPayload,
   MediaEpochUpdatePushPayload,
@@ -27,6 +28,7 @@ interface Registration {
   loginSessionId: string;
   deviceId: string;
   gatewaySessionId: string;
+  registrationId: string;
   touchedAt: number;
 }
 interface Room {
@@ -34,6 +36,14 @@ interface Room {
   channelId: string;
   callId?: string;
   registrations: Map<string, Registration>;
+  contextRevision: number;
+  membershipVersion?: string;
+}
+interface JoinTicket {
+  userId: string;
+  gatewaySessionId: string;
+  registrationId: string;
+  cancelled: boolean;
 }
 const identity = (userId: string, deviceId: string) =>
   JSON.stringify([userId, deviceId]);
@@ -61,6 +71,60 @@ export class MediaEncryptionRegistry {
       > = gatewayManager,
   ) {}
   private rooms = new Map<string, Room>();
+  private operations = new Map<string, Promise<void>>();
+  private pendingJoins = new Map<string, Set<JoinTicket>>();
+  private serialize<T>(
+    channelId: string,
+    callId: string | undefined,
+    run: () => Promise<T>,
+  ): Promise<T> {
+    const key = this.roomKey(channelId, callId);
+    const previous = this.operations.get(key) || Promise.resolve();
+    const result = previous.then(run, run);
+    const settled = result.then(
+      () => {},
+      () => {},
+    );
+    this.operations.set(key, settled);
+    void settled.then(() => {
+      if (this.operations.get(key) === settled) this.operations.delete(key);
+    });
+    return result;
+  }
+  private assertRegistration(
+    room: Room,
+    userId: string,
+    loginSessionId: string,
+    body: MediaEncryptionJoinRequest,
+  ): Registration {
+    if (this.rooms.get(this.roomKey(room.channelId, room.callId)) !== room)
+      reject();
+    const entry = room.registrations.get(identity(userId, body.deviceId));
+    if (
+      !entry ||
+      entry.gatewaySessionId !== body.gatewaySessionId ||
+      entry.registrationId !== body.registrationId ||
+      entry.loginSessionId !== loginSessionId
+    )
+      reject();
+    return entry;
+  }
+  private async assertCurrent(
+    room: Room,
+    context: MediaEncryptionContext,
+    userId: string,
+    loginSessionId: string,
+    body: MediaEncryptionJoinRequest,
+  ): Promise<void> {
+    this.assertRegistration(room, userId, loginSessionId, body);
+    const latest = await this.context(room);
+    this.assertRegistration(room, userId, loginSessionId, body);
+    if (
+      latest.membershipVersion !== context.membershipVersion ||
+      latest.contextRevision !== context.contextRevision
+    )
+      reject();
+  }
   private roomKey(channelId: string, callId?: string): string {
     return JSON.stringify([channelId, callId || null]);
   }
@@ -69,15 +133,19 @@ export class MediaEncryptionRegistry {
     loginSessionId: string,
     channelId: string,
     body: MediaEncryptionJoinRequest,
-  ): Promise<void> {
+  ): Promise<MediaEncryptionDevice> {
     if (body.version !== MEDIA_ENCRYPTION_VERSION)
       reject("MEDIA_E2EE_UNSUPPORTED");
     if (
       !body.deviceId ||
       !body.gatewaySessionId ||
-      [body.deviceId, body.gatewaySessionId, body.callId || ""].some(
-        (value) => typeof value !== "string" || value.length > 160,
-      )
+      !body.registrationId ||
+      [
+        body.deviceId,
+        body.gatewaySessionId,
+        body.registrationId,
+        body.callId || "",
+      ].some((value) => typeof value !== "string" || value.length > 160)
     )
       reject("INVALID_PARAMS");
     const [user, login, device, channel] = await Promise.all([
@@ -134,6 +202,33 @@ export class MediaEncryptionRegistry {
       )
         reject("FORBIDDEN");
     }
+    // Permissions are asynchronous; a Gateway transfer/revoke during that lookup wins.
+    if (
+      !this.gateway.hasIdentifiedLoginSession(
+        userId,
+        body.gatewaySessionId,
+        loginSessionId,
+        user.sessionVersion,
+      )
+    )
+      reject("UNAUTHORIZED");
+    if (!body.callId) {
+      const currentVoice = this.gateway.getMediaVoiceState(userId);
+      if (
+        currentVoice?.channelId !== channelId ||
+        currentVoice.sessionId !== body.gatewaySessionId
+      )
+        reject("FORBIDDEN");
+    }
+    return {
+      userId,
+      deviceId: body.deviceId,
+      gatewaySessionId: body.gatewaySessionId,
+      registrationId: body.registrationId,
+      signingPublicKey: device.signingPublicKey,
+      agreementPublicKey: device.agreementPublicKey,
+      fingerprint: device.fingerprint,
+    };
   }
   async join(
     userId: string,
@@ -141,7 +236,34 @@ export class MediaEncryptionRegistry {
     channelId: string,
     body: MediaEncryptionJoinRequest,
   ): Promise<MediaEncryptionSnapshot> {
+    const key = this.roomKey(channelId, body.callId);
+    const ticket: JoinTicket = {
+      userId,
+      gatewaySessionId: body.gatewaySessionId,
+      registrationId: body.registrationId,
+      cancelled: false,
+    };
+    const tickets = this.pendingJoins.get(key) || new Set<JoinTicket>();
+    tickets.add(ticket);
+    this.pendingJoins.set(key, tickets);
+    return this.serialize(channelId, body.callId, () =>
+      this.joinUnlocked(userId, loginSessionId, channelId, body, ticket),
+    ).finally(() => {
+      tickets.delete(ticket);
+      if (!tickets.size && this.pendingJoins.get(key) === tickets)
+        this.pendingJoins.delete(key);
+    });
+  }
+  private async joinUnlocked(
+    userId: string,
+    loginSessionId: string,
+    channelId: string,
+    body: MediaEncryptionJoinRequest,
+    ticket: JoinTicket,
+  ): Promise<MediaEncryptionSnapshot> {
+    if (ticket.cancelled) reject();
     await this.authorize(userId, loginSessionId, channelId, body);
+    if (ticket.cancelled) reject();
     const roomKey = this.roomKey(channelId, body.callId);
     let room = this.rooms.get(roomKey);
     if (!room) {
@@ -150,6 +272,7 @@ export class MediaEncryptionRegistry {
         channelId,
         callId: body.callId,
         registrations: new Map(),
+        contextRevision: 0,
       };
       this.rooms.set(roomKey, room);
     }
@@ -166,6 +289,7 @@ export class MediaEncryptionRegistry {
       loginSessionId,
       deviceId: body.deviceId,
       gatewaySessionId: body.gatewaySessionId,
+      registrationId: body.registrationId,
       touchedAt: Date.now(),
     });
     if (!body.callId)
@@ -174,7 +298,7 @@ export class MediaEncryptionRegistry {
         channelId,
         body.gatewaySessionId,
       );
-    const snapshot = await this.snapshot(
+    const snapshot = await this.snapshotUnlocked(
       userId,
       loginSessionId,
       channelId,
@@ -198,57 +322,57 @@ export class MediaEncryptionRegistry {
   }
   private async context(room: Room): Promise<MediaEncryptionContext> {
     const devices: MediaEncryptionDevice[] = [];
-    for (const [key, entry] of room.registrations) {
-      try {
-        if (Date.now() - entry.touchedAt > 15_000) reject();
-        await this.authorize(
-          entry.userId,
-          entry.loginSessionId,
-          room.channelId,
-          { version: 2, ...entry, callId: room.callId },
-        );
-        const device = await prisma.deviceKey.findFirst({
-          where: {
-            userId: entry.userId,
-            deviceId: entry.deviceId,
-            revokedAt: null,
-          },
-        });
-        if (!device) reject();
-        devices.push({
-          userId: entry.userId,
-          deviceId: entry.deviceId,
-          gatewaySessionId: entry.gatewaySessionId,
-          signingPublicKey: device!.signingPublicKey,
-          agreementPublicKey: device!.agreementPublicKey,
-          fingerprint: device!.fingerprint,
-        });
-      } catch {
-        room.registrations.delete(key);
-        if (!room.callId)
-          this.gateway.expireMediaParticipant?.(
+    // Each identity is independent. Await the complete authorization set before
+    // producing the sorted epoch, rather than serializing five database walks.
+    await Promise.all(
+      [...room.registrations].map(async ([key, entry]) => {
+        try {
+          if (Date.now() - entry.touchedAt > 15_000) reject();
+          const device = await this.authorize(
             entry.userId,
+            entry.loginSessionId,
             room.channelId,
-            entry.gatewaySessionId,
+            {
+              version: MEDIA_ENCRYPTION_VERSION,
+              ...entry,
+              callId: room.callId,
+            },
           );
-        else {
-          try {
-            dmCallService.authorizeMedia(
+          if (
+            room.registrations.get(key) !== entry ||
+            this.rooms.get(this.roomKey(room.channelId, room.callId)) !== room
+          )
+            reject();
+          devices.push(device);
+        } catch {
+          // A synchronous leave/device transfer may have already replaced this identity.
+          if (room.registrations.get(key) !== entry) return;
+          room.registrations.delete(key);
+          if (!room.callId)
+            this.gateway.expireMediaParticipant?.(
               entry.userId,
-              entry.gatewaySessionId,
-              room.callId,
               room.channelId,
+              entry.gatewaySessionId,
             );
-            dmCallService.terminateForUser(
-              entry.userId,
-              "e2ee_negotiation_timeout",
-            );
-          } catch {
-            /* A revoked call has already been closed. */
+          else {
+            try {
+              dmCallService.authorizeMedia(
+                entry.userId,
+                entry.gatewaySessionId,
+                room.callId,
+                room.channelId,
+              );
+              dmCallService.terminateForUser(
+                entry.userId,
+                "e2ee_negotiation_timeout",
+              );
+            } catch {
+              /* A revoked call has already been closed. */
+            }
           }
         }
-      }
-    }
+      }),
+    );
     devices.sort((a, b) =>
       identity(a.userId, a.deviceId).localeCompare(
         identity(b.userId, b.deviceId),
@@ -274,26 +398,48 @@ export class MediaEncryptionRegistry {
       expected = this.gateway
         .getMediaVoiceRoster(room.channelId)
         .map((state) => ({ userId: state.userId, sessionId: state.sessionId }));
+    expected.sort((a, b) =>
+      JSON.stringify([a.userId, a.sessionId]).localeCompare(
+        JSON.stringify([b.userId, b.sessionId]),
+      ),
+    );
+    if (this.rooms.get(this.roomKey(room.channelId, room.callId)) !== room)
+      reject();
+    // Remove identities revoked while an authorization lookup was in flight.
+    const activeDevices = devices.filter((device) => {
+      const registered = room.registrations.get(
+        identity(device.userId, device.deviceId),
+      );
+      return (
+        registered?.gatewaySessionId === device.gatewaySessionId &&
+        registered.registrationId === device.registrationId
+      );
+    });
     const complete =
-      devices.length > 0 &&
-      expected.length === devices.length &&
+      activeDevices.length > 0 &&
+      expected.length === activeDevices.length &&
       expected.every((entry) =>
-        devices.some(
+        activeDevices.some(
           (device) =>
             device.userId === entry.userId &&
             device.gatewaySessionId === entry.sessionId,
         ),
       );
     const membershipVersion = createHash("sha256")
-      .update(JSON.stringify([room.contextId, devices, expected]))
+      .update(JSON.stringify([room.contextId, activeDevices, expected]))
       .digest("base64url");
+    if (room.membershipVersion !== membershipVersion) {
+      room.membershipVersion = membershipVersion;
+      room.contextRevision++;
+    }
     return {
-      version: 2,
+      version: MEDIA_ENCRYPTION_VERSION,
       contextId: room.contextId,
       channelId: room.channelId,
       callId: room.callId,
       membershipVersion,
-      devices,
+      contextRevision: room.contextRevision,
+      devices: activeDevices,
       complete,
       expiresAt: new Date(Date.now() + 15_000).toISOString(),
     };
@@ -301,7 +447,38 @@ export class MediaEncryptionRegistry {
   private requireRoom(channelId: string, callId?: string): Room {
     return this.rooms.get(this.roomKey(channelId, callId)) || reject();
   }
+  private async participantContext(
+    userId: string,
+    loginSessionId: string,
+    channelId: string,
+    body: MediaEncryptionJoinRequest,
+  ): Promise<MediaEncryptionContext> {
+    await this.authorize(userId, loginSessionId, channelId, body);
+    const room = this.requireRoom(channelId, body.callId);
+    this.assertRegistration(room, userId, loginSessionId, body).touchedAt =
+      Date.now();
+    const context = await this.context(room);
+    this.assertRegistration(room, userId, loginSessionId, body);
+    if (
+      !context.devices.some(
+        (device) =>
+          device.userId === userId && device.deviceId === body.deviceId,
+      )
+    )
+      reject();
+    return context;
+  }
   async snapshot(
+    userId: string,
+    loginSessionId: string,
+    channelId: string,
+    body: MediaEncryptionJoinRequest,
+  ): Promise<MediaEncryptionSnapshot> {
+    return this.serialize(channelId, body.callId, () =>
+      this.snapshotUnlocked(userId, loginSessionId, channelId, body),
+    );
+  }
+  private async snapshotUnlocked(
     userId: string,
     loginSessionId: string,
     channelId: string,
@@ -313,6 +490,7 @@ export class MediaEncryptionRegistry {
     if (
       !entry ||
       entry.gatewaySessionId !== body.gatewaySessionId ||
+      entry.registrationId !== body.registrationId ||
       entry.loginSessionId !== loginSessionId
     )
       reject();
@@ -336,7 +514,12 @@ export class MediaEncryptionRegistry {
       .filter(
         (record) =>
           record.recipientId === userId &&
-          record.recipientDeviceId === body.deviceId,
+          record.recipientDeviceId === body.deviceId &&
+          (
+            JSON.parse(
+              record.envelopeJson,
+            ) as MediaEncryptionSnapshot["envelopes"][number]
+          ).contextRevision === context.contextRevision,
       )
       .map(
         (record) =>
@@ -346,13 +529,22 @@ export class MediaEncryptionRegistry {
       );
     const groups = new Map<number, typeof records>();
     for (const record of records)
-      if (record.senderId === userId && record.senderDeviceId === body.deviceId)
+      if (
+        record.senderId === userId &&
+        record.senderDeviceId === body.deviceId &&
+        (
+          JSON.parse(
+            record.envelopeJson,
+          ) as MediaEncryptionSnapshot["envelopes"][number]
+        ).contextRevision === context.contextRevision
+      )
         groups.set(record.keyId, [...(groups.get(record.keyId) || []), record]);
     const acknowledgedKeyIds = [...groups]
       .filter(([, entries]) =>
         entries.every((entry) => entry.acknowledgedAt !== null),
       )
       .map(([keyId]) => keyId);
+    await this.assertCurrent(room, context, userId, loginSessionId, body);
     return { context, envelopes, acknowledgedKeyIds };
   }
   async publish(
@@ -362,7 +554,18 @@ export class MediaEncryptionRegistry {
     body: MediaEncryptionJoinRequest,
     request: MediaStreamKeyPublishRequest,
   ): Promise<{ acknowledged: boolean }> {
-    const { context } = await this.snapshot(
+    return this.serialize(channelId, body.callId, () =>
+      this.publishUnlocked(userId, loginSessionId, channelId, body, request),
+    );
+  }
+  private async publishUnlocked(
+    userId: string,
+    loginSessionId: string,
+    channelId: string,
+    body: MediaEncryptionJoinRequest,
+    request: MediaStreamKeyPublishRequest,
+  ): Promise<{ acknowledged: boolean }> {
+    const context = await this.participantContext(
       userId,
       loginSessionId,
       channelId,
@@ -371,7 +574,8 @@ export class MediaEncryptionRegistry {
     if (
       !context.complete ||
       context.contextId !== request.contextId ||
-      context.membershipVersion !== request.membershipVersion
+      context.membershipVersion !== request.membershipVersion ||
+      context.contextRevision !== request.contextRevision
     )
       reject();
     if (
@@ -415,9 +619,10 @@ export class MediaEncryptionRegistry {
         seen.has(recipientIdentity) ||
         envelope.senderId !== userId ||
         envelope.senderDeviceId !== body.deviceId ||
-        envelope.version !== 2 ||
+        envelope.version !== MEDIA_ENCRYPTION_VERSION ||
         envelope.contextId !== context.contextId ||
         envelope.membershipVersion !== context.membershipVersion ||
+        envelope.contextRevision !== context.contextRevision ||
         envelope.streamId !== request.streamId ||
         envelope.keyId !== request.keyId
       )
@@ -466,12 +671,52 @@ export class MediaEncryptionRegistry {
         keyId: request.keyId,
       },
     });
-    if (collision) reject("MEDIA_KEY_INVALID");
+    if (collision) {
+      const existing = await prisma.streamMediaKeyEnvelope.findMany({
+        where: {
+          contextId: context.contextId,
+          membershipVersion: context.membershipVersion,
+          keyId: request.keyId,
+        },
+      });
+      if (
+        existing.length !== request.envelopes.length ||
+        existing.some(
+          (record) =>
+            !request.envelopes.some(
+              (envelope) => record.envelopeJson === JSON.stringify(envelope),
+            ),
+        )
+      )
+        reject("MEDIA_KEY_INVALID");
+      await this.assertCurrent(
+        this.requireRoom(channelId, body.callId),
+        context,
+        userId,
+        loginSessionId,
+        body,
+      );
+      return {
+        acknowledged: existing.every(
+          (record) => record.acknowledgedAt !== null,
+        ),
+      };
+    }
     // Recheck the roster after signature validation; no stale recipient can receive a newly rotated key.
     const current = await this.context(
       this.requireRoom(channelId, body.callId),
     );
-    if (current.membershipVersion !== context.membershipVersion) reject();
+    if (
+      current.membershipVersion !== context.membershipVersion ||
+      current.contextRevision !== context.contextRevision
+    )
+      reject();
+    this.assertRegistration(
+      this.requireRoom(channelId, body.callId),
+      userId,
+      loginSessionId,
+      body,
+    );
     await prisma.$transaction([
       prisma.streamMediaKeyEnvelope.deleteMany({
         where: { expiresAt: { lt: new Date() } },
@@ -494,6 +739,13 @@ export class MediaEncryptionRegistry {
         }),
       ),
     ]);
+    await this.assertCurrent(
+      this.requireRoom(channelId, body.callId),
+      context,
+      userId,
+      loginSessionId,
+      body,
+    );
     for (const envelope of request.envelopes) {
       const recipient = recipients.find(
         (device) =>
@@ -512,6 +764,7 @@ export class MediaEncryptionRegistry {
               callId: body.callId,
               contextId: context.contextId,
               membershipVersion: context.membershipVersion,
+              contextRevision: context.contextRevision,
               envelope,
             } satisfies MediaKeyEnvelopePushPayload,
           },
@@ -520,12 +773,13 @@ export class MediaEncryptionRegistry {
     }
     if (recipients.length) {
       const timer = setTimeout(() => {
-        void (async () => {
+        void this.serialize(channelId, body.callId, async () => {
           const room = this.rooms.get(this.roomKey(channelId, body.callId));
           if (
             !room ||
-            (await this.context(room)).membershipVersion !==
-              context.membershipVersion
+            room.contextId !== context.contextId ||
+            room.contextRevision !== context.contextRevision ||
+            room.membershipVersion !== context.membershipVersion
           )
             return;
           const missing = await prisma.streamMediaKeyEnvelope.findMany({
@@ -534,9 +788,54 @@ export class MediaEncryptionRegistry {
               membershipVersion: context.membershipVersion,
               keyId: request.keyId,
               acknowledgedAt: null,
+              expiresAt: { gt: new Date() },
             },
           });
+          // Most timers belong to fully acknowledged keys. They must not fill
+          // the room queue with redundant full-roster authorization scans.
+          if (!missing.length) return;
+          if (
+            (await this.context(room)).contextRevision !==
+            context.contextRevision
+          )
+            return;
+          // A newer rotation supersedes this timeout, even within the same roster epoch.
+          const latest = await prisma.streamMediaKeyEnvelope.findFirst({
+            where: {
+              contextId: context.contextId,
+              membershipVersion: context.membershipVersion,
+              senderId: userId,
+              senderDeviceId: body.deviceId,
+              streamId: request.streamId,
+              expiresAt: { gt: new Date() },
+            },
+            orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+          });
+          if (
+            !latest ||
+            latest.keyId !== request.keyId ||
+            (await this.context(room)).contextRevision !==
+              context.contextRevision
+          )
+            return;
+          const stillMissing = await prisma.streamMediaKeyEnvelope.findMany({
+            where: {
+              contextId: context.contextId,
+              membershipVersion: context.membershipVersion,
+              keyId: request.keyId,
+              acknowledgedAt: null,
+              expiresAt: { gt: new Date() },
+            },
+          });
+          const missingIds = new Set(stillMissing.map((record) => record.id));
+          if (
+            this.rooms.get(this.roomKey(channelId, body.callId)) !== room ||
+            room.membershipVersion !== context.membershipVersion ||
+            room.contextRevision !== context.contextRevision
+          )
+            return;
           for (const envelope of missing) {
+            if (!missingIds.has(envelope.id)) continue;
             const recipient = context.devices.find(
               (device) =>
                 device.userId === envelope.recipientId &&
@@ -548,6 +847,7 @@ export class MediaEncryptionRegistry {
               channelId,
               recipient.gatewaySessionId,
               body.callId,
+              recipient.registrationId,
             );
             if (body.callId) {
               dmCallService.authorizeMedia(
@@ -567,7 +867,7 @@ export class MediaEncryptionRegistry {
                 recipient.gatewaySessionId,
               );
           }
-        })().catch(() => {});
+        }).catch(() => {});
       }, 10_000);
       timer.unref();
     }
@@ -578,15 +878,69 @@ export class MediaEncryptionRegistry {
     loginSessionId: string,
     channelId: string,
     body: MediaEncryptionJoinRequest,
-    keyId: number,
+    request: MediaStreamKeyAcknowledgeRequest,
   ): Promise<void> {
-    const { context } = await this.snapshot(
+    return this.serialize(channelId, body.callId, () =>
+      this.acknowledgeUnlocked(
+        userId,
+        loginSessionId,
+        channelId,
+        body,
+        request,
+      ),
+    );
+  }
+  private async acknowledgeUnlocked(
+    userId: string,
+    loginSessionId: string,
+    channelId: string,
+    body: MediaEncryptionJoinRequest,
+    request: MediaStreamKeyAcknowledgeRequest,
+  ): Promise<void> {
+    if (
+      !request ||
+      !Number.isInteger(request.keyId) ||
+      request.keyId <= 0 ||
+      request.keyId > 0x7fffffff
+    )
+      reject("INVALID_PARAMS");
+    const keyId = request.keyId;
+    const context = await this.participantContext(
       userId,
       loginSessionId,
       channelId,
       body,
     );
-    if (!Number.isInteger(keyId)) reject("INVALID_PARAMS");
+    if (
+      request.contextId !== context.contextId ||
+      request.membershipVersion !== context.membershipVersion ||
+      request.contextRevision !== context.contextRevision
+    )
+      reject();
+    const eligible = await prisma.streamMediaKeyEnvelope.findMany({
+      where: {
+        contextId: context.contextId,
+        membershipVersion: context.membershipVersion,
+        recipientId: userId,
+        recipientDeviceId: body.deviceId,
+        keyId,
+        expiresAt: { gt: new Date() },
+      },
+    });
+    if (
+      !eligible.length ||
+      eligible.some(
+        (record) =>
+          (
+            JSON.parse(
+              record.envelopeJson,
+            ) as MediaEncryptionSnapshot["envelopes"][number]
+          ).contextRevision !== context.contextRevision,
+      )
+    )
+      reject("MEDIA_KEY_INVALID");
+    // ACK writes are context-bound bookkeeping. Revalidate the entire roster
+    // after all database awaits and before any sender can be unpaused.
     await prisma.streamMediaKeyEnvelope.updateMany({
       where: {
         contextId: context.contextId,
@@ -606,15 +960,15 @@ export class MediaEncryptionRegistry {
         acknowledgedAt: null,
       },
     });
+    await this.assertCurrent(
+      this.requireRoom(channelId, body.callId),
+      context,
+      userId,
+      loginSessionId,
+      body,
+    );
     if (unacknowledged === 0) {
-      const sample = await prisma.streamMediaKeyEnvelope.findFirst({
-        where: {
-          contextId: context.contextId,
-          membershipVersion: context.membershipVersion,
-          keyId,
-        },
-        select: { senderId: true, senderDeviceId: true },
-      });
+      const sample = eligible[0];
       if (sample) {
         const sender = context.devices.find(
           (device) =>
@@ -630,6 +984,7 @@ export class MediaEncryptionRegistry {
               callId: body.callId,
               contextId: context.contextId,
               membershipVersion: context.membershipVersion,
+              contextRevision: context.contextRevision,
               keyId,
               acknowledged: true,
             } satisfies MediaKeyAckPushPayload,
@@ -643,39 +998,70 @@ export class MediaEncryptionRegistry {
     userId: string,
     gatewaySessionId: string | undefined,
     callId?: string,
+    expectedLoginSessionId?: string,
   ): Promise<void> {
-    if (!gatewaySessionId) reject("MEDIA_KEY_UNAVAILABLE");
-    const room = this.requireRoom(channelId, callId),
-      context = await this.context(room);
-    if (
-      !context.complete ||
-      !context.devices.some(
-        (device) =>
-          device.userId === userId &&
-          device.gatewaySessionId === gatewaySessionId,
+    return this.serialize(channelId, callId, async () => {
+      if (!gatewaySessionId) reject("MEDIA_KEY_UNAVAILABLE");
+      const room = this.requireRoom(channelId, callId);
+      const entry = [...room.registrations.values()].find(
+        (registration) =>
+          registration.userId === userId &&
+          registration.gatewaySessionId === gatewaySessionId,
+      );
+      if (!entry || Date.now() - entry.touchedAt > 15_000)
+        reject("MEDIA_KEY_UNAVAILABLE");
+      if (
+        expectedLoginSessionId !== undefined &&
+        expectedLoginSessionId !== entry.loginSessionId
       )
-    )
-      reject("MEDIA_KEY_UNAVAILABLE");
+        reject("UNAUTHORIZED");
+      const body: MediaEncryptionJoinRequest = {
+        version: MEDIA_ENCRYPTION_VERSION,
+        deviceId: entry.deviceId,
+        gatewaySessionId: entry.gatewaySessionId,
+        registrationId: entry.registrationId,
+        callId,
+      };
+      await this.authorize(userId, entry.loginSessionId, channelId, body);
+      this.assertRegistration(room, userId, entry.loginSessionId, body);
+    });
   }
   leave(
     userId: string,
     channelId: string,
     gatewaySessionId: string,
     callId?: string,
+    registrationId?: string,
   ): void {
     const key = this.roomKey(channelId, callId),
       room = this.rooms.get(key);
+    for (const ticket of this.pendingJoins.get(key) || []) {
+      if (
+        ticket.userId === userId &&
+        ticket.gatewaySessionId === gatewaySessionId &&
+        (registrationId === undefined ||
+          ticket.registrationId === registrationId)
+      )
+        ticket.cancelled = true;
+    }
     if (!room) return;
+    let removed = false;
     for (const [id, entry] of room.registrations)
       if (
         entry.userId === userId &&
-        entry.gatewaySessionId === gatewaySessionId
-      )
+        entry.gatewaySessionId === gatewaySessionId &&
+        (registrationId === undefined ||
+          entry.registrationId === registrationId)
+      ) {
         room.registrations.delete(id);
+        removed = true;
+      }
+    if (!removed) return;
+    room.membershipVersion = undefined;
     if (!room.registrations.size) {
       this.rooms.delete(key);
     } else {
-      void this.context(room)
+      void this.serialize(channelId, callId, () => this.context(room))
         .then((ctx) => {
           this.broadcastEpochUpdate(room, ctx);
         })

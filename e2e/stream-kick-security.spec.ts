@@ -53,7 +53,7 @@ test("Gateway accepts stream kick only from the active stream owner", async ({
             d: {
               guildId,
               channelId,
-              mediaEncryptionVersion: 2,
+              mediaEncryptionVersion: 3,
               selfMute: false,
               selfDeaf: false,
               selfVideo: false,

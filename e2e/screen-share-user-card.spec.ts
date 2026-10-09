@@ -130,7 +130,8 @@ test.describe("直播屏幕分享与摄像头画面融合（画中画自由切�
     // 4. 开启屏幕分享：直播画面直接在用户画像卡片内展示（不单独建立独立播放器）
     const centerScreenBtn = page.getByTestId("voice-toggle-screen-btn");
     await expect(centerScreenBtn).toBeVisible({ timeout: 5000 });
-    await expect(centerScreenBtn).toHaveAttribute("title", "屏幕共享");
+    await centerScreenBtn.hover();
+    await expect(page.getByTestId("tooltip-bubble")).toHaveText("屏幕共享");
 
     await centerScreenBtn.click();
     await page.getByTestId("mode-p2p-btn").click();
@@ -138,7 +139,8 @@ test.describe("直播屏幕分享与摄像头画面融合（画中画自由切�
     await expect(confirmLiveBtn).toBeVisible({ timeout: 5000 });
     await confirmLiveBtn.click();
 
-    await expect(centerScreenBtn).toHaveAttribute("title", "停止共享", {
+    await centerScreenBtn.hover();
+    await expect(page.getByTestId("tooltip-bubble")).toHaveText("停止共享", {
       timeout: 5000,
     });
 
@@ -232,7 +234,8 @@ test.describe("直播屏幕分享与摄像头画面融合（画中画自由切�
 
     // 8. 停止屏幕分享 -> 卡片平滑回退至纯头像状态
     await centerScreenBtn.click();
-    await expect(centerScreenBtn).toHaveAttribute("title", "屏幕共享", {
+    await centerScreenBtn.hover();
+    await expect(page.getByTestId("tooltip-bubble")).toHaveText("屏幕共享", {
       timeout: 5000,
     });
     await expect(videoTile).not.toBeVisible({ timeout: 5000 });

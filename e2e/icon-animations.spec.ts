@@ -127,8 +127,14 @@ test.describe("Discord 风格图标微动效与手风琴交互专项验收", () 
     await page.goto("/");
 
     // 添加服务器按钮拥有 Plus 旋转 90 度类
-    const addServerBtn = page.locator('button[title*="添加服务器"]');
+    const addServerBtn = page
+      .getByTestId("open-discovery-btn")
+      .locator("xpath=preceding-sibling::button[1]");
     await expect(addServerBtn).toBeVisible();
+    await addServerBtn.hover();
+    await expect(page.getByTestId("tooltip-bubble")).toContainText(
+      "添加服务器",
+    );
     const plusIcon = addServerBtn.locator("svg");
     await expect(plusIcon).toHaveClass(/group-hover:rotate-90/);
 

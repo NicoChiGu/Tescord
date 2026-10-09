@@ -1611,6 +1611,8 @@ export type NATType =
   | "Unknown";
 
 export interface P2PSignalPayload {
+  /** Gateway-authenticated origin; clients cannot choose this session identity. */
+  senderSessionId?: string;
   /** Voice offer/answer correlation; echoes the initiating offer through retries. */
   negotiationId?: string;
   guildId: string;
@@ -3630,7 +3632,12 @@ export interface CfCallsTrackInfo {
 export interface CfCallsCreateSessionResponse {
   sessionId: string;
   tracks?: CfMediaPublication[];
+  tracksRevision?: number;
   requiresE2EE?: boolean;
+}
+
+export interface CfCallsHeartbeatResponse {
+  active: boolean;
 }
 
 export interface CfCallsCreateSessionRequest {
@@ -3652,6 +3659,7 @@ export interface CfMediaPublication {
 }
 
 export interface CfMediaTracksEvent {
+  revision?: number;
   channelId: string;
   tracks: CfMediaPublication[];
 }
@@ -3688,6 +3696,7 @@ export interface CfCallsPublishTrackRequest {
 
 export interface CfCallsPublishTrackResponse {
   sessionDescription: CfCallsSessionDescription;
+  requiresImmediateRenegotiation?: boolean;
   tracks: CfCallsTrackInfo[];
 }
 
@@ -3701,7 +3710,8 @@ export interface CfCallsSubscribeTrackRequest {
 }
 
 export interface CfCallsSubscribeTrackResponse {
-  sessionDescription: CfCallsSessionDescription;
+  sessionDescription?: CfCallsSessionDescription;
+  requiresImmediateRenegotiation?: boolean;
   tracks: CfCallsTrackInfo[];
 }
 

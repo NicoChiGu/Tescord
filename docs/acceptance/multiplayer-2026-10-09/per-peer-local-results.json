@@ -1,0 +1,1003 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-08T22:11:22.733Z",
+  "input": "test-results/per-peer-multiplayer",
+  "log": "test-results/multiplayer-validation/per-peer-multiplayer.log",
+  "noDeployment": true,
+  "microphone": "browser oscillator",
+  "sameHostBrowsers": true,
+  "pass": 12,
+  "fail": 0,
+  "acceptance": "Do not infer release acceptance from descriptive partial media statistics",
+  "completedTests": [
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok  1 [multiplayer] › e2e\\media-encryption-device-mesh.spec.ts:107:5 › three real signed devices negotiate stream keys, render encrypted mesh audio, and rotate on leave (24.6s)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok  2 [multiplayer] › e2e\\media-encryption-device-mesh.spec.ts:525:7 › 3 signed devices: sequential mesh joins, sustained encryption and device lifecycle (1.4m)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok  3 [multiplayer] › e2e\\media-encryption-device-mesh.spec.ts:562:7 › 3 signed devices: ten concurrent mesh joins and ten rotation joins (5.2m)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok  4 [multiplayer] › e2e\\media-encryption-device-mesh.spec.ts:525:7 › 5 signed devices: sequential mesh joins, sustained encryption and device lifecycle (2.0m)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok  5 [multiplayer] › e2e\\media-encryption-device-mesh.spec.ts:562:7 › 5 signed devices: ten concurrent mesh joins and ten rotation joins (7.9m)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok  6 [multiplayer] › e2e\\media-encryption-lifecycle.spec.ts:11:5 › a delayed old room epoch cannot bootstrap a new registration (19.7s)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok  7 [multiplayer] › e2e\\media-encryption-lifecycle.spec.ts:103:5 › lost successful HTTP responses retry the same signed publication and ACK idempotently (16.6s)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok  8 [multiplayer] › e2e\\media-encryption-lifecycle.spec.ts:204:5 › signed future envelopes before epoch updates and duplicate ACKs converge (16.6s)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok  9 [multiplayer] › e2e\\media-encryption-lifecycle.spec.ts:298:5 › a delayed old snapshot cannot roll back a newer signed three-device epoch (16.9s)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok 10 [multiplayer] › e2e\\media-encryption-lifecycle.spec.ts:371:5 › lost signed envelope and ACK pushes recover through bounded snapshot synchronization (14.2s)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok 11 [multiplayer] › e2e\\media-encryption-lifecycle.spec.ts:420:5 › retryable registration snapshots and delayed old leave cannot revoke a rejoined device (21.2s)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok 12 [multiplayer] › e2e\\voice-mesh-bootstrap.spec.ts:4:5 › Gateway roster updates survive delayed initial P2P ICE preparation (11.9s)"
+    }
+  ],
+  "latencyGates": [],
+  "tests": [
+    {
+      "directory": "test-results/per-peer-multiplayer/media-encryption-device-me-142c4-yption-and-device-lifecycle-multiplayer",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-142c4-yption-and-device-lifecycle-multiplayer/multiplayer-mv02o6y0_0_xh26o.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [60000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 1,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02o751002zro78hemavnft/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            },
+            {
+              "path": "/api/channels/cmv02o751002zro78hemavnft/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer",
+      "matrix": true,
+      "rooms": [
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02pzmt_0_ipx3m.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02qaud_0_h6mhg.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02qb13009bro785pboeb9l/media-encryption/publish",
+              "status": 409,
+              "durationMs": 43,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02qnql_0_c4cp5.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02qypv_0_r45gg.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02qywq00dbro7886ffr8wm/media-encryption/publish",
+              "status": 409,
+              "durationMs": 39,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02rbna_0_hi65q.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02rmm5_0_8nwtt.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02rmt100hbro78k5jkrk6k/media-encryption/publish",
+              "status": 409,
+              "durationMs": 37,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02rz0c_0_2wtws.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02sa03_0_rnjhx.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02sa7000lbro785i0bxefy/media-encryption/publish",
+              "status": 409,
+              "durationMs": 43,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02smih_0_dg78o.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02sxj0_0_24gao.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02sxpq00p8ro78a9moj2zk/media-encryption/publish",
+              "status": 409,
+              "durationMs": 41,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02tagp_0_atzva.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02tlff_0_r10vz.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02tlm600t5ro783tboiosq/media-encryption/publish",
+              "status": 409,
+              "durationMs": 39,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02tydl_0_p6fpe.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02u9b5_0_ahsuv.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02u9hz00x5ro78yat7zf8g/media-encryption/publish",
+              "status": 409,
+              "durationMs": 36,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02umam_0_f4r36.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02uxl1_0_mvit2.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02uxry0114ro781t5wpwvv/media-encryption/publish",
+              "status": 409,
+              "durationMs": 34,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02vahv_0_n8ksx.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02vlib_0_39u1u.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02vlp80153ro78yjvfoa4n/media-encryption/publish",
+              "status": 409,
+              "durationMs": 39,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02vygl_0_wg4u5.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02w9gb_0_hfgx3.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02w9n90192ro78dfuctags/media-encryption/publish",
+              "status": 409,
+              "durationMs": 42,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer",
+      "matrix": true,
+      "rooms": [
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02z59n_0_m22ap.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv02zm8o_0_w7rlz.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02zmje028fro78im69zif9/media-encryption/publish",
+              "status": 409,
+              "durationMs": 65,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv03059g_0_oscb4.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv030me0_0_rh35a.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv030mpg02laro78kln3mtw9/media-encryption/publish",
+              "status": 409,
+              "durationMs": 62,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv0315d2_0_qe88q.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv031maz_0_uttre.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv031mlo02y9ro78zg8fcyqs/media-encryption/publish",
+              "status": 409,
+              "durationMs": 88,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv032590_0_p9zcp.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv032mbo_0_n3ktw.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv032mmr03b7ro78l7kejhgc/media-encryption/publish",
+              "status": 409,
+              "durationMs": 66,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv0335hl_0_0aopm.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv033mwp_0_emsn6.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv033n8003o3ro78f2368hc5/media-encryption/publish",
+              "status": 409,
+              "durationMs": 59,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv0345yl_0_wfdma.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv034n1j_0_szgub.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv034nci0411ro78d8qll5xm/media-encryption/publish",
+              "status": 409,
+              "durationMs": 73,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv03569n_0_raobs.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv035nif_0_fssfb.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv035ntk04dzro78gaw6j9d1/media-encryption/publish",
+              "status": 409,
+              "durationMs": 69,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv0366s6_0_ntt8w.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv036o1g_0_g6uao.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv036ocs04qvro78ac42kwf2/media-encryption/publish",
+              "status": 409,
+              "durationMs": 52,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv0377a8_0_lkm8u.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv037oqs_0_m9rjg.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv037p21053tro78ijtvicn0/media-encryption/publish",
+              "status": 409,
+              "durationMs": 52,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv03885u_0_1o2wt.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv038pgh_0_ny9k1.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv038prq05gsro788qb2bqez/media-encryption/publish",
+              "status": 409,
+              "durationMs": 66,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/per-peer-multiplayer/media-encryption-device-me-a073d-yption-and-device-lifecycle-multiplayer",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-device-me-a073d-yption-and-device-lifecycle-multiplayer/multiplayer-mv02wmfm_0_vszfj.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [60000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 1,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02wmq101bbro78pdqtsyy7/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            },
+            {
+              "path": "/api/channels/cmv02wmq101bbro78pdqtsyy7/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            },
+            {
+              "path": "/api/channels/cmv02wmq101bbro78pdqtsyy7/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/per-peer-multiplayer/media-encryption-lifecycle-13fa6-and-duplicate-ACKs-converge-multiplayer",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-lifecycle-13fa6-and-duplicate-ACKs-converge-multiplayer/multiplayer-mv03a0u7_0_wv3fm.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv03a10y05r6ro78dm4jwbwt/media-encryption/publish",
+              "status": 409,
+              "durationMs": 170,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv03a10y05r6ro78dm4jwbwt/media-encryption/publish",
+              "status": 409,
+              "durationMs": 171,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/per-peer-multiplayer/media-encryption-lifecycle-4692b-ot-revoke-a-rejoined-device-multiplayer",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-lifecycle-4692b-ot-revoke-a-rejoined-device-multiplayer/multiplayer-mv03b1pr_0_cqm94.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv03b1wl05wyro787xc29wb4/media-encryption/join",
+              "status": 409,
+              "durationMs": 3,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv03b1wl05wyro787xc29wb4/media-encryption/join",
+              "status": 409,
+              "durationMs": 2,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv03b1wl05wyro787xc29wb4/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/per-peer-multiplayer/media-encryption-lifecycle-b6e63-cation-and-ACK-idempotently-multiplayer",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-lifecycle-b6e63-cation-and-ACK-idempotently-multiplayer/multiplayer-mv039o29_0_d19a5.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv039o9405p4ro78fh705eg0/media-encryption/publish",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            },
+            {
+              "path": "/api/channels/cmv039o9405p4ro78fh705eg0/media-encryption/acknowledge",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/per-peer-multiplayer/media-encryption-lifecycle-e5c79-r-signed-three-device-epoch-multiplayer",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-lifecycle-e5c79-r-signed-three-device-epoch-multiplayer/multiplayer-mv03adov_0_nob12.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/per-peer-multiplayer/media-encryption-lifecycle-f41c4-ed-snapshot-synchronization-multiplayer",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-lifecycle-f41c4-ed-snapshot-synchronization-multiplayer/multiplayer-mv03aqpu_0_xrvvu.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/per-peer-multiplayer/media-encryption-lifecycle-fd125-ootstrap-a-new-registration-multiplayer",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/per-peer-multiplayer/media-encryption-lifecycle-fd125-ootstrap-a-new-registration-multiplayer/multiplayer-mv0398vl_0_wazgb.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv03992f05n4ro78xj5qh4bv/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            },
+            {
+              "path": "/api/channels/cmv03992f05n4ro78xj5qh4bv/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/per-peer-multiplayer/voice-mesh-bootstrap-Gatew-d0e10-initial-P2P-ICE-preparation-multiplayer",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/per-peer-multiplayer/voice-mesh-bootstrap-Gatew-d0e10-initial-P2P-ICE-preparation-multiplayer/multiplayer-mv03bi3q_0_v57t2.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "perRemoteCryptoCounters": true,
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        }
+      ]
+    }
+  ],
+  "latencyGroups": [
+    {
+      "key": "p2p_mesh:auto:3",
+      "actualCandidatePairs": ["host->host"],
+      "laterFirstPlayable": {
+        "samples": 0,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "maxMs": null
+      },
+      "firstParticipantReady": {
+        "samples": 20,
+        "minMs": 2947,
+        "p50Ms": 2963,
+        "p95Ms": 2983,
+        "maxMs": 2983
+      },
+      "stageOffsets": {},
+      "statisticsScope": "Matrix rooms with verified all-route sustained media, including recovered HTTP failures. Incomplete rounds remain failed and are not playable samples."
+    },
+    {
+      "key": "p2p_mesh:auto:5",
+      "actualCandidatePairs": ["host->host"],
+      "laterFirstPlayable": {
+        "samples": 0,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "maxMs": null
+      },
+      "firstParticipantReady": {
+        "samples": 20,
+        "minMs": 2951,
+        "p50Ms": 2968,
+        "p95Ms": 2990,
+        "maxMs": 2991
+      },
+      "stageOffsets": {},
+      "statisticsScope": "Matrix rooms with verified all-route sustained media, including recovered HTTP failures. Incomplete rounds remain failed and are not playable samples."
+    }
+  ]
+}

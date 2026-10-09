@@ -6,6 +6,7 @@ import {
   encryptSFramePacket,
   decryptSFramePacket,
   mediaStreamEnvelopeSigningBytes,
+  MEDIA_ENCRYPTION_VERSION,
   encodedFrameLayout,
   escapeMediaRbsp,
   unescapeMediaRbsp,
@@ -110,9 +111,10 @@ await test("authenticated replay handling rejects tamper without poisoning valid
 });
 await test("signed envelope binds all membership, sender, recipient and stream identity fields", () => {
   const envelope = {
-    version: 2 as const,
+    version: MEDIA_ENCRYPTION_VERSION,
     contextId: "room",
     membershipVersion: "epoch",
+    contextRevision: 1,
     streamId: "mic",
     keyId: 1,
     senderId: "alice",
@@ -127,6 +129,7 @@ await test("signed envelope binds all membership, sender, recipient and stream i
   const baseline = mediaStreamEnvelopeSigningBytes(envelope);
   for (const [field, value] of [
     ["membershipVersion", "next"],
+    ["contextRevision", 2],
     ["recipientId", "eve"],
     ["streamId", "screen"],
     ["keyId", 2],

@@ -36,6 +36,7 @@ interface EncodedEndpoint {
   transform?: unknown;
 }
 interface SenderState {
+  kind: "audio" | "video";
   streamId: string;
   key: SenderMediaKey | null;
   counter: bigint;
@@ -46,7 +47,11 @@ interface SenderState {
 interface TransformConstructor {
   new (
     worker: Worker,
-    options: { operation: "encrypt" | "decrypt"; streamId: string },
+    options: {
+      operation: "encrypt" | "decrypt";
+      kind: "audio" | "video";
+      streamId: string;
+    },
   ): unknown;
 }
 
@@ -70,6 +75,16 @@ export class SFrameManager {
   private paused = false;
   private failureSink: ((error: Error) => void) | null = null;
   private statsListeners = new Set<(stats: SFrameStats) => void>();
+  private installSequence = 0;
+  private installations = new Map<
+    number,
+    {
+      remaining: Set<Worker>;
+      resolve(): void;
+      reject(error: Error): void;
+      timer: ReturnType<typeof setTimeout>;
+    }
+  >();
 
   public isSupported(): boolean {
     const scope = globalThis as typeof globalThis & {
@@ -92,6 +107,21 @@ export class SFrameManager {
   public assertReady(): void {
     if (!this.isSupported()) throw new Error("MEDIA_E2EE_UNSUPPORTED");
     if (!this.hasActiveContext) throw new Error("MEDIA_KEY_UNAVAILABLE");
+  }
+  /** The sender factory resolves only after current receiver acknowledgements. */
+  public getSenderKeyReadiness(sender: RTCRtpSender): {
+    generation: number;
+    keyId: number | null;
+    ready: boolean;
+  } | null {
+    const state = this.senders.get(sender);
+    if (!state || state.detached || !this.hasActiveContext) return null;
+    return {
+      generation: this.generation,
+      keyId: state.key?.keyId ?? null,
+      ready:
+        !this.paused && state.generation === this.generation && !!state.key,
+    };
   }
   public beginContext(
     factory: (streamId: string) => Promise<SenderMediaKey>,
@@ -144,9 +174,37 @@ export class SFrameManager {
     this.paused = true;
     for (const worker of this.workers) worker.postMessage({ type: "pause" });
   }
-  public async rotateSenderKeys(): Promise<void> {
+  /** Confirm existing Worker pipelines loaded the key before publishing its ACK. */
+  public async installReceiverKey(
+    keyId: number,
+    key: Uint8Array,
+  ): Promise<void> {
+    this.addReceiverKey(keyId, key);
+    if (!this.workers.size) return;
+    const requestId = ++this.installSequence;
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.installations.delete(requestId);
+        reject(
+          Object.assign(new Error("MEDIA_KEY_UNAVAILABLE"), {
+            mediaFailureSource: "media-receiver-key-install-timeout",
+          }),
+        );
+      }, 3000);
+      this.installations.set(requestId, {
+        remaining: new Set(this.workers),
+        resolve,
+        reject,
+        timer,
+      });
+      for (const worker of this.workers)
+        worker.postMessage({ type: "receiver-key", keyId, key, requestId });
+    });
+  }
+  public async rotateSenderKeys(resume = true): Promise<void> {
     this.pause();
     const generation = ++this.generation;
+    this.cancelInstallations();
     this.keys.clear();
     this.replayFilters.clear();
     for (const worker of this.workers)
@@ -154,7 +212,7 @@ export class SFrameManager {
     await Promise.all(
       [...this.senders.values()].map((state) => this.provision(state)),
     );
-    if (generation === this.generation && this.enabled) this.resume();
+    if (resume && generation === this.generation && this.enabled) this.resume();
   }
   public resume(): void {
     this.paused = false;
@@ -211,7 +269,18 @@ export class SFrameManager {
     this.workers.add(worker);
     worker.onmessage = (event: MessageEvent<MediaTransformEvent>) => {
       if (!this.workers.has(worker) || !this.hasActiveContext) return;
-      if (event.data.type === "codecs-needed") {
+      if (event.data.type === "key-installed") {
+        const pending = this.installations.get(event.data.requestId);
+        if (
+          pending &&
+          pending.remaining.delete(worker) &&
+          !pending.remaining.size
+        ) {
+          clearTimeout(pending.timer);
+          this.installations.delete(event.data.requestId);
+          pending.resolve();
+        }
+      } else if (event.data.type === "codecs-needed") {
         worker.postMessage({
           type: "codecs",
           codecs: endpoint.getParameters().codecs,
@@ -226,17 +295,33 @@ export class SFrameManager {
     };
     worker.onerror = () => {
       if (this.workers.has(worker) && this.hasActiveContext)
-        this.fail(new Error("MEDIA_KEY_UNAVAILABLE"));
+        this.fail(
+          Object.assign(new Error("MEDIA_KEY_UNAVAILABLE"), {
+            mediaFailureSource: "media-transform-worker-error",
+          }),
+        );
     };
     for (const [keyId, key] of this.keys)
       worker.postMessage({ type: "receiver-key", keyId, key });
     if (this.paused) worker.postMessage({ type: "pause" });
     return worker;
   }
-  public attachSender(sender: RTCRtpSender): void {
+  public attachSender(
+    sender: RTCRtpSender,
+    explicitKind?: "audio" | "video",
+  ): void {
     this.assertReady();
-    if (this.senders.has(sender)) return;
+    const kind = explicitKind ?? sender.track?.kind;
+    const existing = this.senders.get(sender);
+    if (
+      (kind !== "audio" && kind !== "video") ||
+      (sender.track && sender.track.kind !== kind) ||
+      (existing && existing.kind !== kind)
+    )
+      throw new Error("MEDIA_KEY_INVALID");
+    if (existing) return;
     const state: SenderState = {
+      kind,
       streamId: crypto.randomUUID(),
       key: null,
       counter: 0n,
@@ -254,7 +339,7 @@ export class SFrameManager {
       state.worker = this.worker("encrypt", state.streamId, sender);
       endpoint.transform = new Constructor(state.worker!, {
         operation: "encrypt",
-        kind: sender.track?.kind || "audio",
+        kind,
         streamId: state.streamId,
       });
     } else {
@@ -278,7 +363,7 @@ export class SFrameManager {
                     )?.mimeType;
                 const layout = encodedFrameLayout(
                   new Uint8Array(frame.data),
-                  sender.track?.kind === "video" ? "video" : "audio",
+                  kind,
                   codec,
                   frame.type,
                 );
@@ -296,7 +381,11 @@ export class SFrameManager {
                 ).buffer;
                 this.framesEncrypted++;
                 controller.enqueue(frame);
-                if (this.framesEncrypted % 50 === 0) this.emitStats();
+                if (
+                  this.framesEncrypted === 1 ||
+                  this.framesEncrypted % 50 === 0
+                )
+                  this.emitStats();
               } catch (error) {
                 this.fail(error);
               }
@@ -309,7 +398,11 @@ export class SFrameManager {
         });
     }
     this.senders.set(sender, state);
-    void this.provision(state).catch((error: unknown) => this.fail(error));
+    const generation = this.generation;
+    void this.provision(state).catch((error: unknown) => {
+      if (generation === this.generation && !state.detached && this.enabled)
+        this.fail(error);
+    });
   }
   public attachReceiver(receiver: RTCRtpReceiver): void {
     this.assertReady();
@@ -404,6 +497,22 @@ export class SFrameManager {
       }
       this.receivers.delete(receiver);
     }
+    for (const [id, pending] of this.installations) {
+      for (const worker of pending.remaining)
+        if (!this.workers.has(worker)) pending.remaining.delete(worker);
+      if (!pending.remaining.size) {
+        clearTimeout(pending.timer);
+        this.installations.delete(id);
+        pending.resolve();
+      }
+    }
+  }
+  private cancelInstallations(): void {
+    for (const pending of this.installations.values()) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error("MEDIA_CONTEXT_STALE"));
+    }
+    this.installations.clear();
   }
   public async encryptFrame(frame: Uint8Array): Promise<Uint8Array> {
     if (!this.enabled || !this.currentKey)
@@ -452,7 +561,8 @@ export class SFrameManager {
         return null;
       }
       this.framesDecrypted++;
-      if (this.framesDecrypted % 50 === 0) this.emitStats();
+      if (this.framesDecrypted === 1 || this.framesDecrypted % 50 === 0)
+        this.emitStats();
       return decryptedPayload;
     } catch {
       this.lastError = "MEDIA_KEY_INVALID";
@@ -460,6 +570,7 @@ export class SFrameManager {
     }
   }
   public disable(): void {
+    this.cancelInstallations();
     this.generation++;
     this.enabled = false;
     this.factory = null;

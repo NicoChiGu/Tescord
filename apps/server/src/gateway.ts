@@ -12,6 +12,7 @@ import {
   VoiceState,
   VoiceServerDisconnectPayload,
   GatewayEvents,
+  MEDIA_ENCRYPTION_VERSION,
   P2PSignalPayload,
   P2PNodeMetrics,
   UserStatus,
@@ -650,14 +651,17 @@ export class GatewayManager {
 
         const existingVoice = this.voiceStates.get(conn.userId);
 
-        if (data.channelId && data.mediaEncryptionVersion !== 2) {
+        if (
+          data.channelId &&
+          data.mediaEncryptionVersion !== MEDIA_ENCRYPTION_VERSION
+        ) {
           this.send(conn.ws, {
             op: GatewayOpCode.DISPATCH,
             t: "MEDIA_ENCRYPTION_REQUIRED",
             d: {
               channelId: data.channelId,
               code: "MEDIA_E2EE_UNSUPPORTED",
-              version: 2,
+              version: MEDIA_ENCRYPTION_VERSION,
             },
           });
           return;
@@ -907,11 +911,14 @@ export class GatewayManager {
         if (payload.t === GatewayEvents.CALL_OFFER) {
           if (!conn.userId || !conn.sessionId) return;
           const data = payload.d as DMCallOfferPayload | undefined;
-          if (data?.mediaEncryptionVersion !== 2) {
+          if (data?.mediaEncryptionVersion !== MEDIA_ENCRYPTION_VERSION) {
             this.send(conn.ws, {
               op: GatewayOpCode.DISPATCH,
               t: "MEDIA_ENCRYPTION_REQUIRED",
-              d: { code: "MEDIA_E2EE_UNSUPPORTED", version: 2 },
+              d: {
+                code: "MEDIA_E2EE_UNSUPPORTED",
+                version: MEDIA_ENCRYPTION_VERSION,
+              },
             });
             return;
           }
@@ -970,11 +977,14 @@ export class GatewayManager {
         } else if (payload.t === GatewayEvents.CALL_ANSWER) {
           if (!conn.userId || !conn.sessionId) return;
           const data = payload.d as DMCallActionPayload | undefined;
-          if (data?.mediaEncryptionVersion !== 2) {
+          if (data?.mediaEncryptionVersion !== MEDIA_ENCRYPTION_VERSION) {
             this.send(conn.ws, {
               op: GatewayOpCode.DISPATCH,
               t: "MEDIA_ENCRYPTION_REQUIRED",
-              d: { code: "MEDIA_E2EE_UNSUPPORTED", version: 2 },
+              d: {
+                code: "MEDIA_E2EE_UNSUPPORTED",
+                version: MEDIA_ENCRYPTION_VERSION,
+              },
             });
             return;
           }
@@ -1095,6 +1105,7 @@ export class GatewayManager {
                 call.callerId === conn.userId ? call.calleeId : call.callerId;
               if (signalData.targetId !== peerId) return;
               signalData.senderId = conn.userId;
+              signalData.senderSessionId = conn.sessionId;
               signalData.streamOwnerId = conn.userId;
               signalData.guildId = "";
               const peerSessionId =
@@ -1138,6 +1149,7 @@ export class GatewayManager {
           )
             return;
           signalData.senderId = conn.userId;
+          signalData.senderSessionId = conn.sessionId;
           if (signalData.type === "STREAM_KICK") {
             // The user who owns the active stream is the only one allowed to
             // remove a viewer. Never trust streamOwnerId supplied by a client.
@@ -1202,6 +1214,8 @@ export class GatewayManager {
             }
           }
 
+          if (!this.hasCurrentVoiceAuthority(conn, signalData.channelId))
+            return;
           if (signalData.targetId) {
             this.sendToUser(signalData.targetId, {
               op: GatewayOpCode.DISPATCH,
@@ -1285,7 +1299,26 @@ export class GatewayManager {
     conn: ClientConnection,
     channelId: string,
   ): Promise<boolean> {
-    if (!conn.userId || !conn.sessionId) return false;
+    if (!this.hasCurrentVoiceAuthority(conn, channelId)) return false;
+    const permitted = await permissionService.hasChannelPermission(
+      conn.userId!,
+      channelId,
+      PermissionFlags.CONNECT,
+    );
+    return permitted && this.hasCurrentVoiceAuthority(conn, channelId);
+  }
+
+  private hasCurrentVoiceAuthority(
+    conn: ClientConnection,
+    channelId: string,
+  ): boolean {
+    if (
+      !conn.userId ||
+      !conn.sessionId ||
+      conn.ws.readyState !== WebSocket.OPEN ||
+      this.userSessions.get(conn.userId)?.get(conn.sessionId) !== conn
+    )
+      return false;
     const voice = this.voiceStates.get(conn.userId);
     const hasActiveVoiceState =
       voice?.channelId === channelId && voice.sessionId === conn.sessionId;
@@ -1300,11 +1333,7 @@ export class GatewayManager {
       if (!isPendingJoin) return false;
     }
 
-    return await permissionService.hasChannelPermission(
-      conn.userId,
-      channelId,
-      PermissionFlags.CONNECT,
-    );
+    return true;
   }
 
   async broadcastChannel(
@@ -1322,6 +1351,16 @@ export class GatewayManager {
           ))
         )
           continue;
+        if (payload.t === GatewayEvents.P2P_SIGNAL) {
+          const signal = payload.d as P2PSignalPayload;
+          const origin = this.voiceStates.get(signal.senderId);
+          if (
+            signal.type.startsWith("VOICE_") &&
+            (origin?.channelId !== channelId ||
+              origin.sessionId !== signal.senderSessionId)
+          )
+            return;
+        }
         const sessions = this.userSessions.get(userId);
         if (sessions) {
           for (const conn of sessions.values()) {
@@ -1851,7 +1890,10 @@ export class GatewayManager {
     try {
       await removeParticipantFromRoom(channelId, targetUserId);
     } catch (e) {
-      console.warn(`[Gateway] Error removing participant from LiveKit room:`, e);
+      console.warn(
+        `[Gateway] Error removing participant from LiveKit room:`,
+        e,
+      );
     }
 
     if (channelId) {

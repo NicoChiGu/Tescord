@@ -1,0 +1,2854 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-08T21:20:39.413Z",
+  "input": "test-results/default-e2e",
+  "log": "test-results/multiplayer-validation/full-e2e-latest-final.log",
+  "noDeployment": true,
+  "microphone": "browser oscillator",
+  "sameHostBrowsers": true,
+  "pass": 386,
+  "fail": 0,
+  "acceptance": "Do not infer release acceptance from descriptive partial media statistics",
+  "completedTests": [
+    {
+      "passed": true,
+      "project": "setup",
+      "label": "ok   1 [setup] › e2e\\auth.setup.ts:11:6 › create a real signed admin session for legacy UI fixtures (190ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok   2 [chromium] › e2e\\account-switch-gateway-isolation.spec.ts:5:7 › 账号切换网关身份隔离 › A 切换到 B 后，B 的语音状态不会接管另一客户端中的 A (5.7s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok   3 [chromium] › e2e\\active-speaker-indicator.spec.ts:5:7 › 远端与本地活跃说话者绿色指示器自动化验收 (Active Speaker Indicator E2E) › 远端用户说话时，在侧边栏成员展开列表与语音大厅卡片均实时展现绿色边框与光圈 (3.7s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok   4 [chromium] › e2e\\admin-and-dm.spec.ts:27:7 › 超级管理员控制台与私信列表全链路端到端验收 › 超级管理员登录后：具备管理入口、可开启看板模态框、切换四大标签页与发布全网广播 (866ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok   5 [chromium] › e2e\\admin-and-dm.spec.ts:317:7 › 超级管理员控制台与私信列表全链路端到端验收 › 普通用户登录：无管理员盾牌，可切换私信列表并查看会话与呼叫按钮 (545ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok   6 [chromium] › e2e\\appearance-typography-zoom.spec.ts:59:7 › 外观与排版设置（Appearance, Chat Font Scaling, Cozy/Compact, Zoom Level）端到端验收 › 1. 能够通过侧边栏齿轮打开用户设置，并切换至'外观与排版'选项卡 (712ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok   7 [chromium] › e2e\\appearance-typography-zoom.spec.ts:81:7 › 外观与排版设置（Appearance, Chat Font Scaling, Cozy/Compact, Zoom Level）端到端验收 › 2. 实时效果预览卡片正常渲染，并能即时联动切换普通模式 (Cozy) 与紧凑模式 (Compact) (856ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok   8 [chromium] › e2e\\appearance-typography-zoom.spec.ts:111:7 › 外观与排版设置（Appearance, Chat Font Scaling, Cozy/Compact, Zoom Level）端到端验收 › 3. 能够拖动或点击预设刻度调节聊天字体大小（12px~20px），并驱动 CSS 变量更新 (1.1s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok   9 [chromium] › e2e\\appearance-typography-zoom.spec.ts:145:7 › 外观与排版设置（Appearance, Chat Font Scaling, Cozy/Compact, Zoom Level）端到端验收 › 4. 界面缩放功能已按要求移除，且支持全局文字大小 (13px~20px) 自由调节与重置 (903ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  10 [chromium] › e2e\\attachment-upload.spec.ts:15:7 › 附件上传与发信授权验收 (Attachment Upload & Message Send) › 在频道中上传附件并发送，验证上传授权有效、消息成功发送且渲染缩略图 (955ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  11 [chromium] › e2e\\attachment-upload.spec.ts:120:7 › 附件上传与发信授权验收 (Attachment Upload & Message Send) › 纯附件上传（输入框无任何文字）直接按下 Enter 键，验证消息能正常发送且缩略图不裂图 (1.1s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  12 [chromium] › e2e\\attachment-upload.spec.ts:246:7 › 附件上传与发信授权验收 (Attachment Upload & Message Send) › 不可预览的附件显示文件信息并提供可用的下载 (879ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  13 [chromium] › e2e\\audio-device-hot-swap.spec.ts:5:7 › 语音输入配置热切换与无缝推流验收 (Audio Input Hot Swap E2E) › 验证通话中切换麦克风输入设备与声学算法开关零断流、快捷下拉菜单及持久化机制 (4.2s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  14 [chromium] › e2e\\audio-interruption-recovery.spec.ts:4:7 › iOS & 移动端 Web 音频中断恢复与生命周期唤醒（方案1）端到端验收 › 1. 模拟系统中断时正确弹出横幅，点击恢复后横幅隐藏且状态自愈 (687ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  15 [chromium] › e2e\\audio-interruption-recovery.spec.ts:46:7 › iOS & 移动端 Web 音频中断恢复与生命周期唤醒（方案1）端到端验收 › 2. 全屏轻触任意手势能够自动兜底触发音频唤醒 (548ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  16 [chromium] › e2e\\audio-interruption-recovery.spec.ts:63:7 › iOS & 移动端 Web 音频中断恢复与生命周期唤醒（方案1）端到端验收 › 3. Cloudflare Realtime 回放中断使用同一横幅恢复 (611ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  17 [chromium] › e2e\\audio-interruption-recovery.spec.ts:84:7 › iOS & 移动端 Web 音频中断恢复与生命周期唤醒（方案1）端到端验收 › 4. 多语言环境下 (zh-CN / zh-TW / zh-HK / en-US / ja-JP) 文案 100% 完整与无硬编码 (1.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  18 [chromium] › e2e\\audio-player-custom-ui.spec.ts:51:7 › 自定义音频播放器 UI、波形频谱、单例互斥与右下角小窗播放验收 › 音频文件上传 -> 自定义波形播放器卡片渲染 -> 拖拽寻道 -> 单例互斥 -> 右下角迷你小窗播放 (1.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  19 [chromium] › e2e\\auth-background.spec.ts:4:7 › Web 登录界面步进式流转、shake 错误动效与阻止默认刷新端到端验收 › 1. Web 登录界面首屏呈现邮箱输入，输入已有账号平滑流转至密码登录，输错密码触发 shake 红框晃动与错误信息 (727ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  20 [chromium] › e2e\\auth-background.spec.ts:66:7 › Web 登录界面步进式流转、shake 错误动效与阻止默认刷新端到端验收 › 2. 输入未注册邮箱跳转至注册模式，邮箱呈现为 disabled，支持修改邮箱返回首屏 (544ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  21 [chromium] › e2e\\auth-background.spec.ts:109:7 › Web 登录界面步进式流转、shake 错误动效与阻止默认刷新端到端验收 › 3. 前端邮箱格式合法性校验：空邮箱与非标准格式拦截、红框晃动动画及重输自动清除 (679ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  22 [chromium] › e2e\\auth-session-lifecycle.spec.ts:23:7 › session rotation and saved-account recovery › session-only login refreshes without persisting credentials (614ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  23 [chromium] › e2e\\auth-session-lifecycle.spec.ts:49:7 › session rotation and saved-account recovery › temporary refresh outage retains credentials and does not ask for password (651ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  24 [chromium] › e2e\\auth-session-lifecycle.spec.ts:82:7 › session rotation and saved-account recovery › switching A to B and back keeps each remembered login (691ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  25 [chromium] › e2e\\auth-session-lifecycle.spec.ts:120:7 › session rotation and saved-account recovery › logout revokes the current session (235ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  26 [chromium] › e2e\\auth-session-lifecycle.spec.ts:143:7 › session rotation and saved-account recovery › refresh lifetime is 30 days and rotation is atomic (263ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  27 [chromium] › e2e\\auth-session-lifecycle.spec.ts:200:7 › session rotation and saved-account recovery › two tabs share one rotation without losing login (985ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  28 [chromium] › e2e\\auth-stale-startup.spec.ts:12:9 › invalid retained local credentials return to login at / (706ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  29 [chromium] › e2e\\auth-stale-startup.spec.ts:12:9 › invalid retained session credentials return to login at / (704ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  30 [chromium] › e2e\\auth-stale-startup.spec.ts:12:9 › invalid retained access-only credentials return to login at / (699ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  31 [chromium] › e2e\\auth-stale-startup.spec.ts:12:9 › invalid retained saved-only credentials return to login at / (680ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  32 [chromium] › e2e\\auth-stale-startup.spec.ts:12:9 › invalid retained local credentials return to login at /invite/7326a0ae (754ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  33 [chromium] › e2e\\auth-stale-startup.spec.ts:12:9 › invalid retained session credentials return to login at /invite/7326a0ae (768ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  34 [chromium] › e2e\\auth-stale-startup.spec.ts:12:9 › invalid retained access-only credentials return to login at /invite/7326a0ae (742ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  35 [chromium] › e2e\\auth-stale-startup.spec.ts:12:9 › invalid retained saved-only credentials return to login at /invite/7326a0ae (745ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  36 [chromium] › e2e\\auth-stale-startup.spec.ts:117:5 › startup 401 still refreshes a valid remembered session (576ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  37 [chromium] › e2e\\auth-stale-startup.spec.ts:141:5 › authenticated invite deep link shows invalid and existing-member states (921ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  38 [chromium] › e2e\\brand-icon-and-mascot.spec.ts:4:7 › Tescord 全平台品牌 ICON 与吉祥物视觉验收 › Favicon 静态资产应正确响应 200 且非 404 缺失 (19ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  39 [chromium] › e2e\\brand-icon-and-mascot.spec.ts:19:7 › Tescord 全平台品牌 ICON 与吉祥物视觉验收 › 登录界面应渲染官方吉祥物 BrandLogo 徽章而非临时占位字母 T (458ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  40 [chromium] › e2e\\brand-icon-and-mascot.spec.ts:36:7 › Tescord 全平台品牌 ICON 与吉祥物视觉验收 › 应用主界面 Sidebar Home 导航应展示 BrandLogo 且具备流畅圆角交互 (578ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  41 [chromium] › e2e\\camera-device-selection.spec.ts:5:7 › Discord 风格摄像头设备选择与视频预览全链路验收 › 完整验证系统摄像头设备枚举、设置中心画面实时测试预览、镜像翻转与通话控制栏快捷切换菜单 (4.7s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  42 [chromium] › e2e\\camera-live-stream.spec.ts:5:7 › 语音频道摄像头直播（Webcam Live Streaming）与舞台聚焦验收 › 完整验证摄像头推拉流、自拍镜像、网格视频挂载、舞台聚焦/钉选与侧边栏快捷开关全链路 (3.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  43 [chromium] › e2e\\channel-category.spec.ts:31:7 › 频道分类（Category）全生命周期端到端验收 › 频道分类创建、折叠展开、分类下建频道、重命名、移动与安全删除全链路验证 (2.3s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  44 [chromium] › e2e\\channel-category.spec.ts:176:7 › 频道分类（Category）全生命周期端到端验收 › 频道拖拽排版与跨分类流转验证：DragOverlay 跟随、平滑让位与无卡顿交互 (1.2s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  45 [chromium] › e2e\\channel-creation-idempotency.spec.ts:31:7 › 频道创建单向数据流与防重复/防强制跳频端到端验收 › 创建频道流程：单向数据流驱动，不重复显示两个相同频道，刷新前后一致，且不强制打断其他成员 (950ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  46 [chromium] › e2e\\channel-memory.spec.ts:98:7 › 服务器频道记忆与首次进入默认频道 (Channel Memory & Default Channel) › 切换公会时能准确记住各自最后停留的频道，且切回时恢复该频道，页面刷新持久化有效 (1.3s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  47 [chromium] › e2e\\channel-memory.spec.ts:186:7 › 服务器频道记忆与首次进入默认频道 (Channel Memory & Default Channel) › 被记忆的频道被删除后，重新切回公会能够安全自动降级到剩余的排序第一文字频道 (992ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  48 [chromium] › e2e\\channel-memory.spec.ts:233:7 › 服务器频道记忆与首次进入默认频道 (Channel Memory & Default Channel) › 当记忆或选中的频道处于折叠分类中时，自动自愈展开该分类并平滑展示目标频道 (978ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  49 [chromium] › e2e\\channel-memory.spec.ts:265:7 › 服务器频道记忆与首次进入默认频道 (Channel Memory & Default Channel) › 当记忆或选中的频道位于长列表下方时，频道列表自动平滑滚动到该频道可视区域 (1.9s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  50 [chromium] › e2e\\channel-memory.spec.ts:398:7 › 纯函数单元测试：频道视觉排序与默认频道解析算法 (channelNavigation) › getSortedGuildChannels: 准确先排未分类再按分类升序排列子频道 (1ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  51 [chromium] › e2e\\channel-memory.spec.ts:408:7 › 纯函数单元测试：频道视觉排序与默认频道解析算法 (channelNavigation) › getDefaultGuildChannel: 优先命中首个文字频道，即使排在第0项的是语音频道 (0ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  52 [chromium] › e2e\\channel-memory.spec.ts:415:7 › 纯函数单元测试：频道视觉排序与默认频道解析算法 (channelNavigation) › getDefaultGuildChannel: 当公会仅包含语音频道时，优雅回退到排序第一项语音频道 (0ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  53 [chromium] › e2e\\channel-memory.spec.ts:440:7 › 纯函数单元测试：频道视觉排序与默认频道解析算法 (channelNavigation) › resolveGuildChannel: 有有效历史记忆时优先恢复，记忆失效时回退到默认 (0ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  54 [chromium] › e2e\\channel-mute-duration.spec.ts:4:7 › 频音频道静音与时长选项自动化验收 (Channel Mute & Duration Options) › 支持静音频道多级时长选项、右侧常驻静音图标、取消静音以及持久化生效 (2.5s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  55 [chromium] › e2e\\channel-read-state-api.spec.ts:3:5 › guild read cursor persists, never rewinds, and rejects unauthorized callers (306ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  56 [chromium] › e2e\\channel-switch-cleanup.spec.ts:16:7 › 频道切换前数据清理与防残留 (Channel Switch Cleanup) › 切换文字频道时即刻清除旧消息并展现骨架屏，杜绝旧频道内容残留 (923ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  57 [chromium] › e2e\\channel-switch-cleanup.spec.ts:111:7 › 频道切换前数据清理与防残留 (Channel Switch Cleanup) › 输入框草稿按频道独立隔离保存，切换频道时互不污染并支持切回恢复 (1.0s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  58 [chromium] › e2e\\channel-switch-cleanup.spec.ts:174:7 › 频道切换前数据清理与防残留 (Channel Switch Cleanup) › 消息在服务端被删除后，切换频道触发对账修剪，再次切回绝无已删旧消息瞬间闪现 (1.0s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  59 [chromium] › e2e\\channel-unread-pill.spec.ts:160:7 › 文字频道左侧未读白色指示条 (Discord 风格) 交互与闭环验证 › 验证文字频道未读时出现左边缘白色胶囊 pill 与高亮白字，点击后消除 (671ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  60 [chromium] › e2e\\channel-unread-pill.spec.ts:204:7 › 文字频道左侧未读白色指示条 (Discord 风格) 交互与闭环验证 › 验证通过右键菜单‘标记为已读’可直接核销未读白色条 (737ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  61 [chromium] › e2e\\channel-unread-pill.spec.ts:235:7 › 文字频道左侧未读白色指示条 (Discord 风格) 交互与闭环验证 › 验证服务器右键菜单‘标记为已读’可批量消除该公会内所有频道的未读白色条 (886ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  62 [chromium] › e2e\\chat-floating-history-banner.spec.ts:117:7 › 消息视口顶部悬浮历史横幅与上下边缘渐变模糊验收 › 验证顶部悬浮横幅出现、上下渐变模糊层及回到最新消息流程 (1.8s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  63 [chromium] › e2e\\chat-image-skeleton.spec.ts:28:7 › 聊天消息图片加载骨架屏与优雅容错验收 (Chat Image Skeleton & Error Fallback) › 聊天消息图片加载时展示骨架屏(animate-pulse)，并在完全加载完成后平滑关闭骨架屏 (2.5s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  64 [chromium] › e2e\\chat-image-skeleton.spec.ts:134:7 › 聊天消息图片加载骨架屏与优雅容错验收 (Chat Image Skeleton & Error Fallback) › 图片加载失败时骨架屏关闭并展示优雅错误卡片，点击重试后恢复正常加载 (1.3s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  65 [chromium] › e2e\\chat-image-skeleton.spec.ts:245:7 › 聊天消息图片加载骨架屏与优雅容错验收 (Chat Image Skeleton & Error Fallback) › 超长横图(1000x100)正常展示且容器高度自适应贴合，无多余灰色留白空间 (1.2s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  66 [chromium] › e2e\\chat-image-skeleton.spec.ts:345:7 › 聊天消息图片加载骨架屏与优雅容错验收 (Chat Image Skeleton & Error Fallback) › 发送栏图片卡片预览、直接呼出大图灯箱及滚轮锚点缩放/双击缩放/Discord风格工具栏完整交互验收 (1.8s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  67 [chromium] › e2e\\chat-markdown-autolink.spec.ts:167:7 › 聊天文本 URL 链接识别与括号/标点截断修复端到端验收 › 验证带括号 URL、中文括号包裹与 Markdown 链接在真实 DOM 中正确渲染 (587ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  68 [chromium] › e2e\\chat-scroll-unread-attachment.spec.ts:82:7 › 消息滚动记忆、新消息红线消除与多类型附件上传综合验收 › 1. 消息滚动记忆纯物理恢复：切换离开再返回时精确还原离开时的 scrollTop (2.1s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  69 [chromium] › e2e\\chat-scroll-unread-attachment.spec.ts:164:7 › 消息滚动记忆、新消息红线消除与多类型附件上传综合验收 › 2. 新消息分割红线视口消除：新消息在视口内曝光停留超1秒后，红线自动淡出消除 (2.3s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  70 [chromium] › e2e\\chat-scroll-unread-attachment.spec.ts:207:7 › 消息滚动记忆、新消息红线消除与多类型附件上传综合验收 › 3. 附件多格式上传、拖拽高亮蒙层与高危扩展名拦截 (855ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  71 [chromium] › e2e\\chat-scroll-unread-attachment.spec.ts:287:7 › 消息滚动记忆、新消息红线消除与多类型附件上传综合验收 › 4. 验证当用户进入频道处于最底部时，绝不呈现未读红线分割条与跳到最新浮条 (775ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  72 [chromium] › e2e\\chat-scroll-unread-attachment.spec.ts:327:7 › 消息滚动记忆、新消息红线消除与多类型附件上传综合验收 › 5. 阅读历史时发送自己的消息后回到最新消息 (861ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  73 [chromium] › e2e\\chat-spoiler-mosaic.spec.ts:93:7 › 类 Telegram / Discord 剧透马赛克迷彩标签端到端验收 › 验证剧透标签以类 Telegram / Discord 马赛克迷彩渲染，并支持点击显现与再次隐藏 (704ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  74 [chromium] › e2e\\cloudflare-ice-gathering.spec.ts:4:7 › Cloudflare Realtime ICE Gathering Smart Early-Exit › Immediate resolution when iceGatheringState is already complete (446ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  75 [chromium] › e2e\\cloudflare-ice-gathering.spec.ts:34:7 › Cloudflare Realtime ICE Gathering Smart Early-Exit › Reuses SDP relay candidates without waiting for another candidate event (549ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  76 [chromium] › e2e\\cloudflare-ice-gathering.spec.ts:72:7 › Cloudflare Realtime ICE Gathering Smart Early-Exit › Host-only gathering does not exit early but remains a final fallback after completion (594ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  77 [chromium] › e2e\\cloudflare-ice-gathering.spec.ts:102:7 › Cloudflare Realtime ICE Gathering Smart Early-Exit › Relay-only policy does not resolve for srflx and waits for a relay candidate (629ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  78 [chromium] › e2e\\cloudflare-ice-gathering.spec.ts:151:7 › Cloudflare Realtime ICE Gathering Smart Early-Exit › Early-Exit completes well under 2.5 seconds with active STUN/TURN gathering instead of waiting 10+ seconds (858ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  79 [chromium] › e2e\\cloudflare-ice-gathering.spec.ts:194:7 › Cloudflare Realtime ICE Gathering Smart Early-Exit › Throws descriptive error when no candidates gathered within timeout (663ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  80 [chromium] › e2e\\cloudflare-media-security.spec.ts:5:5 › Gateway accepts Electron file origin (2.0s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  81 [chromium] › e2e\\cloudflare-media-security.spec.ts:36:5 › Cloudflare media endpoints reject anonymous and forged channel/session operations (596ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  82 [chromium] › e2e\\cloudflare-media-security.spec.ts:153:5 › DM participants cannot open Cloudflare media before an answered call (109ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  83 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:47:7 › SFU session negotiation queue › Real SFU compact publication result omits location (435ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  84 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:87:9 › SFU session negotiation queue › offer: batch, deduplication and complete exchange ownership (546ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  85 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:87:9 › SFU session negotiation queue › no-sdp: batch, deduplication and complete exchange ownership (525ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  86 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:87:9 › SFU session negotiation queue › no-location: batch, deduplication and complete exchange ownership (558ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  87 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:87:9 › SFU session negotiation queue › partial: batch, deduplication and complete exchange ownership (880ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  88 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:87:9 › SFU session negotiation queue › all-rejected: batch, deduplication and complete exchange ownership (555ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  89 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:87:9 › SFU session negotiation queue › missing-mid: batch, deduplication and complete exchange ownership (544ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  90 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:87:9 › SFU session negotiation queue › unmatched-result: batch, deduplication and complete exchange ownership (529ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  91 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:87:9 › SFU session negotiation queue › unknown-result: batch, deduplication and complete exchange ownership (540ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  92 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:87:9 › SFU session negotiation queue › malformed-result: batch, deduplication and complete exchange ownership (541ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  93 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:87:9 › SFU session negotiation queue › stale-queued: batch, deduplication and complete exchange ownership (528ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  94 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:87:9 › SFU session negotiation queue › publication-replaced: batch, deduplication and complete exchange ownership (574ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  95 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:87:9 › SFU session negotiation queue › own-old-publication: batch, deduplication and complete exchange ownership (1.5s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  96 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:315:7 › SFU session negotiation queue › retry budget survives repeated snapshots and a staggered explicit screen watch (3.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  97 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:432:9 › SFU bounded initial transport rebuild › fresh-session: an uncertain allocation is never replayed (404ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  98 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:432:9 › SFU bounded initial transport rebuild › retry-exhausted: an uncertain allocation is never replayed (230ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok  99 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:432:9 › SFU bounded initial transport rebuild › external-disconnect: an uncertain allocation is never replayed (226ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 100 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:432:9 › SFU bounded initial transport rebuild › account-switch: an uncertain allocation is never replayed (235ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 101 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:432:9 › SFU bounded initial transport rebuild › encryption-disabled: an uncertain allocation is never replayed (226ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 102 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:432:9 › SFU bounded initial transport rebuild › malformed: an uncertain allocation is never replayed (223ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 103 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:432:9 › SFU bounded initial transport rebuild › connection-before-subscribe: an uncertain allocation is never replayed (276ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 104 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:432:9 › SFU bounded initial transport rebuild › ice-timeout: an uncertain allocation is never replayed (5.3s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 105 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:432:9 › SFU bounded initial transport rebuild › ice-failed: an uncertain allocation is never replayed (280ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 106 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:432:9 › SFU bounded initial transport rebuild › late-failure-cleanup: an uncertain allocation is never replayed (274ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 107 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:432:9 › SFU bounded initial transport rebuild › new-session-unknown: an uncertain allocation is never replayed (237ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 108 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:432:9 › SFU bounded initial transport rebuild › new-session-exhausted: an uncertain allocation is never replayed (233ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 109 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:432:9 › SFU bounded initial transport rebuild › new-session-malformed: an uncertain allocation is never replayed (225ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 110 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:432:9 › SFU bounded initial transport rebuild › new-session-forbidden: an uncertain allocation is never replayed (221ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 111 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:432:9 › SFU bounded initial transport rebuild › snapshot-race: an uncertain allocation is never replayed (252ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 112 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:813:9 › SFU encrypted packet readiness › ack-and-rtp: advertise only current encrypted sender packets without blocking subscriptions (561ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 113 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:813:9 › SFU encrypted packet readiness › old-scope: advertise only current encrypted sender packets without blocking subscriptions (431ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 114 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:813:9 › SFU encrypted packet readiness › rotation: advertise only current encrypted sender packets without blocking subscriptions (543ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 115 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:813:9 › SFU encrypted packet readiness › pending-publication: advertise only current encrypted sender packets without blocking subscriptions (628ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 116 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:813:9 › SFU encrypted packet readiness › unpublish-pending: advertise only current encrypted sender packets without blocking subscriptions (510ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 117 [chromium] › e2e\\cloudflare-sfu-negotiation.spec.ts:813:9 › SFU encrypted packet readiness › replace-announced-camera: advertise only current encrypted sender packets without blocking subscriptions (514ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 118 [chromium] › e2e\\communication-api-regressions.spec.ts:112:5 › GIF processing validates source ownership, grants, current authority and session state (915ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 119 [chromium] › e2e\\communication-api-regressions.spec.ts:336:5 › message pages preserve >100 history, both cursors, strict queries and participant boundaries (1.2s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 120 [chromium] › e2e\\communication-ui-regressions.spec.ts:19:5 › original image keeps preview while loading, rejects failed decode and retries (2.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 121 [chromium] › e2e\\communication-ui-regressions.spec.ts:100:5 › older-page spinner preserves first visible message position after prepending (1.5s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 122 [chromium] › e2e\\communication-ui-regressions.spec.ts:169:5 › mobile member profile is above drawer and Escape closes only profile (1.1s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 123 [chromium] › e2e\\communication-ui-regressions.spec.ts:195:5 › mobile channel label long press opens menu while manager handle owns sorting (3.6s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 124 [chromium] › e2e\\communication-ui-regressions.spec.ts:281:5 › newer-page loading follows the bottom and keeps existing messages readable (1.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 125 [chromium] › e2e\\communication-ui-regressions.spec.ts:317:5 › missing audio and WebRTC APIs leave chat usable and reject unencrypted voice (692ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 126 [chromium] › e2e\\context-menu-features.spec.ts:164:7 › UI 右键菜单与交互体验专项验收 (Context Menu & Interaction Features) › A1: 服务器列表空白区域右键菜单 - 新建服务器与加入服务器 (821ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 127 [chromium] › e2e\\context-menu-features.spec.ts:214:7 › UI 右键菜单与交互体验专项验收 (Context Menu & Interaction Features) › A1b: creating a guild uploads its locally generated icon after creation (923ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 128 [chromium] › e2e\\context-menu-features.spec.ts:324:7 › UI 右键菜单与交互体验专项验收 (Context Menu & Interaction Features) › A1c: failed icon claim discards pending upload without creating a second guild (643ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 129 [chromium] › e2e\\context-menu-features.spec.ts:398:7 › UI 右键菜单与交互体验专项验收 (Context Menu & Interaction Features) › A2: 服务器右键菜单 - 将服务器静音与通知设定 (2.3s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 130 [chromium] › e2e\\context-menu-features.spec.ts:469:7 › UI 右键菜单与交互体验专项验收 (Context Menu & Interaction Features) › B: 频道列表右键菜单 - 静音频道与取消静音切换 (1.8s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 131 [chromium] › e2e\\context-menu-features.spec.ts:518:7 › UI 右键菜单与交互体验专项验收 (Context Menu & Interaction Features) › C1: 消息悬浮工具栏 Emoji 按钮正常唤起表情选择器 (894ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 132 [chromium] › e2e\\context-menu-features.spec.ts:564:7 › UI 右键菜单与交互体验专项验收 (Context Menu & Interaction Features) › C2: 消息删除两步点击二次确认 (1.2s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 133 [chromium] › e2e\\context-menu-features.spec.ts:618:7 › UI 右键菜单与交互体验专项验收 (Context Menu & Interaction Features) › C3: 聊天区域用户头像右键菜单 - 无独立音量，具备新增好友、传送消息与开始通话 (624ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 134 [chromium] › e2e\\current-user-popout.spec.ts:52:7 › Discord 风格左下角当前用户弹窗卡片 (CurrentUserPopout) E2E 验收 › 验证点击左下角用户条目展示卡片、卡片外部点击关闭、ESC 关闭与交互 (2.0s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 135 [chromium] › e2e\\custom-titlebar.spec.ts:4:7 › Electron 自定义无边框窗口与沉浸式顶栏 (TitleBar) 验收 › 1. 纯 Web 浏览器环境下自动隐藏顶栏，不占用任何界面高度 (533ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 136 [chromium] › e2e\\custom-titlebar.spec.ts:18:7 › Electron 自定义无边框窗口与沉浸式顶栏 (TitleBar) 验收 › 2. Windows/Linux 桌面端模式下呈现完整顶栏与三键控制，并支持双击最大化与状态动态同步 (694ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 137 [chromium] › e2e\\custom-titlebar.spec.ts:124:7 › Electron 自定义无边框窗口与沉浸式顶栏 (TitleBar) 验收 › 3. macOS 桌面端模式下适配原生交通灯，隐藏右侧自绘制按钮并保留左侧避让边距 (563ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 138 [chromium] › e2e\\custom-titlebar.spec.ts:171:7 › Electron 自定义无边框窗口与沉浸式顶栏 (TitleBar) 验收 › 4. 未登录状态下自动进入小窗口模式 (auth mode)：隐藏最大化按钮与 Ping 徽标，仅保留最小化与关闭 (339ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 139 [chromium] › e2e\\denoise-engines.spec.ts:28:5 › 发送端电平反映手动增益并在静音时归零 (1.5s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 140 [chromium] › e2e\\denoise-engines.spec.ts:68:5 › 真实三引擎切换、关闭、PTT 与资源释放 (3.6s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 141 [chromium] › e2e\\denoise-engines.spec.ts:172:5 › DTLN 模型校验失败时回退真实 RNNoise 并报告原因 (410ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 142 [chromium] › e2e\\denoise-engines.spec.ts:208:5 › RNNoise 无法加载时明确直通且保留用户选择 (317ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 143 [chromium] › e2e\\denoise-engines.spec.ts:242:5 › 四轨试听取消后保留通话麦克风并释放试听实例 (1.3s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 144 [chromium] › e2e\\denoise-engines.spec.ts:283:5 › 一次录音重放为四轨真实引擎试听 (3.7s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 145 [chromium] › e2e\\denoise-engines.spec.ts:349:5 › 离线 DFN3 试听取消后终止推理 worker 并保留麦克风 (3.3s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 146 [chromium] › e2e\\denoise-engines.spec.ts:407:5 › 试听时间轴识别并校正 50 ms 延迟 (170ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 147 [chromium] › e2e\\desktop-updater.spec.ts:137:7 › 客户端更新服务与 gh-proxy 加速端到端验收 › 应当在用户设置中提供'版本与更新'面板，并能正确触发增量更新检测与 gh-proxy 加速配置 (902ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 148 [chromium] › e2e\\desktop-updater.spec.ts:189:7 › 客户端更新服务与 gh-proxy 加速端到端验收 › 当后台静默接收到增量更新就绪事件时，应当在页面右下角浮出温和重启提醒横幅 (567ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 149 [chromium] › e2e\\discord-features-enhancement.spec.ts:150:7 › Discord 级体验增强核心交互验证 (问题2/3/4/5/6) › 问题 6 验收：顶部 Header 图钉按钮、置顶消息面板 (PinnedMessagesPopover) 与定位跳转 (667ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 150 [chromium] › e2e\\discord-features-enhancement.spec.ts:195:7 › Discord 级体验增强核心交互验证 (问题2/3/4/5/6) › 问题 3 验收：全局输入与输出音量调节范围 (0-200%) 并成功持久化到 localStorage (808ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 151 [chromium] › e2e\\discord-features-enhancement.spec.ts:228:7 › Discord 级体验增强核心交互验证 (问题2/3/4/5/6) › 问题 2 验收：语音成员用户音量独立记忆 (0-200%) 与持久化机制 (438ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 152 [chromium] › e2e\\discord-features-enhancement.spec.ts:247:7 › Discord 级体验增强核心交互验证 (问题2/3/4/5/6) › 问题 4 验收：点击卡片右上角“停止直播”红色按钮及控制栏直接关停推流，绝不误弹选择码率 Modal (6.0s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 153 [chromium] › e2e\\display-capture-policy.spec.ts:5:5 › display audio honors captured scope and releases browser/native resources (252ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 154 [chromium] › e2e\\display-name-priority.spec.ts:20:7 › 聊天与个人信息卡片名称主显示调整为 displayName 验收 › 验证左下角状态条与个人信息卡片主显示 displayName 且副显示 @username (716ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 155 [chromium] › e2e\\dm-call-flow.spec.ts:193:7 › 私信语音/视频通话全生命周期 (DM Call Flow) E2E 验收 › 1. 验证私信聊天视口正确渲染通话历史系统事件卡片 (Call Event Cards) (572ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 156 [chromium] › e2e\\dm-call-flow.spec.ts:215:7 › 私信语音/视频通话全生命周期 (DM Call Flow) E2E 验收 › 2. 验证呼出流程 (Outgoing Call)、波纹呼叫舞台与取消呼叫 (677ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 157 [chromium] › e2e\\dm-call-flow.spec.ts:254:7 › 私信语音/视频通话全生命周期 (DM Call Flow) E2E 验收 › 3. 验证来电弹窗 (Incoming Call Modal)、静音铃声与拒绝操作 (587ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 158 [chromium] › e2e\\dm-call-flow.spec.ts:302:7 › 私信语音/视频通话全生命周期 (DM Call Flow) E2E 验收 › 拒接原因由 CALL_END 决定且一通电话只写一条共享记录 (557ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 159 [chromium] › e2e\\dm-call-flow.spec.ts:377:7 › 私信语音/视频通话全生命周期 (DM Call Flow) E2E 验收 › 4. 验证已连接通话舞台 (Connected Call Stage)、折叠/展开与挂断流程 (1.1s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 160 [chromium] › e2e\\dm-call-flow.spec.ts:447:7 › 私信语音/视频通话全生命周期 (DM Call Flow) E2E 验收 › 5. 验证切离私信时唤起画中画浮窗 (Picture-in-Picture) 及返回通话视窗 (746ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 161 [chromium] › e2e\\e2ee-channel-messaging.spec.ts:16:7 › 端到端双棘轮加密频道消息收发与查看验收 (E2EE Channel Messaging) › 在加密频道中正常发送加密信封消息，正确展示 Beta 标识与已解密明文 (1.2s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 162 [chromium] › e2e\\e2ee-long-markdown-and-crop.spec.ts:17:7 › 长 Markdown 加密消息与图片裁切交互专项验收 › 在加密频道中发送超长 Markdown 文本（>16KB 密文信封），完整解密渲染且绝不裸露 JSON 密文 (1.3s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 163 [chromium] › e2e\\e2ee-long-markdown-and-crop.spec.ts:147:7 › 长 Markdown 加密消息与图片裁切交互专项验收 › 服务器设置中上传图片进行图片裁切时，滚轮缩放无 passive event listener 报错 (1.7s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 164 [chromium] › e2e\\five-core-enhancements.spec.ts:78:7 › Tescord 五大音视频与状态同步核心能力 E2E 自动化验收 › 1. 用户个人设置项本地持久化与防刷新丢失 (useSettingsStore + F5 Reload) (605ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 165 [chromium] › e2e\\five-core-enhancements.spec.ts:157:7 › Tescord 五大音视频与状态同步核心能力 E2E 自动化验收 › 2. 远端用户独立音量双向响应式同步 (livekitService + ContextMenu + VoiceRoomArea) (503ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 166 [chromium] › e2e\\five-core-enhancements.spec.ts:206:7 › Tescord 五大音视频与状态同步核心能力 E2E 自动化验收 › 3. Intel 显卡及 Web 浏览器环境 H.265 编码器探测支持 (494ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 167 [chromium] › e2e\\five-core-enhancements.spec.ts:226:7 › Tescord 五大音视频与状态同步核心能力 E2E 自动化验收 › 4. P2P 直播推流首选编码器保持（打破 VP8 锁定） (491ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 168 [chromium] › e2e\\five-core-enhancements.spec.ts:253:7 › Tescord 五大音视频与状态同步核心能力 E2E 自动化验收 › 5. 纯语音 Mesh P2P 延迟统计与双维度展示指标 (544ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 169 [chromium] › e2e\\five-core-enhancements.spec.ts:276:7 › Tescord 五大音视频与状态同步核心能力 E2E 自动化验收 › 6. WebRTC 媒体与网络健康看板 Tab 切换 (总览/语音/视频/NAT) 与音视频双轨指标渲染 (526ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 170 [chromium] › e2e\\five-enhancements-verified.spec.ts:18:7 › 五大核心优化功能端到端综合验收测试 (Five Enhancements Verification) › 1. 验证主页私信未读 Badge 与服务器提及 Badge 规范渲染 (507ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 171 [chromium] › e2e\\five-enhancements-verified.spec.ts:37:7 › 五大核心优化功能端到端综合验收测试 (Five Enhancements Verification) › 2. 验证私信列表置顶排序、静音与备注展示逻辑 (602ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 172 [chromium] › e2e\\five-enhancements-verified.spec.ts:53:7 › 五大核心优化功能端到端综合验收测试 (Five Enhancements Verification) › 3. 验证好友全功能右键菜单操作项完备性 (713ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 173 [chromium] › e2e\\five-enhancements-verified.spec.ts:86:7 › 五大核心优化功能端到端综合验收测试 (Five Enhancements Verification) › 4. 验证服务器“邀请好友”Modal (图1) 及“邀请链接设置”Modal (图2) 完整链路 (450ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 174 [chromium] › e2e\\five-enhancements-verified.spec.ts:149:7 › 五大核心优化功能端到端综合验收测试 (Five Enhancements Verification) › 5. 验证聊天消息中服务器邀请卡片已加入状态及 URL 不暴露 (503ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 175 [chromium] › e2e\\five-enhancements-verified.spec.ts:160:7 › 五大核心优化功能端到端综合验收测试 (Five Enhancements Verification) › 6. 专项验证：Badge 红底白字配色与私信顶部 displayName 机制 (527ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 176 [chromium] › e2e\\four-core-fixes.spec.ts:147:7 › 4项核心缺陷与体验优化验收 (Four Core Fixes E2E) › 1. 智能跳转与横幅逻辑：在查看较旧历史消息时呈现'跳到最新'，点击平滑贴底 (1.2s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 177 [chromium] › e2e\\four-core-fixes.spec.ts:198:7 › 4项核心缺陷与体验优化验收 (Four Core Fixes E2E) › 2. 语音频道记忆逻辑：浏览特定文字频道后进入语音频道，挂断时应优先回跳到该文字频道 (584ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 178 [chromium] › e2e\\four-core-fixes.spec.ts:238:7 › 4项核心缺陷与体验优化验收 (Four Core Fixes E2E) › 3. 音频设备隔离记忆：本地硬件设备 ID 仅保存在本机，云端拉取不会覆盖本地设备 ID (442ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 179 [chromium] › e2e\\four-core-fixes.spec.ts:288:7 › 4项核心缺陷与体验优化验收 (Four Core Fixes E2E) › 4. 未读分流跳转：存在未读消息且视口脱离底部时，悬浮横幅展示'您有未读消息'与'跳转至未读' (887ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 180 [chromium] › e2e\\four-user-fixes.spec.ts:24:7 › 4 项核心缺陷与用户体验改进验收测试 (four-user-fixes) › 1. 响应式布局：在平板横竖屏与桌面端视口切换时，无 Hook 顺序错乱及 length 崩溃 (1.6s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 181 [chromium] › e2e\\four-user-fixes.spec.ts:88:7 › 4 项核心缺陷与用户体验改进验收测试 (four-user-fixes) › 2. 服务器邀请卡片：头像与横幅具备防拖拽属性 (draggable=false / pointer-events-none) (548ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 182 [chromium] › e2e\\four-user-fixes.spec.ts:197:7 › 4 项核心缺陷与用户体验改进验收测试 (four-user-fixes) › 3. 私信通话与连接阶段：不再显示 WebRTC P2P Direct / LiveKit SFU，统一呈现设计卡片 (637ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 183 [chromium] › e2e\\four-user-fixes.spec.ts:278:7 › 4 项核心缺陷与用户体验改进验收测试 (four-user-fixes) › 4. 私信好友列表：未接听/取消呼叫等状态展示为国际化简介而非 [CALL_EVENT:canceled] (477ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 184 [chromium] › e2e\\four-user-requirements.spec.ts:308:7 › 4 项核心用户需求与缺陷修复完整验收 (four-user-requirements) › 需求 1：修复邀请好友至服务器时，点击邀请无任何反应 (743ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 185 [chromium] › e2e\\four-user-requirements.spec.ts:380:7 › 4 项核心用户需求与缺陷修复完整验收 (four-user-requirements) › 需求 2：解决增加文字尺寸时排版异常（图1/图2缺陷：Header 图钉与成员列表按钮防挤压截断） (620ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 186 [chromium] › e2e\\four-user-requirements.spec.ts:422:7 › 4 项核心用户需求与缺陷修复完整验收 (four-user-requirements) › 需求 3：Discord 原生级搜索引擎体系（抽屉展开、关键词搜索与 Jump to message） (700ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 187 [chromium] › e2e\\four-user-requirements.spec.ts:479:7 › 4 项核心用户需求与缺陷修复完整验收 (four-user-requirements) › 需求 4：服务器列表 PC 端鼠标瞬时拖拽重排与触屏端手势逻辑隔离 (1.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 188 [chromium] › e2e\\friend-and-identity.spec.ts:199:7 › 用户身份解耦、图1样式还原与好友系统 (Friends & Identity) E2E 验收 › 1. 验证私信栏【好友】面板交互：在线列表、待处理角标与格式负向/正向添加申请 (777ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 189 [chromium] › e2e\\friend-and-identity.spec.ts:264:7 › 用户身份解耦、图1样式还原与好友系统 (Friends & Identity) E2E 验收 › 2. 验证个人资料设置中调整显示昵称、用户识别码及图 1 样式 1:1 动态实时还原 (757ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 190 [chromium] › e2e\\gateway-and-real-latency.spec.ts:32:7 › 真实延迟状态与网关连接指示端到端验收 › 验证 WebSocket 网关 Ping 实时测量与用户栏延迟徽标展示 (591ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 191 [chromium] › e2e\\gateway-and-real-latency.spec.ts:67:7 › 真实延迟状态与网关连接指示端到端验收 › 验证进入语音频道后真实 WebRTC RTT 延迟状态与健康看板 (1.2s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 192 [chromium] › e2e\\gateway-and-real-latency.spec.ts:122:7 › 真实延迟状态与网关连接指示端到端验收 › 验证网关断线重连状态条展示 (Discord 风格 Connection Banner) (571ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 193 [chromium] › e2e\\gif-icon-editor.spec.ts:32:5 › GIF frame selection uses backend crop processing and resets both upload grants (1.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 194 [chromium] › e2e\\gif-icon-editor.spec.ts:91:5 › cancel during GIF upload discards its grant and never installs a late result (1.0s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 195 [chromium] › e2e\\gif-icon-editor.spec.ts:133:5 › reduced motion requests server static GIF variant and hot preference changes restore animation (535ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 196 [chromium] › e2e\\i18n-language-switch.spec.ts:4:7 › Tescord 多国语言 (i18n: zh-CN / zh-TW / zh-HK / en-US / ja-JP) 端到端与热切换验收 › 1. 未登录状态下通过右上角快捷选择器自由切换 中/繁台/繁港/英/日 语言 (1.2s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 197 [chromium] › e2e\\i18n-language-switch.spec.ts:101:7 › Tescord 多国语言 (i18n: zh-CN / zh-TW / zh-HK / en-US / ja-JP) 端到端与热切换验收 › 2. 已登录状态下在用户设置中心热切换语言并验证持久化 (1.5s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 198 [chromium] › e2e\\i18n-language-switch.spec.ts:221:7 › Tescord 多国语言 (i18n: zh-CN / zh-TW / zh-HK / en-US / ja-JP) 端到端与热切换验收 › 3. 多语言环境下 Inter 西文字体、OpenType 易读性特征与 CJK 动态字形栈严格联动 (986ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 199 [chromium] › e2e\\icon-animations.spec.ts:31:7 › Discord 风格图标微动效与手风琴交互专项验收 › 1. 频道分类手风琴折叠展开与单一 ChevronDown 旋转动效 (649ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 200 [chromium] › e2e\\icon-animations.spec.ts:76:7 › Discord 风格图标微动效与手风琴交互专项验收 › 2. 底部控制栏：静音麦克风、闭麦耳机划线与设置齿轮旋转 (729ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 201 [chromium] › e2e\\icon-animations.spec.ts:124:7 › Discord 风格图标微动效与手风琴交互专项验收 › 3. 最左侧服务器列表添加按钮与探索按钮的悬停旋转动效类 (790ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 202 [chromium] › e2e\\icon-animations.spec.ts:148:7 › Discord 风格图标微动效与手风琴交互专项验收 › zoom entry animation preserves popup centering after completion (509ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 203 [chromium] › e2e\\indexeddb-virtual-scroll.spec.ts:16:7 › 客户端 IndexedDB 本地秒开、虚拟视口与未读红线滚动记忆验收 › 验证 IndexedDB SWR 本地秒开：网络延迟下直接直出本地缓存，跳过骨架屏 (954ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 204 [chromium] › e2e\\indexeddb-virtual-scroll.spec.ts:96:7 › 客户端 IndexedDB 本地秒开、虚拟视口与未读红线滚动记忆验收 › 验证虚拟视口列表（Virtual List）：100 条消息下 DOM 树仅按需渲染可见子节点 (729ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 205 [chromium] › e2e\\indexeddb-virtual-scroll.spec.ts:145:7 › 客户端 IndexedDB 本地秒开、虚拟视口与未读红线滚动记忆验收 › 验证未读红线分割条（Unread Divider）与向上滚动后切走切回的精准记忆恢复 (1.3s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 206 [chromium] › e2e\\indexeddb-virtual-scroll.spec.ts:214:7 › 客户端 IndexedDB 本地秒开、虚拟视口与未读红线滚动记忆验收 › 验证骨架屏 100ms 延迟防闪烁（Debounced Skeleton）：极速返回时不闪烁，超时后平滑呈现 (879ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 207 [chromium] › e2e\\indexeddb-virtual-scroll.spec.ts:310:7 › 客户端 IndexedDB 本地秒开、虚拟视口与未读红线滚动记忆验收 › 验证未读红线视觉冻结（Frozen Unread Marker）：在当前频道浏览并滚到底部时，红线绝对不自动自毁闪烁消失 (1.1s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 208 [chromium] › e2e\\indexeddb-virtual-scroll.spec.ts:384:7 › 客户端 IndexedDB 本地秒开、虚拟视口与未读红线滚动记忆验收 › 验证虚拟卡片绝对定位绝无重叠（Overlap-Free）：多条不同高度消息自适应排版，各卡片边界绝不叠压 (890ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 209 [chromium] › e2e\\inline-attachment-embed.spec.ts:192:7 › Real inline attachment previews and authenticated renewal › a real uploaded relative image link renders pixels and both link and image open Lightbox (1.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 210 [chromium] › e2e\\inline-attachment-embed.spec.ts:255:7 › Real inline attachment previews and authenticated renewal › a genuinely expired GET returns 403, then one real access renewal restores decoded pixels (1.5s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 211 [chromium] › e2e\\inline-attachment-embed.spec.ts:321:5 › URL access enforces current identity, ownership and strict signed GET expiry (722ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 212 [chromium] › e2e\\lightbox-interaction-and-download.spec.ts:24:7 › 图片查看器交互、移动端缩放、点击背景关闭与下载圆形加载条验收 (Lightbox Modal & Download Spinner) › 图片查看器完整链路：点击外部关闭、防误触、下载按钮圆形加载条(animate-spin)与错误反馈 (2.1s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 213 [chromium] › e2e\\live-streaming-and-connection-popover.spec.ts:4:5 › connection popover shows measured RTT and percentage loss, then clears stale samples (4.6s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 214 [chromium] › e2e\\live-streaming-and-connection-popover.spec.ts:78:5 › connection popover renders smooth Discord-style canvas wave and prevents latency jumping on intermittent nulls (887ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 215 [chromium] › e2e\\livekit-token-security.spec.ts:3:5 › LiveKit tokens require an authorized voice channel and identified session (141ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 216 [chromium] › e2e\\livekit-webhook-session.spec.ts:5:5 › a delayed LiveKit webhook cannot remove a replacement voice session (3ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 217 [chromium] › e2e\\loading-bar.spec.ts:6:7 › Tescord 首屏与鉴权轻量无文字 Loading 加载条验收 › 静态验证：index.html 中内联轻量流光加载条，无文字提示且具备高保真内联样式 (2ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 218 [chromium] › e2e\\loading-bar.spec.ts:27:7 › Tescord 首屏与鉴权轻量无文字 Loading 加载条验收 › 动态验证：首屏渲染包含居中 Loading 进度条，随后平滑过渡至登录或主界面，控制台无未捕获异常 (441ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 219 [chromium] › e2e\\maintenance-mode.spec.ts:42:7 › 管理员维护模式（Maintenance Mode）全链路与 WebSocket 响应端到端验收 › 用例 1：普通用户在维护开启时即时呈现全屏维护页，长连接保持，维护解除后秒级恢复 (669ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 220 [chromium] › e2e\\maintenance-mode.spec.ts:164:7 › 管理员维护模式（Maintenance Mode）全链路与 WebSocket 响应端到端验收 › 用例 2：超级管理员登录不受维护页阻断，顶部常驻运维警示条，支持一键解除维护 (537ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 221 [chromium] › e2e\\media-encryption-real-rtp.spec.ts:141:7 › real bidirectional encrypted Opus RTP with Worker ScriptTransform (3.0s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 222 [chromium] › e2e\\media-encryption-real-rtp.spec.ts:141:7 › real bidirectional encrypted Opus RTP with legacy streams (3.0s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 223 [chromium] › e2e\\media-encryption-real-rtp.spec.ts:225:5 › wrong media keys drop encoded audio despite arriving RTP (3.0s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 224 [chromium] › e2e\\media-encryption-real-rtp.spec.ts:283:7 › same voice fixture with 0% encoded-frame impairment and 8ms jitter (6.5s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 225 [chromium] › e2e\\media-encryption-real-rtp.spec.ts:283:7 › same voice fixture with 1% encoded-frame impairment and 8ms jitter (6.5s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 226 [chromium] › e2e\\media-encryption-real-rtp.spec.ts:283:7 › same voice fixture with 3% encoded-frame impairment and 8ms jitter (6.5s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 227 [chromium] › e2e\\media-encryption-real-rtp.spec.ts:283:7 › same voice fixture with 5% encoded-frame impairment and 8ms jitter (6.5s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 228 [chromium] › e2e\\media-encryption-real-rtp.spec.ts:384:7 › encrypted H264 video decrypts into real decoded pixels (1.9s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 229 [chromium] › e2e\\media-encryption-real-rtp.spec.ts:384:7 › encrypted VP8 video decrypts into real decoded pixels (1.9s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 230 [chromium] › e2e\\media-encryption-real-rtp.spec.ts:384:7 › encrypted VP9 video decrypts into real decoded pixels (2.0s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 231 [chromium] › e2e\\media-encryption-real-rtp.spec.ts:384:7 › encrypted AV1 video decrypts into real decoded pixels (1.9s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 232 [chromium] › e2e\\media-encryption-real-rtp.spec.ts:384:7 › encrypted H264 video from a preallocated Worker sender reopens with fresh decoded pixels (2.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 233 [chromium] › e2e\\media-encryption-real-rtp.spec.ts:384:7 › encrypted VP8 video from a preallocated Worker sender reopens with fresh decoded pixels (2.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 234 [chromium] › e2e\\media-encryption-real-rtp.spec.ts:384:7 › encrypted VP8 video from a preallocated legacy sender reopens with fresh decoded pixels (2.5s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 235 [chromium] › e2e\\media-encryption-real-rtp.spec.ts:479:5 › encrypted sender kind rejects unknown null tracks and mismatches before attachment (178ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 236 [chromium] › e2e\\media-signal-session.spec.ts:10:5 › a transfer during permission lookup invalidates old media signalling (1ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 237 [chromium] › e2e\\media-stats-hud-and-topology.spec.ts:52:7 › 媒体属性面板、传输速率与网络连接架构端到端验收 › 纯语音通话显示 SFU 架构，未采集指标保持未知且不误判为 P2P，支持拖拽浮动、失焦自动收起与聚焦模式联动 (1.5s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 238 [chromium] › e2e\\member-list-animation.spec.ts:31:7 › 右侧成员列表展开/隐藏动画端到端验收 › 桌面端 (≥1024px)：成员列表支持平滑宽度展开与收起动画 (0px <-> 240px) (1.3s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 239 [chromium] › e2e\\member-list-animation.spec.ts:69:7 › 右侧成员列表展开/隐藏动画端到端验收 › 平板与移动端 (<1024px)：成员列表以浮层抽屉平滑滑入滑出，遮罩双向淡入淡出 (1.3s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 240 [chromium] › e2e\\message-reply-jump.spec.ts:186:7 › 消息引用跳转原文与高亮交互端到端验收 (Discord-Parity) › 验证点击引用条平滑跳转到原文、高亮闪烁动画，离开底部浮现返回最新胶囊 (1.6s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 241 [chromium] › e2e\\mobile-action-drawer.spec.ts:159:7 › 移动端触屏 Discord 风格下弹 Drawer 交互验收测试 (Mobile Action Drawer E2E) › 长按消息成功唤起 Discord 风格下弹 Drawer 并包含快捷 Reaction 表情栏与操作列表 (1.8s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 242 [chromium] › e2e\\mobile-action-drawer.spec.ts:205:7 › 移动端触屏 Discord 风格下弹 Drawer 交互验收测试 (Mobile Action Drawer E2E) › 点击快捷 Emoji 表情能正确触发反应并平滑关闭 Drawer (2.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 243 [chromium] › e2e\\mobile-action-drawer.spec.ts:240:7 › 移动端触屏 Discord 风格下弹 Drawer 交互验收测试 (Mobile Action Drawer E2E) › 自身消息长按显示删除按钮，且支持原地红色二次确认 (Inline Confirm) (2.7s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 244 [chromium] › e2e\\mobile-action-drawer.spec.ts:282:7 › 移动端触屏 Discord 风格下弹 Drawer 交互验收测试 (Mobile Action Drawer E2E) › 移动端侧边栏频道长按唤起下弹 Drawer，且支持静音时长无缝下钻与返回 (3.6s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 245 [chromium] › e2e\\mobile-image-skeleton-and-floating-player-drag.spec.ts:58:7 › 移动端消息图片骨架屏动态等比缩减 & 迷你悬浮音乐播放器触屏拖拽验收 › 1. 移动端窄屏(360x740)下消息图片骨架屏动态倍率缩减且严格保持长宽比，不超出聊天容器 (2.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 246 [chromium] › e2e\\mobile-image-skeleton-and-floating-player-drag.spec.ts:164:7 › 移动端消息图片骨架屏动态等比缩减 & 迷你悬浮音乐播放器触屏拖拽验收 › 2. 迷你悬浮音乐播放窗口在移动端触屏手势下支持平滑拖拽与边界防护 (1.6s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 247 [chromium] › e2e\\mobile-settings-navigation.spec.ts:28:5 › 320px 用户设置目录和详情均可阅读，返回保留表单 (1.3s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 248 [chromium] › e2e\\mobile-settings-navigation.spec.ts:53:5 › 390px 私信主页可以打开服务器列表并进入服务器 (1.3s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 249 [chromium] › e2e\\mobile-settings-navigation.spec.ts:71:5 › 375px 管理后台使用目录和全宽详情 (966ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 250 [chromium] › e2e\\mobile-settings-navigation.spec.ts:88:5 › 390px 服务器设置目录切换后内容占满屏宽 (1.6s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 251 [chromium] › e2e\\mobile-tablet-chat-virtual-scroll.spec.ts:15:7 › 移动端与平板设备文字频道动态加载与视口优化验收 › 移动端视口 (390x844)：虚拟列表仅挂载紧凑缓冲节点，DOM 负载严格受控 (538ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 252 [chromium] › e2e\\mobile-tablet-chat-virtual-scroll.spec.ts:73:7 › 移动端与平板设备文字频道动态加载与视口优化验收 › 平板端触控视口 (820x1180)：触屏交互全面激活，快捷操作面板可直接触控唤出 (1.7s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 253 [chromium] › e2e\\mobile-tablet-chat-virtual-scroll.spec.ts:169:7 › 移动端与平板设备文字频道动态加载与视口优化验收 › 桌面端视口 (1280x800)：保留丰富悬浮工具条与丝滑渲染 (842ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 254 [chromium] › e2e\\modal-esc-and-invite-landing.spec.ts:4:7 › 清库401自愈、Discord风格邀请落地页与Modal大窗口ESC独立工具栏验收 › 1. 遗留 401 凭据清库后访问：不卡白屏/加载条，自动自愈重定向回登录页 (464ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 255 [chromium] › e2e\\modal-esc-and-invite-landing.spec.ts:61:7 › 清库401自愈、Discord风格邀请落地页与Modal大窗口ESC独立工具栏验收 › 2. 未登录直接访问 /invite/:code：展示 Discord 风格邀请名片、统计及登录/注册引导 (706ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 256 [chromium] › e2e\\modal-esc-and-invite-landing.spec.ts:137:7 › 清库401自愈、Discord风格邀请落地页与Modal大窗口ESC独立工具栏验收 › 3. 已登录直接访问 /invite/:code：展示邀请卡片并支持一键接受加入公会 (646ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 257 [chromium] › e2e\\modal-esc-and-invite-landing.spec.ts:254:7 › 清库401自愈、Discord风格邀请落地页与Modal大窗口ESC独立工具栏验收 › 4. 桌面大窗口下 Modal ESC 按钮独立 Tools Column 专属布局验收（不遮挡内容） (722ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 258 [chromium] › e2e\\model-download-progress.spec.ts:6:5 › streamed download counts bytes, ignores compressed totals, and cancels stalled bodies (629ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 259 [chromium] › e2e\\model-download-progress.spec.ts:103:5 › model switches use one persistent localized toast, cache verified bytes, and isolate superseded failures (5.3s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 260 [chromium] › e2e\\multi-device-voice.spec.ts:5:7 › 多设备语音互斥接管与会话状态自动化验收 (Multi-device Voice Exclusivity) › 当语音被其他设备接管时，旧设备能够优雅退出、释放麦克风并呈现转移横幅与一键拉回 (6.0s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 261 [chromium] › e2e\\noise-suppression-dual-engine.spec.ts:5:7 › 三引擎降噪与四轨 A/B 录音试听全链路验收 › 完整验证三引擎切换、试听入口与底栏快捷轮换 (3.7s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 262 [chromium] › e2e\\p2p-single-user-standby.spec.ts:149:7 › VoiceMesh 对端离开防重试与单人待命防降级验收测试 › 对端发送 VOICE_LEAVE 后本端立即销毁连接并清空重试，禁止打洞重试与 SFU 降级 (2.0s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 263 [chromium] › e2e\\p2p-single-user-standby.spec.ts:232:7 › VoiceMesh 对端离开防重试与单人待命防降级验收测试 › 异常断线时单人守卫：目标离房后拦截重试与 SFU 降级 (242ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 264 [chromium] › e2e\\p2p-single-user-standby.spec.ts:294:7 › VoiceMesh 对端离开防重试与单人待命防降级验收测试 › 旧频道的离开信令不会关闭新频道中的同一对端 (241ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 265 [chromium] › e2e\\p2p-single-user-standby.spec.ts:329:7 › VoiceMesh 对端离开防重试与单人待命防降级验收测试 › 私信通话离开信令定向发送给对端并携带 callId (246ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 266 [chromium] › e2e\\p2p-streaming-transmission-mode.spec.ts:206:7 › P2P 直连与智能接力直播传输模式端到端自动化验收 › 主播可以在直播弹窗中自由选择「服务器中继」与「P2P 直连打洞」，并能切换 Mesh 直连与 Tree 接力 (1.2s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 267 [chromium] › e2e\\p2p-streaming-transmission-mode.spec.ts:277:7 › P2P 直连与智能接力直播传输模式端到端自动化验收 › 网络健康看板中能够实时展示「P2P 穿透与拓扑诊断 (NAT & Relay HUD)」 (4.2s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 268 [chromium] › e2e\\p2p-streaming-transmission-mode.spec.ts:333:7 › P2P 直连与智能接力直播传输模式端到端自动化验收 › 主播以 P2P 直连模式启动直播推流后，本地卡片能够即刻渲染推流画面且保持稳定 (1.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 269 [chromium] › e2e\\p2p-streaming-transmission-mode.spec.ts:392:7 › P2P 直连与智能接力直播传输模式端到端自动化验收 › P2P 成员徽标呈现连接中、TURN 延迟和失败重试状态 (1.0s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 270 [chromium] › e2e\\p2p-streaming-transmission-mode.spec.ts:472:7 › P2P 直连与智能接力直播传输模式端到端自动化验收 › P2P 语音与直播共享服务端下发的 STUN/TURN 配置 (560ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 271 [chromium] › e2e\\p2p-topology-owner.spec.ts:4:5 › a viewer or unrelated streamer cannot remove the active P2P stream (1ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 272 [chromium] › e2e\\passkey-auth.spec.ts:8:7 › WebAuthn (Passkey) 身份认证与凭据管理端到端自动化验收 › 1. 登录模态框 (AuthModal) 首屏与密码阶段显式展示通行密钥登录入口 (507ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 273 [chromium] › e2e\\passkey-auth.spec.ts:36:7 › WebAuthn (Passkey) 身份认证与凭据管理端到端自动化验收 › 2. 多账号选择器 (AccountPicker) 阶段显式展示通行密钥登录按钮 (424ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 274 [chromium] › e2e\\passkey-auth.spec.ts:68:7 › WebAuthn (Passkey) 身份认证与凭据管理端到端自动化验收 › 2.1 多账号选择器下通行密钥校验失败时显式展示错误横幅 (account-picker-error) (754ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 275 [chromium] › e2e\\passkey-auth.spec.ts:115:7 › WebAuthn (Passkey) 身份认证与凭据管理端到端自动化验收 › 3. 用户设置中心新增「账号安全与通行密钥」标签页及设备管理 (975ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 276 [chromium] › e2e\\passkey-auth.spec.ts:154:7 › WebAuthn (Passkey) 身份认证与凭据管理端到端自动化验收 › 4. 完整 WebAuthn 凭证登记、免密登录、重命名闭环验证 (CDP Virtual Authenticator) (7.1s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 277 [chromium] › e2e\\permissions-channel-and-invite.spec.ts:15:7 › 频道与分类拖拽及创建/邀请入口权限控制专项端到端验收 › 1. 普通成员（无 MANAGE_CHANNELS 与 CREATE_INVITE 权限）：彻底禁用拖拽、隐藏新建分类/新建频道及邀请入口 (1.2s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 278 [chromium] › e2e\\permissions-channel-and-invite.spec.ts:175:7 › 频道与分类拖拽及创建/邀请入口权限控制专项端到端验收 › 2. 特权/管理员用户：完整展示侧边栏按钮、分类新建按钮、频道右键邀请与右键管理功能 (992ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 279 [chromium] › e2e\\presence.spec.ts:51:7 › 真实用户在线状态 (Online Presence / Status) 端到端全链路验收 › 验证进入服务器后成员列表渲染与初始状态指示灯 (762ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 280 [chromium] › e2e\\presence.spec.ts:88:7 › 真实用户在线状态 (Online Presence / Status) 端到端全链路验收 › 验证右键菜单切换自身状态至请勿打扰 (DND) 与隐身 (INVISIBLE) (1.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 281 [chromium] › e2e\\presence.spec.ts:140:7 › 真实用户在线状态 (Online Presence / Status) 端到端全链路验收 › 验证接收网关 PRESENCE_UPDATE 广播后成员列表即时响应式联动 (891ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 282 [chromium] › e2e\\presence.spec.ts:200:7 › 真实用户在线状态 (Online Presence / Status) 端到端全链路验收 › 验证私信会话列表中好友状态指示灯与 PRESENCE_UPDATE 实时一致性联动 (603ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 283 [chromium] › e2e\\production-auth-and-invites.spec.ts:4:7 › 生产环境化治理与全站注册邀请码端到端验收 › 1. 登录界面净化：彻底取消快速联调预设账号，无任何测试凭据暴露 (457ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 284 [chromium] › e2e\\production-auth-and-invites.spec.ts:28:7 › 生产环境化治理与全站注册邀请码端到端验收 › 2. 注册表单支持邀请码输入，且通过 URL 参数 ?invite= 自动打开并预填 (459ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 285 [chromium] › e2e\\production-auth-and-invites.spec.ts:49:7 › 生产环境化治理与全站注册邀请码端到端验收 › 3. 超级管理员控制台：包含独立的「注册邀请码」Tab，可创建并展示邀请码 (1.1s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 286 [chromium] › e2e\\profile-and-activity.spec.ts:63:7 › 游戏状态自动侦测与全维度展示卡个性化 (Profiles & Game Activity) E2E 验收 › 验证展示卡个性化设置页双栏结构、1:1 动态实时预览及游戏状态交互 (1.2s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 287 [chromium] › e2e\\profile-mobile-responsive.spec.ts:66:7 › 移动端 Web 与较小视口“编辑个人资料 / 用户设置”响应式交互验收 › 移动端小视口 (375x667)：目录与详情切换、全屏Modal、悬浮预览及无溢出保存条 (1.7s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 288 [chromium] › e2e\\profile-mobile-responsive.spec.ts:210:7 › 移动端 Web 与较小视口“编辑个人资料 / 用户设置”响应式交互验收 › 超窄屏移动端 (360x740)：验证无横向溢出与表单输入无缩放冲突 (1.0s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 289 [chromium] › e2e\\quick-account-login.spec.ts:9:7 › 邮箱记忆与 Discord 快捷多账号登录及7天免密端到端验收测试 › 1. 首次登录成功后自动记忆账号资料，登出后优先呈现类似 Discord 的快捷账号卡片 (1.1s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 290 [chromium] › e2e\\quick-account-login.spec.ts:74:7 › 邮箱记忆与 Discord 快捷多账号登录及7天免密端到端验收测试 › 2. 点击快捷账号卡片平滑切入密码输入，展示选中账号信息并支持一键返回 (1.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 291 [chromium] › e2e\\quick-account-login.spec.ts:137:7 › 邮箱记忆与 Discord 快捷多账号登录及7天免密端到端验收测试 › 3. 支持从设备快捷移除已记忆账号，清空后自动回退至常规邮箱输入页 (470ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 292 [chromium] › e2e\\quick-account-login.spec.ts:183:7 › 邮箱记忆与 Discord 快捷多账号登录及7天免密端到端验收测试 › 4. 在账号选择页支持‘使用其他账号登录’与‘返回账号列表’双向切换 (901ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 293 [chromium] › e2e\\real-webrtc-loopback.spec.ts:3:5 › 真实 Chromium PeerConnection 直连产生媒体字节、解码帧和一致编解码 (804ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 294 [chromium] › e2e\\reauth-modal.spec.ts:4:7 › 令牌失效重新登录 Modal 与会话无感恢复验收 › 401 拦截后弹出毛玻璃重新登录 Modal、阻断关闭并在验证密码后无缝恢复 (821ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 295 [chromium] › e2e\\reauth-modal.spec.ts:237:7 › 令牌失效重新登录 Modal 与会话无感恢复验收 › WebSocket 会话失效事件可唤起 ReauthModal，且支持切换账号彻底登出 (786ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 296 [chromium] › e2e\\reauth-modal.spec.ts:332:7 › 令牌失效重新登录 Modal 与会话无感恢复验收 › ReauthModal 允许通过按 ESC 键或右上角关闭按钮退出并重定向至登录页 (528ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 297 [chromium] › e2e\\rich-text-upload-and-user-tag.spec.ts:4:7 › 文字频道富文本悬浮菜单、图片上传404修复与识别码内嵌综合端到端验收 › 1. 文字输入框选中文本弹出富文本悬浮菜单，支持Markdown包裹，Ctrl+A抑制展示 (1.3s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 298 [chromium] › e2e\\rich-text-upload-and-user-tag.spec.ts:101:7 › 文字频道富文本悬浮菜单、图片上传404修复与识别码内嵌综合端到端验收 › 2. 用户设置中心中，用户识别码 #XXXXX 移入 input 框内侧右端内嵌展示且头像预览正常 (795ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 299 [chromium] › e2e\\screen-share-audio-fallback.spec.ts:5:7 › 屏幕分享伴音异常与自动优雅降级 (NotReadableError Audio Fallback) E2E 验收 › 当捕获系统伴音失败 (NotReadableError) 时，系统必须自动无缝降级为纯画面推流并展示全局 Toast 提示 (6.1s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 300 [chromium] › e2e\\screen-share-resolution-16x9.spec.ts:5:7 › 屏幕分享 16:9 自适应分辨率与屏幕尺寸硬性禁用 E2E 验收 › 在屏幕共享弹窗中根据屏幕尺寸动态限制最大 16:9 分辨率，并支持 Discord 风格矩阵解耦选择与推流 (5.9s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 301 [chromium] › e2e\\screen-share-user-card.spec.ts:5:7 › 直播屏幕分享与摄像头画面融合（画中画自由切换）E2E 验收 › 完整验证屏幕分享在用户卡片内展示、右下角画中画叠加、点击自由切换主次画面与平滑回退全链路 (6.7s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 302 [chromium] › e2e\\security-boundaries.spec.ts:11:5 › Gateway rejects forged identity and cross-guild voice signaling (1.3s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 303 [chromium] › e2e\\security-boundaries.spec.ts:101:5 › HTTP and Gateway reject missing, expired, revoked and banned sessions (1.2s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 304 [chromium] › e2e\\security-boundaries.spec.ts:208:5 › private attachments reject direct reads and invalid signatures; webhook uses its signature gate (421ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 305 [chromium] › e2e\\security-boundaries.spec.ts:379:5 › image preview is smaller while the original bytes remain available (320ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 306 [chromium] › e2e\\security-boundaries.spec.ts:444:5 › a user avatar is private until its owner binds it to the profile (281ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 307 [chromium] › e2e\\security-boundaries.spec.ts:570:5 › role managers cannot create, grant, or promote privileges they do not hold (389ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 308 [chromium] › e2e\\security-boundaries.spec.ts:719:5 › pending guild icons remain private and can be discarded only by their authorized owner (126ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 309 [chromium] › e2e\\security-boundaries.spec.ts:778:5 › POST /api/guilds rejects creating guild with untrusted iconUrl (76ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 310 [chromium] › e2e\\security-boundaries.spec.ts:800:5 › PATCH /api/users/@me enforces user-banner claim authorization (120ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 311 [chromium] › e2e\\security-boundaries.spec.ts:862:5 › PUT /api/guilds/:guildId/roles/positions enforces guild boundary and protects @everyone (81ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 312 [chromium] › e2e\\security-boundaries.spec.ts:898:5 › PATCH /api/channels/:channelId rejects parentId belonging to different guild (73ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 313 [chromium] › e2e\\security-dialog-modal.spec.ts:4:7 › 全局决策模态框与4位安全验证码验收 (Security Code & Dialog Modal E2E) › 验证自定义确认模态框正常唤起并响应取消操作（平替 window.confirm） (2.2s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 314 [chromium] › e2e\\security-dialog-modal.spec.ts:50:7 › 全局决策模态框与4位安全验证码验收 (Security Code & Dialog Modal E2E) › 验证解散服务器弹窗展示4位随机安全码：错误输入时禁用，正确输入后激活 (2.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 315 [chromium] › e2e\\server-invite-card-rich.spec.ts:48:7 › 服务器邀请卡片 (Server Invite Card) 视觉呈现与第一频道跳转验收 › 1. 未加入状态：卡片呈现完整元素与'加入'按钮，点击后加入服务器并直接跳转至第一频道 (850ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 316 [chromium] › e2e\\server-invite-card-rich.spec.ts:209:7 › 服务器邀请卡片 (Server Invite Card) 视觉呈现与第一频道跳转验收 › 2. 已加入状态：卡片按钮显示为'前往服务器'，点击后直接跳转至第一频道 (826ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 317 [chromium] › e2e\\server-isolation-and-discovery.spec.ts:4:7 › 服务器未加入隔离与公开社区探索中心验收 (Server Isolation & Discovery) › 未加入服务器的用户不可见该服务器，侧边栏可打开公开社区探索并加入 (1.9s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 318 [chromium] › e2e\\server-isolation-and-discovery.spec.ts:112:7 › 服务器未加入隔离与公开社区探索中心验收 (Server Isolation & Discovery) › 私有服务器完全不对未加入者公开且不能在探索列表中被检索 (192ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 319 [chromium] › e2e\\server-isolation-and-discovery.spec.ts:183:7 › 服务器未加入隔离与公开社区探索中心验收 (Server Isolation & Discovery) › 同一客户端在用户切换时彻底清空上一个账号的聊天消息与公会数据，绝无跨用户消息残留 (3.0s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 320 [chromium] › e2e\\server-members-and-settings.spec.ts:15:7 › 服务器设置：ESC/滚动条、移动端UI边距与成员列表角色对齐与次菜单交互验收 › 验证移动端 (390px) 服务器设置无多余右侧空白，且各选项卡全宽适配 (1.6s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 321 [chromium] › e2e\\server-members-and-settings.spec.ts:61:7 › 服务器设置：ESC/滚动条、移动端UI边距与成员列表角色对齐与次菜单交互验收 › 验证桌面端成员列表中角色 Badge 与 + 号水平基准线严格对齐，且 + 号次菜单通过 Portal 正常展示与交互 (1.2s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 322 [chromium] › e2e\\server-sidebar-scroll.spec.ts:4:7 › 服务器侧边栏超出容器时竖向滚动与滚动条隐藏验收 › 当服务器数量超出容器高度时能够平滑竖向滚动，隐藏滚动条，且底部创建/探索操作常驻吸底 (797ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 323 [chromium] › e2e\\server-sidebar-scroll.spec.ts:153:7 › 服务器侧边栏超出容器时竖向滚动与滚动条隐藏验收 › 用户可以通过拖拽自由调整服务器排序（个人偏好），且本地持久化与页面刷新后保持最新偏好 (3.2s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 324 [chromium] › e2e\\server-sync-loading-and-memory.spec.ts:69:7 › 服务器列表同步秒开加载与最后访问位置全域记忆 (Server Sync Loading & Location Memory) › 1. 停留于公会及子频道时刷新页面，本地缓存同步水合秒开直接恢复该公会与频道 (1.5s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 325 [chromium] › e2e\\server-sync-loading-and-memory.spec.ts:119:7 › 服务器列表同步秒开加载与最后访问位置全域记忆 (Server Sync Loading & Location Memory) › 2. 点击 Home 切换到好友主页后刷新，坚决停留在好友主页（绝不再被强制跳转回首个公会） (3.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 326 [chromium] › e2e\\settings-modals.spec.ts:32:7 › 编辑频道与服务器设置自适应模态框 (Modal) 交互验收 › 验证编辑频道 Modal：通过齿轮与右键菜单唤起、表单渲染与关闭 (1.0s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 327 [chromium] › e2e\\settings-modals.spec.ts:85:7 › 编辑频道与服务器设置自适应模态框 (Modal) 交互验收 › 频道悬浮齿轮打开编辑弹窗并可用 ESC 关闭 (710ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 328 [chromium] › e2e\\settings-modals.spec.ts:104:7 › 编辑频道与服务器设置自适应模态框 (Modal) 交互验收 › 验证服务器设置自适应响应式 Modal：居中卡片挂载、导航切换与关闭 (644ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 329 [chromium] › e2e\\seven-features-enhancement.spec.ts:177:7 › 7 项核心需求与 UI 增强全链路端到端自动化验收 (Seven Features Enhancement E2E) › 功能1 & 功能2：频道名校验（语音允许空格与大小写，文本转小写破折号）与自定义 Select 选项组件交互 (2.2s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 330 [chromium] › e2e\\seven-features-enhancement.spec.ts:259:7 › 7 项核心需求与 UI 增强全链路端到端自动化验收 (Seven Features Enhancement E2E) › 功能3：Tooltip 原生转换为自定义 CSS 黑暗微气泡组件并支持悬停显示 (1.9s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 331 [chromium] › e2e\\seven-features-enhancement.spec.ts:276:7 › 7 项核心需求与 UI 增强全链路端到端自动化验收 (Seven Features Enhancement E2E) › 功能4：P2P 语音频道喇叭右上角图标、E2EE 加密锁标展示，并取消人数预览数字 (1.6s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 332 [chromium] › e2e\\seven-features-enhancement.spec.ts:301:7 › 7 项核心需求与 UI 增强全链路端到端自动化验收 (Seven Features Enhancement E2E) › 功能5：浮动音乐播放器全窗口拖拽吸附、左向右波形连续填充与寻道下标 Tooltip (1.7s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 333 [chromium] › e2e\\seven-features-enhancement.spec.ts:333:7 › 7 项核心需求与 UI 增强全链路端到端自动化验收 (Seven Features Enhancement E2E) › 功能6：主播推流人数统计胶囊位于左上角 (top-2 left-2) (1.6s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 334 [chromium] › e2e\\seven-features-enhancement.spec.ts:346:7 › 7 项核心需求与 UI 增强全链路端到端自动化验收 (Seven Features Enhancement E2E) › 功能7：附件专属右键上下文菜单（下载附件、复制链接、新标签页打开、消息操作） (1.7s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 335 [chromium] › e2e\\six-features-adjustment.spec.ts:20:7 › 6 项系统功能调整与体验优化自动化验收 (six-features-adjustment) › 1. 外观与版面：移除客户端缩放，提供 13px~20px 全局文字大小调节与重置 (1.0s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 336 [chromium] › e2e\\six-features-adjustment.spec.ts:58:7 › 6 项系统功能调整与体验优化自动化验收 (six-features-adjustment) › 2. 用户状态指示器：在用户设置中切换至闲置(月牙)与请勿打扰(横杠)，SVG物理镂空生效 (1.0s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 337 [chromium] › e2e\\six-features-adjustment.spec.ts:102:7 › 6 项系统功能调整与体验优化自动化验收 (six-features-adjustment) › 3. 用户设置表情管理：支持查看与管理个人表情，并展示 /50 配额与上传按钮 (843ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 338 [chromium] › e2e\\six-features-adjustment.spec.ts:122:7 › 6 项系统功能调整与体验优化自动化验收 (six-features-adjustment) › 4. 超级管理员建服控制：普通用户在受限模式下展示专属单服提示并引导加入 (816ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 339 [chromium] › e2e\\six-features-adjustment.spec.ts:159:7 › 6 项系统功能调整与体验优化自动化验收 (six-features-adjustment) › 5. 类 Discord 表情选择器：支持搜索、分类和底部预览 (594ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 340 [chromium] › e2e\\six-user-requirements.spec.ts:195:7 › 六项用户体验改进与身份组管理增强综合验收 › 1. 验证语音与成员展示名优先级规则 (member.nickname > user.displayName > user.username) (556ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 341 [chromium] › e2e\\six-user-requirements.spec.ts:214:7 › 六项用户体验改进与身份组管理增强综合验收 › 2. 验证服务器邀请功能：无活动链接时预生成，已有活动链接可复用 (963ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 342 [chromium] › e2e\\six-user-requirements.spec.ts:283:7 › 六项用户体验改进与身份组管理增强综合验收 › 3. 验证服务器图标编辑：取消网络直链输入，支持裁剪/压缩，且模态框滚动条位于 ESC 右侧 (764ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 343 [chromium] › e2e\\six-user-requirements.spec.ts:325:7 › 六项用户体验改进与身份组管理增强综合验收 › 4. 验证成员管理与身份组管理：Badge与Plus在单行，单选即关，且身份组管理支持删除与无误判告警 (1.1s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 344 [chromium] › e2e\\six-voice-profile-fixes.spec.ts:132:7 › 六项核心体验修复专项验收 (头像裁切/布局解耦/Opus频道码率/4轨降噪/前级电平/200%音量) › 需求 1：用户个人资料中支持头像自定义修改、随机生成与移除，展示正常 (824ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 345 [chromium] › e2e\\six-voice-profile-fixes.spec.ts:175:7 › 六项核心体验修复专项验收 (头像裁切/布局解耦/Opus频道码率/4轨降噪/前级电平/200%音量) › 需求 2 & 6：用户设置音视频面板已解耦编码器设置，输出音量最高达200% (787ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 346 [chromium] › e2e\\six-voice-profile-fixes.spec.ts:222:7 › 六项核心体验修复专项验收 (头像裁切/布局解耦/Opus频道码率/4轨降噪/前级电平/200%音量) › 需求 3 验证：语音频道设置中包含 Opus 推流码率调节滑块 (8 kbps ~ 128 kbps) (907ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 347 [chromium] › e2e\\six-voice-profile-fixes.spec.ts:260:7 › 六项核心体验修复专项验收 (头像裁切/布局解耦/Opus频道码率/4轨降噪/前级电平/200%音量) › 需求 4：AI 降噪效果对比播放器采用现代声学电平设计并支持开始测试 (734ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 348 [chromium] › e2e\\smoke.spec.ts:4:7 › Tescord Web 端到端冒烟与核心交互验收 › 未登录状态下能够正常加载并呈现登录/注册引导 (449ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 349 [chromium] › e2e\\smoke.spec.ts:51:7 › Tescord Web 端到端冒烟与核心交互验收 › 已登录状态下验证三栏布局、服务器切换、右键菜单与音频降噪控制中心全生命周期 (2.2s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 350 [chromium] › e2e\\stl-3d-preview.spec.ts:37:7 › 消息附件 STL 3D 模型在线预览与交互验收 (STL 3D Preview Modal) › STL 3D 模型上传、卡片专属标识、在线 3D 预览弹窗、统计面板与交互控制完整链路 (1.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 351 [chromium] › e2e\\stream-kick-security.spec.ts:3:5 › Gateway accepts stream kick only from the active stream owner (1.7s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 352 [chromium] › e2e\\stream-stats-viewers-and-controls.spec.ts:41:7 › 主播推流控制、媒体编解码统计与观众管理端到端验收 › 主播禁止全屏播放、支持聚焦，右上角展示（·）人数徽标并能弹出观众管理，且能正常查看主播推流统计 (1.1s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 353 [chromium] › e2e\\stream-topology-mode.spec.ts:4:7 › 直播推流传输拓扑独立解耦 (Live Streaming Topology Mode: SFU vs P2P Mesh vs Mesh Tree) › API 接口安全性校验：非法 streamMode 拒绝 400，未授权拒绝 401，合法模式持久化存储 (166ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 354 [chromium] › e2e\\stream-topology-mode.spec.ts:113:7 › 直播推流传输拓扑独立解耦 (Live Streaming Topology Mode: SFU vs P2P Mesh vs Mesh Tree) › UI 验收：编辑频道弹窗中语音传输拓扑与直播推流架构完全解耦，支持独立选择 (2.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 355 [chromium] › e2e\\typing-indicator.spec.ts:31:7 › 打字指示器 (Typing Indicator) 端到端交互与动效验收 › 打字指示器渲染、经典跳跃动画、多人文案与新消息到达自动消除 (1.1s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 356 [chromium] › e2e\\user-audio-settings.spec.ts:4:7 › 个人设置中心与全新“音频”菜单交互验收 › 点击左下角齿轮默认激活音频菜单，体验设备调节、降噪卡片切换与双栏导航 (1.5s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 357 [chromium] › e2e\\user-note-profile-card.spec.ts:25:7 › 用户信息Card备注功能（1:1 Discord 交互与私有备注架构）端到端验收 › 用户备注完整链路：自身卡片无备注、他人卡片增删改查、失焦/回车保存及重新打开持久化验证 (1.9s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 358 [chromium] › e2e\\user-profile-cards-redesign.spec.ts:25:7 › 用户资料卡片重排版与图1/图2交互差异化验收 (UserProfilePopout Redesign) › 图1（自身卡片：气泡状态与编辑个人资料）与图2（他人卡片：快捷私信与共同服务器）完整交互链路验证 (1.9s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 359 [chromium] › e2e\\user-profile-popout-mutual-exclusion.spec.ts:4:7 › 用户信息卡片 (UserProfilePopout) 全局单例互斥显示 E2E 验收 › 核心缺陷回归：聊天消息头像呼出卡片与右侧成员列表卡片只能同时显示一个，且支持平滑切换与折叠 (1.5s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 360 [chromium] › e2e\\video-codecs.spec.ts:5:7 › 视频编码格式（H.264 / AV1 / VP9 / VP8 / HEVC）与硬件加速 E2E 验收 › 在设置中心切换视频编码器、配置双编码降级与自定义码率，并在屏幕共享弹窗中灵活指定编码格式与查看视频卡片角标 (6.4s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 361 [chromium] › e2e\\voice-channel-interaction.spec.ts:5:7 › 语音频道进入交互自动化验收 (Voice Channel Click & Double-Click) › 单击仅预览语音房间，双击直接连入通话，且右键菜单支持快捷连入 (8.7s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 362 [chromium] › e2e\\voice-channel-topology-mode.spec.ts:5:7 › 语音频道传输拓扑模式 (Voice Channel Topology: SFU vs P2P Mesh) › API 接口安全性校验：非法 voiceMode 拒绝 400，未授权拒绝 401 (155ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 363 [chromium] › e2e\\voice-channel-topology-mode.spec.ts:94:7 › 语音频道传输拓扑模式 (Voice Channel Topology: SFU vs P2P Mesh) › UI 验收：编辑频道弹窗支持切换并保存语音拓扑架构 (SFU vs P2P Mesh) (3.1s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 364 [chromium] › e2e\\voice-channel-topology-mode.spec.ts:175:7 › 语音频道传输拓扑模式 (Voice Channel Topology: SFU vs P2P Mesh) › SFU 连接后左下角显示实际 RTT 而非占位值 (898ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 365 [chromium] › e2e\\voice-disconnect-member.spec.ts:4:7 › 管理员踢出/断开语音频道成员专项端到端与安全验收 (Voice Disconnect Member) › 1. 安全边界与负向权限验证：未登录、断开自身、无权限、越权处置及未在语音中均被拒绝 (100ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 366 [chromium] › e2e\\voice-disconnect-member.spec.ts:49:7 › 管理员踢出/断开语音频道成员专项端到端与安全验收 (Voice Disconnect Member) › 2. 前端右键菜单交互与二次确认弹窗流程验证 (342ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 367 [chromium] › e2e\\voice-switching-multistream-transfer.spec.ts:50:7 › 语音多端互斥接管、频道顺滑切换与多路直播自适应网格验收 › 1. 多端登录互斥：新设备接管语音后，旧设备必须彻底退出并呈现转移横幅 (3.6s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 368 [chromium] › e2e\\voice-switching-multistream-transfer.spec.ts:97:7 › 语音多端互斥接管、频道顺滑切换与多路直播自适应网格验收 › 2. 语音频道顺滑切换：在已连接语音状态下，双击另一语音频道可直接原子切换 (5.5s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 369 [chromium] › e2e\\voice-switching-multistream-transfer.spec.ts:151:7 › 语音多端互斥接管、频道顺滑切换与多路直播自适应网格验收 › 3. 多直播同时观看 & 主播边播边看自适应舞台网格呈现 (3.2s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 370 [chromium] › e2e\\voice-switching-multistream-transfer.spec.ts:219:7 › 语音多端互斥接管、频道顺滑切换与多路直播自适应网格验收 › 4. 快速切频与过渡离线信令防脑裂：收到旧频道过渡离开信令时绝不误退入未连入大厅 (5.5s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 371 [chromium] › e2e\\whats-new-modal.spec.ts:23:7 › 版本更新公告模态框 (What's New Modal) 自动化验收 › 1. 首次登入或版本升级自动温和弹出，点击'我知道了'写入已读并不再弹窗 (2.9s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 372 [chromium] › e2e\\whats-new-modal.spec.ts:87:7 › 版本更新公告模态框 (What's New Modal) 自动化验收 › 2. 在设置面板（关于与更新）中可主动点击呼出更新公告 (1.1s)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 373 [chromium] › e2e\\whats-new-modal.spec.ts:134:7 › 版本更新公告模态框 (What's New Modal) 自动化验收 › 3. 桌面端增量更新就绪横幅联动：展示自适应'立即重启并应用更新'按钮 (932ms)"
+    },
+    {
+      "passed": true,
+      "project": "chromium",
+      "label": "ok 374 [chromium] › e2e\\whats-new-modal.spec.ts:240:7 › 版本更新公告模态框 (What's New Modal) 自动化验收 › 4. 5 种官方语言即时热切换无破损与文案对称性 (919ms)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok 375 [multiplayer] › e2e\\media-encryption-device-mesh.spec.ts:107:5 › three real signed devices negotiate stream keys, render encrypted mesh audio, and rotate on leave (24.0s)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok 376 [multiplayer] › e2e\\media-encryption-device-mesh.spec.ts:525:7 › 3 signed devices: sequential mesh joins, sustained encryption and device lifecycle (1.4m)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok 377 [multiplayer] › e2e\\media-encryption-device-mesh.spec.ts:562:7 › 3 signed devices: ten concurrent mesh joins and ten rotation joins (5.1m)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok 378 [multiplayer] › e2e\\media-encryption-device-mesh.spec.ts:525:7 › 5 signed devices: sequential mesh joins, sustained encryption and device lifecycle (1.9m)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok 379 [multiplayer] › e2e\\media-encryption-device-mesh.spec.ts:562:7 › 5 signed devices: ten concurrent mesh joins and ten rotation joins (7.7m)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok 380 [multiplayer] › e2e\\media-encryption-lifecycle.spec.ts:11:5 › a delayed old room epoch cannot bootstrap a new registration (19.4s)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok 381 [multiplayer] › e2e\\media-encryption-lifecycle.spec.ts:103:5 › lost successful HTTP responses retry the same signed publication and ACK idempotently (16.6s)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok 382 [multiplayer] › e2e\\media-encryption-lifecycle.spec.ts:204:5 › signed future envelopes before epoch updates and duplicate ACKs converge (16.7s)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok 383 [multiplayer] › e2e\\media-encryption-lifecycle.spec.ts:298:5 › a delayed old snapshot cannot roll back a newer signed three-device epoch (17.4s)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok 384 [multiplayer] › e2e\\media-encryption-lifecycle.spec.ts:371:5 › lost signed envelope and ACK pushes recover through bounded snapshot synchronization (14.6s)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok 385 [multiplayer] › e2e\\media-encryption-lifecycle.spec.ts:420:5 › retryable registration snapshots and delayed old leave cannot revoke a rejoined device (21.1s)"
+    },
+    {
+      "passed": true,
+      "project": "multiplayer",
+      "label": "ok 386 [multiplayer] › e2e\\voice-mesh-bootstrap.spec.ts:4:5 › Gateway roster updates survive delayed initial P2P ICE preparation (11.8s)"
+    }
+  ],
+  "latencyGates": [],
+  "tests": [
+    {
+      "directory": "test-results/default-e2e/media-encryption-device-me-142c4-yption-and-device-lifecycle-multiplayer",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-142c4-yption-and-device-lifecycle-multiplayer/multiplayer-mv00v2xe_2_4hxcd.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [60000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 1,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv00v34d011hro5krw1bcc8g/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            },
+            {
+              "path": "/api/channels/cmv00v34d011hro5krw1bcc8g/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            },
+            {
+              "path": "/api/channels/cmv00v34d011hro5krw1bcc8g/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer",
+      "matrix": true,
+      "rooms": [
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv00wugx_2_x2pxs.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv00x4z3_2_xj6i9.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv00x55u017sro5kb5nqibbk/media-encryption/publish",
+              "status": 409,
+              "durationMs": 38,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv00xgy9_2_h8azm.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv00xrw3_2_9tsmi.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv00xs2s01bsro5kozcllz8a/media-encryption/publish",
+              "status": 409,
+              "durationMs": 34,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv00y4tn_2_ev6mr.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv00yfsl_2_4nch0.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv00yfzi01fsro5kv0ptk3ur/media-encryption/publish",
+              "status": 409,
+              "durationMs": 44,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv00ysmw_2_8x787.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv00z3ko_2_uwdb4.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv00z3r901jtro5kwpbl38up/media-encryption/publish",
+              "status": 409,
+              "durationMs": 41,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv00zgf8_2_qbmef.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv00zrap_2_e7jiq.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv00zrhk01nqro5kjzfx40nb/media-encryption/publish",
+              "status": 409,
+              "durationMs": 29,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv01035f_2_ggpib.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv010e2n_2_vruak.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv010e9j01rpro5k9g56ve4o/media-encryption/acknowledge",
+              "status": 409,
+              "durationMs": 58,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv010e9j01rpro5k9g56ve4o/media-encryption/publish",
+              "status": 409,
+              "durationMs": 32,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv010qi3_2_p0j8r.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv011126_2_bepjq.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01119201vpro5ksvkcv1g5/media-encryption/publish",
+              "status": 409,
+              "durationMs": 37,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv011dw8_2_ervec.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv011ot8_2_xtelo.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv011p0701zqro5kuvfntdgg/media-encryption/publish",
+              "status": 409,
+              "durationMs": 36,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv01214q_2_kl2ou.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv012c50_2_17x02.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv012cc1023qro5k9t34lpqu/media-encryption/publish",
+              "status": 409,
+              "durationMs": 29,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv012o3e_2_uzi50.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-1611e-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv012zoe_2_tyj6q.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv012zvb027pro5knec10njx/media-encryption/publish",
+              "status": 409,
+              "durationMs": 30,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer",
+      "matrix": true,
+      "rooms": [
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv015t9z_2_82s2w.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv016a69_2_32q7d.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv016aht036wro5kki2mqr6e/media-encryption/acknowledge",
+              "status": 409,
+              "durationMs": 43,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv016aht036wro5kki2mqr6e/media-encryption/publish",
+              "status": 409,
+              "durationMs": 71,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv016sih_2_av3ok.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv0179fo_2_g2x6n.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv0179q903jvro5k5hj3hi44/media-encryption/publish",
+              "status": 409,
+              "durationMs": 53,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv017s5a_2_wy15f.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv01892o_2_vvgf5.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv0189dc03wtro5kath2aqc3/media-encryption/acknowledge",
+              "status": 409,
+              "durationMs": 47,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv0189dc03wtro5kath2aqc3/media-encryption/publish",
+              "status": 409,
+              "durationMs": 98,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv018rly_2_hgnxf.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv0198p3_2_a5tnp.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv0198zm049lro5khsh1swrx/media-encryption/publish",
+              "status": 409,
+              "durationMs": 65,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv019rk1_2_44isj.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv01a8m3_2_h22b1.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01a8y404mjro5kbtjvzr1h/media-encryption/publish",
+              "status": 409,
+              "durationMs": 81,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv01arlz_2_sb82y.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv01b8m7_2_cx5ii.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01b8x104ziro5klh3mcljy/media-encryption/publish",
+              "status": 409,
+              "durationMs": 77,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv01br1z_2_kdjs9.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv01c82z_2_y00ot.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01c8e005cdro5kzsmumtnc/media-encryption/acknowledge",
+              "status": 409,
+              "durationMs": 64,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv01c8e005cdro5kzsmumtnc/media-encryption/publish",
+              "status": 409,
+              "durationMs": 82,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv01cqie_2_vy8mf.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv01d7ql_2_5p4ah.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01d81f05p8ro5kxa21a83v/media-encryption/publish",
+              "status": 409,
+              "durationMs": 74,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv01dqt9_2_8nj15.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv01e7xl_2_o664p.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01e88m0623ro5kum4t12jg/media-encryption/publish",
+              "status": 409,
+              "durationMs": 91,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv01eqme_2_wfdih.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-16158-oins-and-ten-rotation-joins-multiplayer/multiplayer-mv01f7yq_2_6i9ji.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01f8a206eyro5kbg2cnqup/media-encryption/publish",
+              "status": 409,
+              "durationMs": 70,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/default-e2e/media-encryption-device-me-a073d-yption-and-device-lifecycle-multiplayer",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/default-e2e/media-encryption-device-me-a073d-yption-and-device-lifecycle-multiplayer/multiplayer-mv013cke_2_pjni8.json",
+          "count": 5,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [60000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 1,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv013cum029yro5kggxkdk5q/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            },
+            {
+              "path": "/api/channels/cmv013cum029yro5kggxkdk5q/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            },
+            {
+              "path": "/api/channels/cmv013cum029yro5kggxkdk5q/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/default-e2e/media-encryption-lifecycle-13fa6-and-duplicate-ACKs-converge-multiplayer",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/default-e2e/media-encryption-lifecycle-13fa6-and-duplicate-ACKs-converge-multiplayer/multiplayer-mv01givj_2_c2h0s.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01gj2406pero5kwpj5eyro/media-encryption/publish",
+              "status": 409,
+              "durationMs": 134,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv01gj2406pero5kwpj5eyro/media-encryption/publish",
+              "status": 409,
+              "durationMs": 135,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/default-e2e/media-encryption-lifecycle-4692b-ot-revoke-a-rejoined-device-multiplayer",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/default-e2e/media-encryption-lifecycle-4692b-ot-revoke-a-rejoined-device-multiplayer/multiplayer-mv01hkfu_2_sr3k1.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01hkme06v6ro5knmzqzoa9/media-encryption/join",
+              "status": 409,
+              "durationMs": 3,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv01hkme06v6ro5knmzqzoa9/media-encryption/join",
+              "status": 409,
+              "durationMs": 2,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv01hkme06v6ro5knmzqzoa9/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/default-e2e/media-encryption-lifecycle-b6e63-cation-and-ACK-idempotently-multiplayer",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/default-e2e/media-encryption-lifecycle-b6e63-cation-and-ACK-idempotently-multiplayer/multiplayer-mv01g62v_2_cxqb9.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01g69h06nbro5knlgdxoc7/media-encryption/publish",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            },
+            {
+              "path": "/api/channels/cmv01g69h06nbro5knlgdxoc7/media-encryption/acknowledge",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/default-e2e/media-encryption-lifecycle-e5c79-r-signed-three-device-epoch-multiplayer",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/default-e2e/media-encryption-lifecycle-e5c79-r-signed-three-device-epoch-multiplayer/multiplayer-mv01gvql_2_f3t16.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/default-e2e/media-encryption-lifecycle-f41c4-ed-snapshot-synchronization-multiplayer",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/default-e2e/media-encryption-lifecycle-f41c4-ed-snapshot-synchronization-multiplayer/multiplayer-mv01h975_2_p4jki.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/default-e2e/media-encryption-lifecycle-fd125-ootstrap-a-new-registration-multiplayer",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/default-e2e/media-encryption-lifecycle-fd125-ootstrap-a-new-registration-multiplayer/multiplayer-mv01fr47_2_iwlss.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01frbb06lbro5ky0d8jlzr/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            },
+            {
+              "path": "/api/channels/cmv01frbb06lbro5ky0d8jlzr/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/default-e2e/voice-mesh-bootstrap-Gatew-d0e10-initial-P2P-ICE-preparation-multiplayer",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/default-e2e/voice-mesh-bootstrap-Gatew-d0e10-initial-P2P-ICE-preparation-multiplayer/multiplayer-mv01i0rf_2_187k8.json",
+          "count": 3,
+          "mode": "p2p_mesh",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        }
+      ]
+    }
+  ],
+  "latencyGroups": [
+    {
+      "key": "p2p_mesh:auto:3",
+      "actualCandidatePairs": ["host->host"],
+      "laterFirstPlayable": {
+        "samples": 0,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "maxMs": null
+      },
+      "firstParticipantReady": {
+        "samples": 20,
+        "minMs": 2447,
+        "p50Ms": 2951,
+        "p95Ms": 2969,
+        "maxMs": 3471
+      },
+      "stageOffsets": {},
+      "statisticsScope": "Matrix rooms with verified all-route sustained media, including recovered HTTP failures. Incomplete rounds remain failed and are not playable samples."
+    },
+    {
+      "key": "p2p_mesh:auto:5",
+      "actualCandidatePairs": ["host->host"],
+      "laterFirstPlayable": {
+        "samples": 0,
+        "minMs": null,
+        "p50Ms": null,
+        "p95Ms": null,
+        "maxMs": null
+      },
+      "firstParticipantReady": {
+        "samples": 20,
+        "minMs": 2954,
+        "p50Ms": 2962,
+        "p95Ms": 2984,
+        "maxMs": 2985
+      },
+      "stageOffsets": {},
+      "statisticsScope": "Matrix rooms with verified all-route sustained media, including recovered HTTP failures. Incomplete rounds remain failed and are not playable samples."
+    }
+  ]
+}

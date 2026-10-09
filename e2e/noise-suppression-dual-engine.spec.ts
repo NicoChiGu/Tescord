@@ -57,9 +57,7 @@ test.describe("三引擎降噪与四轨 A/B 录音试听全链路验收", () => 
     await serverButton.click();
 
     // 3. 打开“音频与降噪设置”控制中心
-    const audioSettingsBtn = page.getByRole("button", {
-      name: "音频与降噪设置",
-    });
+    const audioSettingsBtn = page.getByTestId("user-settings-gear-btn");
     await expect(audioSettingsBtn).toBeVisible({ timeout: 5000 });
     await audioSettingsBtn.click();
 
@@ -120,7 +118,9 @@ test.describe("三引擎降噪与四轨 A/B 录音试听全链路验收", () => 
 
     // 12. 进入语音频道
     const voiceChannelBtn = page
-      .locator('button[data-testid^="channel-button-"][title]')
+      .locator(
+        'button[data-testid^="channel-button-"]:has(svg.lucide-volume-2)',
+      )
       .first();
     await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
     await voiceChannelBtn.dblclick();

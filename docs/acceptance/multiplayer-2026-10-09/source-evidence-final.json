@@ -1,0 +1,87 @@
+{
+  "capturedAtUtc": "2026-10-08T21:23:09.0157061Z",
+  "scope": "Product source unchanged from latest run; additional isolated output and strict trace attachment preservation",
+  "realRun": "56a0d2f1-2ec8-49cd-8747-e81ce591851c",
+  "files": [
+    {
+      "path": "packages/types/src/media-encryption.ts",
+      "sha256": "c777e8ebc046ee62e51b6e06555b56c1eb68c40d0a607325fdfb3385a0866b37"
+    },
+    {
+      "path": "packages/types/src/media-frame.ts",
+      "sha256": "04031b13e2b1afa589e54355945c33a237c25afb87d83b38509951b0ace7f780"
+    },
+    {
+      "path": "packages/types/src/index.ts",
+      "sha256": "776b6a9311279d5639004fa0aabd4799d42a59ad0ec5978937189fdf39d4b90c"
+    },
+    {
+      "path": "apps/server/src/services/media-encryption.service.ts",
+      "sha256": "ba34f64aa55c541937359c407bbcc24d27db4ed4ec63c94b6749d951dc0c5a7f"
+    },
+    {
+      "path": "apps/server/src/services/media-encryption.routes.ts",
+      "sha256": "0a30de5bb871beb1ea48ef6a5dd305b6ce559d9bc88a2641a20b05f3c5b35a32"
+    },
+    {
+      "path": "apps/server/src/services/cloudflare-realtime.service.ts",
+      "sha256": "d897c1be975bd1b7794bfc2439c91873c268f35f5e7ab3a588bdd19aec2dc6fb"
+    },
+    {
+      "path": "apps/server/src/index.ts",
+      "sha256": "22061bf8960ee67a2ac8a37a19d96022b1a2444bc01596da62867145bca44e50"
+    },
+    {
+      "path": "apps/server/src/gateway.ts",
+      "sha256": "ca7de026234a16a5e6801865fd1de495e5c59c26931cbe658a7a972d9c697e53"
+    },
+    {
+      "path": "apps/web/src/services/deviceKeys.ts",
+      "sha256": "a095b1fdbc18e5dbfbe10c710e9bdfdbbada3a2d8c50da9846904fec378afca5"
+    },
+    {
+      "path": "apps/web/src/services/mediaEncryption.ts",
+      "sha256": "5703addd0645858bf1a605f6faf15a115e277bc9926c0d0dc34bd1f05f77c10d"
+    },
+    {
+      "path": "apps/web/src/services/sframe.ts",
+      "sha256": "a648dccf2c180a4f0e30cbedb08ace292d4d1253e6cf77773c8a12f86e82958a"
+    },
+    {
+      "path": "apps/web/src/services/sframe.worker.ts",
+      "sha256": "b6204d5e73e2c69345af269aa62d894e7e2ab40cb9fd9d0e4d21356be4e0da78"
+    },
+    {
+      "path": "apps/web/src/services/p2p/VoiceMeshManager.ts",
+      "sha256": "172fe21b50172d1c4ec35978108a4622444c62c17b2b8b96fb899f6f8a5a338b"
+    },
+    {
+      "path": "apps/web/src/services/cloudflare_realtime/CloudflareRealtimeService.ts",
+      "sha256": "eed64e822815537764b68a11c14c32032ace91a8f62c600075db4a098716271a"
+    },
+    {
+      "path": "e2e/helpers/encrypted-multiplayer.ts",
+      "sha256": "135407cea8449e340dadbe832f1ccf1554d6c1b2b7d2cbcc872e07cbb1f69fb9"
+    },
+    {
+      "path": "e2e-real/multiplayer-encrypted-sfu.spec.ts",
+      "sha256": "0b431ca98d3cf4405b341d24617e953ade8d2a62873e8e135a916f0b6650140c"
+    },
+    {
+      "path": "playwright.config.ts",
+      "sha256": "ab9a6359566f320fad337281e934ce23446fa2d05f4bfd377f1ead3926aa8644"
+    },
+    {
+      "path": "playwright.multiplayer-real.config.ts",
+      "sha256": "65f09d98934c3a9c592d978675009d30f9d269cc31a7cf5206090326ca18f1b6"
+    },
+    {
+      "path": "scripts/run-real-multiplayer.mjs",
+      "sha256": "25056d1386e66a7087aa360a2e6c5a0a64f21f38c70d7afbd7d68993c910f366"
+    },
+    {
+      "path": "apps/web/build/real-media/assets/index-hnLOo87A.js",
+      "sha256": "872f778b43709036f9b86f9004e2afd507f4b8b518dacbf5f019b6b6107a31ac"
+    }
+  ]
+}

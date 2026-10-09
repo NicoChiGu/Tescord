@@ -25,6 +25,7 @@ docker/.env.production
 docker/.env.without-coturn
 docker/.env.cloudflare
 playwright-cloudflare-report/
+playwright-multiplayer-report/
 docker/certs/
 docker/backups/
 docker/**/datas/

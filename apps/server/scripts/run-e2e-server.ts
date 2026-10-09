@@ -4,23 +4,52 @@ import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { createServer } from "node:net";
+import { ErrorCode } from "@tescord/types";
 
 const serverRoot = fileURLToPath(new URL("..", import.meta.url));
-const databasePath = fileURLToPath(
-  new URL("../prisma/tescord-playwright.sqlite", import.meta.url),
-);
+const realMedia = process.env.TESCORD_REAL_MEDIA === "1";
+const databaseName = realMedia
+  ? process.env.TESCORD_REAL_MEDIA_DATABASE
+  : "tescord-playwright.sqlite";
+if (
+  !databaseName ||
+  (realMedia &&
+    !/^tescord-real-media-[a-f0-9-]{36}\.sqlite$/.test(databaseName))
+)
+  throw new Error("Real media tests require a unique isolated database name");
+const databasePath = resolve(serverRoot, "prisma", databaseName);
+const port = realMedia ? 3102 : 3101;
+if (realMedia) {
+  const { config } = await import("dotenv");
+  config({ path: resolve(serverRoot, "../../.env") });
+  for (const key of [
+    "CLOUDFLARE_CALLS_APP_ID",
+    "CLOUDFLARE_CALLS_APP_SECRET",
+    "CLOUDFLARE_CALLS_TURN_KEY_ID",
+    "CLOUDFLARE_CALLS_TURN_API_TOKEN",
+  ]) {
+    const value = process.env[key]?.trim();
+    if (!value || /^(e2e-|replace|changeme|example)/i.test(value))
+      throw new Error(`Missing real media configuration: ${key}`);
+  }
+  process.env.VOICE_ENGINE = "cloudflare_realtime";
+}
 
 await new Promise<void>((resolve, reject) => {
   const probe = createServer();
   probe.once("error", reject);
-  probe.listen(3101, "127.0.0.1", () => probe.close(() => resolve()));
+  probe.listen(port, "127.0.0.1", () => probe.close(() => resolve()));
 });
+if (realMedia && existsSync(databasePath))
+  throw new Error("Refusing to overwrite an existing real-media test database");
 if (existsSync(databasePath)) unlinkSync(databasePath);
-process.env.DATABASE_URL = "file:./tescord-playwright.sqlite";
+process.env.DATABASE_URL = `file:./${databaseName}`;
 process.env.DATABASE_PROVIDER = "sqlite";
-process.env.PORT = "3101";
+process.env.PORT = String(port);
 process.env.HOST = "127.0.0.1";
-process.env.SERVER_BASE_URL = "https://localhost:4173";
+process.env.SERVER_BASE_URL = realMedia
+  ? "https://localhost:4174"
+  : "https://localhost:4173";
 process.env.NODE_ENV = "development";
 process.env.IS_E2E = "true";
 process.env.ALLOW_FILE_ORIGIN = "true";
@@ -100,5 +129,39 @@ await appPrisma.user.update({
   where: { id: "usr_default_admin" },
   data: { role: "SUPER_ADMIN" },
 });
-const { start } = await import("../src/index.js");
+const { server, start } = await import("../src/index.js");
+if (realMedia) {
+  const cleanupToken = process.env.TESCORD_REAL_MEDIA_CLEANUP_TOKEN;
+  if (!cleanupToken || !/^[a-f0-9-]{36}$/.test(cleanupToken))
+    throw new Error("Real media cleanup requires a fresh runner token");
+  const { cloudflareRealtimeService } =
+    await import("../src/services/cloudflare-realtime.service.js");
+  server.post("/__e2e/media/drain", async (request, reply) => {
+    if (
+      !["127.0.0.1", "::1", "::ffff:127.0.0.1"].includes(request.ip) ||
+      request.headers.authorization !== `Bearer ${cleanupToken}`
+    )
+      return reply.code(403).send({ code: ErrorCode.FORBIDDEN });
+    await cloudflareRealtimeService.drainTeardowns();
+    return { drained: true };
+  });
+}
 await start();
+
+let shuttingDown = false;
+const shutdown = async () => {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  try {
+    // Fastify's close hooks drain remote SFU teardown requests before the
+    // isolated database and process disappear.
+    await server.close();
+    await appPrisma.$disconnect();
+    process.exit(0);
+  } catch (error) {
+    console.error("[e2e] Graceful shutdown failed", error);
+    process.exit(1);
+  }
+};
+process.on("SIGINT", () => void shutdown());
+process.on("SIGTERM", () => void shutdown());

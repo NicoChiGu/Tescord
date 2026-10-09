@@ -83,7 +83,10 @@ test.describe("全局决策模态框与4位安全验证码验收 (Security Code 
       await page.waitForLoadState("networkidle");
 
       // 右键点击进入该新建的临时服务器的上下文菜单
-      const guildIcon = page.locator(`[title="${testGuild.name}"]`);
+      const guildIcon = page.getByRole("button", {
+        name: testGuild.name,
+        exact: true,
+      });
       await expect(guildIcon).toBeVisible({ timeout: 5000 });
       await guildIcon.click({ button: "right" });
 
@@ -111,14 +114,14 @@ test.describe("全局决策模态框与4位安全验证码验收 (Security Code 
       // 断言：初始状态未输入，确认按钮必须处于 disabled 状态
       await expect(confirmDeleteBtn).toBeDisabled();
 
-      // 输入错误的 4 位验证码，仍然处于 disabled
-      await codeInput.fill("0000");
-      await expect(confirmDeleteBtn).toBeDisabled();
-
       // 获取当前弹窗中显示的 4 位真实安全码
       const securityCodeEl = page.locator(".tracking-\\[0\\.35em\\]");
       const expectedCode = (await securityCodeEl.innerText()).trim();
       expect(expectedCode).toMatch(/^\d{4}$/);
+
+      // 错误验证码必须与本次生成值不同（真实安全码也可能恰好为 0000）。
+      await codeInput.fill(expectedCode === "0000" ? "0001" : "0000");
+      await expect(confirmDeleteBtn).toBeDisabled();
 
       // 输入正确的 4 位验证码
       await codeInput.fill(expectedCode);

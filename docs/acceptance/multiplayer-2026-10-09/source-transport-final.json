@@ -1,0 +1,38 @@
+{
+  "capturedAtUtc": "2026-10-08T19:59:49.1955883Z",
+  "scope": "Frozen transport run df72bfae-a197-4aa2-bab5-5513772224ce, before first-frame telemetry refinement",
+  "files": [
+    {
+      "path": "packages/types/src/media-encryption.ts",
+      "sha256": "c777e8ebc046ee62e51b6e06555b56c1eb68c40d0a607325fdfb3385a0866b37"
+    },
+    {
+      "path": "apps/server/src/services/media-encryption.service.ts",
+      "sha256": "ba34f64aa55c541937359c407bbcc24d27db4ed4ec63c94b6749d951dc0c5a7f"
+    },
+    {
+      "path": "apps/server/src/services/cloudflare-realtime.service.ts",
+      "sha256": "d897c1be975bd1b7794bfc2439c91873c268f35f5e7ab3a588bdd19aec2dc6fb"
+    },
+    {
+      "path": "apps/server/src/index.ts",
+      "sha256": "22061bf8960ee67a2ac8a37a19d96022b1a2444bc01596da62867145bca44e50"
+    },
+    {
+      "path": "apps/web/src/services/mediaEncryption.ts",
+      "sha256": "5703addd0645858bf1a605f6faf15a115e277bc9926c0d0dc34bd1f05f77c10d"
+    },
+    {
+      "path": "apps/web/src/services/sframe.ts",
+      "sha256": "498eca6b1ba495a35cfcf5d8a38363097b290e2b12a5a1c10a05ad98c1917446"
+    },
+    {
+      "path": "apps/web/src/services/cloudflare_realtime/CloudflareRealtimeService.ts",
+      "sha256": "9eae7401b360852598c16c3718ac6a703d8eda8366ee92123a40976d0c31d604"
+    },
+    {
+      "path": "apps/web/build/real-media/assets/index-DZGU27LM.js",
+      "sha256": "af6004bf2610a179080055d1509e28993170e3cf1d2851f8c7bcdc07be60af0e"
+    }
+  ]
+}

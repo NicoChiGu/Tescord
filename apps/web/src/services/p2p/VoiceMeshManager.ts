@@ -52,6 +52,7 @@ export class VoiceMeshManager {
   private currentUserId: string | null = null;
   private isMeshActive: boolean = false;
   private meshGeneration = 0;
+  private preparingMesh = false;
   private hasConnectedPeer = false;
   private isFallbackToSFU: boolean = false;
   private fallbackReason: string = "";
@@ -194,8 +195,10 @@ export class VoiceMeshManager {
    * 动态拉取服务端 Coturn TURN 与双栈 STUN 列表
    */
   public async fetchIceServers(forceRefresh = false): Promise<RTCIceServer[]> {
-    this.currentIceServers = await getP2PIceServers(forceRefresh);
-    return [...this.currentIceServers];
+    const generation = this.meshGeneration;
+    const servers = await getP2PIceServers(forceRefresh);
+    if (generation === this.meshGeneration) this.currentIceServers = servers;
+    return [...servers];
   }
 
   constructor() {
@@ -393,7 +396,17 @@ export class VoiceMeshManager {
     this.isFallbackToSFU = false;
     this.fallbackReason = "";
 
-    await this.fetchIceServers();
+    // Seed before yielding: authoritative Gateway updates during ICE preparation
+    // must not be overwritten by the roster captured when this join began.
+    this.channelMemberIds = new Set(
+      (otherUserIds || []).filter((id) => id && id !== this.currentUserId),
+    );
+    this.preparingMesh = true;
+    try {
+      await this.fetchIceServers();
+    } finally {
+      if (this.meshGeneration === generation) this.preparingMesh = false;
+    }
     if (
       !this.isMeshActive ||
       this.activeChannelId !== channelId ||
@@ -401,20 +414,19 @@ export class VoiceMeshManager {
     )
       return;
 
-    const effectiveOtherMembers = (otherUserIds || []).filter(
-      (id) => id && id !== this.currentUserId,
-    );
-    this.channelMemberIds = new Set(effectiveOtherMembers);
-
     // 与房间内已存在的其他成员主动建立点对点呼叫 (PeerConnection Offer)
-    for (const targetId of otherUserIds) {
+    for (const targetId of [...this.channelMemberIds]) {
       if (
         !this.isMeshActive ||
         this.activeChannelId !== channelId ||
         this.meshGeneration !== generation
       )
         return;
-      if (targetId && targetId !== this.currentUserId) {
+      if (
+        targetId &&
+        targetId !== this.currentUserId &&
+        this.channelMemberIds.has(targetId)
+      ) {
         if (
           this.activeCallId &&
           this.currentUserId &&
@@ -436,6 +448,7 @@ export class VoiceMeshManager {
    */
   public stopAll(): void {
     this.meshGeneration++;
+    this.preparingMesh = false;
     this.isMeshActive = false;
     this.hasConnectedPeer = false;
     this.isFallbackToSFU = false;
@@ -585,7 +598,11 @@ export class VoiceMeshManager {
       }
       this.peerRetries.clear();
       this.notifyLatencyUpdate();
-    } else if (this.isMeshActive && this.activeChannelId) {
+    } else if (
+      this.isMeshActive &&
+      this.activeChannelId &&
+      !this.preparingMesh
+    ) {
       // 针对新加入或重进的成员，若 2.5 秒内双方仍未建立 PeerConnection，主动发起探测呼叫，打破单边等待僵局
       for (const peerId of nextMembers) {
         if (
@@ -912,7 +929,7 @@ export class VoiceMeshManager {
         direction: "sendrecv",
       });
       if (e2eeEnabled) {
-        sframeManager.attachSender(videoTransceiver.sender);
+        sframeManager.attachSender(videoTransceiver.sender, "video");
         sframeManager.attachReceiver(videoTransceiver.receiver);
         encryptedVideoReceivers.add(videoTransceiver.receiver);
       }

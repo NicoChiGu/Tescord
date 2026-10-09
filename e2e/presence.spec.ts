@@ -251,7 +251,7 @@ test.describe("真实用户在线状态 (Online Presence / Status) 端到端全�
     await page.goto("/");
 
     // 点击左侧边栏顶部的“私信与主页”按钮，切换至私信列表视图
-    const dmHomeBtn = page.getByRole("button", { name: "私信与主页" });
+    const dmHomeBtn = page.getByTestId("home-nav-button");
     await expect(dmHomeBtn).toBeVisible({ timeout: 10000 });
     await dmHomeBtn.click();
 

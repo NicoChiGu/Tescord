@@ -265,7 +265,10 @@ test.describe("附件上传与发信授权验收 (Attachment Upload & Message Se
     await input.click();
     await input.press("Enter");
 
-    const button = page.getByRole("button", { name: `下载 ${name}` });
+    const button = page.getByRole("button", {
+      name: `下载原图: ${name}`,
+      exact: true,
+    });
     await expect(button).toBeVisible({ timeout: 15000 });
     const downloadPromise = page.waitForEvent("download");
     await button.click();

@@ -1,8 +1,9 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from "fastify";
-import { ErrorCode } from "@tescord/types";
+import { ErrorCode, MEDIA_ENCRYPTION_VERSION } from "@tescord/types";
 import type {
   MediaEncryptionJoinRequest,
   MediaStreamKeyPublishRequest,
+  MediaStreamKeyAcknowledgeRequest,
 } from "@tescord/types";
 import { mediaEncryptionRegistry } from "./media-encryption.service.js";
 
@@ -29,6 +30,7 @@ export function registerMediaEncryptionRoutes(
       `/api/channels/:channelId/media-encryption/${operation}`,
       {
         preHandler: async (request, reply) => {
+          reply.header("Cache-Control", "no-store");
           await (
             server as FastifyInstance & {
               authenticate: (
@@ -53,7 +55,7 @@ export function registerMediaEncryptionRoutes(
         const { channelId } = request.params as { channelId: string };
         const body = request.body as MediaEncryptionJoinRequest & {
           publish?: MediaStreamKeyPublishRequest;
-          keyId?: number;
+          acknowledge?: MediaStreamKeyAcknowledgeRequest;
         };
         if (!body || typeof body !== "object")
           return sendApiError(
@@ -63,6 +65,8 @@ export function registerMediaEncryptionRoutes(
             ErrorCode.INVALID_PARAMS,
           );
         try {
+          if (body.version !== MEDIA_ENCRYPTION_VERSION)
+            throw new Error(ErrorCode.MEDIA_E2EE_UNSUPPORTED);
           if (operation === "join")
             return await mediaEncryptionRegistry.join(
               userId,
@@ -88,20 +92,28 @@ export function registerMediaEncryptionRoutes(
             );
           }
           if (operation === "acknowledge") {
+            if (!body.acknowledge) throw new Error(ErrorCode.INVALID_PARAMS);
             await mediaEncryptionRegistry.acknowledge(
               userId,
               claims.sessionId,
               channelId,
               body,
-              body.keyId!,
+              body.acknowledge,
             );
             return { success: true };
           }
+          if (
+            typeof body.registrationId !== "string" ||
+            !body.registrationId ||
+            body.registrationId.length > 160
+          )
+            throw new Error(ErrorCode.INVALID_PARAMS);
           mediaEncryptionRegistry.leave(
             userId,
             channelId,
             body.gatewaySessionId,
             body.callId,
+            body.registrationId,
           );
           return { success: true };
         } catch (error) {
@@ -116,7 +128,9 @@ export function registerMediaEncryptionRoutes(
               ? 400
               : code === ErrorCode.UNAUTHORIZED
                 ? 401
-                : 403,
+                : code === ErrorCode.MEDIA_CONTEXT_STALE
+                  ? 409
+                  : 403,
             code,
             code,
           );

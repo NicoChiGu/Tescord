@@ -1,11 +1,14 @@
 import {
   CfCallsCreateSessionResponse,
+  CfCallsHeartbeatResponse,
   CfCallsCreateSessionRequest,
-  CfCallsPublishTrackResponse,
   CfCallsSubscribeTrackResponse,
   CfTurnIceServersResponse,
   CfMediaPublication,
   CfMediaTracksEvent,
+  CfCallsSessionDescription,
+  MediaJoinStage,
+  MediaJoinTimingTrace,
   CfStreamWatchState,
   CfStreamViewersEvent,
   NetworkStats,
@@ -148,6 +151,8 @@ export class CloudflareRealtimeService {
       stream: MediaStream;
       mid: string;
       trackName: string;
+      rtpBaseline: { bytes: number; packets: number };
+      keyGeneration: number;
     }
   >();
   private subscribedTracks = new Set<string>();
@@ -160,6 +165,109 @@ export class CloudflareRealtimeService {
   >();
   private currentPublications = new Map<string, CfMediaPublication>();
   private initialPublications: CfMediaPublication[] = [];
+  private initialPublicationRevision = 0;
+  private latestPublications: CfMediaPublication[] | null = null;
+  private latestPublicationRevision = 0;
+  private publicationSyncReady = false;
+  private subscriptionRetryTimer: ReturnType<typeof setTimeout> | null = null;
+  private subscriptionRetries = new Map<string, number>();
+  private pendingSubscriptionRetries = new Map<string, boolean>();
+  private joiningEpoch: number | null = null;
+  private announcedTracks = new Set<string>();
+  private announcementTask: {
+    epoch: number;
+    controller: AbortController;
+    publications: Array<{
+      source: string;
+      sender: RTCRtpSender;
+      trackName: string;
+      track: MediaStreamTrack | null;
+    }>;
+    promise: Promise<boolean>;
+  } | null = null;
+  private joiningRetryCount = 0;
+  private retiredJoin: {
+    sourceEpoch: number;
+    retiredEpoch: number;
+    retryable: boolean;
+    cleanup: Promise<void>;
+  } | null = null;
+  private joinTiming: MediaJoinTimingTrace | null = null;
+  private preparingIce: {
+    userId: string | undefined;
+    promise: Promise<RTCIceServer[]>;
+  } | null = null;
+  private preparedTurnExpiresAt: number | null = null;
+
+  public beginJoinTiming(channelId: string): void {
+    const startedAt = Date.now();
+    this.joinTiming = {
+      channelId,
+      operationEpoch: this.mediaOperationEpoch,
+      startedAt,
+      stages: { joinStarted: 0 },
+    };
+  }
+
+  public markJoinStage(stage: MediaJoinStage): void {
+    if (this.joinTiming && this.joinTiming.stages[stage] === undefined)
+      this.joinTiming.stages[stage] = Date.now() - this.joinTiming.startedAt;
+  }
+
+  public prepareIceServers(): Promise<RTCIceServer[]> {
+    const userId = useAuthStore.getState().user?.id;
+    if (this.preparingIce?.userId === userId && this.preparingIce)
+      return this.preparingIce.promise;
+    const promise = this.fetchIceServers(userId);
+    this.preparingIce = { userId, promise };
+    void promise
+      .finally(() => {
+        if (this.preparingIce?.promise === promise) this.preparingIce = null;
+      })
+      .catch(() => undefined);
+    return promise;
+  }
+
+  private async fetchIceServers(
+    userId: string | undefined,
+  ): Promise<RTCIceServer[]> {
+    const checkAccount = () => {
+      if (useAuthStore.getState().user?.id !== userId)
+        throw new Error("MEDIA_CONTEXT_STALE");
+    };
+    for (const path of [
+      "/api/cloudflare-realtime/ice-servers",
+      "/api/network/ice-servers",
+    ]) {
+      try {
+        const response = await apiFetch(`${API_BASE}${path}`, {
+          headers: this.authHeaders,
+          signal: AbortSignal.timeout(5_000),
+        });
+        checkAccount();
+        if (!response.ok) continue;
+        const data = (await response.json()) as CfTurnIceServersResponse;
+        checkAccount();
+        if (Array.isArray(data.iceServers) && data.iceServers.length) {
+          if (typeof data.expiresAt === "number")
+            this.preparedTurnExpiresAt = data.expiresAt;
+          return data.iceServers;
+        }
+      } catch (error) {
+        checkAccount();
+        if (path === "/api/network/ice-servers")
+          console.warn("[CF Realtime] ICE configuration unavailable", error);
+      }
+    }
+    return [{ urls: "stun:stun.cloudflare.com:3478" }];
+  }
+
+  public getJoinTimingTrace(): MediaJoinTimingTrace | null {
+    return this.joinTiming
+      ? { ...this.joinTiming, stages: { ...this.joinTiming.stages } }
+      : null;
+  }
+
   private remoteByMid = new Map<string, CfMediaPublication>();
 
   constructor() {
@@ -466,8 +574,14 @@ export class CloudflareRealtimeService {
           const centered = (sample - 128) / 128;
           energy += centered * centered;
         }
-        if (Math.sqrt(energy / samples.length) > 0.025)
-          active.add(route.publication.userId);
+        const rms = Math.sqrt(energy / samples.length);
+        if (
+          rms > 0.001 &&
+          this.playbackContext?.state === "running" &&
+          sframeManager.getStats().framesDecrypted > 0
+        )
+          this.markJoinStage("firstPlayableAudio");
+        if (rms > 0.025) active.add(route.publication.userId);
       }
       if (
         active.size !== this.activeSpeakers.size ||
@@ -504,8 +618,13 @@ export class CloudflareRealtimeService {
             body: JSON.stringify({ sessionId }),
           },
         );
+        const active = response.ok
+          ? ((await response.json()) as CfCallsHeartbeatResponse).active
+          : undefined;
         if (
-          (response.status === 401 || response.status === 403) &&
+          (active === false ||
+            response.status === 401 ||
+            response.status === 403) &&
           this.sessionId === sessionId
         ) {
           await this.disconnect();
@@ -590,7 +709,12 @@ export class CloudflareRealtimeService {
   }
 
   private queue<T>(task: () => Promise<T>): Promise<T> {
-    const result = this.operation.then(task);
+    const epoch = this.mediaOperationEpoch;
+    const result = this.operation.then(() => {
+      if (epoch !== this.mediaOperationEpoch)
+        throw new Error("MEDIA_CONTEXT_STALE");
+      return task();
+    });
     this.operation = result.then(
       () => undefined,
       () => undefined,
@@ -665,7 +789,7 @@ export class CloudflareRealtimeService {
     await this.flushPendingSessionLeaves();
     if (epoch !== this.mediaOperationEpoch)
       throw new Error("MEDIA_CONTEXT_STALE");
-    const sessionRes = await apiFetch(
+    const sessionRes = await this.mutateSession(
       `${API_BASE}/api/cloudflare-realtime/session/new`,
       {
         method: "POST",
@@ -680,10 +804,17 @@ export class CloudflareRealtimeService {
       throw new Error(
         `Cloudflare media session request failed (${sessionRes.status})`,
       );
-    const sessionData =
-      (await sessionRes.json()) as CfCallsCreateSessionResponse;
-    if (!sessionData?.sessionId)
-      throw new Error("Invalid Cloudflare media session");
+    let sessionData: CfCallsCreateSessionResponse;
+    try {
+      sessionData = (await sessionRes.json()) as CfCallsCreateSessionResponse;
+      if (typeof sessionData?.sessionId !== "string" || !sessionData.sessionId)
+        throw new Error("Invalid Cloudflare media session");
+    } catch (error) {
+      // A sessions/new response without an ID cannot be inspected or replayed.
+      // Retire this attempt and use the same single replacement budget.
+      this.retireAmbiguousSession(epoch, true);
+      throw error;
+    }
     if (
       epoch !== this.mediaOperationEpoch ||
       channelId !== this.currentChannelId
@@ -698,17 +829,11 @@ export class CloudflareRealtimeService {
     }
     this.sessionId = sessionData.sessionId;
     this.initialPublications = sessionData.tracks || [];
+    this.initialPublicationRevision = sessionData.tracksRevision ?? 0;
     if (sessionData.requiresE2EE && !sframeManager.hasActiveContext) {
       throw new Error("E2EE media key unavailable");
     }
     this.startHeartbeat();
-    this.unbindTracks = gatewayClient.on(
-      "CF_MEDIA_TRACKS",
-      (event: CfMediaTracksEvent) => {
-        if (event.channelId === this.currentChannelId)
-          void this.syncPublications(event.tracks);
-      },
-    );
     this.unbindViewers = gatewayClient.on(
       "CF_STREAM_VIEWERS",
       (event: CfStreamViewersEvent) => {
@@ -776,6 +901,7 @@ export class CloudflareRealtimeService {
       audioStream?: MediaStream;
       audioBitrate?: number;
       iceServers?: RTCIceServer[];
+      iceTransportPolicy?: RTCIceTransportPolicy;
       callId?: string;
       gatewaySessionId?: string;
     },
@@ -797,10 +923,18 @@ export class CloudflareRealtimeService {
       throw new Error("MEDIA_CONTEXT_STALE");
     sframeManager.assertReady();
     const epoch = ++this.mediaOperationEpoch;
+    const joiningUserId = useAuthStore.getState().user?.id;
+    const joiningGatewaySession = gatewayClient.getSessionId();
+    this.joiningEpoch = epoch;
+    this.joiningRetryCount = retryCount;
+    const accountIsCurrent = () =>
+      joiningUserId === useAuthStore.getState().user?.id &&
+      joiningGatewaySession === gatewayClient.getSessionId();
     const checkCurrent = () => {
       if (
         epoch !== this.mediaOperationEpoch ||
-        this.currentChannelId !== channelId
+        this.currentChannelId !== channelId ||
+        !accountIsCurrent()
       )
         throw new Error("MEDIA_CONTEXT_STALE");
     };
@@ -810,54 +944,49 @@ export class CloudflareRealtimeService {
       gatewaySessionId: options?.gatewaySessionId,
     };
     this.audioBitrate = options?.audioBitrate || 64000;
+    if (!this.joinTiming || this.joinTiming.channelId !== channelId)
+      this.beginJoinTiming(channelId);
+    this.joinTiming!.operationEpoch = epoch;
+    this.latestPublications = null;
+    this.latestPublicationRevision = 0;
+    this.initialPublicationRevision = 0;
+    this.publicationSyncReady = false;
+    // Register before sessions/new: a Gateway publication can beat its HTTP snapshot.
+    this.unbindTracks = gatewayClient.on(
+      "CF_MEDIA_TRACKS",
+      (event: CfMediaTracksEvent) => {
+        if (epoch !== this.mediaOperationEpoch || event.channelId !== channelId)
+          return;
+        const revision = event.revision ?? 0;
+        if (
+          !Number.isSafeInteger(revision) ||
+          revision < this.latestPublicationRevision
+        )
+          return;
+        this.latestPublicationRevision = revision;
+        this.latestPublications = event.tracks;
+        if (this.publicationSyncReady)
+          void this.syncPublications(event.tracks).catch((error: unknown) => {
+            if (epoch === this.mediaOperationEpoch)
+              console.warn("[CF Realtime] Publication sync failed", error);
+          });
+      },
+    );
     this.setStatus("connecting");
 
     try {
-      // 1. 获取 ICE / TURN 服务器配置 (动态从 Cloudflare Calls TURN 拉取)
-      let iceServers = options?.iceServers;
-      if (!iceServers || iceServers.length === 0) {
-        try {
-          const res = await apiFetch(
-            `${API_BASE}/api/cloudflare-realtime/ice-servers`,
-            {
-              headers: this.authHeaders,
-            },
-          );
-          if (res.ok) {
-            const turnData = (await res.json()) as CfTurnIceServersResponse;
-            if (turnData?.iceServers) {
-              iceServers = turnData.iceServers as RTCIceServer[];
-              this.scheduleTurnRefresh(turnData.expiresAt);
-            }
-          }
-        } catch (turnErr) {
-          console.warn(
-            "[CF Realtime] 获取 Cloudflare 专用 TURN 失败，尝试回退通用网络接口",
-            turnErr,
-          );
-        }
-
-        if (!iceServers || iceServers.length === 0) {
-          const fallbackRes = await apiFetch(
-            `${API_BASE}/api/network/ice-servers`,
-            {
-              headers: this.authHeaders,
-            },
-          ).catch(() => null);
-          if (fallbackRes?.ok) {
-            const fallbackData = await fallbackRes.json();
-            if (fallbackData?.iceServers) {
-              iceServers = fallbackData.iceServers;
-            }
-          }
-        }
-      }
+      const iceServers = options?.iceServers?.length
+        ? options.iceServers
+        : await this.prepareIceServers();
+      if (this.preparedTurnExpiresAt)
+        this.scheduleTurnRefresh(this.preparedTurnExpiresAt);
 
       checkCurrent();
       // 2. 初始化原生 RTCPeerConnection
       const pc = new RTCPeerConnection({
         iceServers: iceServers || [{ urls: "stun:stun.cloudflare.com:3478" }],
         bundlePolicy: "max-bundle",
+        iceTransportPolicy: options?.iceTransportPolicy || "all",
         encodedInsertableStreams: true,
       } as RTCConfiguration);
       this.pc = pc;
@@ -891,7 +1020,19 @@ export class CloudflareRealtimeService {
         const stream = event.streams[0] || new MediaStream([event.track]);
         const trackId = event.track.id;
         const publication = this.remoteByMid.get(event.transceiver.mid || "");
-        if (!publication) this.remoteStreams.set(trackId, stream);
+        if (
+          publication &&
+          this.currentPublications.get(
+            `${publication.sessionId}:${publication.trackName}`,
+          )?.userId !== publication.userId
+        ) {
+          event.track.stop();
+          return;
+        }
+        if (!publication) {
+          event.track.stop();
+          return;
+        }
         if (publication) {
           this.remoteStreams.set(
             `${publication.sessionId}:${publication.trackName}`,
@@ -966,14 +1107,21 @@ export class CloudflareRealtimeService {
           pc.connectionState,
         );
         if (pc.connectionState === "connected") {
+          this.markJoinStage("connected");
           this.setStatus("connected");
           this.startStatsPolling();
         } else if (pc.connectionState === "disconnected") {
           this.setStatus("reconnecting");
         } else if (pc.connectionState === "failed") {
-          void this.disconnect().then(() =>
-            this.setStatus("failed", "WebRTC 连接失败"),
-          );
+          // Initial setup owns its bounded replacement attempt and must retain
+          // the microphone until that attempt has finished.
+          if (this.joiningEpoch === epoch) return;
+          const cleanup = this.disconnect();
+          const retiredEpoch = this.mediaOperationEpoch;
+          void cleanup.then(() => {
+            if (retiredEpoch === this.mediaOperationEpoch)
+              this.setStatus("failed", "MEDIA_CONTEXT_STALE");
+          });
         }
       };
 
@@ -983,20 +1131,63 @@ export class CloudflareRealtimeService {
       else await this.createMediaSession();
 
       checkCurrent();
+      let announcement: Promise<boolean> | undefined;
       if (options?.audioStream) {
-        await this.waitForConnected(pc, 30_000);
+        // Cloudflare session_error/425 requires transport setup and connection
+        // before later mutations, even when the publication SDP is already stable.
+        // Healthy setup is normally around one second after publication. A
+        // stalled transport must not consume the short-lived session's 30s TTL.
+        await this.waitForConnected(pc, 5_000);
         checkCurrent();
-        await this.announceTracks();
+        announcement = this.scheduleTrackAnnouncement();
+        checkCurrent();
       }
+      this.publicationSyncReady = true;
+      const publications =
+        this.latestPublications !== null &&
+        this.latestPublicationRevision >= this.initialPublicationRevision
+          ? this.latestPublications
+          : this.initialPublications;
+      this.latestPublicationRevision = Math.max(
+        this.latestPublicationRevision,
+        this.initialPublicationRevision,
+      );
+      await this.syncPublications(publications);
       checkCurrent();
-      await this.syncPublications(this.initialPublications);
+      await announcement;
       checkCurrent();
       if (!this.sessionId)
         throw new Error("Media session lost during connection");
       return this.sessionId;
-    } catch (err: any) {
-      if (epoch !== this.mediaOperationEpoch) throw err;
-      console.error("[CF Realtime] 连接建立异常:", err);
+    } catch (err: unknown) {
+      if (epoch !== this.mediaOperationEpoch) {
+        const retired = this.retiredJoin;
+        if (
+          retryCount === 0 &&
+          retired?.sourceEpoch === epoch &&
+          retired.retryable &&
+          retired.retiredEpoch === this.mediaOperationEpoch
+        ) {
+          await retired.cleanup;
+          if (
+            retired.retiredEpoch !== this.mediaOperationEpoch ||
+            !accountIsCurrent() ||
+            this.pc ||
+            this.currentChannelId ||
+            (options?.audioStream &&
+              !options.audioStream
+                .getAudioTracks()
+                .some((track) => track.readyState === "live"))
+          )
+            throw err;
+          // Reuse the authorized encryption context, never the uncertain SFU allocation.
+          sframeManager.assertReady();
+          this.retiredJoin = null;
+          this.setStatus("reconnecting");
+          return this.connect(channelId, options, retryCount + 1);
+        }
+        throw err;
+      }
       const shouldRetry =
         retryCount === 0 &&
         err instanceof Error &&
@@ -1012,11 +1203,20 @@ export class CloudflareRealtimeService {
         );
       await this.disconnect(!shouldRetry);
       if (shouldRetry) {
+        if (this.mediaOperationEpoch !== epoch + 1 || !accountIsCurrent())
+          throw err;
+        sframeManager.assertReady();
         this.setStatus("reconnecting");
         return this.connect(channelId, options, retryCount + 1);
       }
-      this.setStatus("failed", err?.message || "连接失败");
+      console.error("[CF Realtime] 连接建立异常:", err);
+      this.setStatus(
+        "failed",
+        err instanceof Error ? err.message : "MEDIA_KEY_INVALID",
+      );
       throw err;
+    } finally {
+      if (this.joiningEpoch === epoch) this.joiningEpoch = null;
     }
   }
 
@@ -1089,6 +1289,11 @@ export class CloudflareRealtimeService {
       const sender = transceiver.sender;
       try {
         sframeManager.attachSender(sender);
+        const keyGeneration =
+          sframeManager.getSenderKeyReadiness(sender)?.generation;
+        if (keyGeneration === undefined)
+          throw new Error("MEDIA_KEY_UNAVAILABLE");
+        const rtpBaseline = await this.senderRtpCounters(sender);
         if (source === "microphone") {
           const parameters = sender.getParameters();
           parameters.encodings = parameters.encodings?.length
@@ -1100,6 +1305,7 @@ export class CloudflareRealtimeService {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
         await this.waitForIceGathering(pc);
+        this.markJoinStage("iceReady");
         if (
           epoch !== this.mediaOperationEpoch ||
           pc !== this.pc ||
@@ -1110,7 +1316,7 @@ export class CloudflareRealtimeService {
         const mid = transceiver.mid;
         if (!mid) throw new Error("Missing track MID");
         const trackName = `${source}-${crypto.randomUUID()}`;
-        const response = await apiFetch(
+        const response = await this.mutateSession(
           `${API_BASE}/api/cloudflare-realtime/tracks/publish`,
           {
             method: "POST",
@@ -1128,7 +1334,7 @@ export class CloudflareRealtimeService {
         );
         if (!response.ok)
           throw new Error(`Publish failed (${response.status})`);
-        const data = (await response.json()) as CfCallsPublishTrackResponse;
+        const data = await this.readTrackResponse(response, "local");
         if (
           epoch !== this.mediaOperationEpoch ||
           pc !== this.pc ||
@@ -1138,13 +1344,25 @@ export class CloudflareRealtimeService {
           throw new Error("MEDIA_CONTEXT_STALE");
         if (!data.sessionDescription?.sdp)
           throw new Error("Missing Cloudflare answer");
-        await pc.setRemoteDescription({
-          type: "answer",
-          sdp: data.sessionDescription.sdp,
+        const result = data.tracks?.find(
+          (item) => item.trackName === trackName,
+        );
+        if (!result || result.errorCode) throw new Error("MEDIA_KEY_INVALID");
+        await this.completeSdpExchange(pc, sessionId, epoch, data);
+        if (epoch !== this.mediaOperationEpoch || pc !== this.pc)
+          throw new Error("MEDIA_CONTEXT_STALE");
+        this.markJoinStage("published");
+        this.publishedTracks.set(source, {
+          sender,
+          stream,
+          mid,
+          trackName,
+          rtpBaseline,
+          keyGeneration,
         });
-        this.publishedTracks.set(source, { sender, stream, mid, trackName });
         this.emitPublications();
-        if (this.connectionStatus === "connected") await this.announceTracks();
+        if (this.connectionStatus === "connected")
+          void this.scheduleTrackAnnouncement();
         if (source === "screen") void this.refreshViewerCount(sessionId);
         if (track.kind === "video")
           this.emitVideo(
@@ -1160,7 +1378,7 @@ export class CloudflareRealtimeService {
           );
         if (source === "microphone") this.localAudioSender = sender;
       } catch (error) {
-        pc.removeTrack(sender);
+        if (pc.signalingState !== "closed") pc.removeTrack(sender);
         throw error;
       }
     });
@@ -1172,7 +1390,10 @@ export class CloudflareRealtimeService {
     await this.queue(async () => {
       const published = this.publishedTracks.get(source);
       if (!published || !this.pc || !this.sessionId) return;
-      const response = await apiFetch(
+      const pc = this.pc;
+      const sessionId = this.sessionId;
+      const epoch = this.mediaOperationEpoch;
+      const response = await this.mutateSession(
         `${API_BASE}/api/cloudflare-realtime/tracks/close`,
         {
           method: "PUT",
@@ -1185,7 +1406,13 @@ export class CloudflareRealtimeService {
       );
       if (!response.ok)
         throw new Error(`Close track failed (${response.status})`);
-      this.pc.removeTrack(published.sender);
+      if (
+        epoch !== this.mediaOperationEpoch ||
+        pc !== this.pc ||
+        sessionId !== this.sessionId
+      )
+        throw new Error("MEDIA_CONTEXT_STALE");
+      pc.removeTrack(published.sender);
       if (source === "camera" || source === "screen")
         this.emitVideo(
           {
@@ -1200,12 +1427,16 @@ export class CloudflareRealtimeService {
         );
       if (source !== "microphone") published.sender.track?.stop();
       this.publishedTracks.delete(source);
+      this.announcedTracks.delete(published.trackName);
       this.emitPublications();
+      void this.scheduleTrackAnnouncement();
     });
   }
 
   public async switchCameraDevice(deviceId: string): Promise<boolean> {
     return this.queue(async () => {
+      const epoch = this.mediaOperationEpoch;
+      const pc = this.pc;
       const published = this.publishedTracks.get("camera");
       if (!published || !this.pc || !this.sessionId || !this.currentChannelId)
         return false;
@@ -1216,6 +1447,10 @@ export class CloudflareRealtimeService {
             : true,
         audio: false,
       });
+      if (epoch !== this.mediaOperationEpoch || pc !== this.pc) {
+        stream.getTracks().forEach((item) => item.stop());
+        throw new Error("MEDIA_CONTEXT_STALE");
+      }
       const track = stream.getVideoTracks()[0];
       if (!track) {
         stream.getTracks().forEach((item) => item.stop());
@@ -1229,6 +1464,7 @@ export class CloudflareRealtimeService {
       }
       const previous = published.stream;
       published.stream = stream;
+      void this.scheduleTrackAnnouncement();
       previous.getVideoTracks().forEach((item) => item.stop());
       this.emitVideo(
         {
@@ -1245,130 +1481,565 @@ export class CloudflareRealtimeService {
     });
   }
 
-  private async announceTracks(): Promise<void> {
-    if (!this.sessionId) return;
-    const response = await apiFetch(
-      `${API_BASE}/api/cloudflare-realtime/tracks/ready`,
-      {
-        method: "POST",
-        headers: this.authHeaders,
-        body: JSON.stringify({ sessionId: this.sessionId }),
-      },
-    );
-    if (!response.ok)
-      throw new Error(`Media announcement failed (${response.status})`);
+  private async senderRtpCounters(
+    sender: RTCRtpSender,
+  ): Promise<{ bytes: number; packets: number }> {
+    const report = await sender.getStats();
+    let bytes = 0,
+      packets = 0;
+    report.forEach((value) => {
+      const row = value as RtcRecord;
+      if (row.type !== "outbound-rtp") return;
+      bytes += row.bytesSent || 0;
+      packets += row.packetsSent || 0;
+    });
+    return { bytes, packets };
   }
 
-  /**
-   * 订阅其他成员发布的远端音频轨道 (Remote Track)
-   */
-  public async subscribeRemoteTrack(
-    publisherSessionId: string,
-    trackName: string,
-  ): Promise<void> {
-    return this.queue(() =>
-      this.subscribeRemoteTrackNow(publisherSessionId, trackName),
+  /** Wait outside the SDP queue so receiving ready remote tracks can continue. */
+  private scheduleTrackAnnouncement(): Promise<boolean> {
+    const pc = this.pc,
+      sessionId = this.sessionId,
+      channelId = this.currentChannelId;
+    const epoch = this.mediaOperationEpoch;
+    const userId = useAuthStore.getState().user?.id;
+    const gatewaySessionId = gatewayClient.getSessionId();
+    if (!pc || !sessionId || !channelId) return Promise.resolve(false);
+    const all = [...this.publishedTracks].map(([source, publication]) => ({
+      source,
+      ...publication,
+      track: publication.sender.track,
+    }));
+    const pending = all.filter(
+      (item) => !this.announcedTracks.has(item.trackName),
     );
-  }
-
-  private async subscribeRemoteTrackNow(
-    publisherSessionId: string,
-    trackName: string,
-  ): Promise<void> {
-    if (!this.pc || !this.sessionId) return;
-
-    // 1. 向服务端请求订阅，触发 Cloudflare SFU 返回 Offer
-    const subscriberSessionId = this.sessionId;
-    const publicationKey = `${publisherSessionId}:${trackName}`;
-    const requestSubscription = () =>
-      apiFetch(`${API_BASE}/api/cloudflare-realtime/tracks/subscribe`, {
-        method: "POST",
-        headers: this.authHeaders,
-        body: JSON.stringify({
-          channelId: this.currentChannelId || "",
-          sessionId: subscriberSessionId,
-          tracks: [
-            {
-              publisherSessionId,
-              trackName,
-            },
-          ],
-        }),
-      });
-    let subRes = await requestSubscription();
-    for (
-      let attempt = 0;
-      (subRes.status === 400 || subRes.status === 502) && attempt < 4;
-      attempt++
-    ) {
-      await new Promise((resolve) => setTimeout(resolve, 250 * 2 ** attempt));
-      if (
-        this.sessionId !== subscriberSessionId ||
-        !this.currentPublications.has(publicationKey)
+    if (!pending.length) {
+      this.announcementTask?.controller.abort();
+      this.announcementTask = null;
+      return Promise.resolve(true);
+    }
+    const previous = this.announcementTask;
+    if (
+      previous?.epoch === epoch &&
+      previous.publications.length === all.length &&
+      all.every(
+        (item, index) =>
+          previous.publications[index].sender === item.sender &&
+          previous.publications[index].trackName === item.trackName &&
+          previous.publications[index].track === item.track,
       )
-        return;
-      subRes = await requestSubscription();
-    }
-
-    if (!subRes.ok) {
-      throw new Error(`订阅远端轨道请求失败: ${subRes.statusText}`);
-    }
-
-    const subData = (await subRes.json()) as CfCallsSubscribeTrackResponse;
-    if (!subData?.sessionDescription?.sdp) {
-      throw new Error("Cloudflare SFU 未返回拉流 Offer SDP");
-    }
-    const publication = this.currentPublications.get(
-      `${publisherSessionId}:${trackName}`,
+    )
+      return previous.promise;
+    previous?.controller.abort();
+    const controller = new AbortController();
+    const current = () =>
+      !controller.signal.aborted &&
+      epoch === this.mediaOperationEpoch &&
+      pc === this.pc &&
+      sessionId === this.sessionId &&
+      channelId === this.currentChannelId &&
+      userId === useAuthStore.getState().user?.id &&
+      gatewaySessionId === gatewayClient.getSessionId() &&
+      this.publishedTracks.size === all.length &&
+      all.every((item) => {
+        const owned = this.publishedTracks.get(item.source);
+        return (
+          owned?.sender === item.sender &&
+          owned.trackName === item.trackName &&
+          item.sender.track === item.track &&
+          item.sender.track?.readyState === "live" &&
+          pc.getSenders().includes(item.sender)
+        );
+      });
+    const candidates = new Map(
+      pending.map((item) => [
+        item.sender,
+        {
+          generation: item.keyGeneration,
+          baseline: item.rtpBaseline,
+        },
+      ]),
     );
-    for (const remoteTrack of subData.tracks || []) {
-      if (publication && remoteTrack.mid) {
-        this.remoteByMid.set(remoteTrack.mid, publication);
-        this.subscribedMids.set(publicationKey, remoteTrack.mid);
+    const deadline = Date.now() + 15_000;
+    const run = async (): Promise<boolean> => {
+      while (current()) {
+        if (!sframeManager.hasActiveContext)
+          throw new Error("MEDIA_KEY_UNAVAILABLE");
+        const ready = await Promise.all(
+          pending.map(async (item) => {
+            const before = sframeManager.getSenderKeyReadiness(item.sender);
+            if (!before?.ready) return null;
+            const counts = await this.senderRtpCounters(item.sender);
+            const after = sframeManager.getSenderKeyReadiness(item.sender);
+            if (
+              !current() ||
+              !after?.ready ||
+              before.generation !== after.generation ||
+              before.keyId !== after.keyId
+            )
+              return null;
+            const candidate = candidates.get(item.sender)!;
+            if (candidate.generation !== after.generation) {
+              // Bytes from the preceding key generation cannot authorize a new announcement.
+              candidates.set(item.sender, {
+                generation: after.generation,
+                baseline: counts,
+              });
+              return null;
+            }
+            return counts.bytes > candidate.baseline.bytes ||
+              counts.packets > candidate.baseline.packets
+              ? {
+                  sender: item.sender,
+                  generation: after.generation,
+                  keyId: after.keyId,
+                }
+              : null;
+          }),
+        );
+        if (!current()) return false;
+        if (
+          pc.connectionState === "connected" &&
+          ready.every((item) => item !== null) &&
+          ready.every((item) => {
+            const key = sframeManager.getSenderKeyReadiness(item!.sender);
+            return (
+              key?.ready &&
+              key.generation === item!.generation &&
+              key.keyId === item!.keyId
+            );
+          })
+        ) {
+          const keysCurrent = () =>
+            ready.every((item) => {
+              const key = sframeManager.getSenderKeyReadiness(item!.sender);
+              return (
+                key?.ready &&
+                key.generation === item!.generation &&
+                key.keyId === item!.keyId
+              );
+            });
+          const announced = await this.queue(async () => {
+            // Wait behind complete publication SDP before advertising the entire session.
+            if (!current() || !keysCurrent()) return false;
+            const response = await apiFetch(
+              `${API_BASE}/api/cloudflare-realtime/tracks/ready`,
+              {
+                method: "POST",
+                headers: this.authHeaders,
+                body: JSON.stringify({ sessionId }),
+                signal: AbortSignal.any([
+                  controller.signal,
+                  AbortSignal.timeout(5_000),
+                ]),
+              },
+            );
+            if (!current() || !keysCurrent()) return false;
+            if (!response.ok)
+              throw new Error(`Media announcement failed (${response.status})`);
+            for (const item of pending)
+              this.announcedTracks.add(item.trackName);
+            return true;
+          });
+          if (announced) return true;
+        }
+        if (Date.now() >= deadline) throw new Error("MEDIA_KEY_UNAVAILABLE");
+        await new Promise<void>((resolve) => {
+          const done = () => {
+            clearTimeout(timer);
+            controller.signal.removeEventListener("abort", done);
+            resolve();
+          };
+          const timer = setTimeout(done, 100);
+          controller.signal.addEventListener("abort", done, { once: true });
+        });
       }
-    }
+      return false;
+    };
+    const promise = run().catch((error: unknown) => {
+      if (current()) {
+        void this.disconnect();
+        this.setStatus(
+          "failed",
+          error instanceof Error ? error.message : "MEDIA_KEY_UNAVAILABLE",
+        );
+      }
+      return false;
+    });
+    this.announcementTask = { epoch, controller, publications: all, promise };
+    return promise;
+  }
 
-    // 2. 客户端应用 SFU 的 Offer 并生成 Answer
-    await this.pc.setRemoteDescription(
-      new RTCSessionDescription({
-        type: "offer",
-        sdp: subData.sessionDescription.sdp,
-      }),
+  /** Mutation response loss cannot be retried safely: retire the ambiguous transport. */
+  private retireAmbiguousSession(epoch: number, retryable = false): void {
+    if (epoch !== this.mediaOperationEpoch) return;
+    const canRebuild =
+      retryable && this.joiningEpoch === epoch && this.joiningRetryCount === 0;
+    // Disconnect clears the active transport synchronously. Late cleanup completion
+    // must never overwrite a replacement connection's status.
+    const cleanup = this.disconnect(false).catch((error: unknown) =>
+      console.warn("[CF Realtime] Retired session cleanup pending", error),
     );
+    this.retiredJoin = {
+      sourceEpoch: epoch,
+      retiredEpoch: this.mediaOperationEpoch,
+      retryable: canRebuild,
+      cleanup,
+    };
+    this.setStatus(
+      canRebuild ? "reconnecting" : "failed",
+      "MEDIA_CONTEXT_STALE",
+    );
+  }
 
-    const answer = await this.pc.createAnswer();
-    await this.pc.setLocalDescription(answer);
-    await this.waitForIceGathering(this.pc);
+  private async mutateSession(
+    url: string,
+    init: RequestInit,
+  ): Promise<Response> {
+    const epoch = this.mediaOperationEpoch;
+    try {
+      const response = await apiFetch(url, {
+        ...init,
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (response.status >= 500) throw new Error("MEDIA_CONTEXT_STALE");
+      return response;
+    } catch (error) {
+      if (epoch === this.mediaOperationEpoch) {
+        this.retireAmbiguousSession(epoch, true);
+      }
+      throw error;
+    }
+  }
 
-    // 3. 提交 Answer 完成重协商
-    const renegRes = await apiFetch(
+  private async readTrackResponse(
+    response: Response,
+    location: "local" | "remote",
+  ): Promise<CfCallsSubscribeTrackResponse> {
+    const epoch = this.mediaOperationEpoch;
+    try {
+      const value: unknown = await response.json();
+      if (!value || typeof value !== "object")
+        throw new Error("MEDIA_CONTEXT_STALE");
+      const data = value as Record<string, unknown>;
+      if (
+        !Array.isArray(data.tracks) ||
+        data.errorCode ||
+        (data.requiresImmediateRenegotiation !== undefined &&
+          typeof data.requiresImmediateRenegotiation !== "boolean")
+      )
+        throw new Error("MEDIA_CONTEXT_STALE");
+      for (const value of data.tracks) {
+        if (!value || typeof value !== "object")
+          throw new Error("MEDIA_CONTEXT_STALE");
+        const track = value as Record<string, unknown>;
+        if (
+          (track.location !== undefined && track.location !== location) ||
+          typeof track.trackName !== "string" ||
+          (track.mid !== undefined && typeof track.mid !== "string") ||
+          (track.sessionId !== undefined &&
+            typeof track.sessionId !== "string") ||
+          (track.errorCode !== undefined && typeof track.errorCode !== "string")
+        )
+          throw new Error("MEDIA_CONTEXT_STALE");
+        // The SFU response can omit location; it is fixed by this request's direction.
+        if (track.location === undefined) track.location = location;
+      }
+      if (data.sessionDescription !== undefined) {
+        if (
+          !data.sessionDescription ||
+          typeof data.sessionDescription !== "object"
+        )
+          throw new Error("MEDIA_CONTEXT_STALE");
+        const description = data.sessionDescription as Record<string, unknown>;
+        if (
+          (description.type !== "offer" && description.type !== "answer") ||
+          typeof description.sdp !== "string" ||
+          !description.sdp
+        )
+          throw new Error("MEDIA_CONTEXT_STALE");
+      }
+      return value as CfCallsSubscribeTrackResponse;
+    } catch (error) {
+      if (epoch === this.mediaOperationEpoch)
+        this.retireAmbiguousSession(epoch);
+      throw error;
+    }
+  }
+
+  private async completeSdpExchange(
+    pc: RTCPeerConnection,
+    sessionId: string,
+    epoch: number,
+    data: {
+      sessionDescription?: CfCallsSessionDescription;
+      requiresImmediateRenegotiation?: boolean;
+    },
+  ): Promise<void> {
+    const check = () => {
+      if (
+        epoch !== this.mediaOperationEpoch ||
+        pc !== this.pc ||
+        sessionId !== this.sessionId
+      )
+        throw new Error("MEDIA_CONTEXT_STALE");
+    };
+    check();
+    const description = data.sessionDescription;
+    if (!description) {
+      if (data.requiresImmediateRenegotiation)
+        throw new Error("MEDIA_CONTEXT_STALE");
+      return;
+    }
+    if (
+      !description.sdp ||
+      (description.type !== "offer" && description.type !== "answer")
+    )
+      throw new Error("MEDIA_CONTEXT_STALE");
+    await pc.setRemoteDescription(description);
+    check();
+    if (description.type === "answer") return;
+    // An offer always needs an answer; finish the backend exchange before freeing the queue.
+    const answer = await pc.createAnswer();
+    check();
+    await pc.setLocalDescription(answer);
+    check();
+    await this.waitForIceGathering(pc);
+    check();
+    const response = await this.mutateSession(
       `${API_BASE}/api/cloudflare-realtime/tracks/renegotiate`,
       {
         method: "PUT",
         headers: this.authHeaders,
         body: JSON.stringify({
-          sessionId: this.sessionId,
+          sessionId,
           sessionDescription: {
             type: "answer",
-            sdp: this.pc.localDescription?.sdp || answer.sdp,
+            sdp: pc.localDescription?.sdp || answer.sdp,
           },
         }),
       },
     );
+    check();
+    if (!response.ok) throw new Error("MEDIA_CONTEXT_STALE");
+  }
 
-    if (!renegRes.ok) {
-      throw new Error(`Cloudflare 重协商失败: ${renegRes.statusText}`);
+  public async subscribeRemoteTrack(
+    publisherSessionId: string,
+    trackName: string,
+  ): Promise<void> {
+    const key = `${publisherSessionId}:${trackName}`;
+    return this.queue(() => this.subscribeRemoteTracksNow([key], true));
+  }
+
+  private async subscribeRemoteTracksNow(
+    keys: string[],
+    explicitWatch = false,
+  ): Promise<void> {
+    if (keys.length > 16) {
+      for (let index = 0; index < keys.length; index += 16)
+        await this.subscribeRemoteTracksNow(
+          keys.slice(index, index + 16),
+          explicitWatch,
+        );
+      return;
     }
-
-    console.log(
-      "[CF Realtime] 成功订阅远端轨道:",
-      trackName,
-      "发布者:",
-      publisherSessionId,
+    const pc = this.pc;
+    const sessionId = this.sessionId;
+    const channelId = this.currentChannelId;
+    const epoch = this.mediaOperationEpoch;
+    if (!pc || !sessionId || !channelId) return;
+    const requested = keys
+      .map((key) => this.currentPublications.get(key))
+      .filter(
+        (item): item is CfMediaPublication =>
+          !!item &&
+          item.channelId === channelId &&
+          item.sessionId !== sessionId &&
+          item.userId !== useAuthStore.getState().user?.id &&
+          !this.subscribedTracks.has(`${item.sessionId}:${item.trackName}`) &&
+          (this.subscriptionRetries.get(
+            `${item.sessionId}:${item.trackName}`,
+          ) || 0) < 5 &&
+          !this.pendingSubscriptionRetries.has(
+            `${item.sessionId}:${item.trackName}`,
+          ) &&
+          (item.source === "microphone" ||
+            item.source === "camera" ||
+            explicitWatch ||
+            this.watchingSessions.has(item.sessionId)),
+      );
+    if (!requested.length) return;
+    const check = () => {
+      if (
+        epoch !== this.mediaOperationEpoch ||
+        pc !== this.pc ||
+        sessionId !== this.sessionId ||
+        channelId !== this.currentChannelId
+      )
+        throw new Error("MEDIA_CONTEXT_STALE");
+    };
+    // Charge attempts when the queued operation actually runs, including its first request.
+    // Repeated snapshots must not renew the budget for the same publication.
+    for (const publication of requested) {
+      const key = `${publication.sessionId}:${publication.trackName}`;
+      this.subscriptionRetries.set(
+        key,
+        (this.subscriptionRetries.get(key) || 0) + 1,
+      );
+    }
+    const response = await this.mutateSession(
+      `${API_BASE}/api/cloudflare-realtime/tracks/subscribe`,
+      {
+        method: "POST",
+        headers: this.authHeaders,
+        body: JSON.stringify({
+          channelId,
+          sessionId,
+          tracks: requested.map((item) => ({
+            publisherSessionId: item.sessionId,
+            trackName: item.trackName,
+          })),
+        }),
+      },
     );
+    check();
+    if (!response.ok) throw new Error(`Subscribe failed (${response.status})`);
+    const data = await this.readTrackResponse(response, "remote");
+    check();
+    const successes: Array<{
+      key: string;
+      publication: CfMediaPublication;
+      mid: string;
+    }> = [];
+    const rejected: CfMediaPublication[] = [];
+    const matched = new Set<string>();
+    for (const remote of data.tracks || []) {
+      const publications = requested.filter(
+        (item) =>
+          item.trackName === remote.trackName &&
+          (!remote.sessionId || remote.sessionId === item.sessionId),
+      );
+      const publication = publications[0];
+      const key =
+        publication && `${publication.sessionId}:${publication.trackName}`;
+      if (
+        publications.length !== 1 ||
+        !key ||
+        matched.has(key) ||
+        (!remote.errorCode && !remote.mid)
+      ) {
+        this.retireAmbiguousSession(epoch);
+        throw new Error("MEDIA_CONTEXT_STALE");
+      }
+      matched.add(key);
+      if (remote.errorCode) {
+        rejected.push(publication);
+        continue;
+      }
+      // Install MID ownership before setRemoteDescription emits ontrack.
+      this.remoteByMid.set(remote.mid!, publication);
+      this.subscribedMids.set(key, remote.mid!);
+      successes.push({ key, publication, mid: remote.mid! });
+    }
+    if (matched.size !== requested.length) {
+      this.retireAmbiguousSession(epoch);
+      throw new Error("MEDIA_CONTEXT_STALE");
+    }
+    try {
+      await this.completeSdpExchange(pc, sessionId, epoch, data);
+      check();
+    } catch (error) {
+      if (epoch === this.mediaOperationEpoch)
+        this.retireAmbiguousSession(epoch);
+      throw error;
+    }
+    const unwantedMids: string[] = [];
+    for (const success of successes) {
+      const current = this.currentPublications.get(success.key);
+      if (
+        current?.userId === success.publication.userId &&
+        current.channelId === channelId
+      )
+        this.subscribedTracks.add(success.key);
+      else {
+        unwantedMids.push(success.mid);
+        this.remoteByMid.delete(success.mid);
+        this.subscribedMids.delete(success.key);
+      }
+    }
+    if (unwantedMids.length) {
+      const closed = await this.mutateSession(
+        `${API_BASE}/api/cloudflare-realtime/tracks/unsubscribe`,
+        {
+          method: "PUT",
+          headers: this.authHeaders,
+          body: JSON.stringify({
+            channelId,
+            sessionId,
+            tracks: unwantedMids.map((mid) => ({ mid })),
+          }),
+        },
+      );
+      check();
+      if (!closed.ok) throw new Error("MEDIA_CONTEXT_STALE");
+    }
+    if (successes.length) this.markJoinStage("subscribed");
+    // Per-track rejection is a known non-allocation; successful MIDs remain valid.
+    // Retry just those rejected resources, never replay an uncertain request.
+    if (rejected.length)
+      this.scheduleSubscriptionRetry(rejected, epoch, explicitWatch);
+  }
+
+  private scheduleSubscriptionRetry(
+    failed: CfMediaPublication[],
+    epoch: number,
+    explicitWatch: boolean,
+  ): void {
+    let retryable = false;
+    for (const publication of failed) {
+      const key = `${publication.sessionId}:${publication.trackName}`;
+      const attempts = this.subscriptionRetries.get(key) || 0;
+      if (attempts < 5 && this.currentPublications.has(key)) {
+        this.pendingSubscriptionRetries.set(
+          key,
+          explicitWatch || this.pendingSubscriptionRetries.get(key) || false,
+        );
+        retryable = true;
+      }
+    }
+    if (!retryable || this.subscriptionRetryTimer) return;
+    this.subscriptionRetryTimer = setTimeout(() => {
+      this.subscriptionRetryTimer = null;
+      if (epoch !== this.mediaOperationEpoch) return;
+      const pending = [...this.pendingSubscriptionRetries];
+      this.pendingSubscriptionRetries.clear();
+      void this.queue(async () => {
+        const automatic = pending
+          .filter(([, explicit]) => !explicit)
+          .map(([key]) => key);
+        const watched = pending
+          .filter(([, explicit]) => explicit)
+          .map(([key]) => key);
+        await this.subscribeRemoteTracksNow(automatic);
+        await this.subscribeRemoteTracksNow(watched, true);
+      }).catch((error: unknown) => {
+        if (epoch === this.mediaOperationEpoch)
+          console.warn(
+            "[CF Realtime] Rejected subscription retry failed",
+            error,
+          );
+      });
+    }, 250);
   }
 
   private async syncPublications(tracks: CfMediaPublication[]): Promise<void> {
+    tracks = tracks.filter(
+      (track) =>
+        track.channelId === this.currentChannelId &&
+        track.sessionId !== this.sessionId &&
+        track.userId !== useAuthStore.getState().user?.id,
+    );
     const desired = new Set(
       tracks.map((track) => `${track.sessionId}:${track.trackName}`),
     );
@@ -1378,13 +2049,16 @@ export class CloudflareRealtimeService {
           old.source === "screen" &&
           this.watchingSessions.has(old.sessionId)
         ) {
-          await this.stopWatchingStream(old.sessionId).catch((error) =>
-            console.warn("[CF Realtime] Stop vanished stream failed", error),
+          void this.stopWatchingStream(old.sessionId, true).catch(
+            (error: unknown) =>
+              console.warn("[CF Realtime] Stop vanished stream failed", error),
           );
         }
         this.emitVideo(old, null);
         this.currentPublications.delete(key);
         this.subscribedTracks.delete(key);
+        this.subscriptionRetries.delete(key);
+        this.pendingSubscriptionRetries.delete(key);
         const mid = this.subscribedMids.get(key);
         if (mid) this.remoteByMid.delete(mid);
         this.subscribedMids.delete(key);
@@ -1400,24 +2074,11 @@ export class CloudflareRealtimeService {
       if (track.sessionId === this.sessionId) continue;
       const key = `${track.sessionId}:${track.trackName}`;
       this.currentPublications.set(key, track);
-      if (
-        this.subscribedTracks.has(key) ||
-        (track.source !== "microphone" &&
-          track.source !== "camera" &&
-          !(
-            this.watchingSessions.has(track.sessionId) &&
-            (track.source === "screen" || track.source === "screen-audio")
-          ))
-      )
-        continue;
-      this.subscribedTracks.add(key);
-      try {
-        await this.subscribeRemoteTrack(track.sessionId, track.trackName);
-      } catch (error) {
-        this.subscribedTracks.delete(key);
-        console.error("[CF Realtime] Remote subscribe failed", error);
-      }
     }
+    this.emitPublications();
+    await this.queue(() =>
+      this.subscribeRemoteTracksNow([...this.currentPublications.keys()]),
+    );
     const publications = this.allPublications();
     this.emitPublications();
     for (const publication of publications) {
@@ -1529,29 +2190,22 @@ export class CloudflareRealtimeService {
   private async subscribeNewWatchTracks(
     publisherSessionId: string,
   ): Promise<void> {
-    for (const publication of this.currentPublications.values()) {
-      if (
-        publication.sessionId !== publisherSessionId ||
-        (publication.source !== "screen" &&
-          publication.source !== "screen-audio")
-      )
-        continue;
-      const key = `${publication.sessionId}:${publication.trackName}`;
-      if (this.subscribedTracks.has(key)) continue;
-      this.subscribedTracks.add(key);
-      try {
-        await this.subscribeRemoteTrack(
-          publication.sessionId,
-          publication.trackName,
-        );
-      } catch (error) {
-        this.subscribedTracks.delete(key);
-        console.error(
-          "[CF Realtime] Watched stream track subscribe failed",
-          error,
-        );
-      }
-    }
+    return this.queue(() =>
+      this.subscribeRemoteTracksNow(
+        [...this.currentPublications.values()]
+          .filter(
+            (publication) =>
+              publication.sessionId === publisherSessionId &&
+              (publication.source === "screen" ||
+                publication.source === "screen-audio"),
+          )
+          .map(
+            (publication) =>
+              `${publication.sessionId}:${publication.trackName}`,
+          ),
+        true,
+      ),
+    );
   }
 
   private async startWatchingStreamNow(
@@ -1575,24 +2229,21 @@ export class CloudflareRealtimeService {
           watching: true,
         }
       );
-    const tracks = [...this.currentPublications.values()].filter(
-      (publication) =>
-        publication.sessionId === publisherSessionId &&
-        (publication.source === "screen" ||
-          publication.source === "screen-audio"),
-    );
+    const epoch = this.mediaOperationEpoch;
+    const sessionId = this.sessionId;
+    const check = () => {
+      if (
+        epoch !== this.mediaOperationEpoch ||
+        sessionId !== this.sessionId ||
+        !this.currentPublications.has(`${screen.sessionId}:${screen.trackName}`)
+      )
+        throw new Error("MEDIA_CONTEXT_STALE");
+    };
     try {
-      for (const publication of tracks) {
-        const key = `${publication.sessionId}:${publication.trackName}`;
-        if (!this.subscribedTracks.has(key)) {
-          await this.subscribeRemoteTrack(
-            publication.sessionId,
-            publication.trackName,
-          );
-          this.subscribedTracks.add(key);
-        }
-      }
+      await this.subscribeNewWatchTracks(publisherSessionId);
+      check();
       await this.waitForRemoteStream(`${screen.sessionId}:${screen.trackName}`);
+      check();
       const response = await apiFetch(
         `${API_BASE}/api/cloudflare-realtime/streams/watch`,
         {
@@ -1608,11 +2259,13 @@ export class CloudflareRealtimeService {
       if (!response.ok)
         throw new Error(`Watch registration failed (${response.status})`);
       const state = (await response.json()) as CfStreamWatchState;
+      check();
       this.watchingSessions.add(publisherSessionId);
       this.setWatchState(state);
       await this.subscribeNewWatchTracks(publisherSessionId);
       return state;
     } catch (error) {
+      if (epoch !== this.mediaOperationEpoch) throw error;
       await this.releaseScreenSubscriptions(publisherSessionId).catch(
         () => undefined,
       );
@@ -1624,6 +2277,21 @@ export class CloudflareRealtimeService {
     publisherSessionId: string,
     serverAlreadyClosed = false,
   ): Promise<void> {
+    return this.queue(() =>
+      this.releaseScreenSubscriptionsNow(
+        publisherSessionId,
+        serverAlreadyClosed,
+      ),
+    );
+  }
+
+  private async releaseScreenSubscriptionsNow(
+    publisherSessionId: string,
+    serverAlreadyClosed: boolean,
+  ): Promise<void> {
+    const epoch = this.mediaOperationEpoch;
+    const pc = this.pc;
+    const sessionId = this.sessionId;
     const publications = [...this.currentPublications.values()].filter(
       (publication) =>
         publication.sessionId === publisherSessionId &&
@@ -1643,7 +2311,7 @@ export class CloudflareRealtimeService {
       this.sessionId &&
       this.currentChannelId
     ) {
-      const response = await apiFetch(
+      const response = await this.mutateSession(
         `${API_BASE}/api/cloudflare-realtime/tracks/unsubscribe`,
         {
           method: "PUT",
@@ -1655,6 +2323,12 @@ export class CloudflareRealtimeService {
           }),
         },
       );
+      if (
+        epoch !== this.mediaOperationEpoch ||
+        pc !== this.pc ||
+        sessionId !== this.sessionId
+      )
+        throw new Error("MEDIA_CONTEXT_STALE");
       if (!response.ok)
         throw new Error(`Unsubscribe failed (${response.status})`);
     }
@@ -2131,6 +2805,9 @@ export class CloudflareRealtimeService {
   public async disconnect(stopLocalAudio = true): Promise<void> {
     console.log("[CF Realtime] 正在断开 Cloudflare 语音连接...");
     this.mediaOperationEpoch++;
+    this.announcementTask?.controller.abort();
+    this.announcementTask = null;
+    this.announcedTracks.clear();
     const pendingCleanup: Promise<unknown>[] = [];
 
     this.unbindTracks?.();
@@ -2171,6 +2848,15 @@ export class CloudflareRealtimeService {
     this.remoteStreams.clear();
     this.currentPublications.clear();
     this.initialPublications = [];
+    this.initialPublicationRevision = 0;
+    this.latestPublications = null;
+    this.latestPublicationRevision = 0;
+    this.publicationSyncReady = false;
+    if (this.subscriptionRetryTimer) clearTimeout(this.subscriptionRetryTimer);
+    this.subscriptionRetryTimer = null;
+    this.subscriptionRetries.clear();
+    this.pendingSubscriptionRetries.clear();
+    this.operation = Promise.resolve();
     this.remoteByMid.clear();
     this.subscribedTracks.clear();
     this.subscribedMids.clear();
@@ -2227,8 +2913,8 @@ export class CloudflareRealtimeService {
     },
   ): Promise<void> {
     const timeoutMs = options?.timeoutMs ?? 10_000;
-    const debounceMs = options?.debounceMs ?? 500;
-    const maxGatherTimeMs = options?.maxGatherTimeMs ?? 2500;
+    const debounceMs = options?.debounceMs ?? 100;
+    const maxGatherTimeMs = options?.maxGatherTimeMs ?? 750;
 
     const candidateTypes = new Set<string>();
     let gatheredCandidateCount = 0;
@@ -2352,6 +3038,9 @@ export class CloudflareRealtimeService {
       pc.addEventListener("icecandidate", onCandidate);
       pc.addEventListener("icegatheringstatechange", onStateChange);
 
+      captureSdpCandidates();
+      if (hasPreferredCandidate() && !debounceTimer)
+        debounceTimer = setTimeout(() => finish(true), debounceMs);
       // 防御性立即检查一次状态
       if (pc.iceGatheringState === "complete") {
         finish(hasFinalCandidate());
@@ -2377,5 +3066,9 @@ export class CloudflareRealtimeService {
 export const cloudflareRealtimeService = new CloudflareRealtimeService();
 
 if (typeof window !== "undefined") {
-  (window as any).cloudflareRealtimeService = cloudflareRealtimeService;
+  (
+    window as unknown as {
+      cloudflareRealtimeService: CloudflareRealtimeService;
+    }
+  ).cloudflareRealtimeService = cloudflareRealtimeService;
 }

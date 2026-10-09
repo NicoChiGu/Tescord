@@ -1,0 +1,1615 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-08T21:50:58.684Z",
+  "input": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c",
+  "log": "test-results/multiplayer-validation/real-matrix-evidence-final.log",
+  "noDeployment": true,
+  "microphone": "browser oscillator",
+  "sameHostBrowsers": true,
+  "pass": 4,
+  "fail": 4,
+  "acceptance": "Do not infer release acceptance from descriptive partial media statistics",
+  "completedTests": [
+    {
+      "passed": true,
+      "project": "auto",
+      "label": "ok 1 [auto] › e2e-real\\multiplayer-encrypted-sfu.spec.ts:29:7 › 3 signed devices: sequential SFU joins, 60 seconds encrypted audio, rejoin and transfer (1.7m)"
+    },
+    {
+      "passed": false,
+      "project": "auto",
+      "label": "x  2 [auto] › e2e-real\\multiplayer-encrypted-sfu.spec.ts:70:7 › 3 signed devices: ten concurrent SFU joins and ten rotation joins with latency gates (6.7m)"
+    },
+    {
+      "passed": true,
+      "project": "auto",
+      "label": "ok 3 [auto] › e2e-real\\multiplayer-encrypted-sfu.spec.ts:29:7 › 5 signed devices: sequential SFU joins, 60 seconds encrypted audio, rejoin and transfer (2.1m)"
+    },
+    {
+      "passed": false,
+      "project": "auto",
+      "label": "x  4 [auto] › e2e-real\\multiplayer-encrypted-sfu.spec.ts:70:7 › 5 signed devices: ten concurrent SFU joins and ten rotation joins with latency gates (1.7m)"
+    },
+    {
+      "passed": true,
+      "project": "relay",
+      "label": "ok 5 [relay] › e2e-real\\multiplayer-encrypted-sfu.spec.ts:29:7 › 3 signed devices: sequential SFU joins, 60 seconds encrypted audio, rejoin and transfer (1.7m)"
+    },
+    {
+      "passed": false,
+      "project": "relay",
+      "label": "x  6 [relay] › e2e-real\\multiplayer-encrypted-sfu.spec.ts:70:7 › 3 signed devices: ten concurrent SFU joins and ten rotation joins with latency gates (3.4m)"
+    },
+    {
+      "passed": true,
+      "project": "relay",
+      "label": "ok 7 [relay] › e2e-real\\multiplayer-encrypted-sfu.spec.ts:29:7 › 5 signed devices: sequential SFU joins, 60 seconds encrypted audio, rejoin and transfer (2.0m)"
+    },
+    {
+      "passed": false,
+      "project": "relay",
+      "label": "x  8 [relay] › e2e-real\\multiplayer-encrypted-sfu.spec.ts:70:7 › 5 signed devices: ten concurrent SFU joins and ten rotation joins with latency gates (7.7m)"
+    }
+  ],
+  "latencyGates": [
+    {
+      "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/join-latency-5-relay.json",
+      "count": 5,
+      "relay": true,
+      "laterFirstPlayable": {
+        "samples": 80,
+        "minMs": 3999,
+        "p50Ms": 5086,
+        "p95Ms": 7376,
+        "maxMs": 13331
+      },
+      "allRemotePlayable": {
+        "samples": 80,
+        "minMs": 6341,
+        "p50Ms": 7499,
+        "p95Ms": 13767,
+        "maxMs": 15391
+      },
+      "firstParticipantReady": {
+        "samples": 20,
+        "minMs": 3474,
+        "p50Ms": 3997,
+        "p95Ms": 11393,
+        "maxMs": 11573
+      },
+      "limitMs": 10000,
+      "passed": false,
+      "scope": "Complete matrix latency gate, following all strict round assertions"
+    },
+    {
+      "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/join-latency-3-auto.json",
+      "count": 3,
+      "relay": false,
+      "laterFirstPlayable": {
+        "samples": 40,
+        "minMs": 3682,
+        "p50Ms": 4400,
+        "p95Ms": 11236,
+        "maxMs": 12003
+      },
+      "allRemotePlayable": {
+        "samples": 40,
+        "minMs": 5041,
+        "p50Ms": 6079,
+        "p95Ms": 12485,
+        "maxMs": 18472
+      },
+      "firstParticipantReady": {
+        "samples": 20,
+        "minMs": 3073,
+        "p50Ms": 3593,
+        "p95Ms": 10567,
+        "maxMs": 11549
+      },
+      "limitMs": 5000,
+      "passed": false,
+      "scope": "Complete matrix latency gate, following all strict round assertions"
+    }
+  ],
+  "tests": [
+    {
+      "directory": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--336b9-d-audio-rejoin-and-transfer-auto",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--336b9-d-audio-rejoin-and-transfer-auto/multiplayer-mv01kjk0_0_0pu6g.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [60000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 1,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01kjsl000vrozc27uwbpe7/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            },
+            {
+              "path": "/api/channels/cmv01kjsl000vrozc27uwbpe7/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            },
+            {
+              "path": "/api/channels/cmv01kjsl000vrozc27uwbpe7/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--336b9-d-audio-rejoin-and-transfer-relay",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--336b9-d-audio-rejoin-and-transfer-relay/multiplayer-mv020hg9_2_1254e.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [60000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 1,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv020hol01abrozcvtp4y8pz/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            },
+            {
+              "path": "/api/channels/cmv020hol01abrozcvtp4y8pz/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            },
+            {
+              "path": "/api/channels/cmv020hol01abrozcvtp4y8pz/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-auto",
+      "matrix": true,
+      "rooms": [
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-auto/multiplayer-mv01y5v8_1_ta5f6.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-auto/multiplayer-mv01ylrx_1_79p3r.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01ym2j012urozcvmcsxymo/media-encryption/acknowledge",
+              "status": 409,
+              "durationMs": 33,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv01ym2j012urozcvmcsxymo/media-encryption/publish",
+              "status": 409,
+              "durationMs": 39,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-auto/multiplayer-mv01z74n_1_ambc6.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-auto/multiplayer-mv01zn0m_1_pjy09.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [],
+          "consoleErrorCount": 2,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01znb7017nrozceksbf84a/media-encryption/publish",
+              "status": 409,
+              "durationMs": 83,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv01znb7017nrozceksbf84a/media-encryption/publish",
+              "status": 409,
+              "durationMs": 46,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv01znb7017nrozceksbf84a/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            }
+          ],
+          "stalledTransports": [
+            {
+              "publishedMs": 2621,
+              "encrypted": 0,
+              "uplinkBytes": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "directory": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay",
+      "matrix": true,
+      "rooms": [
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-mv029p0l_3_2hvsh.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-mv02a636_3_6fh5f.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02a6dk01znrozcaf8p0825/media-encryption/sync",
+              "status": 409,
+              "durationMs": 80,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv02a6dk01znrozcaf8p0825/media-encryption/acknowledge",
+              "status": 409,
+              "durationMs": 39,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv02a6dk01znrozcaf8p0825/media-encryption/publish",
+              "status": 409,
+              "durationMs": 59,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-mv02amrj_3_0l9l4.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-mv02b8pg_3_m6fhf.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02b90j024grozc3f5szfdt/media-encryption/publish",
+              "status": 409,
+              "durationMs": 41,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv02b90j024grozc3f5szfdt/media-encryption/publish",
+              "status": 409,
+              "durationMs": 48,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-mv02bo2h_3_hknp5.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-mv02c42j_3_4ka8a.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02c4d30294rozcxl2lnlvj/media-encryption/publish",
+              "status": 409,
+              "durationMs": 38,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv02c4d30294rozcxl2lnlvj/media-encryption/publish",
+              "status": 409,
+              "durationMs": 45,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-mv02ckom_3_8fbu9.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-mv02d11a_3_dtiw5.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02d1c302dsrozcpxesa8j4/media-encryption/publish",
+              "status": 409,
+              "durationMs": 36,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv02d1c302dsrozcpxesa8j4/media-encryption/publish",
+              "status": 409,
+              "durationMs": 72,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-mv02di8b_3_jrc7j.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-mv02dytr_3_pqpdg.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02dz4d02igrozc5af1t53b/media-encryption/publish",
+              "status": 409,
+              "durationMs": 49,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv02dz4d02igrozc5af1t53b/media-encryption/publish",
+              "status": 409,
+              "durationMs": 59,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-mv02eeyx_3_iyw85.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-mv02exca_3_l494e.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02exn102n4rozcf55yig18/media-encryption/publish",
+              "status": 409,
+              "durationMs": 69,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv02exn102n4rozcf55yig18/media-encryption/publish",
+              "status": 409,
+              "durationMs": 43,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-mv02fd2v_3_wh197.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-mv02fzu2_3_wfdki.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02g05102rtrozcu6cej5a6/media-encryption/publish",
+              "status": 409,
+              "durationMs": 45,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv02g05102rtrozcu6cej5a6/media-encryption/publish",
+              "status": 409,
+              "durationMs": 46,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-mv02gmhw_3_h2lf9.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-mv02h3oi_3_y0j5t.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02h3zl02whrozc240o61yr/media-encryption/publish",
+              "status": 409,
+              "durationMs": 29,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv02h3zl02whrozc240o61yr/media-encryption/sync",
+              "status": 409,
+              "durationMs": 58,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv02h3zl02whrozc240o61yr/media-encryption/publish",
+              "status": 409,
+              "durationMs": 73,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-mv02hjn7_3_mii4d.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-mv02i0h1_3_d23ny.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02i0rx0315rozctsdfxc95/media-encryption/publish",
+              "status": 409,
+              "durationMs": 57,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv02i0rx0315rozctsdfxc95/media-encryption/publish",
+              "status": 409,
+              "durationMs": 39,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-mv02ihwp_3_3o8b9.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-mv02iz6n_3_zfr95.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02izhp035vrozcsychlqkz/media-encryption/sync",
+              "status": 409,
+              "durationMs": 53,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv02izhp035vrozcsychlqkz/media-encryption/publish",
+              "status": 409,
+              "durationMs": 65,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv02izhp035vrozcsychlqkz/media-encryption/publish",
+              "status": 409,
+              "durationMs": 26,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto",
+      "matrix": true,
+      "rooms": [
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-mv01mqli_0_muavn.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-mv01n43p_0_8ezbi.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01n4af004drozc10ycyfkb/media-encryption/publish",
+              "status": 409,
+              "durationMs": 28,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv01n4af004drozc10ycyfkb/media-encryption/publish",
+              "status": 409,
+              "durationMs": 39,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-mv01nhls_0_06zrx.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-mv01nvdq_0_n0mmc.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01nvko0075rozcobxs4pef/media-encryption/publish",
+              "status": 409,
+              "durationMs": 28,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv01nvko0075rozcobxs4pef/media-encryption/publish",
+              "status": 409,
+              "durationMs": 41,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-mv01oevu_0_a5mnu.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-mv01p2pp_0_ju617.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01p2x3009zrozcy8lxvqub/media-encryption/publish",
+              "status": 409,
+              "durationMs": 41,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv01p2x3009zrozcy8lxvqub/media-encryption/publish",
+              "status": 409,
+              "durationMs": 48,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-mv01pgk1_0_3979o.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-mv01pziq_0_svtxm.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01pzpo00csrozcopjsb3ub/media-encryption/publish",
+              "status": 409,
+              "durationMs": 31,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv01pzpo00csrozcopjsb3ub/media-encryption/publish",
+              "status": 409,
+              "durationMs": 37,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-mv01qd5m_0_0nrpp.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-mv01qqh7_0_ea1yq.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01qqo800fkrozcdedqvnta/media-encryption/acknowledge",
+              "status": 409,
+              "durationMs": 28,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv01qqo800fkrozcdedqvnta/media-encryption/publish",
+              "status": 409,
+              "durationMs": 32,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-mv01r57p_0_gursc.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-mv01rj9n_0_onvxz.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01rjgi00idrozckjjyrjr0/media-encryption/publish",
+              "status": 409,
+              "durationMs": 35,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv01rjgi00idrozckjjyrjr0/media-encryption/publish",
+              "status": 409,
+              "durationMs": 27,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-mv01rvze_0_glspj.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-mv01sfc4_0_rarlk.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01sfj700l7rozct614m49m/media-encryption/publish",
+              "status": 409,
+              "durationMs": 41,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv01sfj700l7rozct614m49m/media-encryption/publish",
+              "status": 409,
+              "durationMs": 36,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-mv01st0i_0_exqvm.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-mv01t6vf_0_poyig.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01t72l00nzrozc4831twk9/media-encryption/publish",
+              "status": 409,
+              "durationMs": 48,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv01t72l00nzrozc4831twk9/media-encryption/publish",
+              "status": 409,
+              "durationMs": 27,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-mv01tkh6_0_a1z48.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-mv01u38e_0_z3ym6.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01u3f600qtrozcdrelxtx0/media-encryption/publish",
+              "status": 409,
+              "durationMs": 35,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv01u3f600qtrozcdrelxtx0/media-encryption/publish",
+              "status": 409,
+              "durationMs": 35,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-mv01ugyk_0_nqd8o.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-mv01uul4_0_w4xi9.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01uus800tlrozct2dwqi67/media-encryption/publish",
+              "status": 409,
+              "durationMs": 26,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv01uus800tlrozct2dwqi67/media-encryption/publish",
+              "status": 409,
+              "durationMs": 28,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay",
+      "matrix": true,
+      "rooms": [
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay/multiplayer-mv022m4i_2_kstd0.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay/multiplayer-mv0230dv_2_w2fjw.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv0230kh01dtrozc594ae9fp/media-encryption/publish",
+              "status": 409,
+              "durationMs": 45,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv0230kh01dtrozc594ae9fp/media-encryption/publish",
+              "status": 409,
+              "durationMs": 35,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay/multiplayer-mv023emb_2_3j9aa.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay/multiplayer-mv023tcd_2_5g25r.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv023tj201glrozcdpiu2d68/media-encryption/acknowledge",
+              "status": 409,
+              "durationMs": 41,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv023tj201glrozcdpiu2d68/media-encryption/publish",
+              "status": 409,
+              "durationMs": 28,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay/multiplayer-mv02475e_2_vcfhm.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay/multiplayer-mv024m3j_2_nubvb.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv024mac01jerozc3d5z9pb0/media-encryption/publish",
+              "status": 409,
+              "durationMs": 26,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv024mac01jerozc3d5z9pb0/media-encryption/publish",
+              "status": 409,
+              "durationMs": 32,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay/multiplayer-mv02510e_2_jq9r7.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay/multiplayer-mv025ffe_2_8jfgz.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv025fm301m6rozcuhtq7zd9/media-encryption/publish",
+              "status": 409,
+              "durationMs": 28,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv025fm301m6rozcuhtq7zd9/media-encryption/publish",
+              "status": 409,
+              "durationMs": 26,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay/multiplayer-mv025tn0_2_e8dai.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay/multiplayer-mv0267mp_2_he24v.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv0267tj01oyrozcbzgoa3yw/media-encryption/publish",
+              "status": 409,
+              "durationMs": 30,
+              "networkFailure": false
+            },
+            {
+              "path": "/api/channels/cmv0267tj01oyrozcbzgoa3yw/media-encryption/publish",
+              "status": 409,
+              "durationMs": 37,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        },
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay/multiplayer-mv026l56_2_xcoii.json",
+          "count": 3,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [5000],
+          "consoleErrorCount": 1,
+          "deviceTransferCount": 0,
+          "failedRequests": [
+            {
+              "path": "/api/cloudflare-realtime/tracks/publish",
+              "status": 502,
+              "durationMs": 316,
+              "networkFailure": false
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-auto",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-auto/multiplayer-mv01vipk_1_kcv00.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": false,
+          "allRoutesSustained": [60000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 1,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv01vj1i00v7rozcgrt1vygz/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            },
+            {
+              "path": "/api/channels/cmv01vj1i00v7rozcgrt1vygz/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            },
+            {
+              "path": "/api/channels/cmv01vj1i00v7rozcgrt1vygz/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    },
+    {
+      "directory": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-relay",
+      "matrix": false,
+      "rooms": [
+        {
+          "evidence": "test-results/multiplayer-real/56a0d2f1-2ec8-49cd-8747-e81ce591851c/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-relay/multiplayer-mv0274um_3_bziz3.json",
+          "count": 5,
+          "mode": "cloudflare_sfu",
+          "relay": true,
+          "allRoutesSustained": [60000],
+          "consoleErrorCount": 0,
+          "deviceTransferCount": 1,
+          "failedRequests": [
+            {
+              "path": "/api/channels/cmv02756p01s0rozch1fz29mh/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            },
+            {
+              "path": "/api/channels/cmv02756p01s0rozch1fz29mh/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            },
+            {
+              "path": "/api/channels/cmv02756p01s0rozch1fz29mh/media-encryption/leave",
+              "status": null,
+              "durationMs": null,
+              "networkFailure": true
+            }
+          ],
+          "stalledTransports": []
+        }
+      ]
+    }
+  ],
+  "latencyGroups": [
+    {
+      "key": "cloudflare_sfu:auto:3",
+      "actualCandidatePairs": ["prflx->host"],
+      "laterFirstPlayable": {
+        "samples": 40,
+        "minMs": 3682,
+        "p50Ms": 4400,
+        "p95Ms": 11236,
+        "maxMs": 12003
+      },
+      "firstParticipantReady": {
+        "samples": 20,
+        "minMs": 3073,
+        "p50Ms": 3593,
+        "p95Ms": 10567,
+        "maxMs": 11549
+      },
+      "stageOffsets": {
+        "joinStarted": {
+          "samples": 40,
+          "minMs": 0,
+          "p50Ms": 0,
+          "p95Ms": 0,
+          "maxMs": 0
+        },
+        "deviceRegistered": {
+          "samples": 40,
+          "minMs": 75,
+          "p50Ms": 116,
+          "p95Ms": 168,
+          "maxMs": 177
+        },
+        "contextReady": {
+          "samples": 40,
+          "minMs": 102,
+          "p50Ms": 158,
+          "p95Ms": 203,
+          "maxMs": 219
+        },
+        "keyAcknowledged": {
+          "samples": 40,
+          "minMs": 361,
+          "p50Ms": 484,
+          "p95Ms": 706,
+          "maxMs": 902
+        },
+        "iceReady": {
+          "samples": 40,
+          "minMs": 952,
+          "p50Ms": 982,
+          "p95Ms": 1292,
+          "maxMs": 1535
+        },
+        "published": {
+          "samples": 40,
+          "minMs": 1664,
+          "p50Ms": 2089,
+          "p95Ms": 2614,
+          "maxMs": 3042
+        },
+        "connected": {
+          "samples": 40,
+          "minMs": 2538,
+          "p50Ms": 3144,
+          "p95Ms": 9943,
+          "maxMs": 10933
+        },
+        "subscribed": {
+          "samples": 40,
+          "minMs": 3556,
+          "p50Ms": 4329,
+          "p95Ms": 11115,
+          "maxMs": 11870
+        },
+        "firstPlayableAudio": {
+          "samples": 40,
+          "minMs": 3639,
+          "p50Ms": 4354,
+          "p95Ms": 11195,
+          "maxMs": 11957
+        }
+      },
+      "statisticsScope": "Matrix rooms with verified all-route sustained media, including recovered HTTP failures. Incomplete rounds remain failed and are not playable samples."
+    },
+    {
+      "key": "cloudflare_sfu:relay:3",
+      "actualCandidatePairs": ["relay->host"],
+      "laterFirstPlayable": {
+        "samples": 22,
+        "minMs": 4093,
+        "p50Ms": 4589,
+        "p95Ms": 5478,
+        "maxMs": 5565
+      },
+      "firstParticipantReady": {
+        "samples": 11,
+        "minMs": 3464,
+        "p50Ms": 3992,
+        "p95Ms": 4504,
+        "maxMs": 4504
+      },
+      "stageOffsets": {
+        "joinStarted": {
+          "samples": 22,
+          "minMs": 0,
+          "p50Ms": 0,
+          "p95Ms": 0,
+          "maxMs": 0
+        },
+        "deviceRegistered": {
+          "samples": 22,
+          "minMs": 83,
+          "p50Ms": 117,
+          "p95Ms": 160,
+          "maxMs": 172
+        },
+        "contextReady": {
+          "samples": 22,
+          "minMs": 110,
+          "p50Ms": 159,
+          "p95Ms": 197,
+          "maxMs": 208
+        },
+        "keyAcknowledged": {
+          "samples": 22,
+          "minMs": 410,
+          "p50Ms": 486,
+          "p95Ms": 665,
+          "maxMs": 677
+        },
+        "iceReady": {
+          "samples": 22,
+          "minMs": 964,
+          "p50Ms": 1068,
+          "p95Ms": 1217,
+          "maxMs": 1252
+        },
+        "published": {
+          "samples": 22,
+          "minMs": 1901,
+          "p50Ms": 2150,
+          "p95Ms": 2544,
+          "maxMs": 3139
+        },
+        "connected": {
+          "samples": 22,
+          "minMs": 2962,
+          "p50Ms": 3375,
+          "p95Ms": 4049,
+          "maxMs": 4209
+        },
+        "subscribed": {
+          "samples": 22,
+          "minMs": 4012,
+          "p50Ms": 4500,
+          "p95Ms": 5354,
+          "maxMs": 5411
+        },
+        "firstPlayableAudio": {
+          "samples": 22,
+          "minMs": 4062,
+          "p50Ms": 4554,
+          "p95Ms": 5440,
+          "maxMs": 5520
+        }
+      },
+      "statisticsScope": "Matrix rooms with verified all-route sustained media, including recovered HTTP failures. Incomplete rounds remain failed and are not playable samples."
+    },
+    {
+      "key": "cloudflare_sfu:auto:5",
+      "actualCandidatePairs": ["prflx->host"],
+      "laterFirstPlayable": {
+        "samples": 12,
+        "minMs": 3814,
+        "p50Ms": 4424,
+        "p95Ms": 12179,
+        "maxMs": 12179
+      },
+      "firstParticipantReady": {
+        "samples": 3,
+        "minMs": 3978,
+        "p50Ms": 3991,
+        "p95Ms": 4000,
+        "maxMs": 4000
+      },
+      "stageOffsets": {
+        "joinStarted": {
+          "samples": 12,
+          "minMs": 0,
+          "p50Ms": 0,
+          "p95Ms": 0,
+          "maxMs": 0
+        },
+        "deviceRegistered": {
+          "samples": 12,
+          "minMs": 118,
+          "p50Ms": 167,
+          "p95Ms": 265,
+          "maxMs": 265
+        },
+        "contextReady": {
+          "samples": 12,
+          "minMs": 166,
+          "p50Ms": 290,
+          "p95Ms": 319,
+          "maxMs": 319
+        },
+        "keyAcknowledged": {
+          "samples": 12,
+          "minMs": 772,
+          "p50Ms": 893,
+          "p95Ms": 1381,
+          "maxMs": 1381
+        },
+        "iceReady": {
+          "samples": 12,
+          "minMs": 986,
+          "p50Ms": 1019,
+          "p95Ms": 1473,
+          "maxMs": 1473
+        },
+        "published": {
+          "samples": 12,
+          "minMs": 1961,
+          "p50Ms": 2329,
+          "p95Ms": 2797,
+          "maxMs": 2797
+        },
+        "connected": {
+          "samples": 12,
+          "minMs": 2860,
+          "p50Ms": 3262,
+          "p95Ms": 10820,
+          "maxMs": 10820
+        },
+        "subscribed": {
+          "samples": 12,
+          "minMs": 3734,
+          "p50Ms": 4354,
+          "p95Ms": 12072,
+          "maxMs": 12072
+        },
+        "firstPlayableAudio": {
+          "samples": 12,
+          "minMs": 3769,
+          "p50Ms": 4378,
+          "p95Ms": 12128,
+          "maxMs": 12128
+        }
+      },
+      "statisticsScope": "Matrix rooms with verified all-route sustained media, including recovered HTTP failures. Incomplete rounds remain failed and are not playable samples."
+    },
+    {
+      "key": "cloudflare_sfu:relay:5",
+      "actualCandidatePairs": ["relay->host"],
+      "laterFirstPlayable": {
+        "samples": 68,
+        "minMs": 3999,
+        "p50Ms": 5080,
+        "p95Ms": 7393,
+        "maxMs": 13331
+      },
+      "firstParticipantReady": {
+        "samples": 17,
+        "minMs": 3474,
+        "p50Ms": 3997,
+        "p95Ms": 11573,
+        "maxMs": 11573
+      },
+      "stageOffsets": {
+        "joinStarted": {
+          "samples": 68,
+          "minMs": 0,
+          "p50Ms": 0,
+          "p95Ms": 0,
+          "maxMs": 0
+        },
+        "deviceRegistered": {
+          "samples": 68,
+          "minMs": 86,
+          "p50Ms": 179,
+          "p95Ms": 277,
+          "maxMs": 309
+        },
+        "contextReady": {
+          "samples": 68,
+          "minMs": 110,
+          "p50Ms": 280,
+          "p95Ms": 355,
+          "maxMs": 362
+        },
+        "keyAcknowledged": {
+          "samples": 68,
+          "minMs": 527,
+          "p50Ms": 950,
+          "p95Ms": 1378,
+          "maxMs": 1454
+        },
+        "iceReady": {
+          "samples": 68,
+          "minMs": 761,
+          "p50Ms": 1306,
+          "p95Ms": 1583,
+          "maxMs": 1960
+        },
+        "published": {
+          "samples": 68,
+          "minMs": 2023,
+          "p50Ms": 2410,
+          "p95Ms": 2803,
+          "maxMs": 3696
+        },
+        "connected": {
+          "samples": 68,
+          "minMs": 2940,
+          "p50Ms": 3613,
+          "p95Ms": 4134,
+          "maxMs": 11811
+        },
+        "subscribed": {
+          "samples": 68,
+          "minMs": 3896,
+          "p50Ms": 4899,
+          "p95Ms": 7200,
+          "maxMs": 13177
+        },
+        "firstPlayableAudio": {
+          "samples": 68,
+          "minMs": 3950,
+          "p50Ms": 5024,
+          "p95Ms": 7351,
+          "maxMs": 13279
+        }
+      },
+      "statisticsScope": "Matrix rooms with verified all-route sustained media, including recovered HTTP failures. Incomplete rounds remain failed and are not playable samples."
+    }
+  ]
+}

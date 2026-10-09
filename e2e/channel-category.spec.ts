@@ -87,10 +87,12 @@ test.describe("频道分类（Category）全生命周期端到端验收", () => 
     // 8. 验证弹窗中的所属分类已默认选中该分类
     const catSelect = page.locator('[data-testid="channel-category-select"]');
     await expect(catSelect).toBeVisible();
-    const selectedOptionText = await catSelect
-      .locator("option:checked")
-      .textContent();
-    expect(selectedOptionText).toContain(testCatName);
+    await expect(catSelect).toContainText(testCatName);
+    await catSelect.click();
+    await expect(
+      page.getByRole("option", { name: `📁 ${testCatName}`, exact: true }),
+    ).toHaveAttribute("aria-selected", "true");
+    await catSelect.click();
 
     // 填写频道名称并提交
     const channelNameInput = page.locator(

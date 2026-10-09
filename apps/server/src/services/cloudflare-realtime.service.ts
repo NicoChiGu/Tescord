@@ -22,6 +22,12 @@ import type {
  * 3. 协调基于会话 (Session) 与轨道 (Track) 的 WebRTC 交换
  */
 export class CloudflareRealtimeService {
+  private pendingTeardowns = new Set<Promise<void>>();
+  private trackRevisions = new Map<string, number>();
+  private retiredSessions = new Map<
+    string,
+    { userId: string; loginSessionId: string; expiresAt: number }
+  >();
   private readonly baseUrl = "https://rtc.live.cloudflare.com/v1";
   private readonly sessions = new Map<
     string,
@@ -333,23 +339,39 @@ export class CloudflareRealtimeService {
     });
   }
 
-  public async revokeSession(sessionId: string): Promise<void> {
+  public async revokeSession(
+    sessionId: string,
+    lateAllocationMids: string[] = [],
+  ): Promise<void> {
     const mids = [
-      ...this.getTracks(this.sessions.get(sessionId)?.channelId || "")
-        .filter((t) => t.sessionId === sessionId)
-        .map((t) => t.mid)
-        .filter((mid): mid is string => !!mid),
-      ...(this.subscribedMids.get(sessionId)?.keys() || []),
+      ...new Set([
+        ...this.getTracks(this.sessions.get(sessionId)?.channelId || "")
+          .filter((t) => t.sessionId === sessionId)
+          .map((t) => t.mid)
+          .filter((mid): mid is string => !!mid),
+        ...(this.subscribedMids.get(sessionId)?.keys() || []),
+        ...lateAllocationMids,
+      ]),
     ];
-    try {
-      if (mids.length)
-        await this.closeTracks({
-          sessionId,
-          tracks: mids.map((mid) => ({ mid })),
-        });
-    } finally {
-      this.removeSession(sessionId);
+    // Revoke authority and announcements before yielding to the provider.
+    // Slow remote cleanup must not expose departed publications or block rejoin.
+    this.removeSession(sessionId);
+    if (mids.length) {
+      const teardown = this.closeTracks({
+        sessionId,
+        tracks: mids.map((mid) => ({ mid })),
+      });
+      this.pendingTeardowns.add(teardown);
+      try {
+        await teardown;
+      } finally {
+        this.pendingTeardowns.delete(teardown);
+      }
     }
+  }
+
+  public async drainTeardowns(): Promise<void> {
+    await Promise.allSettled([...this.pendingTeardowns]);
   }
 
   public async revokeCallSessions(callId: string): Promise<void> {
@@ -376,6 +398,19 @@ export class CloudflareRealtimeService {
     );
   }
 
+  public ownsRetiredSession(
+    sessionId: string,
+    userId: string,
+    loginSessionId: string,
+  ): boolean {
+    const entry = this.retiredSessions.get(sessionId);
+    if (entry && entry.expiresAt <= Date.now()) {
+      this.retiredSessions.delete(sessionId);
+      return false;
+    }
+    return entry?.userId === userId && entry.loginSessionId === loginSessionId;
+  }
+
   public getTracks(channelId: string): CfMediaPublication[] {
     return [...this.publications.entries()]
       .filter(
@@ -383,6 +418,12 @@ export class CloudflareRealtimeService {
           track.channelId === channelId && this.readyPublications.has(key),
       )
       .map(([, track]) => track);
+  }
+  public getTracksRevision(channelId: string): number {
+    return this.trackRevisions.get(channelId) || 0;
+  }
+  private bumpTracksRevision(channelId: string): void {
+    this.trackRevisions.set(channelId, this.getTracksRevision(channelId) + 1);
   }
 
   public getTrack(
@@ -435,14 +476,20 @@ export class CloudflareRealtimeService {
     for (const key of this.publications.keys()) {
       if (key.startsWith(`${sessionId}:`)) this.readyPublications.add(key);
     }
+    const channelId = this.sessions.get(sessionId)?.channelId;
+    if (channelId) this.bumpTracksRevision(channelId);
   }
 
   public addTracks(tracks: CfMediaPublication[]): void {
     for (const track of tracks)
       this.publications.set(`${track.sessionId}:${track.trackName}`, track);
+    for (const channelId of new Set(tracks.map((track) => track.channelId)))
+      this.bumpTracksRevision(channelId);
   }
 
   public removeTracks(sessionId: string, trackNames: string[]): void {
+    const channelId = this.sessions.get(sessionId)?.channelId;
+    if (channelId) this.bumpTracksRevision(channelId);
     const endingStream = trackNames.some(
       (trackName) =>
         this.getReadyTrack(sessionId, trackName)?.source === "screen",
@@ -460,6 +507,19 @@ export class CloudflareRealtimeService {
   }
 
   public removeSession(sessionId: string): void {
+    const retiring = this.sessions.get(sessionId);
+    if (retiring) this.bumpTracksRevision(retiring.channelId);
+    if (retiring) {
+      for (const [id, entry] of this.retiredSessions)
+        if (entry.expiresAt <= Date.now()) this.retiredSessions.delete(id);
+      if (this.retiredSessions.size >= 1024)
+        this.retiredSessions.delete(this.retiredSessions.keys().next().value!);
+      this.retiredSessions.set(sessionId, {
+        userId: retiring.userId,
+        loginSessionId: retiring.loginSessionId,
+        expiresAt: Date.now() + 60_000,
+      });
+    }
     const previousState = this.streamWatchState("", sessionId);
     for (const publisherSessionId of this.streamWatchers.keys())
       this.unwatchStream(sessionId, publisherSessionId);
@@ -661,12 +721,15 @@ export class CloudflareRealtimeService {
 
     const data = (await response.json()) as CfCallsSubscribeTrackResponse;
     if (
-      !data?.sessionDescription ||
-      typeof data.sessionDescription.sdp !== "string" ||
+      !data ||
+      (data.sessionDescription !== undefined &&
+        typeof data.sessionDescription.sdp !== "string") ||
+      (data.requiresImmediateRenegotiation === true &&
+        data.sessionDescription?.type !== "offer") ||
       !Array.isArray(data.tracks) ||
       data.tracks.length !== req.tracks.length ||
       data.tracks.some(
-        (track) => track.errorCode || typeof track.mid !== "string",
+        (track) => !track.errorCode && typeof track.mid !== "string",
       )
     ) {
       const codes = Array.isArray(data?.tracks)
@@ -679,16 +742,34 @@ export class CloudflareRealtimeService {
         `Cloudflare subscription rejected (${codes || "invalid_response"})`,
       );
     }
+    const matched = new Set<string>();
+    for (const track of data.tracks) {
+      const request = req.tracks.find(
+        (candidate) =>
+          candidate.trackName === track.trackName &&
+          (!track.sessionId ||
+            candidate.publisherSessionId === track.sessionId),
+      );
+      const key =
+        request && `${request.publisherSessionId}:${request.trackName}`;
+      if (!key || matched.has(key))
+        throw new Error("Cloudflare subscription identity mismatch");
+      matched.add(key);
+    }
     return data;
   }
 
   /**
    * 4. 提交重协商 Answer
    */
-  public async renegotiate(req: CfCallsRenegotiateRequest): Promise<void> {
+  public async renegotiate(
+    req: CfCallsRenegotiateRequest,
+    authorized: () => Promise<boolean>,
+  ): Promise<boolean> {
     if (!this.isSfuConfigured) {
       throw new Error("Cloudflare Calls SFU is not configured on this server");
     }
+    if (!(await authorized())) return false;
 
     const response = await fetch(
       `${this.baseUrl}/apps/${this.appId}/sessions/${req.sessionId}/renegotiate`,
@@ -703,8 +784,32 @@ export class CloudflareRealtimeService {
     );
 
     if (!response.ok) {
-      throw new Error(`Cloudflare renegotiate failed (${response.status})`);
+      const failure: unknown = await response.json().catch(() => null);
+      const code =
+        failure &&
+        typeof failure === "object" &&
+        "errorCode" in failure &&
+        typeof failure.errorCode === "string" &&
+        /^[a-z0-9_]{1,80}$/i.test(failure.errorCode)
+          ? failure.errorCode
+          : "unknown";
+      throw new Error(
+        `Cloudflare renegotiate failed (${response.status}, ${code})`,
+      );
     }
+    try {
+      if (await authorized()) {
+        this.confirmSubscriptions(req.sessionId);
+        return true;
+      }
+    } catch (error) {
+      await this.revokeSession(req.sessionId).catch(() => undefined);
+      throw error;
+    }
+    // Revoke locally before waiting for provider cleanup. An answer returned
+    // after authorization was withdrawn must not confirm its subscriptions.
+    await this.revokeSession(req.sessionId).catch(() => undefined);
+    return false;
   }
 
   /**

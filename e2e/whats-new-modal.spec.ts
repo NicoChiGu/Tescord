@@ -1,4 +1,8 @@
-import { CURRENT_APP_VERSION } from "../apps/web/src/data/changelogs";
+import {
+  BUILTIN_CHANGELOGS,
+  CURRENT_APP_VERSION,
+} from "../apps/web/src/data/changelogs";
+import zhCnModals from "../apps/web/src/i18n/locales/zh-CN/modals.json";
 import { test, expect } from "@playwright/test";
 
 test.describe("版本更新公告模态框 (What's New Modal) 自动化验收", () => {
@@ -41,7 +45,24 @@ test.describe("版本更新公告模态框 (What's New Modal) 自动化验收", 
 
     // 验证分类条目包含“新增功能”
     await expect(modal).toContainText("新增功能");
-    await expect(modal).toContainText("Discord 原生级搜索引擎");
+    const currentChangelog = BUILTIN_CHANGELOGS.find(
+      (entry) => entry.version === CURRENT_APP_VERSION,
+    );
+    expect(currentChangelog).toBeDefined();
+    for (const item of currentChangelog!.items) {
+      const key = item.titleKey.replace("modals:", "");
+      const title = key
+        .split(".")
+        .reduce<unknown>(
+          (value, part) =>
+            typeof value === "object" && value !== null
+              ? (value as Record<string, unknown>)[part]
+              : undefined,
+          zhCnModals,
+        );
+      expect(typeof title).toBe("string");
+      await expect(modal).toContainText(title as string);
+    }
 
     // 点击“我知道了”关闭弹窗
     const gotItBtn = page.locator('[data-testid="whats-new-got-it-btn"]');

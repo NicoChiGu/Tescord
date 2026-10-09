@@ -132,12 +132,17 @@ test.describe("Discord 风格摄像头设备选择与视频预览全链路验收
     await expect(cameraSelect).toBeVisible();
 
     // 验证两个 Mock 摄像头均出现在下拉列表中
+    await cameraSelect.click();
     await expect(
-      cameraSelect.locator('option[value="cam_logitech_streamcam"]'),
-    ).toBeAttached();
+      page.getByRole("option", {
+        name: "Logitech StreamCam 1080p (USB)",
+        exact: true,
+      }),
+    ).toBeVisible();
     await expect(
-      cameraSelect.locator('option[value="cam_obs_virtual"]'),
-    ).toBeAttached();
+      page.getByRole("option", { name: "OBS Virtual Camera", exact: true }),
+    ).toBeVisible();
+    await cameraSelect.click();
 
     // 4. 验证画面测试按钮与 16:9 实时视频预览窗口
     const startTestBtn = page.getByTestId("start-video-test-btn");
@@ -165,7 +170,11 @@ test.describe("Discord 风格摄像头设备选择与视频预览全链路验收
     await expect(testVideoEl).toHaveClass(/-scale-x-100/);
 
     // 5. 在测试运行中切换摄像头下拉项
-    await cameraSelect.selectOption("cam_obs_virtual");
+    await cameraSelect.click();
+    await page
+      .getByRole("option", { name: "OBS Virtual Camera", exact: true })
+      .click();
+    await expect(cameraSelect).toContainText("OBS Virtual Camera");
     await expect(testVideoEl).toBeVisible();
 
     // 6. 停止测试视频
@@ -235,9 +244,14 @@ test.describe("Discord 风格摄像头设备选择与视频预览全链路验收
     // 验证设置中心被唤起且当前处于「语音与视频」面板
     await expect(settingsModal).toBeVisible();
     await expect(page.getByTestId("camera-device-select")).toBeVisible();
-    await expect(page.getByTestId("camera-device-select")).toHaveValue(
-      "cam_obs_virtual",
+    await expect(page.getByTestId("camera-device-select")).toContainText(
+      "OBS Virtual Camera",
     );
+    await page.getByTestId("camera-device-select").click();
+    await expect(
+      page.getByRole("option", { name: "OBS Virtual Camera", exact: true }),
+    ).toHaveAttribute("aria-selected", "true");
+    await page.getByTestId("camera-device-select").click();
 
     // 关闭设置中心
     await page.keyboard.press("Escape");

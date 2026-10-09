@@ -1,0 +1,3652 @@
+{
+  "schemaVersion": 1,
+  "generatedAtUTC": "2026-10-08T18:26:02.205Z",
+  "localDate": "2026-10-09",
+  "timezone": "Asia/Shanghai",
+  "workspaceRoot": "E:\\nodejs_project\\Tescord",
+  "command": "pnpm node scripts/run-real-multiplayer.mjs",
+  "overallStatus": "NOT_ACCEPTED",
+  "noDeploymentPerformed": true,
+  "environment": {
+    "realCloudflareSfuAndTurn": true,
+    "uniqueIsolatedSqliteDatabases": true,
+    "syntheticMicrophone": "Browser-generated oscillator; permissions pre-granted",
+    "sameHostBrowsers": true,
+    "fullUiRegressionRanConcurrently": true,
+    "exclusiveCpuOrNormalNetworkConditionEstablished": false,
+    "physicalDevicesOrCrossNetworkAcceptance": false,
+    "productionAcceptance": false
+  },
+  "finalBundleSha256": "a24f0fc08af3c5a6be722da3d88474834afa994ad5566a92f02bd41d426ad002",
+  "sourceRevisionBoundary": {
+    "testedFrontendBundle": "index-CAmRvPJm.js",
+    "testedScope": "The final real-media results describe this frozen dedicated Cloudflare frontend bundle and the isolated backend used by that run.",
+    "subsequentSourceChangesNotCovered": [
+      "Microphone settings notification order in livekit.ts",
+      "Registration binding for late bootstrap contexts from an older room incarnation",
+      "Browser fetch publication gate replacing the long-lived Playwright route delay"
+    ],
+    "latestWorkingTreeFullyValidatedByThisRun": false,
+    "rerunAfterSubsequentSourceChanges": false
+  },
+  "runs": [
+    {
+      "runId": "c596485b-491b-4f08-b37a-1d31dd6d850e",
+      "passedTests": 2,
+      "failedTests": 6,
+      "durationMinutes": 21.9,
+      "applicationBundle": "index-U_dS7aeJ.js",
+      "timingContract": "all-remotes timing gate; first audio reconstructed from signed-device evidence",
+      "log": "test-results/multiplayer-validation/real-matrix.log",
+      "cases": [
+        {
+          "count": 3,
+          "transport": "auto",
+          "scenario": "sequential + 60s + rejoin + first-user departure + transfer",
+          "status": "FAIL",
+          "savedRooms": 1,
+          "cleanSustainedMatrixRounds": 0,
+          "concurrentRoundsPassed": null,
+          "rotationRoundsPassed": null,
+          "requiredConcurrentAndRotationRoundsCompleted": null,
+          "latencyFromPartialSuccessfulRoundsOnly": {
+            "firstAudio": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "allRemotes": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "firstUserEmptyRoom": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "limitMs": 5000,
+            "p95GateCanBeDeclaredPassed": false,
+            "note": "Samples from successful rooms only. No failed matrix completed all 20 rounds, so these partial distributions do not pass the end-to-end gate."
+          },
+          "sixtySecondMediaProof": [
+            {
+              "evidence": "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--336b9-d-audio-rejoin-and-transfer-auto/multiplayer-muzo860g_0_okaj2.json",
+              "milliseconds": 60000,
+              "directedRoutes": 6,
+              "allOpus": true,
+              "allNonzeroPcm": true,
+              "allGrowingRtp": true,
+              "allGrowingEncryption": true,
+              "allSelectedCandidatesPresent": true,
+              "allLocalRelay": null,
+              "routes": [
+                {
+                  "endpointIndex": 0,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.036656286757072706,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 552552,
+                  "receiveByteDelta": 436632,
+                  "encryptionFrameDelta": 2999,
+                  "decryptionFrameDelta": 4726
+                },
+                {
+                  "endpointIndex": 0,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.02472600510067083,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 552552,
+                  "receiveByteDelta": 433136,
+                  "encryptionFrameDelta": 2999,
+                  "decryptionFrameDelta": 4726
+                },
+                {
+                  "endpointIndex": 1,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.037330883411957734,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 552920,
+                  "receiveByteDelta": 475088,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 5153
+                },
+                {
+                  "endpointIndex": 1,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03861750745995039,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 552920,
+                  "receiveByteDelta": 475272,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 5153
+                },
+                {
+                  "endpointIndex": 2,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03889157811694609,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 552736,
+                  "receiveByteDelta": 471040,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 5177
+                },
+                {
+                  "endpointIndex": 2,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03896140365680148,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 552736,
+                  "receiveByteDelta": 473616,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 5177
+                }
+              ]
+            }
+          ],
+          "failures": {
+            "lastRoomEvidence": "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--336b9-d-audio-rejoin-and-transfer-auto/multiplayer-muzo860g_0_okaj2.json",
+            "consoleErrorCount": 3,
+            "cryptoSecurityErrorObserved": false,
+            "explicitUnallocatedTrackResults": [],
+            "unknownHttpResults": [
+              {
+                "operation": "tracks/renegotiate",
+                "status": 502,
+                "durationMs": 4871
+              },
+              {
+                "operation": "tracks/subscribe",
+                "status": 502,
+                "durationMs": 10060
+              }
+            ],
+            "endpoints": [
+              {
+                "index": 0,
+                "phase": null,
+                "receivedRouteCount": 0,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 96,
+                  "contextReady": 160,
+                  "keyAcknowledged": 972,
+                  "iceReady": 1068,
+                  "published": 1936,
+                  "connected": 2821
+                },
+                "uplinkConnected": false
+              },
+              {
+                "index": 1,
+                "phase": "active",
+                "receivedRouteCount": 0,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 131,
+                  "contextReady": 187,
+                  "keyAcknowledged": 629,
+                  "iceReady": 1027,
+                  "published": 2728,
+                  "connected": 4118,
+                  "subscribed": 8269,
+                  "firstPlayableAudio": 8901
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 2,
+                "phase": null,
+                "receivedRouteCount": 0,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 132,
+                  "contextReady": 201,
+                  "iceReady": 976,
+                  "keyAcknowledged": 1133,
+                  "published": 5013,
+                  "connected": 10172,
+                  "subscribed": 12797,
+                  "firstPlayableAudio": 13476
+                },
+                "uplinkConnected": false
+              }
+            ],
+            "tracePaths": [
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--336b9-d-audio-rejoin-and-transfer-auto/multiplayer-muzo860g_0_okaj2-0.zip",
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--336b9-d-audio-rejoin-and-transfer-auto/multiplayer-muzo860g_0_okaj2-1.zip",
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--336b9-d-audio-rejoin-and-transfer-auto/multiplayer-muzo860g_0_okaj2-2.zip"
+            ]
+          },
+          "evidenceDirectory": "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--336b9-d-audio-rejoin-and-transfer-auto"
+        },
+        {
+          "count": 3,
+          "transport": "forced-real-turn-relay",
+          "scenario": "sequential + 60s + rejoin + first-user departure + transfer",
+          "status": "PASS",
+          "savedRooms": 1,
+          "cleanSustainedMatrixRounds": 0,
+          "concurrentRoundsPassed": null,
+          "rotationRoundsPassed": null,
+          "requiredConcurrentAndRotationRoundsCompleted": null,
+          "latencyFromPartialSuccessfulRoundsOnly": {
+            "firstAudio": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "allRemotes": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "firstUserEmptyRoom": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "limitMs": 10000,
+            "p95GateCanBeDeclaredPassed": false,
+            "note": "Samples from successful rooms only. No failed matrix completed all 20 rounds, so these partial distributions do not pass the end-to-end gate."
+          },
+          "sixtySecondMediaProof": [
+            {
+              "evidence": "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--336b9-d-audio-rejoin-and-transfer-relay/multiplayer-muzoibke_4_lvtgn.json",
+              "milliseconds": 60000,
+              "directedRoutes": 6,
+              "allOpus": true,
+              "allNonzeroPcm": true,
+              "allGrowingRtp": true,
+              "allGrowingEncryption": true,
+              "allSelectedCandidatesPresent": false,
+              "allLocalRelay": false,
+              "routes": [
+                {
+                  "endpointIndex": 0,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03677160477583532,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 553104,
+                  "receiveByteDelta": 553840,
+                  "encryptionFrameDelta": 3050,
+                  "decryptionFrameDelta": 6013
+                },
+                {
+                  "endpointIndex": 0,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.038530132588016415,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 553104,
+                  "receiveByteDelta": 553536,
+                  "encryptionFrameDelta": 3050,
+                  "decryptionFrameDelta": 6013
+                },
+                {
+                  "endpointIndex": 1,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03861045966054888,
+                  "selectedCandidate": null,
+                  "sendByteDelta": 553104,
+                  "receiveByteDelta": 553288,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 6017
+                },
+                {
+                  "endpointIndex": 1,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03892609474385724,
+                  "selectedCandidate": null,
+                  "sendByteDelta": 553104,
+                  "receiveByteDelta": 553542,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 6017
+                },
+                {
+                  "endpointIndex": 2,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03672562338778455,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 553023,
+                  "receiveByteDelta": 551816,
+                  "encryptionFrameDelta": 2999,
+                  "decryptionFrameDelta": 5996
+                },
+                {
+                  "endpointIndex": 2,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.038526710400001545,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 553023,
+                  "receiveByteDelta": 551816,
+                  "encryptionFrameDelta": 2999,
+                  "decryptionFrameDelta": 5996
+                }
+              ]
+            }
+          ],
+          "failures": null,
+          "evidenceDirectory": "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--336b9-d-audio-rejoin-and-transfer-relay"
+        },
+        {
+          "count": 5,
+          "transport": "auto",
+          "scenario": "10 concurrent + 10 rotation rounds",
+          "status": "FAIL",
+          "savedRooms": 2,
+          "cleanSustainedMatrixRounds": 1,
+          "concurrentRoundsPassed": 1,
+          "rotationRoundsPassed": 0,
+          "requiredConcurrentAndRotationRoundsCompleted": false,
+          "latencyFromPartialSuccessfulRoundsOnly": {
+            "firstAudio": {
+              "samples": 4,
+              "p95Ms": 11426,
+              "minMs": 9455,
+              "maxMs": 11426,
+              "atMost5s": 0,
+              "above5To10s": 2,
+              "above10s": 2
+            },
+            "allRemotes": {
+              "samples": 4,
+              "p95Ms": 18738,
+              "minMs": 11815,
+              "maxMs": 18738,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 4
+            },
+            "firstUserEmptyRoom": {
+              "samples": 1,
+              "p95Ms": 6271,
+              "minMs": 6271,
+              "maxMs": 6271,
+              "atMost5s": 0,
+              "above5To10s": 1,
+              "above10s": 0
+            },
+            "limitMs": 5000,
+            "p95GateCanBeDeclaredPassed": false,
+            "note": "Samples from successful rooms only. No failed matrix completed all 20 rounds, so these partial distributions do not pass the end-to-end gate."
+          },
+          "sixtySecondMediaProof": [],
+          "failures": {
+            "lastRoomEvidence": "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-auto/multiplayer-muzohe46_3_gde2v.json",
+            "consoleErrorCount": 0,
+            "cryptoSecurityErrorObserved": false,
+            "explicitUnallocatedTrackResults": [],
+            "unknownHttpResults": [],
+            "endpoints": [
+              {
+                "index": 0,
+                "phase": "active",
+                "receivedRouteCount": 3,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 98,
+                  "contextReady": 128,
+                  "keyAcknowledged": 1120,
+                  "iceReady": 1828,
+                  "published": 4876,
+                  "connected": 5736,
+                  "subscribed": 19950,
+                  "firstPlayableAudio": 20853
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 1,
+                "phase": "active",
+                "receivedRouteCount": 3,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 100,
+                  "contextReady": 138,
+                  "iceReady": 1050,
+                  "keyAcknowledged": 1942,
+                  "published": 6131,
+                  "connected": 7860,
+                  "subscribed": 9444,
+                  "firstPlayableAudio": 10050
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 2,
+                "phase": "ready",
+                "receivedRouteCount": 0,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 154,
+                  "contextReady": 430,
+                  "iceReady": 1401,
+                  "keyAcknowledged": 3269,
+                  "published": 6578,
+                  "connected": 24104
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 3,
+                "phase": "active",
+                "receivedRouteCount": 3,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 179,
+                  "contextReady": 430,
+                  "iceReady": 2166,
+                  "keyAcknowledged": 4418,
+                  "published": 6298,
+                  "connected": 9054,
+                  "subscribed": 13491,
+                  "firstPlayableAudio": 13567
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 4,
+                "phase": "active",
+                "receivedRouteCount": 3,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 206,
+                  "contextReady": 430,
+                  "iceReady": 1661,
+                  "keyAcknowledged": 3833,
+                  "published": 6305,
+                  "connected": 7261,
+                  "subscribed": 9340,
+                  "firstPlayableAudio": 9962
+                },
+                "uplinkConnected": true
+              }
+            ],
+            "tracePaths": [
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-auto/multiplayer-muzohe46_3_gde2v-0.zip",
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-auto/multiplayer-muzohe46_3_gde2v-1.zip",
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-auto/multiplayer-muzohe46_3_gde2v-2.zip",
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-auto/multiplayer-muzohe46_3_gde2v-3.zip",
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-auto/multiplayer-muzohe46_3_gde2v-4.zip"
+            ]
+          },
+          "evidenceDirectory": "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-auto"
+        },
+        {
+          "count": 5,
+          "transport": "forced-real-turn-relay",
+          "scenario": "10 concurrent + 10 rotation rounds",
+          "status": "FAIL",
+          "savedRooms": 6,
+          "cleanSustainedMatrixRounds": 5,
+          "concurrentRoundsPassed": 3,
+          "rotationRoundsPassed": 2,
+          "requiredConcurrentAndRotationRoundsCompleted": false,
+          "latencyFromPartialSuccessfulRoundsOnly": {
+            "firstAudio": {
+              "samples": 20,
+              "p95Ms": 14555,
+              "minMs": 9136,
+              "maxMs": 15523,
+              "atMost5s": 0,
+              "above5To10s": 3,
+              "above10s": 17
+            },
+            "allRemotes": {
+              "samples": 20,
+              "p95Ms": 14960,
+              "minMs": 11294,
+              "maxMs": 15678,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 20
+            },
+            "firstUserEmptyRoom": {
+              "samples": 5,
+              "p95Ms": 7223,
+              "minMs": 4723,
+              "maxMs": 7223,
+              "atMost5s": 1,
+              "above5To10s": 4,
+              "above10s": 0
+            },
+            "limitMs": 10000,
+            "p95GateCanBeDeclaredPassed": false,
+            "note": "Samples from successful rooms only. No failed matrix completed all 20 rounds, so these partial distributions do not pass the end-to-end gate."
+          },
+          "sixtySecondMediaProof": [],
+          "failures": {
+            "lastRoomEvidence": "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-muzoz83p_5_vxx9p.json",
+            "consoleErrorCount": 2,
+            "cryptoSecurityErrorObserved": false,
+            "explicitUnallocatedTrackResults": [],
+            "unknownHttpResults": [
+              {
+                "operation": "tracks/subscribe",
+                "status": 502,
+                "durationMs": 5903
+              }
+            ],
+            "endpoints": [
+              {
+                "index": 0,
+                "phase": "active",
+                "receivedRouteCount": 3,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 129,
+                  "contextReady": 169,
+                  "keyAcknowledged": 2083,
+                  "iceReady": 2862,
+                  "published": 4240,
+                  "connected": 6035,
+                  "subscribed": 17987,
+                  "firstPlayableAudio": 18502
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 1,
+                "phase": "active",
+                "receivedRouteCount": 3,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 115,
+                  "contextReady": 162,
+                  "iceReady": 2562,
+                  "keyAcknowledged": 3745,
+                  "published": 7556,
+                  "connected": 8843,
+                  "subscribed": 11336,
+                  "firstPlayableAudio": 11539
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 2,
+                "phase": "active",
+                "receivedRouteCount": 3,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 237,
+                  "contextReady": 459,
+                  "iceReady": 1622,
+                  "keyAcknowledged": 2647,
+                  "published": 6573,
+                  "connected": 7759,
+                  "subscribed": 10451,
+                  "firstPlayableAudio": 11222
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 3,
+                "phase": null,
+                "receivedRouteCount": 0,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 267,
+                  "contextReady": 459,
+                  "iceReady": 2832,
+                  "keyAcknowledged": 4631,
+                  "published": 7311,
+                  "connected": 9436
+                },
+                "uplinkConnected": false
+              },
+              {
+                "index": 4,
+                "phase": "active",
+                "receivedRouteCount": 3,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 300,
+                  "contextReady": 459,
+                  "iceReady": 4352,
+                  "keyAcknowledged": 6478,
+                  "published": 7954,
+                  "connected": 9536,
+                  "subscribed": 13018,
+                  "firstPlayableAudio": 13604
+                },
+                "uplinkConnected": true
+              }
+            ],
+            "tracePaths": [
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-muzoz83p_5_vxx9p-0.zip",
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-muzoz83p_5_vxx9p-1.zip",
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-muzoz83p_5_vxx9p-2.zip",
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-muzoz83p_5_vxx9p-3.zip",
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-muzoz83p_5_vxx9p-4.zip"
+            ]
+          },
+          "evidenceDirectory": "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay"
+        },
+        {
+          "count": 3,
+          "transport": "auto",
+          "scenario": "10 concurrent + 10 rotation rounds",
+          "status": "FAIL",
+          "savedRooms": 9,
+          "cleanSustainedMatrixRounds": 8,
+          "concurrentRoundsPassed": 4,
+          "rotationRoundsPassed": 4,
+          "requiredConcurrentAndRotationRoundsCompleted": false,
+          "latencyFromPartialSuccessfulRoundsOnly": {
+            "firstAudio": {
+              "samples": 16,
+              "p95Ms": 8783,
+              "minMs": 4974,
+              "maxMs": 8783,
+              "atMost5s": 1,
+              "above5To10s": 15,
+              "above10s": 0
+            },
+            "allRemotes": {
+              "samples": 16,
+              "p95Ms": 10373,
+              "minMs": 5845,
+              "maxMs": 10373,
+              "atMost5s": 0,
+              "above5To10s": 15,
+              "above10s": 1
+            },
+            "firstUserEmptyRoom": {
+              "samples": 8,
+              "p95Ms": 8784,
+              "minMs": 3739,
+              "maxMs": 8784,
+              "atMost5s": 1,
+              "above5To10s": 7,
+              "above10s": 0
+            },
+            "limitMs": 5000,
+            "p95GateCanBeDeclaredPassed": false,
+            "note": "Samples from successful rooms only. No failed matrix completed all 20 rounds, so these partial distributions do not pass the end-to-end gate."
+          },
+          "sixtySecondMediaProof": [],
+          "failures": {
+            "lastRoomEvidence": "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-muzof5eu_1_pvhcg.json",
+            "consoleErrorCount": 0,
+            "cryptoSecurityErrorObserved": false,
+            "explicitUnallocatedTrackResults": [],
+            "unknownHttpResults": [],
+            "endpoints": [
+              {
+                "index": 0,
+                "phase": "active",
+                "receivedRouteCount": 1,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 86,
+                  "contextReady": 115,
+                  "keyAcknowledged": 2558,
+                  "iceReady": 3233,
+                  "published": 4446,
+                  "connected": 7249,
+                  "subscribed": 12438,
+                  "firstPlayableAudio": 13008
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 1,
+                "phase": "active",
+                "receivedRouteCount": 2,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 136,
+                  "contextReady": 222,
+                  "keyAcknowledged": 1655,
+                  "iceReady": 2309,
+                  "published": 3223,
+                  "connected": 20070,
+                  "subscribed": 21891,
+                  "firstPlayableAudio": 22559
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 2,
+                "phase": "active",
+                "receivedRouteCount": 2,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 157,
+                  "contextReady": 233,
+                  "keyAcknowledged": 1104,
+                  "iceReady": 1496,
+                  "published": 2771,
+                  "connected": 3751,
+                  "subscribed": 5406,
+                  "firstPlayableAudio": 5564
+                },
+                "uplinkConnected": true
+              }
+            ],
+            "tracePaths": [
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-muzof5eu_1_pvhcg-0.zip",
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-muzof5eu_1_pvhcg-1.zip",
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-muzof5eu_1_pvhcg-2.zip"
+            ]
+          },
+          "evidenceDirectory": "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto"
+        },
+        {
+          "count": 3,
+          "transport": "forced-real-turn-relay",
+          "scenario": "10 concurrent + 10 rotation rounds",
+          "status": "FAIL",
+          "savedRooms": 15,
+          "cleanSustainedMatrixRounds": 14,
+          "concurrentRoundsPassed": 7,
+          "rotationRoundsPassed": 7,
+          "requiredConcurrentAndRotationRoundsCompleted": false,
+          "latencyFromPartialSuccessfulRoundsOnly": {
+            "firstAudio": {
+              "samples": 28,
+              "p95Ms": 8597,
+              "minMs": 5473,
+              "maxMs": 9335,
+              "atMost5s": 0,
+              "above5To10s": 28,
+              "above10s": 0
+            },
+            "allRemotes": {
+              "samples": 28,
+              "p95Ms": 9352,
+              "minMs": 5863,
+              "maxMs": 9663,
+              "atMost5s": 0,
+              "above5To10s": 28,
+              "above10s": 0
+            },
+            "firstUserEmptyRoom": {
+              "samples": 14,
+              "p95Ms": 8725,
+              "minMs": 4851,
+              "maxMs": 8725,
+              "atMost5s": 1,
+              "above5To10s": 13,
+              "above10s": 0
+            },
+            "limitMs": 10000,
+            "p95GateCanBeDeclaredPassed": false,
+            "note": "Samples from successful rooms only. No failed matrix completed all 20 rounds, so these partial distributions do not pass the end-to-end gate."
+          },
+          "sixtySecondMediaProof": [],
+          "failures": {
+            "lastRoomEvidence": "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay/multiplayer-muzoriid_4_kifaa.json",
+            "consoleErrorCount": 0,
+            "cryptoSecurityErrorObserved": false,
+            "explicitUnallocatedTrackResults": [
+              {
+                "operation": "tracks/subscribe",
+                "codes": ["temporarily_unavailable_error"],
+                "allMidsUnallocated": true
+              },
+              {
+                "operation": "tracks/subscribe",
+                "codes": ["temporarily_unavailable_error"],
+                "allMidsUnallocated": true
+              },
+              {
+                "operation": "tracks/subscribe",
+                "codes": ["temporarily_unavailable_error"],
+                "allMidsUnallocated": true
+              },
+              {
+                "operation": "tracks/subscribe",
+                "codes": ["temporarily_unavailable_error"],
+                "allMidsUnallocated": true
+              }
+            ],
+            "unknownHttpResults": [],
+            "endpoints": [
+              {
+                "index": 0,
+                "phase": "active",
+                "receivedRouteCount": 2,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 88,
+                  "contextReady": 116,
+                  "keyAcknowledged": 2085,
+                  "iceReady": 2941,
+                  "published": 4150,
+                  "connected": 5416,
+                  "subscribed": 11696,
+                  "firstPlayableAudio": 12349
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 1,
+                "phase": "active",
+                "receivedRouteCount": 1,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 140,
+                  "contextReady": 228,
+                  "keyAcknowledged": 1124,
+                  "iceReady": 1245,
+                  "published": 2389,
+                  "connected": 3922,
+                  "subscribed": 9491,
+                  "firstPlayableAudio": 10172
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 2,
+                "phase": "active",
+                "receivedRouteCount": 2,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 129,
+                  "contextReady": 231,
+                  "keyAcknowledged": 800,
+                  "iceReady": 1158,
+                  "published": 2293,
+                  "connected": 4006,
+                  "subscribed": 6089,
+                  "firstPlayableAudio": 6733
+                },
+                "uplinkConnected": true
+              }
+            ],
+            "tracePaths": [
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay/multiplayer-muzoriid_4_kifaa-0.zip",
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay/multiplayer-muzoriid_4_kifaa-1.zip",
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay/multiplayer-muzoriid_4_kifaa-2.zip"
+            ]
+          },
+          "evidenceDirectory": "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay"
+        },
+        {
+          "count": 5,
+          "transport": "auto",
+          "scenario": "sequential + 60s + rejoin + first-user departure + transfer",
+          "status": "FAIL",
+          "savedRooms": 1,
+          "cleanSustainedMatrixRounds": 0,
+          "concurrentRoundsPassed": null,
+          "rotationRoundsPassed": null,
+          "requiredConcurrentAndRotationRoundsCompleted": null,
+          "latencyFromPartialSuccessfulRoundsOnly": {
+            "firstAudio": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "allRemotes": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "firstUserEmptyRoom": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "limitMs": 5000,
+            "p95GateCanBeDeclaredPassed": false,
+            "note": "Samples from successful rooms only. No failed matrix completed all 20 rounds, so these partial distributions do not pass the end-to-end gate."
+          },
+          "sixtySecondMediaProof": [],
+          "failures": {
+            "lastRoomEvidence": "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-auto/multiplayer-muzog24l_2_j7cxz.json",
+            "consoleErrorCount": 0,
+            "cryptoSecurityErrorObserved": false,
+            "explicitUnallocatedTrackResults": [],
+            "unknownHttpResults": [],
+            "endpoints": [
+              {
+                "index": 0,
+                "phase": "ready",
+                "receivedRouteCount": 0,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 104,
+                  "contextReady": 134,
+                  "keyAcknowledged": 1276,
+                  "iceReady": 1980,
+                  "published": 3530
+                },
+                "uplinkConnected": false
+              },
+              {
+                "index": 1,
+                "phase": null,
+                "receivedRouteCount": 0,
+                "stages": null,
+                "uplinkConnected": false
+              },
+              {
+                "index": 2,
+                "phase": null,
+                "receivedRouteCount": 0,
+                "stages": null,
+                "uplinkConnected": false
+              },
+              {
+                "index": 3,
+                "phase": null,
+                "receivedRouteCount": 0,
+                "stages": null,
+                "uplinkConnected": false
+              },
+              {
+                "index": 4,
+                "phase": null,
+                "receivedRouteCount": 0,
+                "stages": null,
+                "uplinkConnected": false
+              }
+            ],
+            "tracePaths": [
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-auto/multiplayer-muzog24l_2_j7cxz-0.zip",
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-auto/multiplayer-muzog24l_2_j7cxz-1.zip",
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-auto/multiplayer-muzog24l_2_j7cxz-2.zip",
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-auto/multiplayer-muzog24l_2_j7cxz-3.zip",
+              "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-auto/multiplayer-muzog24l_2_j7cxz-4.zip"
+            ]
+          },
+          "evidenceDirectory": "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-auto"
+        },
+        {
+          "count": 5,
+          "transport": "forced-real-turn-relay",
+          "scenario": "sequential + 60s + rejoin + first-user departure + transfer",
+          "status": "PASS",
+          "savedRooms": 1,
+          "cleanSustainedMatrixRounds": 0,
+          "concurrentRoundsPassed": null,
+          "rotationRoundsPassed": null,
+          "requiredConcurrentAndRotationRoundsCompleted": null,
+          "latencyFromPartialSuccessfulRoundsOnly": {
+            "firstAudio": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "allRemotes": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "firstUserEmptyRoom": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "limitMs": 10000,
+            "p95GateCanBeDeclaredPassed": false,
+            "note": "Samples from successful rooms only. No failed matrix completed all 20 rounds, so these partial distributions do not pass the end-to-end gate."
+          },
+          "sixtySecondMediaProof": [
+            {
+              "evidence": "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-relay/multiplayer-muzoseri_5_92wg9.json",
+              "milliseconds": 60000,
+              "directedRoutes": 20,
+              "allOpus": true,
+              "allNonzeroPcm": true,
+              "allGrowingRtp": true,
+              "allGrowingEncryption": true,
+              "allSelectedCandidatesPresent": true,
+              "allLocalRelay": true,
+              "routes": [
+                {
+                  "endpointIndex": 0,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03751306981860984,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 553104,
+                  "receiveByteDelta": 553104,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 12054
+                },
+                {
+                  "endpointIndex": 0,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03759069978895355,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 553104,
+                  "receiveByteDelta": 553288,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 12054
+                },
+                {
+                  "endpointIndex": 0,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03740302807353381,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 553104,
+                  "receiveByteDelta": 553104,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 12054
+                },
+                {
+                  "endpointIndex": 0,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.037083820862731896,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 553104,
+                  "receiveByteDelta": 553069,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 12054
+                },
+                {
+                  "endpointIndex": 1,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03874807935387609,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 552736,
+                  "receiveByteDelta": 552920,
+                  "encryptionFrameDelta": 2999,
+                  "decryptionFrameDelta": 12060
+                },
+                {
+                  "endpointIndex": 1,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03681353087408381,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 552736,
+                  "receiveByteDelta": 552920,
+                  "encryptionFrameDelta": 2999,
+                  "decryptionFrameDelta": 12060
+                },
+                {
+                  "endpointIndex": 1,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.038808903233221,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 552736,
+                  "receiveByteDelta": 553104,
+                  "encryptionFrameDelta": 2999,
+                  "decryptionFrameDelta": 12060
+                },
+                {
+                  "endpointIndex": 1,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03812702559011468,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 552736,
+                  "receiveByteDelta": 553065,
+                  "encryptionFrameDelta": 2999,
+                  "decryptionFrameDelta": 12060
+                },
+                {
+                  "endpointIndex": 2,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03665829962239561,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 552920,
+                  "receiveByteDelta": 552736,
+                  "encryptionFrameDelta": 3049,
+                  "decryptionFrameDelta": 12044
+                },
+                {
+                  "endpointIndex": 2,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03880104527379895,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 552920,
+                  "receiveByteDelta": 552736,
+                  "encryptionFrameDelta": 3049,
+                  "decryptionFrameDelta": 12044
+                },
+                {
+                  "endpointIndex": 2,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03674143310685164,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 552920,
+                  "receiveByteDelta": 552920,
+                  "encryptionFrameDelta": 3049,
+                  "decryptionFrameDelta": 12044
+                },
+                {
+                  "endpointIndex": 2,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03725309482679281,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 552920,
+                  "receiveByteDelta": 552883,
+                  "encryptionFrameDelta": 3049,
+                  "decryptionFrameDelta": 12044
+                },
+                {
+                  "endpointIndex": 3,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.0385738793602909,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 552920,
+                  "receiveByteDelta": 549424,
+                  "encryptionFrameDelta": 3049,
+                  "decryptionFrameDelta": 11921
+                },
+                {
+                  "endpointIndex": 3,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.038743422340230975,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 552920,
+                  "receiveByteDelta": 549608,
+                  "encryptionFrameDelta": 3049,
+                  "decryptionFrameDelta": 11921
+                },
+                {
+                  "endpointIndex": 3,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03865572112854977,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 552920,
+                  "receiveByteDelta": 549608,
+                  "encryptionFrameDelta": 3049,
+                  "decryptionFrameDelta": 11921
+                },
+                {
+                  "endpointIndex": 3,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.0389105127815681,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 552920,
+                  "receiveByteDelta": 549575,
+                  "encryptionFrameDelta": 3049,
+                  "decryptionFrameDelta": 11921
+                },
+                {
+                  "endpointIndex": 4,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03770067819777045,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 553269,
+                  "receiveByteDelta": 551816,
+                  "encryptionFrameDelta": 3049,
+                  "decryptionFrameDelta": 11994
+                },
+                {
+                  "endpointIndex": 4,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03778648581078073,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 553269,
+                  "receiveByteDelta": 552184,
+                  "encryptionFrameDelta": 3049,
+                  "decryptionFrameDelta": 11994
+                },
+                {
+                  "endpointIndex": 4,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.038853605694529905,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 553269,
+                  "receiveByteDelta": 552184,
+                  "encryptionFrameDelta": 3049,
+                  "decryptionFrameDelta": 11994
+                },
+                {
+                  "endpointIndex": 4,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03874831494148629,
+                  "selectedCandidate": {
+                    "local": "relay",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 553269,
+                  "receiveByteDelta": 552000,
+                  "encryptionFrameDelta": 3049,
+                  "decryptionFrameDelta": 11994
+                }
+              ]
+            }
+          ],
+          "failures": null,
+          "evidenceDirectory": "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-relay"
+        }
+      ],
+      "cleanup": {
+        "localDatabaseEvidence": "test-results/multiplayer-real/c596485b-491b-4f08-b37a-1d31dd6d850e/isolated-database-cleanup.json",
+        "runnerExitCode": 1,
+        "allOwnedDatabaseFilesAbsent": true,
+        "localTestPortsStoppedVerified": true,
+        "drainReceipts": [],
+        "inlineDrainReceipts": [],
+        "initialInlineReceiptReportPreserved": false,
+        "meaning": "Local ownership revoked and pending remote close promises settled. drainTeardowns uses Promise.allSettled: this does not confirm that every remote provider close succeeded. The initial HTML report was overwritten by the final report; no initial inline receipt is reconstructed.",
+        "remoteProviderCloseFailuresLogged": [
+          "close failed (410) publisher statuses: inspection_failed"
+        ]
+      },
+      "traceCount": 130,
+      "traceBytes": 39216077
+    },
+    {
+      "runId": "9bd26307-8766-4a8b-a94d-834943f0ddf2",
+      "passedTests": 1,
+      "failedTests": 7,
+      "durationMinutes": 17.4,
+      "applicationBundle": "index-CAmRvPJm.js",
+      "timingContract": "first actually playable encrypted audio plus click offset; separate all-remotes timings",
+      "log": "test-results/multiplayer-validation/real-matrix-final.log",
+      "cases": [
+        {
+          "count": 3,
+          "transport": "auto",
+          "scenario": "sequential + 60s + rejoin + first-user departure + transfer",
+          "status": "PASS",
+          "savedRooms": 1,
+          "cleanSustainedMatrixRounds": 0,
+          "concurrentRoundsPassed": null,
+          "rotationRoundsPassed": null,
+          "requiredConcurrentAndRotationRoundsCompleted": null,
+          "latencyFromPartialSuccessfulRoundsOnly": {
+            "firstAudio": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "allRemotes": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "firstUserEmptyRoom": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "limitMs": 5000,
+            "p95GateCanBeDeclaredPassed": false,
+            "note": "Samples from successful rooms only. No failed matrix completed all 20 rounds, so these partial distributions do not pass the end-to-end gate."
+          },
+          "sixtySecondMediaProof": [
+            {
+              "evidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--336b9-d-audio-rejoin-and-transfer-auto/multiplayer-muzpau3r_0_rnpyd.json",
+              "milliseconds": 60000,
+              "directedRoutes": 6,
+              "allOpus": true,
+              "allNonzeroPcm": true,
+              "allGrowingRtp": true,
+              "allGrowingEncryption": true,
+              "allSelectedCandidatesPresent": true,
+              "allLocalRelay": null,
+              "routes": [
+                {
+                  "endpointIndex": 0,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03676483398581762,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 553811,
+                  "receiveByteDelta": 507629,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 5564
+                },
+                {
+                  "endpointIndex": 0,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.0379625365951677,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 553811,
+                  "receiveByteDelta": 511763,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 5564
+                },
+                {
+                  "endpointIndex": 1,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03672711997235419,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 553635,
+                  "receiveByteDelta": 478186,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 5190
+                },
+                {
+                  "endpointIndex": 1,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.036435920511806344,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 553635,
+                  "receiveByteDelta": 471464,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 5190
+                },
+                {
+                  "endpointIndex": 2,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.037921872342404725,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 553521,
+                  "receiveByteDelta": 510930,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 5528
+                },
+                {
+                  "endpointIndex": 2,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03793808406821164,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 553521,
+                  "receiveByteDelta": 510756,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 5528
+                }
+              ]
+            }
+          ],
+          "failures": null,
+          "evidenceDirectory": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--336b9-d-audio-rejoin-and-transfer-auto"
+        },
+        {
+          "count": 3,
+          "transport": "forced-real-turn-relay",
+          "scenario": "sequential + 60s + rejoin + first-user departure + transfer",
+          "status": "FAIL",
+          "savedRooms": 1,
+          "cleanSustainedMatrixRounds": 0,
+          "concurrentRoundsPassed": null,
+          "rotationRoundsPassed": null,
+          "requiredConcurrentAndRotationRoundsCompleted": null,
+          "latencyFromPartialSuccessfulRoundsOnly": {
+            "firstAudio": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "allRemotes": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "firstUserEmptyRoom": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "limitMs": 10000,
+            "p95GateCanBeDeclaredPassed": false,
+            "note": "Samples from successful rooms only. No failed matrix completed all 20 rounds, so these partial distributions do not pass the end-to-end gate."
+          },
+          "sixtySecondMediaProof": [],
+          "failures": {
+            "lastRoomEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--336b9-d-audio-rejoin-and-transfer-relay/multiplayer-muzpqsd4_3_155h4.json",
+            "consoleErrorCount": 0,
+            "cryptoSecurityErrorObserved": false,
+            "explicitUnallocatedTrackResults": [],
+            "unknownHttpResults": [],
+            "endpoints": [
+              {
+                "index": 0,
+                "phase": "ready",
+                "receivedRouteCount": 0,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 108,
+                  "contextReady": 136,
+                  "keyAcknowledged": 2166,
+                  "iceReady": 2884,
+                  "published": 4845
+                },
+                "uplinkConnected": false
+              },
+              {
+                "index": 1,
+                "phase": null,
+                "receivedRouteCount": 0,
+                "stages": null,
+                "uplinkConnected": false
+              },
+              {
+                "index": 2,
+                "phase": null,
+                "receivedRouteCount": 0,
+                "stages": null,
+                "uplinkConnected": false
+              }
+            ],
+            "tracePaths": [
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--336b9-d-audio-rejoin-and-transfer-relay/multiplayer-muzpqsd4_3_155h4-0.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--336b9-d-audio-rejoin-and-transfer-relay/multiplayer-muzpqsd4_3_155h4-1.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--336b9-d-audio-rejoin-and-transfer-relay/multiplayer-muzpqsd4_3_155h4-2.zip"
+            ]
+          },
+          "evidenceDirectory": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--336b9-d-audio-rejoin-and-transfer-relay"
+        },
+        {
+          "count": 5,
+          "transport": "auto",
+          "scenario": "10 concurrent + 10 rotation rounds",
+          "status": "FAIL",
+          "savedRooms": 3,
+          "cleanSustainedMatrixRounds": 2,
+          "concurrentRoundsPassed": 1,
+          "rotationRoundsPassed": 1,
+          "requiredConcurrentAndRotationRoundsCompleted": false,
+          "latencyFromPartialSuccessfulRoundsOnly": {
+            "firstAudio": {
+              "samples": 8,
+              "p95Ms": 9027,
+              "minMs": 6873,
+              "maxMs": 9027,
+              "atMost5s": 0,
+              "above5To10s": 8,
+              "above10s": 0
+            },
+            "allRemotes": {
+              "samples": 8,
+              "p95Ms": 9370,
+              "minMs": 7496,
+              "maxMs": 9370,
+              "atMost5s": 0,
+              "above5To10s": 8,
+              "above10s": 0
+            },
+            "firstUserEmptyRoom": {
+              "samples": 2,
+              "p95Ms": 6631,
+              "minMs": 3487,
+              "maxMs": 6631,
+              "atMost5s": 1,
+              "above5To10s": 1,
+              "above10s": 0
+            },
+            "limitMs": 5000,
+            "p95GateCanBeDeclaredPassed": false,
+            "note": "Samples from successful rooms only. No failed matrix completed all 20 rounds, so these partial distributions do not pass the end-to-end gate."
+          },
+          "sixtySecondMediaProof": [],
+          "failures": {
+            "lastRoomEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-auto/multiplayer-muzppssu_2_q8i8y.json",
+            "consoleErrorCount": 1,
+            "cryptoSecurityErrorObserved": false,
+            "explicitUnallocatedTrackResults": [
+              {
+                "operation": "tracks/subscribe",
+                "codes": ["not_found_track_error"],
+                "allMidsUnallocated": true
+              },
+              {
+                "operation": "tracks/subscribe",
+                "codes": ["not_found_track_error"],
+                "allMidsUnallocated": true
+              }
+            ],
+            "unknownHttpResults": [
+              {
+                "operation": "tracks/subscribe",
+                "status": 502,
+                "durationMs": 6389
+              }
+            ],
+            "endpoints": [
+              {
+                "index": 0,
+                "phase": null,
+                "receivedRouteCount": 0,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 85,
+                  "contextReady": 110,
+                  "keyAcknowledged": 3519,
+                  "iceReady": 4230,
+                  "published": 5405,
+                  "connected": 6704,
+                  "subscribed": 16758,
+                  "firstPlayableAudio": 17330
+                },
+                "uplinkConnected": false
+              },
+              {
+                "index": 1,
+                "phase": "active",
+                "receivedRouteCount": 3,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 118,
+                  "contextReady": 349,
+                  "iceReady": 2402,
+                  "keyAcknowledged": 3328,
+                  "published": 5119,
+                  "connected": 7967,
+                  "subscribed": 9571,
+                  "firstPlayableAudio": 10105
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 2,
+                "phase": "active",
+                "receivedRouteCount": 3,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 143,
+                  "contextReady": 347,
+                  "iceReady": 1024,
+                  "keyAcknowledged": 1214,
+                  "published": 5202,
+                  "connected": 7282,
+                  "subscribed": 9092,
+                  "firstPlayableAudio": 9244
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 3,
+                "phase": "active",
+                "receivedRouteCount": 3,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 174,
+                  "contextReady": 349,
+                  "iceReady": 2205,
+                  "keyAcknowledged": 2969,
+                  "published": 11199,
+                  "connected": 13094,
+                  "firstPlayableAudio": 21203,
+                  "subscribed": 21269
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 4,
+                "phase": "active",
+                "receivedRouteCount": 3,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 203,
+                  "contextReady": 347,
+                  "iceReady": 1874,
+                  "keyAcknowledged": 2588,
+                  "published": 8566,
+                  "connected": 9547,
+                  "subscribed": 18971,
+                  "firstPlayableAudio": 19124
+                },
+                "uplinkConnected": true
+              }
+            ],
+            "tracePaths": [
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-auto/multiplayer-muzppssu_2_q8i8y-0.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-auto/multiplayer-muzppssu_2_q8i8y-1.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-auto/multiplayer-muzppssu_2_q8i8y-2.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-auto/multiplayer-muzppssu_2_q8i8y-3.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-auto/multiplayer-muzppssu_2_q8i8y-4.zip"
+            ]
+          },
+          "evidenceDirectory": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-auto"
+        },
+        {
+          "count": 5,
+          "transport": "forced-real-turn-relay",
+          "scenario": "10 concurrent + 10 rotation rounds",
+          "status": "FAIL",
+          "savedRooms": 3,
+          "cleanSustainedMatrixRounds": 2,
+          "concurrentRoundsPassed": 1,
+          "rotationRoundsPassed": 1,
+          "requiredConcurrentAndRotationRoundsCompleted": false,
+          "latencyFromPartialSuccessfulRoundsOnly": {
+            "firstAudio": {
+              "samples": 8,
+              "p95Ms": 16809,
+              "minMs": 10801,
+              "maxMs": 16809,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 8
+            },
+            "allRemotes": {
+              "samples": 8,
+              "p95Ms": 18034,
+              "minMs": 14101,
+              "maxMs": 18034,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 8
+            },
+            "firstUserEmptyRoom": {
+              "samples": 2,
+              "p95Ms": 10885,
+              "minMs": 9501,
+              "maxMs": 10885,
+              "atMost5s": 0,
+              "above5To10s": 1,
+              "above10s": 1
+            },
+            "limitMs": 10000,
+            "p95GateCanBeDeclaredPassed": false,
+            "note": "Samples from successful rooms only. No failed matrix completed all 20 rounds, so these partial distributions do not pass the end-to-end gate."
+          },
+          "sixtySecondMediaProof": [],
+          "failures": {
+            "lastRoomEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-muzpvxg3_6_cxpw9.json",
+            "consoleErrorCount": 1,
+            "cryptoSecurityErrorObserved": false,
+            "explicitUnallocatedTrackResults": [],
+            "unknownHttpResults": [
+              {
+                "operation": "tracks/subscribe",
+                "status": 502,
+                "durationMs": 12512
+              }
+            ],
+            "endpoints": [
+              {
+                "index": 0,
+                "phase": "active",
+                "receivedRouteCount": 3,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 133,
+                  "contextReady": 166,
+                  "keyAcknowledged": 3079,
+                  "iceReady": 5239,
+                  "published": 8002,
+                  "connected": 10100,
+                  "subscribed": 20870,
+                  "firstPlayableAudio": 21216
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 1,
+                "phase": "active",
+                "receivedRouteCount": 3,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 158,
+                  "contextReady": 454,
+                  "keyAcknowledged": 4534,
+                  "iceReady": 5441,
+                  "published": 6881,
+                  "connected": 9485,
+                  "subscribed": 13861,
+                  "firstPlayableAudio": 14216
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 2,
+                "phase": "active",
+                "receivedRouteCount": 3,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 192,
+                  "contextReady": 455,
+                  "keyAcknowledged": 3574,
+                  "iceReady": 4501,
+                  "published": 6250,
+                  "connected": 8345,
+                  "subscribed": 10063,
+                  "firstPlayableAudio": 10574
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 3,
+                "phase": "active",
+                "receivedRouteCount": 0,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 196,
+                  "contextReady": 460,
+                  "keyAcknowledged": 5454,
+                  "iceReady": 5980,
+                  "published": 7299,
+                  "connected": 9634
+                },
+                "uplinkConnected": false
+              },
+              {
+                "index": 4,
+                "phase": "active",
+                "receivedRouteCount": 3,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 249,
+                  "contextReady": 460,
+                  "keyAcknowledged": 2512,
+                  "iceReady": 2848,
+                  "published": 5570,
+                  "connected": 7907,
+                  "firstPlayableAudio": 10147,
+                  "subscribed": 10229
+                },
+                "uplinkConnected": true
+              }
+            ],
+            "tracePaths": [
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-muzpvxg3_6_cxpw9-0.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-muzpvxg3_6_cxpw9-1.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-muzpvxg3_6_cxpw9-2.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-muzpvxg3_6_cxpw9-3.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-muzpvxg3_6_cxpw9-4.zip"
+            ]
+          },
+          "evidenceDirectory": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay"
+        },
+        {
+          "count": 3,
+          "transport": "auto",
+          "scenario": "10 concurrent + 10 rotation rounds",
+          "status": "FAIL",
+          "savedRooms": 12,
+          "cleanSustainedMatrixRounds": 11,
+          "concurrentRoundsPassed": 6,
+          "rotationRoundsPassed": 5,
+          "requiredConcurrentAndRotationRoundsCompleted": false,
+          "latencyFromPartialSuccessfulRoundsOnly": {
+            "firstAudio": {
+              "samples": 22,
+              "p95Ms": 22549,
+              "minMs": 5428,
+              "maxMs": 23101,
+              "atMost5s": 0,
+              "above5To10s": 17,
+              "above10s": 5
+            },
+            "allRemotes": {
+              "samples": 22,
+              "p95Ms": 22927,
+              "minMs": 5716,
+              "maxMs": 23196,
+              "atMost5s": 0,
+              "above5To10s": 14,
+              "above10s": 8
+            },
+            "firstUserEmptyRoom": {
+              "samples": 11,
+              "p95Ms": 7940,
+              "minMs": 4010,
+              "maxMs": 7940,
+              "atMost5s": 2,
+              "above5To10s": 9,
+              "above10s": 0
+            },
+            "limitMs": 5000,
+            "p95GateCanBeDeclaredPassed": false,
+            "note": "Samples from successful rooms only. No failed matrix completed all 20 rounds, so these partial distributions do not pass the end-to-end gate."
+          },
+          "sixtySecondMediaProof": [],
+          "failures": {
+            "lastRoomEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-muzpjyez_0_hl2ps.json",
+            "consoleErrorCount": 3,
+            "cryptoSecurityErrorObserved": false,
+            "explicitUnallocatedTrackResults": [],
+            "unknownHttpResults": [
+              {
+                "operation": "session/new",
+                "status": 502,
+                "durationMs": 5231
+              }
+            ],
+            "endpoints": [
+              {
+                "index": 0,
+                "phase": "active",
+                "receivedRouteCount": 1,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 81,
+                  "contextReady": 117,
+                  "keyAcknowledged": 922,
+                  "iceReady": 1608,
+                  "published": 2898,
+                  "connected": 5025,
+                  "subscribed": 12005,
+                  "firstPlayableAudio": 12557
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 1,
+                "phase": "active",
+                "receivedRouteCount": 1,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 111,
+                  "contextReady": 162,
+                  "iceReady": 1023,
+                  "keyAcknowledged": 1147,
+                  "published": 2805,
+                  "connected": 3879,
+                  "subscribed": 5763,
+                  "firstPlayableAudio": 6399
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 2,
+                "phase": null,
+                "receivedRouteCount": 0,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 146,
+                  "contextReady": 264,
+                  "iceReady": 1155,
+                  "keyAcknowledged": 1308
+                },
+                "uplinkConnected": false
+              }
+            ],
+            "tracePaths": [
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-muzpjyez_0_hl2ps-0.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-muzpjyez_0_hl2ps-1.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-muzpjyez_0_hl2ps-2.zip"
+            ]
+          },
+          "evidenceDirectory": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto"
+        },
+        {
+          "count": 3,
+          "transport": "forced-real-turn-relay",
+          "scenario": "10 concurrent + 10 rotation rounds",
+          "status": "FAIL",
+          "savedRooms": 3,
+          "cleanSustainedMatrixRounds": 2,
+          "concurrentRoundsPassed": 1,
+          "rotationRoundsPassed": 1,
+          "requiredConcurrentAndRotationRoundsCompleted": false,
+          "latencyFromPartialSuccessfulRoundsOnly": {
+            "firstAudio": {
+              "samples": 4,
+              "p95Ms": 7951,
+              "minMs": 6740,
+              "maxMs": 7951,
+              "atMost5s": 0,
+              "above5To10s": 4,
+              "above10s": 0
+            },
+            "allRemotes": {
+              "samples": 4,
+              "p95Ms": 7975,
+              "minMs": 6728,
+              "maxMs": 7975,
+              "atMost5s": 0,
+              "above5To10s": 4,
+              "above10s": 0
+            },
+            "firstUserEmptyRoom": {
+              "samples": 2,
+              "p95Ms": 5076,
+              "minMs": 4659,
+              "maxMs": 5076,
+              "atMost5s": 1,
+              "above5To10s": 1,
+              "above10s": 0
+            },
+            "limitMs": 10000,
+            "p95GateCanBeDeclaredPassed": false,
+            "note": "Samples from successful rooms only. No failed matrix completed all 20 rounds, so these partial distributions do not pass the end-to-end gate."
+          },
+          "sixtySecondMediaProof": [],
+          "failures": {
+            "lastRoomEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay/multiplayer-muzps7mw_4_9jz0u.json",
+            "consoleErrorCount": 0,
+            "cryptoSecurityErrorObserved": false,
+            "explicitUnallocatedTrackResults": [],
+            "unknownHttpResults": [],
+            "endpoints": [
+              {
+                "index": 0,
+                "phase": "active",
+                "receivedRouteCount": 1,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 99,
+                  "contextReady": 129,
+                  "keyAcknowledged": 1077,
+                  "iceReady": 1896,
+                  "published": 3831,
+                  "connected": 5166,
+                  "subscribed": 11185,
+                  "firstPlayableAudio": 11871
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 1,
+                "phase": "active",
+                "receivedRouteCount": 2,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 136,
+                  "contextReady": 262,
+                  "keyAcknowledged": 755,
+                  "iceReady": 1153,
+                  "published": 2639,
+                  "connected": 3496,
+                  "subscribed": 4908,
+                  "firstPlayableAudio": 5603
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 2,
+                "phase": "active",
+                "receivedRouteCount": 0,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 164,
+                  "contextReady": 264,
+                  "keyAcknowledged": 1675,
+                  "iceReady": 2202,
+                  "published": 3186,
+                  "connected": 20259
+                },
+                "uplinkConnected": true
+              }
+            ],
+            "tracePaths": [
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay/multiplayer-muzps7mw_4_9jz0u-0.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay/multiplayer-muzps7mw_4_9jz0u-1.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay/multiplayer-muzps7mw_4_9jz0u-2.zip"
+            ]
+          },
+          "evidenceDirectory": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-relay"
+        },
+        {
+          "count": 5,
+          "transport": "auto",
+          "scenario": "sequential + 60s + rejoin + first-user departure + transfer",
+          "status": "FAIL",
+          "savedRooms": 1,
+          "cleanSustainedMatrixRounds": 0,
+          "concurrentRoundsPassed": null,
+          "rotationRoundsPassed": null,
+          "requiredConcurrentAndRotationRoundsCompleted": null,
+          "latencyFromPartialSuccessfulRoundsOnly": {
+            "firstAudio": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "allRemotes": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "firstUserEmptyRoom": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "limitMs": 5000,
+            "p95GateCanBeDeclaredPassed": false,
+            "note": "Samples from successful rooms only. No failed matrix completed all 20 rounds, so these partial distributions do not pass the end-to-end gate."
+          },
+          "sixtySecondMediaProof": [
+            {
+              "evidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-auto/multiplayer-muzpkvuu_1_oul5j.json",
+              "milliseconds": 60000,
+              "directedRoutes": 20,
+              "allOpus": true,
+              "allNonzeroPcm": true,
+              "allGrowingRtp": true,
+              "allGrowingEncryption": true,
+              "allSelectedCandidatesPresent": true,
+              "allLocalRelay": null,
+              "routes": [
+                {
+                  "endpointIndex": 0,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03691909139461365,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 554760,
+                  "receiveByteDelta": 485208,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 10584
+                },
+                {
+                  "endpointIndex": 0,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03803622969912091,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 554760,
+                  "receiveByteDelta": 486864,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 10584
+                },
+                {
+                  "endpointIndex": 0,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03749753644003896,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 554760,
+                  "receiveByteDelta": 492200,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 10584
+                },
+                {
+                  "endpointIndex": 0,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03687007215512516,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 554760,
+                  "receiveByteDelta": 485913,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 10584
+                },
+                {
+                  "endpointIndex": 1,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03730982738543722,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 554392,
+                  "receiveByteDelta": 502320,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 10982
+                },
+                {
+                  "endpointIndex": 1,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03747507714747742,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 554392,
+                  "receiveByteDelta": 507104,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 10982
+                },
+                {
+                  "endpointIndex": 1,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.038580863411577744,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 554392,
+                  "receiveByteDelta": 507472,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 10982
+                },
+                {
+                  "endpointIndex": 1,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.038263025096261886,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 554392,
+                  "receiveByteDelta": 506703,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 10982
+                },
+                {
+                  "endpointIndex": 2,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.035630792309370475,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 554576,
+                  "receiveByteDelta": 502688,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 10883
+                },
+                {
+                  "endpointIndex": 2,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03717474470487697,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 554576,
+                  "receiveByteDelta": 501768,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 10883
+                },
+                {
+                  "endpointIndex": 2,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03709841574794872,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 554576,
+                  "receiveByteDelta": 496616,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 10883
+                },
+                {
+                  "endpointIndex": 2,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.0370103945197481,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 554576,
+                  "receiveByteDelta": 494014,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 10883
+                },
+                {
+                  "endpointIndex": 3,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03709450322694938,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 554208,
+                  "receiveByteDelta": 517040,
+                  "encryptionFrameDelta": 3050,
+                  "decryptionFrameDelta": 11235
+                },
+                {
+                  "endpointIndex": 3,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.038538077819587985,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 554208,
+                  "receiveByteDelta": 521272,
+                  "encryptionFrameDelta": 3050,
+                  "decryptionFrameDelta": 11235
+                },
+                {
+                  "endpointIndex": 3,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03885787423426662,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 554208,
+                  "receiveByteDelta": 518328,
+                  "encryptionFrameDelta": 3050,
+                  "decryptionFrameDelta": 11235
+                },
+                {
+                  "endpointIndex": 3,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03848762076982968,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 554208,
+                  "receiveByteDelta": 519951,
+                  "encryptionFrameDelta": 3050,
+                  "decryptionFrameDelta": 11235
+                },
+                {
+                  "endpointIndex": 4,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.038883826056102626,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 554184,
+                  "receiveByteDelta": 519064,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 11236
+                },
+                {
+                  "endpointIndex": 4,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.038744313380477256,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 554184,
+                  "receiveByteDelta": 519616,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 11236
+                },
+                {
+                  "endpointIndex": 4,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.038175450580084216,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 554184,
+                  "receiveByteDelta": 519432,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 11236
+                },
+                {
+                  "endpointIndex": 4,
+                  "codec": "audio/opus",
+                  "decodedRms": 0.03838669589200244,
+                  "selectedCandidate": {
+                    "local": "prflx",
+                    "remote": "host"
+                  },
+                  "sendByteDelta": 554184,
+                  "receiveByteDelta": 517592,
+                  "encryptionFrameDelta": 3000,
+                  "decryptionFrameDelta": 11236
+                }
+              ]
+            }
+          ],
+          "failures": {
+            "lastRoomEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-auto/multiplayer-muzpkvuu_1_oul5j.json",
+            "consoleErrorCount": 0,
+            "cryptoSecurityErrorObserved": false,
+            "explicitUnallocatedTrackResults": [],
+            "unknownHttpResults": [],
+            "endpoints": [
+              {
+                "index": 0,
+                "phase": "active",
+                "receivedRouteCount": 4,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 135,
+                  "contextReady": 500,
+                  "iceReady": 1269,
+                  "keyAcknowledged": 5190,
+                  "published": 5821,
+                  "connected": 6742,
+                  "subscribed": 8976,
+                  "firstPlayableAudio": 9594
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 1,
+                "phase": null,
+                "receivedRouteCount": 0,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 127,
+                  "contextReady": 174,
+                  "keyAcknowledged": 569,
+                  "iceReady": 988,
+                  "published": 2195,
+                  "connected": 6159,
+                  "subscribed": 8287,
+                  "firstPlayableAudio": 8862
+                },
+                "uplinkConnected": false
+              },
+              {
+                "index": 2,
+                "phase": "active",
+                "receivedRouteCount": 3,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 130,
+                  "contextReady": 202,
+                  "iceReady": 1034,
+                  "keyAcknowledged": 1295,
+                  "published": 2560,
+                  "connected": 5503,
+                  "subscribed": 8368,
+                  "firstPlayableAudio": 8531
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 3,
+                "phase": "active",
+                "receivedRouteCount": 3,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 147,
+                  "contextReady": 317,
+                  "iceReady": 1083,
+                  "keyAcknowledged": 2371,
+                  "published": 4160,
+                  "connected": 5543,
+                  "subscribed": 7705,
+                  "firstPlayableAudio": 8258
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 4,
+                "phase": "active",
+                "receivedRouteCount": 3,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 129,
+                  "contextReady": 453,
+                  "iceReady": 1214,
+                  "keyAcknowledged": 3935,
+                  "published": 6101,
+                  "connected": 7403,
+                  "firstPlayableAudio": 9811,
+                  "subscribed": 9875
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 5,
+                "phase": "active",
+                "receivedRouteCount": 0,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 130,
+                  "contextReady": 360,
+                  "iceReady": 1129,
+                  "keyAcknowledged": 3768,
+                  "published": 5254,
+                  "connected": 23414
+                },
+                "uplinkConnected": true
+              }
+            ],
+            "tracePaths": [
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-auto/multiplayer-muzpkvuu_1_oul5j-0.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-auto/multiplayer-muzpkvuu_1_oul5j-1.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-auto/multiplayer-muzpkvuu_1_oul5j-2.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-auto/multiplayer-muzpkvuu_1_oul5j-3.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-auto/multiplayer-muzpkvuu_1_oul5j-4.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-auto/multiplayer-muzpkvuu_1_oul5j-5.zip"
+            ]
+          },
+          "evidenceDirectory": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-auto"
+        },
+        {
+          "count": 5,
+          "transport": "forced-real-turn-relay",
+          "scenario": "sequential + 60s + rejoin + first-user departure + transfer",
+          "status": "FAIL",
+          "savedRooms": 1,
+          "cleanSustainedMatrixRounds": 0,
+          "concurrentRoundsPassed": null,
+          "rotationRoundsPassed": null,
+          "requiredConcurrentAndRotationRoundsCompleted": null,
+          "latencyFromPartialSuccessfulRoundsOnly": {
+            "firstAudio": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "allRemotes": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "firstUserEmptyRoom": {
+              "samples": 0,
+              "p95Ms": null,
+              "minMs": null,
+              "maxMs": null,
+              "atMost5s": 0,
+              "above5To10s": 0,
+              "above10s": 0
+            },
+            "limitMs": 10000,
+            "p95GateCanBeDeclaredPassed": false,
+            "note": "Samples from successful rooms only. No failed matrix completed all 20 rounds, so these partial distributions do not pass the end-to-end gate."
+          },
+          "sixtySecondMediaProof": [],
+          "failures": {
+            "lastRoomEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-relay/multiplayer-muzpt3o2_5_a9cww.json",
+            "consoleErrorCount": 2,
+            "cryptoSecurityErrorObserved": false,
+            "explicitUnallocatedTrackResults": [],
+            "unknownHttpResults": [
+              {
+                "operation": "tracks/renegotiate",
+                "status": 502,
+                "durationMs": 447
+              },
+              {
+                "operation": "tracks/subscribe",
+                "status": 502,
+                "durationMs": 4439
+              }
+            ],
+            "endpoints": [
+              {
+                "index": 0,
+                "phase": null,
+                "receivedRouteCount": 0,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 134,
+                  "contextReady": 166,
+                  "keyAcknowledged": 2736,
+                  "iceReady": 3637,
+                  "published": 4933,
+                  "connected": 6250,
+                  "subscribed": 11891,
+                  "firstPlayableAudio": 12512
+                },
+                "uplinkConnected": false
+              },
+              {
+                "index": 1,
+                "phase": "active",
+                "receivedRouteCount": 1,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 133,
+                  "contextReady": 176,
+                  "keyAcknowledged": 561,
+                  "iceReady": 1143,
+                  "published": 1963,
+                  "connected": 4015,
+                  "subscribed": 7532,
+                  "firstPlayableAudio": 7758
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 2,
+                "phase": "active",
+                "receivedRouteCount": 1,
+                "stages": {
+                  "joinStarted": 0,
+                  "deviceRegistered": 137,
+                  "contextReady": 204,
+                  "iceReady": 1236,
+                  "keyAcknowledged": 1305,
+                  "published": 3064,
+                  "connected": 4345,
+                  "subscribed": 17930,
+                  "firstPlayableAudio": 18286
+                },
+                "uplinkConnected": true
+              },
+              {
+                "index": 3,
+                "phase": null,
+                "receivedRouteCount": 0,
+                "stages": null,
+                "uplinkConnected": false
+              },
+              {
+                "index": 4,
+                "phase": null,
+                "receivedRouteCount": 0,
+                "stages": null,
+                "uplinkConnected": false
+              }
+            ],
+            "tracePaths": [
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-relay/multiplayer-muzpt3o2_5_a9cww-0.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-relay/multiplayer-muzpt3o2_5_a9cww-1.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-relay/multiplayer-muzpt3o2_5_a9cww-2.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-relay/multiplayer-muzpt3o2_5_a9cww-3.zip",
+              "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-relay/multiplayer-muzpt3o2_5_a9cww-4.zip"
+            ]
+          },
+          "evidenceDirectory": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--b2816-d-audio-rejoin-and-transfer-relay"
+        }
+      ],
+      "cleanup": {
+        "localDatabaseEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/isolated-database-cleanup.json",
+        "runnerExitCode": 1,
+        "allOwnedDatabaseFilesAbsent": true,
+        "localTestPortsStoppedVerified": true,
+        "drainReceipts": [],
+        "inlineDrainReceipts": [
+          {
+            "testTitle": "3 signed devices: ten concurrent SFU joins and ten rotation joins with latency gates",
+            "drained": true,
+            "at": 1791474360039,
+            "report": "playwright-multiplayer-report/index.html",
+            "archiveEntry": "756818c507a2d7229afb.json"
+          },
+          {
+            "testTitle": "5 signed devices: sequential SFU joins, 60 seconds encrypted audio, rejoin and transfer",
+            "drained": true,
+            "at": 1791474538806,
+            "report": "playwright-multiplayer-report/index.html",
+            "archiveEntry": "756818c507a2d7229afb.json"
+          },
+          {
+            "testTitle": "5 signed devices: ten concurrent SFU joins and ten rotation joins with latency gates",
+            "drained": true,
+            "at": 1791474635902,
+            "report": "playwright-multiplayer-report/index.html",
+            "archiveEntry": "756818c507a2d7229afb.json"
+          },
+          {
+            "testTitle": "3 signed devices: sequential SFU joins, 60 seconds encrypted audio, rejoin and transfer",
+            "drained": true,
+            "at": 1791474659472,
+            "report": "playwright-multiplayer-report/index.html",
+            "archiveEntry": "756818c507a2d7229afb.json"
+          },
+          {
+            "testTitle": "3 signed devices: ten concurrent SFU joins and ten rotation joins with latency gates",
+            "drained": true,
+            "at": 1791474743788,
+            "report": "playwright-multiplayer-report/index.html",
+            "archiveEntry": "756818c507a2d7229afb.json"
+          },
+          {
+            "testTitle": "5 signed devices: sequential SFU joins, 60 seconds encrypted audio, rejoin and transfer",
+            "drained": true,
+            "at": 1791474796473,
+            "report": "playwright-multiplayer-report/index.html",
+            "archiveEntry": "756818c507a2d7229afb.json"
+          },
+          {
+            "testTitle": "5 signed devices: ten concurrent SFU joins and ten rotation joins with latency gates",
+            "drained": true,
+            "at": 1791474925251,
+            "report": "playwright-multiplayer-report/index.html",
+            "archiveEntry": "756818c507a2d7229afb.json"
+          }
+        ],
+        "initialInlineReceiptReportPreserved": true,
+        "meaning": "Local ownership revoked and pending remote close promises settled. drainTeardowns uses Promise.allSettled: this does not confirm that every remote provider close succeeded. The initial HTML report was overwritten by the final report; no initial inline receipt is reconstructed.",
+        "remoteProviderCloseFailuresLogged": [
+          "close failed (410) publisher statuses: inspection_failed",
+          "close failed (410) publisher statuses: inspection_failed",
+          "close failed (410) publisher statuses: inspection_failed,inspection_failed"
+        ]
+      },
+      "traceCount": 93,
+      "traceBytes": 28726745
+    }
+  ],
+  "finalStageDistribution": {
+    "sampling": "Only room evidence with full per-remote RTP/Opus/decoded PCM and sustained byte/encryption growth; partial matrix samples are not a passed gate.",
+    "shortObservedAtMost10s": {
+      "firstAudio": {
+        "samples": 29,
+        "p95Ms": 9009,
+        "minMs": 5428,
+        "maxMs": 9027,
+        "atMost5s": 0,
+        "above5To10s": 29,
+        "above10s": 0
+      },
+      "stages": [
+        {
+          "name": "keyAcknowledged offset",
+          "samples": 29,
+          "p95Ms": 3432,
+          "minMs": 461,
+          "maxMs": 3715,
+          "atMost5s": 29,
+          "above5To10s": 0,
+          "above10s": 0
+        },
+        {
+          "name": "iceReady offset (not isolated ICE gathering duration)",
+          "samples": 29,
+          "p95Ms": 2745,
+          "minMs": 974,
+          "maxMs": 3210,
+          "atMost5s": 29,
+          "above5To10s": 0,
+          "above10s": 0
+        },
+        {
+          "name": "published to connected",
+          "samples": 29,
+          "p95Ms": 2411,
+          "minMs": 864,
+          "maxMs": 2413,
+          "atMost5s": 29,
+          "above5To10s": 0,
+          "above10s": 0
+        },
+        {
+          "name": "connected to subscribed",
+          "samples": 29,
+          "p95Ms": 3920,
+          "minMs": 1077,
+          "maxMs": 4250,
+          "atMost5s": 29,
+          "above5To10s": 0,
+          "above10s": 0
+        },
+        {
+          "name": "subscribed to first audio",
+          "samples": 28,
+          "p95Ms": 682,
+          "minMs": 508,
+          "maxMs": 957,
+          "atMost5s": 28,
+          "above5To10s": 0,
+          "above10s": 0
+        }
+      ],
+      "localBackendRequestDurations": [
+        {
+          "operation": "session/new",
+          "samples": 29,
+          "p95Ms": 2578,
+          "minMs": 418,
+          "maxMs": 2695,
+          "atMost5s": 29,
+          "above5To10s": 0,
+          "above10s": 0
+        },
+        {
+          "operation": "tracks/publish",
+          "samples": 29,
+          "p95Ms": 1483,
+          "minMs": 398,
+          "maxMs": 1485,
+          "atMost5s": 29,
+          "above5To10s": 0,
+          "above10s": 0
+        },
+        {
+          "operation": "tracks/subscribe",
+          "samples": 34,
+          "p95Ms": 3398,
+          "minMs": 307,
+          "maxMs": 3537,
+          "atMost5s": 34,
+          "above5To10s": 0,
+          "above10s": 0
+        },
+        {
+          "operation": "tracks/renegotiate",
+          "samples": 29,
+          "p95Ms": 437,
+          "minMs": 281,
+          "maxMs": 1000,
+          "atMost5s": 29,
+          "above5To10s": 0,
+          "above10s": 0
+        }
+      ]
+    },
+    "slowObservedAbove10s": {
+      "firstAudio": {
+        "samples": 13,
+        "p95Ms": 23101,
+        "minMs": 10225,
+        "maxMs": 23101,
+        "atMost5s": 0,
+        "above5To10s": 0,
+        "above10s": 13
+      },
+      "stages": [
+        {
+          "name": "keyAcknowledged offset",
+          "samples": 13,
+          "p95Ms": 6929,
+          "minMs": 475,
+          "maxMs": 6929,
+          "atMost5s": 11,
+          "above5To10s": 2,
+          "above10s": 0
+        },
+        {
+          "name": "iceReady offset (not isolated ICE gathering duration)",
+          "samples": 13,
+          "p95Ms": 8439,
+          "minMs": 1010,
+          "maxMs": 8439,
+          "atMost5s": 9,
+          "above5To10s": 4,
+          "above10s": 0
+        },
+        {
+          "name": "published to connected",
+          "samples": 13,
+          "p95Ms": 17564,
+          "minMs": 1082,
+          "maxMs": 17564,
+          "atMost5s": 10,
+          "above5To10s": 0,
+          "above10s": 3
+        },
+        {
+          "name": "connected to subscribed",
+          "samples": 13,
+          "p95Ms": 9508,
+          "minMs": 1487,
+          "maxMs": 9508,
+          "atMost5s": 11,
+          "above5To10s": 2,
+          "above10s": 0
+        },
+        {
+          "name": "subscribed to first audio",
+          "samples": 13,
+          "p95Ms": 634,
+          "minMs": 6,
+          "maxMs": 634,
+          "atMost5s": 13,
+          "above5To10s": 0,
+          "above10s": 0
+        }
+      ],
+      "localBackendRequestDurations": [
+        {
+          "operation": "session/new",
+          "samples": 13,
+          "p95Ms": 1771,
+          "minMs": 558,
+          "maxMs": 1771,
+          "atMost5s": 13,
+          "above5To10s": 0,
+          "above10s": 0
+        },
+        {
+          "operation": "tracks/publish",
+          "samples": 13,
+          "p95Ms": 1795,
+          "minMs": 651,
+          "maxMs": 1795,
+          "atMost5s": 13,
+          "above5To10s": 0,
+          "above10s": 0
+        },
+        {
+          "operation": "tracks/subscribe",
+          "samples": 13,
+          "p95Ms": 8312,
+          "minMs": 685,
+          "maxMs": 8312,
+          "atMost5s": 11,
+          "above5To10s": 2,
+          "above10s": 0
+        },
+        {
+          "operation": "tracks/renegotiate",
+          "samples": 13,
+          "p95Ms": 944,
+          "minMs": 315,
+          "maxMs": 944,
+          "atMost5s": 13,
+          "above5To10s": 0,
+          "above10s": 0
+        }
+      ]
+    },
+    "slowSamples": [
+      {
+        "runId": "9bd26307-8766-4a8b-a94d-834943f0ddf2",
+        "count": 5,
+        "relay": true,
+        "roomEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-muzpu89j_6_xhmy1.json",
+        "endpointIndex": 1,
+        "firstAudioMs": 16809,
+        "allRemotesMs": 17158,
+        "stageOffsetsMs": {
+          "joinStarted": 0,
+          "deviceRegistered": 148,
+          "contextReady": 450,
+          "keyAcknowledged": 6929,
+          "iceReady": 8439,
+          "published": 9681,
+          "connected": 12139,
+          "subscribed": 16332,
+          "firstPlayableAudio": 16713
+        },
+        "phaseDurationsMs": {
+          "publishedToConnected": 2458,
+          "connectedToSubscribed": 4193,
+          "subscribedToFirstAudio": 381
+        },
+        "providerRequests": [
+          {
+            "operation": "session/new",
+            "status": 200,
+            "durationMs": 577
+          },
+          {
+            "operation": "tracks/publish",
+            "status": 200,
+            "durationMs": 659
+          },
+          {
+            "operation": "tracks/subscribe",
+            "status": 200,
+            "durationMs": 3373
+          },
+          {
+            "operation": "tracks/renegotiate",
+            "status": 200,
+            "durationMs": 555
+          }
+        ],
+        "selectedCandidate": {
+          "local": "relay",
+          "remote": "host"
+        }
+      },
+      {
+        "runId": "9bd26307-8766-4a8b-a94d-834943f0ddf2",
+        "count": 5,
+        "relay": true,
+        "roomEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-muzpu89j_6_xhmy1.json",
+        "endpointIndex": 2,
+        "firstAudioMs": 13794,
+        "allRemotesMs": 18034,
+        "stageOffsetsMs": {
+          "joinStarted": 0,
+          "deviceRegistered": 191,
+          "contextReady": 450,
+          "keyAcknowledged": 4828,
+          "iceReady": 6240,
+          "published": 8762,
+          "connected": 11777,
+          "subscribed": 13500,
+          "firstPlayableAudio": 13699
+        },
+        "phaseDurationsMs": {
+          "publishedToConnected": 3015,
+          "connectedToSubscribed": 1723,
+          "subscribedToFirstAudio": 199
+        },
+        "providerRequests": [
+          {
+            "operation": "session/new",
+            "status": 200,
+            "durationMs": 782
+          },
+          {
+            "operation": "tracks/publish",
+            "status": 200,
+            "durationMs": 1733
+          },
+          {
+            "operation": "tracks/subscribe",
+            "status": 200,
+            "durationMs": 727
+          },
+          {
+            "operation": "tracks/renegotiate",
+            "status": 200,
+            "durationMs": 635
+          }
+        ],
+        "selectedCandidate": null
+      },
+      {
+        "runId": "9bd26307-8766-4a8b-a94d-834943f0ddf2",
+        "count": 5,
+        "relay": true,
+        "roomEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-muzpu89j_6_xhmy1.json",
+        "endpointIndex": 3,
+        "firstAudioMs": 11636,
+        "allRemotesMs": 16182,
+        "stageOffsetsMs": {
+          "joinStarted": 0,
+          "deviceRegistered": 225,
+          "contextReady": 449,
+          "keyAcknowledged": 3826,
+          "iceReady": 5490,
+          "published": 7570,
+          "connected": 9589,
+          "subscribed": 11177,
+          "firstPlayableAudio": 11541
+        },
+        "phaseDurationsMs": {
+          "publishedToConnected": 2019,
+          "connectedToSubscribed": 1588,
+          "subscribedToFirstAudio": 364
+        },
+        "providerRequests": [
+          {
+            "operation": "session/new",
+            "status": 200,
+            "durationMs": 772
+          },
+          {
+            "operation": "tracks/publish",
+            "status": 200,
+            "durationMs": 1299
+          },
+          {
+            "operation": "tracks/subscribe",
+            "status": 200,
+            "durationMs": 769
+          },
+          {
+            "operation": "tracks/renegotiate",
+            "status": 200,
+            "durationMs": 574
+          }
+        ],
+        "selectedCandidate": {
+          "local": "relay",
+          "remote": "host"
+        }
+      },
+      {
+        "runId": "9bd26307-8766-4a8b-a94d-834943f0ddf2",
+        "count": 5,
+        "relay": true,
+        "roomEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-muzpu89j_6_xhmy1.json",
+        "endpointIndex": 4,
+        "firstAudioMs": 14067,
+        "allRemotesMs": 16442,
+        "stageOffsetsMs": {
+          "joinStarted": 0,
+          "deviceRegistered": 150,
+          "contextReady": 477,
+          "keyAcknowledged": 2516,
+          "iceReady": 2952,
+          "published": 4947,
+          "connected": 7012,
+          "subscribed": 13600,
+          "firstPlayableAudio": 14001
+        },
+        "phaseDurationsMs": {
+          "publishedToConnected": 2065,
+          "connectedToSubscribed": 6588,
+          "subscribedToFirstAudio": 401
+        },
+        "providerRequests": [
+          {
+            "operation": "session/new",
+            "status": 200,
+            "durationMs": 996
+          },
+          {
+            "operation": "tracks/publish",
+            "status": 200,
+            "durationMs": 993
+          },
+          {
+            "operation": "tracks/subscribe",
+            "status": 200,
+            "durationMs": 5579
+          },
+          {
+            "operation": "tracks/renegotiate",
+            "status": 200,
+            "durationMs": 580
+          }
+        ],
+        "selectedCandidate": {
+          "local": "relay",
+          "remote": "host"
+        }
+      },
+      {
+        "runId": "9bd26307-8766-4a8b-a94d-834943f0ddf2",
+        "count": 5,
+        "relay": true,
+        "roomEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-muzpv2js_6_a9ge1.json",
+        "endpointIndex": 1,
+        "firstAudioMs": 11300,
+        "allRemotesMs": 14204,
+        "stageOffsetsMs": {
+          "joinStarted": 0,
+          "deviceRegistered": 133,
+          "contextReady": 179,
+          "keyAcknowledged": 2842,
+          "iceReady": 3313,
+          "published": 6882,
+          "connected": 9236,
+          "subscribed": 10955,
+          "firstPlayableAudio": 11238
+        },
+        "phaseDurationsMs": {
+          "publishedToConnected": 2354,
+          "connectedToSubscribed": 1719,
+          "subscribedToFirstAudio": 283
+        },
+        "providerRequests": [
+          {
+            "operation": "session/new",
+            "status": 200,
+            "durationMs": 1771
+          },
+          {
+            "operation": "tracks/publish",
+            "status": 200,
+            "durationMs": 1795
+          },
+          {
+            "operation": "tracks/subscribe",
+            "status": 200,
+            "durationMs": 810
+          },
+          {
+            "operation": "tracks/renegotiate",
+            "status": 200,
+            "durationMs": 631
+          }
+        ],
+        "selectedCandidate": null
+      },
+      {
+        "runId": "9bd26307-8766-4a8b-a94d-834943f0ddf2",
+        "count": 5,
+        "relay": true,
+        "roomEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-muzpv2js_6_a9ge1.json",
+        "endpointIndex": 2,
+        "firstAudioMs": 11360,
+        "allRemotesMs": 14101,
+        "stageOffsetsMs": {
+          "joinStarted": 0,
+          "deviceRegistered": 206,
+          "contextReady": 489,
+          "keyAcknowledged": 4419,
+          "iceReady": 4754,
+          "published": 6283,
+          "connected": 8365,
+          "subscribed": 10831,
+          "firstPlayableAudio": 11282
+        },
+        "phaseDurationsMs": {
+          "publishedToConnected": 2082,
+          "connectedToSubscribed": 2466,
+          "subscribedToFirstAudio": 451
+        },
+        "providerRequests": [
+          {
+            "operation": "session/new",
+            "status": 200,
+            "durationMs": 788
+          },
+          {
+            "operation": "tracks/publish",
+            "status": 200,
+            "durationMs": 735
+          },
+          {
+            "operation": "tracks/subscribe",
+            "status": 200,
+            "durationMs": 1462
+          },
+          {
+            "operation": "tracks/renegotiate",
+            "status": 200,
+            "durationMs": 596
+          }
+        ],
+        "selectedCandidate": {
+          "local": "relay",
+          "remote": "host"
+        }
+      },
+      {
+        "runId": "9bd26307-8766-4a8b-a94d-834943f0ddf2",
+        "count": 5,
+        "relay": true,
+        "roomEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-muzpv2js_6_a9ge1.json",
+        "endpointIndex": 3,
+        "firstAudioMs": 10801,
+        "allRemotesMs": 14872,
+        "stageOffsetsMs": {
+          "joinStarted": 0,
+          "deviceRegistered": 231,
+          "contextReady": 490,
+          "keyAcknowledged": 3800,
+          "iceReady": 4483,
+          "published": 6210,
+          "connected": 8853,
+          "subscribed": 10340,
+          "firstPlayableAudio": 10725
+        },
+        "phaseDurationsMs": {
+          "publishedToConnected": 2643,
+          "connectedToSubscribed": 1487,
+          "subscribedToFirstAudio": 385
+        },
+        "providerRequests": [
+          {
+            "operation": "session/new",
+            "status": 200,
+            "durationMs": 1050
+          },
+          {
+            "operation": "tracks/publish",
+            "status": 200,
+            "durationMs": 670
+          },
+          {
+            "operation": "tracks/subscribe",
+            "status": 200,
+            "durationMs": 685
+          },
+          {
+            "operation": "tracks/renegotiate",
+            "status": 200,
+            "durationMs": 563
+          }
+        ],
+        "selectedCandidate": {
+          "local": "relay",
+          "remote": "host"
+        }
+      },
+      {
+        "runId": "9bd26307-8766-4a8b-a94d-834943f0ddf2",
+        "count": 5,
+        "relay": true,
+        "roomEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--517c5-on-joins-with-latency-gates-relay/multiplayer-muzpv2js_6_a9ge1.json",
+        "endpointIndex": 4,
+        "firstAudioMs": 15513,
+        "allRemotesMs": 15519,
+        "stageOffsetsMs": {
+          "joinStarted": 0,
+          "deviceRegistered": 262,
+          "contextReady": 492,
+          "keyAcknowledged": 5444,
+          "iceReady": 6591,
+          "published": 8524,
+          "connected": 11745,
+          "subscribed": 15067,
+          "firstPlayableAudio": 15441
+        },
+        "phaseDurationsMs": {
+          "publishedToConnected": 3221,
+          "connectedToSubscribed": 3322,
+          "subscribedToFirstAudio": 374
+        },
+        "providerRequests": [
+          {
+            "operation": "session/new",
+            "status": 200,
+            "durationMs": 1161
+          },
+          {
+            "operation": "tracks/publish",
+            "status": 200,
+            "durationMs": 765
+          },
+          {
+            "operation": "tracks/subscribe",
+            "status": 200,
+            "durationMs": 2503
+          },
+          {
+            "operation": "tracks/renegotiate",
+            "status": 200,
+            "durationMs": 574
+          }
+        ],
+        "selectedCandidate": {
+          "local": "relay",
+          "remote": "host"
+        }
+      },
+      {
+        "runId": "9bd26307-8766-4a8b-a94d-834943f0ddf2",
+        "count": 3,
+        "relay": false,
+        "roomEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-muzpec0t_0_qvhgr.json",
+        "endpointIndex": 2,
+        "firstAudioMs": 22549,
+        "allRemotesMs": 22867,
+        "stageOffsetsMs": {
+          "joinStarted": 0,
+          "deviceRegistered": 159,
+          "contextReady": 256,
+          "iceReady": 1146,
+          "keyAcknowledged": 1299,
+          "published": 2985,
+          "connected": 20016,
+          "subscribed": 21859,
+          "firstPlayableAudio": 22493
+        },
+        "phaseDurationsMs": {
+          "publishedToConnected": 17031,
+          "connectedToSubscribed": 1843,
+          "subscribedToFirstAudio": 634
+        },
+        "providerRequests": [
+          {
+            "operation": "session/new",
+            "status": 200,
+            "durationMs": 964
+          },
+          {
+            "operation": "tracks/publish",
+            "status": 200,
+            "durationMs": 870
+          },
+          {
+            "operation": "tracks/subscribe",
+            "status": 200,
+            "durationMs": 1298
+          },
+          {
+            "operation": "tracks/renegotiate",
+            "status": 200,
+            "durationMs": 315
+          }
+        ],
+        "selectedCandidate": {
+          "local": "relay",
+          "remote": "host"
+        }
+      },
+      {
+        "runId": "9bd26307-8766-4a8b-a94d-834943f0ddf2",
+        "count": 3,
+        "relay": false,
+        "roomEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-muzpf3bu_0_q3mae.json",
+        "endpointIndex": 1,
+        "firstAudioMs": 23101,
+        "allRemotesMs": 23196,
+        "stageOffsetsMs": {
+          "joinStarted": 0,
+          "deviceRegistered": 121,
+          "contextReady": 196,
+          "keyAcknowledged": 475,
+          "iceReady": 1010,
+          "published": 2974,
+          "connected": 20538,
+          "subscribed": 22493,
+          "firstPlayableAudio": 23039
+        },
+        "phaseDurationsMs": {
+          "publishedToConnected": 17564,
+          "connectedToSubscribed": 1955,
+          "subscribedToFirstAudio": 546
+        },
+        "providerRequests": [
+          {
+            "operation": "session/new",
+            "status": 200,
+            "durationMs": 1174
+          },
+          {
+            "operation": "tracks/publish",
+            "status": 200,
+            "durationMs": 784
+          },
+          {
+            "operation": "tracks/subscribe",
+            "status": 200,
+            "durationMs": 1337
+          },
+          {
+            "operation": "tracks/renegotiate",
+            "status": 200,
+            "durationMs": 387
+          }
+        ],
+        "selectedCandidate": {
+          "local": "relay",
+          "remote": "host"
+        }
+      },
+      {
+        "runId": "9bd26307-8766-4a8b-a94d-834943f0ddf2",
+        "count": 3,
+        "relay": false,
+        "roomEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-muzpgeg1_0_go3mm.json",
+        "endpointIndex": 1,
+        "firstAudioMs": 13242,
+        "allRemotesMs": 14413,
+        "stageOffsetsMs": {
+          "joinStarted": 0,
+          "deviceRegistered": 115,
+          "contextReady": 165,
+          "keyAcknowledged": 1069,
+          "iceReady": 1166,
+          "published": 2599,
+          "connected": 3681,
+          "subscribed": 13189,
+          "firstPlayableAudio": 13195
+        },
+        "phaseDurationsMs": {
+          "publishedToConnected": 1082,
+          "connectedToSubscribed": 9508,
+          "subscribedToFirstAudio": 6
+        },
+        "providerRequests": [
+          {
+            "operation": "session/new",
+            "status": 200,
+            "durationMs": 776
+          },
+          {
+            "operation": "tracks/publish",
+            "status": 200,
+            "durationMs": 651
+          },
+          {
+            "operation": "tracks/subscribe",
+            "status": 200,
+            "durationMs": 8312
+          },
+          {
+            "operation": "tracks/renegotiate",
+            "status": 200,
+            "durationMs": 944
+          }
+        ],
+        "selectedCandidate": {
+          "local": "prflx",
+          "remote": "host"
+        }
+      },
+      {
+        "runId": "9bd26307-8766-4a8b-a94d-834943f0ddf2",
+        "count": 3,
+        "relay": false,
+        "roomEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-muzph2kf_0_exyhy.json",
+        "endpointIndex": 1,
+        "firstAudioMs": 22540,
+        "allRemotesMs": 22865,
+        "stageOffsetsMs": {
+          "joinStarted": 0,
+          "deviceRegistered": 116,
+          "contextReady": 247,
+          "iceReady": 1037,
+          "keyAcknowledged": 1369,
+          "published": 2676,
+          "connected": 20052,
+          "subscribed": 21916,
+          "firstPlayableAudio": 22486
+        },
+        "phaseDurationsMs": {
+          "publishedToConnected": 17376,
+          "connectedToSubscribed": 1864,
+          "subscribedToFirstAudio": 570
+        },
+        "providerRequests": [
+          {
+            "operation": "session/new",
+            "status": 200,
+            "durationMs": 804
+          },
+          {
+            "operation": "tracks/publish",
+            "status": 200,
+            "durationMs": 828
+          },
+          {
+            "operation": "tracks/subscribe",
+            "status": 200,
+            "durationMs": 1255
+          },
+          {
+            "operation": "tracks/renegotiate",
+            "status": 200,
+            "durationMs": 391
+          }
+        ],
+        "selectedCandidate": {
+          "local": "relay",
+          "remote": "host"
+        }
+      },
+      {
+        "runId": "9bd26307-8766-4a8b-a94d-834943f0ddf2",
+        "count": 3,
+        "relay": false,
+        "roomEvidence": "test-results/multiplayer-real/9bd26307-8766-4a8b-a94d-834943f0ddf2/multiplayer-encrypted-sfu--640af-on-joins-with-latency-gates-auto/multiplayer-muzpjeno_0_ke5bj.json",
+        "endpointIndex": 1,
+        "firstAudioMs": 10225,
+        "allRemotesMs": 10960,
+        "stageOffsetsMs": {
+          "joinStarted": 0,
+          "deviceRegistered": 149,
+          "contextReady": 260,
+          "iceReady": 1238,
+          "keyAcknowledged": 1395,
+          "published": 2964,
+          "connected": 7596,
+          "subscribed": 9645,
+          "firstPlayableAudio": 10162
+        },
+        "phaseDurationsMs": {
+          "publishedToConnected": 4632,
+          "connectedToSubscribed": 2049,
+          "subscribedToFirstAudio": 517
+        },
+        "providerRequests": [
+          {
+            "operation": "session/new",
+            "status": 200,
+            "durationMs": 558
+          },
+          {
+            "operation": "tracks/publish",
+            "status": 200,
+            "durationMs": 1161
+          },
+          {
+            "operation": "tracks/subscribe",
+            "status": 200,
+            "durationMs": 1384
+          },
+          {
+            "operation": "tracks/renegotiate",
+            "status": 200,
+            "durationMs": 440
+          }
+        ],
+        "selectedCandidate": {
+          "local": "prflx",
+          "remote": "host"
+        }
+      }
+    ],
+    "markerOrderNote": "Stages run concurrently. firstPlayableAudio may precede the later subscribed-completion marker; negative intervals are excluded rather than interpreted as durations."
+  },
+  "classification": {
+    "fixedClientDefectsVerified": "This report's direct evidence is the final auto3 sequential scenario: signed-device encryption, all six remote routes for 60 seconds, leave/rejoin, first-user departure/rejoin and device transfer passed with no collected console errors. Deterministic client regression outcomes are recorded separately by the main agent. This real-path success does not imply that every SFU matrix passes.",
+    "explicitProviderNonAllocation": "HTTP 200 per-track not_found_track_error or temporarily_unavailable_error with empty MID is an explicit non-allocation, not an unknown allocated track. Bounded retries preserve successful tracks.",
+    "unknownResult": "502 or aborted upstream operations do not prove non-allocation. A new-session 502 without a returned session ID fails safely; no blind reuse/reallocation is claimed.",
+    "remainingClientRecoveryBoundary": "Some no-console-error failures lack required routes or empty-room readiness. Their stage traces identify slow transport/negotiation but do not by themselves prove a client bug or purely provider failure.",
+    "latencyCausality": "Endpoint offsets and localhost backend request durations are measured. The backend durations include authentication, queueing, event-loop load and upstream work. Parallel full UI tests mean CPU/network normality was not established; no single provider-only cause is inferred.",
+    "remainingAcceptance": "Both complete 10 concurrent + 10 rotation matrices, strict P95 gates, exclusive normal-network timing, physical audio devices and cross-network production acceptance remain incomplete.",
+    "persistedCandidateSnapshotBoundary": "The initial 3-user relay sustained-audio endpoint snapshot omits a selected pair on some routes although the polling predicate required a real relay. Its report flags this omission; it is not repaired from configuration. Initial 5-user relay and final 3/5-user auto sustained snapshots retain selected pairs for every route."
+  }
+}

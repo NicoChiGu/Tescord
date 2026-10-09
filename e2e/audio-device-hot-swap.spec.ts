@@ -182,12 +182,32 @@ test.describe("语音输入配置热切换与无缝推流验收 (Audio Input Hot
     await expect(settingsModal).toBeVisible();
 
     // 验证当前选中的输入设备显示为 Blue Yeti 麦克风
-    const inputDeviceSelect = page.locator("select").first();
+    const inputDeviceSelect = settingsModal.getByRole("button", {
+      name: "Blue Yeti Pro USB 播客麦克风",
+      exact: true,
+    });
     await expect(inputDeviceSelect).toBeVisible();
-    await expect(inputDeviceSelect).toHaveValue("mic_usb_yeti");
+    await inputDeviceSelect.click();
+    await expect(
+      settingsModal.getByRole("option", {
+        name: "Blue Yeti Pro USB 播客麦克风",
+        exact: true,
+      }),
+    ).toHaveAttribute("aria-selected", "true");
 
     // 在设置面板中切换回 Sony 蓝牙耳机麦克风
-    await inputDeviceSelect.selectOption("mic_headset_bluetooth");
+    await settingsModal
+      .getByRole("option", {
+        name: "Sony WH-1000XM5 (蓝牙耳机免提麦克风)",
+        exact: true,
+      })
+      .click();
+    await expect(
+      settingsModal.getByRole("button", {
+        name: "Sony WH-1000XM5 (蓝牙耳机免提麦克风)",
+        exact: true,
+      }),
+    ).toBeVisible();
 
     // 验证 localStorage 同步更新为 Sony 麦克风
     const updatedInputId = await page.evaluate(() =>

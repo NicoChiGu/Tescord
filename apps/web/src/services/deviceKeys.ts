@@ -6,6 +6,7 @@ import {
   MediaEncryptionDevice,
   MediaStreamKeyEnvelope,
   mediaStreamEnvelopeSigningBytes,
+  MEDIA_ENCRYPTION_VERSION,
 } from "@tescord/types";
 
 interface StoredDeviceKeys {
@@ -58,11 +59,35 @@ const base64UrlToBytes = (value: string) => {
 class DeviceKeyService {
   private registrationGeneration = 0;
   private current: StoredDeviceKeys | null = null;
-  async ensureAndRegister(
+  private registration: {
+    userId: string;
+    token: string;
+    generation: number;
+    promise: Promise<StoredDeviceKeys>;
+  } | null = null;
+  ensureAndRegister(userId: string, token: string): Promise<StoredDeviceKeys> {
+    const active = this.registration;
+    if (
+      active &&
+      active.userId === userId &&
+      active.token === token &&
+      active.generation === this.registrationGeneration
+    )
+      return active.promise;
+    const generation = ++this.registrationGeneration;
+    const promise = this.registerDevice(userId, token, generation).finally(
+      () => {
+        if (this.registration?.promise === promise) this.registration = null;
+      },
+    );
+    this.registration = { userId, token, generation, promise };
+    return promise;
+  }
+  private async registerDevice(
     userId: string,
     token: string,
+    generation: number,
   ): Promise<StoredDeviceKeys> {
-    const generation = ++this.registrationGeneration;
     const deviceStorageKey = `tescord_device_id:${userId}`;
     let deviceId = localStorage.getItem(deviceStorageKey);
     if (!deviceId) {
@@ -72,7 +97,7 @@ class DeviceKeyService {
     const id = `${userId}:${deviceId}`;
     const stored = await this.loadDeviceKeys(id);
     if (generation !== this.registrationGeneration)
-      throw new Error("MEDIA_CONTEXT_STALE");
+      throw new DOMException("Cancelled", "AbortError");
 
     const response = await fetch(`${API_BASE}/api/e2ee/devices`, {
       method: "POST",
@@ -92,7 +117,7 @@ class DeviceKeyService {
         (await response.json().catch(() => null))?.error || "设备密钥注册失败",
       );
     if (generation !== this.registrationGeneration)
-      throw new Error("MEDIA_CONTEXT_STALE");
+      throw new DOMException("Cancelled", "AbortError");
     this.current = stored;
     return stored;
   }
@@ -440,9 +465,10 @@ class DeviceKeyService {
       key,
     );
     const unsigned: Omit<MediaStreamKeyEnvelope, "signature"> = {
-      version: 2,
+      version: MEDIA_ENCRYPTION_VERSION,
       contextId: context.contextId,
       membershipVersion: context.membershipVersion,
+      contextRevision: context.contextRevision,
       streamId,
       keyId,
       senderId,
@@ -478,9 +504,10 @@ class DeviceKeyService {
       !local ||
       envelope.recipientDeviceId !== deviceId ||
       envelope.recipientId !== localUserId ||
-      envelope.version !== 2 ||
+      envelope.version !== MEDIA_ENCRYPTION_VERSION ||
       envelope.contextId !== context.contextId ||
       envelope.membershipVersion !== context.membershipVersion ||
+      envelope.contextRevision !== context.contextRevision ||
       Math.abs(Date.now() - Date.parse(envelope.createdAt)) > 120_000
     )
       throw new Error("MEDIA_KEY_INVALID");

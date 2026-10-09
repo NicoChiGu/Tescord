@@ -207,50 +207,67 @@ test("mobile channel label long press opens menu while manager handle owns sorti
   expect(size!.width).toBeGreaterThanOrEqual(44);
   expect(size!.height).toBeGreaterThanOrEqual(44);
   const cdp = await page.context().newCDPSession(page);
+  const markAsRead = page
+    .getByRole("dialog")
+    .getByRole("button", { name: "标记为已读", exact: true });
+  // Coordinate-based CDP touch input needs the drawer's final position.
+  // Playwright's actionability trial waits for the label to stop animating.
+  await label.click({ trial: true });
   const box = (await label.boundingBox())!;
   await cdp.send("Input.dispatchTouchEvent", {
     type: "touchStart",
     touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }],
   });
-  await expect(
-    page.getByTestId("channel-context-menu-mark-as-read"),
-  ).toBeVisible();
+  await expect(markAsRead).toBeVisible();
   await cdp.send("Input.dispatchTouchEvent", {
     type: "touchEnd",
     touchPoints: [],
   });
   await page.keyboard.press("Escape");
-  await expect(
-    page.getByTestId("channel-context-menu-mark-as-read"),
-  ).toHaveCount(0);
+  await expect(markAsRead).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   // Movement cancels the label timer, preserving scrolling rather than sorting.
+  await label.click({ trial: true });
+  const movedBox = (await label.boundingBox())!;
   await cdp.send("Input.dispatchTouchEvent", {
     type: "touchStart",
-    touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 }],
+    touchPoints: [
+      {
+        x: movedBox.x + movedBox.width / 2,
+        y: movedBox.y + movedBox.height / 2,
+      },
+    ],
   });
   await cdp.send("Input.dispatchTouchEvent", {
     type: "touchMove",
-    touchPoints: [{ x: box.x + box.width / 2, y: box.y + box.height / 2 + 20 }],
+    touchPoints: [
+      {
+        x: movedBox.x + movedBox.width / 2,
+        y: movedBox.y + movedBox.height / 2 + 20,
+      },
+    ],
   });
   await page.waitForTimeout(650);
-  await expect(
-    page.getByTestId("channel-context-menu-mark-as-read"),
-  ).toHaveCount(0);
+  await expect(markAsRead).toHaveCount(0);
   await cdp.send("Input.dispatchTouchEvent", {
     type: "touchEnd",
     touchPoints: [],
   });
+  await handle.click({ trial: true });
   const handleBox = (await handle.boundingBox())!;
   await cdp.send("Input.dispatchTouchEvent", {
     type: "touchStart",
-    touchPoints: [{ x: handleBox.x + 22, y: handleBox.y + 22 }],
+    touchPoints: [
+      {
+        x: handleBox.x + handleBox.width / 2,
+        y: handleBox.y + handleBox.height / 2,
+      },
+    ],
   });
   await expect(
     page.getByTestId(`channel-sortable-${channelId}`),
   ).toHaveAttribute("data-dragging", "true");
-  await expect(
-    page.getByTestId("channel-context-menu-mark-as-read"),
-  ).toHaveCount(0);
+  await expect(markAsRead).toHaveCount(0);
   await cdp.send("Input.dispatchTouchEvent", {
     type: "touchCancel",
     touchPoints: [],

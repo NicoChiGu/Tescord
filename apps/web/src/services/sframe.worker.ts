@@ -33,6 +33,7 @@ let counter = 0n,
 let encrypted = 0,
   decrypted = 0,
   replay = 0;
+let reportedFirstFrame = false;
 function report(): void {
   scope.postMessage({ type: "stats", encrypted, decrypted, replay });
   encrypted = 0;
@@ -54,8 +55,11 @@ scope.onmessage = ({ data }) => {
     sending = { keyId: data.keyId, key: data.key };
     counter = 0n;
     generation++;
-  } else if (data.type === "receiver-key") keys.set(data.keyId, data.key);
-  else if (data.type === "pause") {
+  } else if (data.type === "receiver-key") {
+    keys.set(data.keyId, data.key);
+    if (data.requestId !== undefined)
+      scope.postMessage({ type: "key-installed", requestId: data.requestId });
+  } else if (data.type === "pause") {
     paused = true;
     generation++;
   } else if (data.type === "resume") paused = false;
@@ -136,7 +140,12 @@ scope.onrtctransform = ({ transformer }) => {
               decrypted++;
             }
             controller.enqueue(frame);
-            if (encrypted + decrypted + replay >= 50) report();
+            // Availability timing must observe the first verified frame rather
+            // than wait for the one-second periodic statistics batch.
+            if (!reportedFirstFrame || encrypted + decrypted + replay >= 50) {
+              reportedFirstFrame = true;
+              report();
+            }
           } catch (error) {
             // Corrupt receive frames are discarded; an encryption failure stops the pipeline.
             if (operation === "encrypt") {

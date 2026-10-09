@@ -1,4 +1,21 @@
 import { defineConfig, devices } from "@playwright/test";
+import { localHttpsCertificateArgument } from "./e2e/helpers/local-https";
+
+// Long media matrices create their own signed accounts. Run them after the UI
+// suite so the setup project's short-lived access tokens remain usable there.
+const multiplayerTests =
+  /(?:media-encryption-device-mesh|media-encryption-lifecycle|voice-mesh-bootstrap)\.spec\.ts/;
+const chromiumUse = {
+  ...devices["Desktop Chrome"],
+  storageState: "test-results/e2e-admin-storage.json",
+  launchOptions: {
+    args: [
+      "--use-fake-ui-for-media-stream",
+      "--use-fake-device-for-media-stream",
+      localHttpsCertificateArgument(),
+    ],
+  },
+};
 
 /**
  * Playwright 端到端自动化测试配置
@@ -6,6 +23,9 @@ import { defineConfig, devices } from "@playwright/test";
  */
 export default defineConfig({
   testDir: "./e2e",
+  // Playwright clears outputDir at startup. Keep real-media evidence and validation
+  // logs outside this disposable directory so full E2E cannot delete another run.
+  outputDir: "test-results/default-e2e",
   /* 并行运行测试 */
   fullyParallel: true,
   /* CI 环境下禁止 test.only */
@@ -33,18 +53,17 @@ export default defineConfig({
     },
     {
       name: "chromium",
-      testIgnore: /auth\.setup\.ts/,
+      testIgnore: [/auth\.setup\.ts/, multiplayerTests],
       dependencies: ["setup"],
-      use: {
-        ...devices["Desktop Chrome"],
-        storageState: "test-results/e2e-admin-storage.json",
-        launchOptions: {
-          args: [
-            "--use-fake-ui-for-media-stream",
-            "--use-fake-device-for-media-stream",
-          ],
-        },
-      },
+      use: chromiumUse,
+    },
+    {
+      name: "multiplayer",
+      testMatch: multiplayerTests,
+      // Single-worker project order keeps these long matrices after UI tests;
+      // an unrelated UI failure must not skip the media acceptance matrix.
+      dependencies: ["setup"],
+      use: chromiumUse,
     },
   ],
 

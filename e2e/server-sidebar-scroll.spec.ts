@@ -130,9 +130,13 @@ test.describe("服务器侧边栏超出容器时竖向滚动与滚动条隐藏�
     expect(scrolledTop).toBe(150);
 
     // 6. 验证吸底固定模式：底部添加服务器(+)与探索发现按钮常驻可见，无需滚到底部也能直接交互
-    const addServerBtn = page.getByRole("button", { name: "添加服务器" });
+    const addServerBtn = page
+      .getByTestId("servers-sidebar")
+      .locator("button:has(svg.lucide-plus)");
     const discoveryBtn = page.locator('[data-testid="open-discovery-btn"]');
     await expect(addServerBtn).toBeVisible();
+    await addServerBtn.hover();
+    await expect(page.getByTestId("tooltip-bubble")).toHaveText("添加服务器");
     await expect(discoveryBtn).toBeVisible();
 
     // 7. 确保无严重控制台错误
@@ -149,6 +153,17 @@ test.describe("服务器侧边栏超出容器时竖向滚动与滚动条隐藏�
   test("用户可以通过拖拽自由调整服务器排序（个人偏好），且本地持久化与页面刷新后保持最新偏好", async ({
     page,
   }) => {
+    let cloudSettings: Record<string, unknown> = {};
+    await page.route("**/api/users/@me/settings", async (route) => {
+      if (route.request().method() === "PATCH") {
+        cloudSettings = { ...cloudSettings, ...route.request().postDataJSON() };
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(cloudSettings),
+      });
+    });
     const mockGuilds = [1, 2].map((index) => ({
       id: `guild_sort_${index}`,
       name: `排序测试服务器_${index}`,
@@ -229,6 +244,13 @@ test.describe("服务器侧边栏超出容器时竖向滚动与滚动条隐藏�
     expect(settingsStr).not.toBeNull();
     const settingsObj = JSON.parse(settingsStr!);
     expect(Array.isArray(settingsObj?.state?.guildPositions)).toBe(true);
+    expect(settingsObj.state.guildPositions).toEqual([
+      mockGuilds[1].id,
+      mockGuilds[0].id,
+    ]);
+    await expect
+      .poll(() => cloudSettings.guildPositions)
+      .toEqual([mockGuilds[1].id, mockGuilds[0].id]);
 
     // 验证页面刷新后偏好持久有效
     await page.reload();

@@ -31,6 +31,44 @@ test.describe("Cloudflare Realtime ICE Gathering Smart Early-Exit", () => {
     expect(result.elapsed).toBeLessThan(100);
   });
 
+  test("Reuses SDP relay candidates without waiting for another candidate event", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    const elapsed = await page.evaluate(async () => {
+      const service = (
+        window as unknown as {
+          cloudflareRealtimeService: {
+            testWaitForIceGathering(
+              pc: RTCPeerConnection,
+              options: {
+                timeoutMs: number;
+                debounceMs: number;
+                maxGatherTimeMs: number;
+              },
+            ): Promise<void>;
+          };
+        }
+      ).cloudflareRealtimeService;
+      const pc = Object.assign(new EventTarget(), {
+        iceGatheringState: "gathering",
+        getConfiguration: () => ({ iceTransportPolicy: "relay" }),
+        localDescription: {
+          sdp: "v=0\r\na=candidate:1 1 UDP 1 198.51.100.20 6000 typ relay\r\n",
+        },
+      }) as unknown as RTCPeerConnection;
+      const start = performance.now();
+      await service.testWaitForIceGathering(pc, {
+        timeoutMs: 1000,
+        debounceMs: 50,
+        maxGatherTimeMs: 800,
+      });
+      return performance.now() - start;
+    });
+    expect(elapsed).toBeGreaterThanOrEqual(40);
+    expect(elapsed).toBeLessThan(300);
+  });
+
   test("Host-only gathering does not exit early but remains a final fallback after completion", async ({
     page,
   }) => {
