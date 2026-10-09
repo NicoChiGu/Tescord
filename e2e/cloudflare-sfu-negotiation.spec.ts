@@ -412,6 +412,86 @@ test.describe("SFU bounded initial transport rebuild", () => {
   test.afterAll(async () => {
     await server?.close();
   });
+  test("host viewer refresh waits for its announced screen track", async ({
+    page,
+  }) => {
+    const requests: string[] = [];
+    await page.route(`${origin}packet-ready-harness`, (route) =>
+      route.fulfill({ contentType: "text/html", body: "<html></html>" }),
+    );
+    await page.route(
+      "**/api/cloudflare-realtime/streams/viewers?**",
+      async (route) => {
+        const publisher = new URL(route.request().url()).searchParams.get(
+          "publisherSessionId",
+        )!;
+        requests.push(publisher);
+        if (publisher === "remote-late") {
+          await page.evaluate(async () => {
+            const { cloudflareRealtimeService: service } =
+              await import("/src/services/cloudflare_realtime/CloudflareRealtimeService.ts");
+            (service as unknown as { sessionId: string }).sessionId =
+              "viewer-next";
+          });
+        }
+        return route.fulfill({
+          json: {
+            channelId: "viewer-channel",
+            publisherSessionId: publisher,
+            hostUserId: "host",
+            viewerCount: 0,
+            watching: false,
+          },
+        });
+      },
+    );
+    await page.goto(`${origin}packet-ready-harness`);
+    const run = async (
+      stage: "pending" | "announced" | "replaced" | "removed" | "remote",
+    ) =>
+      page.evaluate(async (stage) => {
+        const { cloudflareRealtimeService: service } =
+          await import("/src/services/cloudflare_realtime/CloudflareRealtimeService.ts");
+        const control = service as unknown as {
+          sessionId: string;
+          currentChannelId: string;
+          publishedTracks: Map<string, { trackName: string }>;
+          announcedTracks: Set<string>;
+          refreshViewerCount(publisher: string): Promise<void>;
+        };
+        control.sessionId = "viewer-host";
+        control.currentChannelId = "viewer-channel";
+        if (stage === "pending")
+          control.publishedTracks.set("screen", { trackName: "screen-first" });
+        if (stage === "announced") control.announcedTracks.add("screen-first");
+        if (stage === "replaced")
+          control.publishedTracks.set("screen", { trackName: "screen-new" });
+        if (stage === "removed") control.publishedTracks.delete("screen");
+        await control.refreshViewerCount(
+          stage === "remote" ? "remote-host" : "viewer-host",
+        );
+      }, stage);
+    await run("pending");
+    expect(requests).toEqual([]);
+    await run("announced");
+    expect(requests).toEqual(["viewer-host"]);
+    await run("replaced");
+    await run("removed");
+    expect(requests).toEqual(["viewer-host"]);
+    await run("remote");
+    expect(requests).toEqual(["viewer-host", "remote-host"]);
+    const stale = await page.evaluate(async () => {
+      const { cloudflareRealtimeService: service } =
+        await import("/src/services/cloudflare_realtime/CloudflareRealtimeService.ts");
+      await (
+        service as unknown as {
+          refreshViewerCount(publisher: string): Promise<void>;
+        }
+      ).refreshViewerCount("remote-late");
+      return service.getWatchState("remote-late");
+    });
+    expect(stale).toBeNull();
+  });
   for (const scenario of [
     "fresh-session",
     "retry-exhausted",

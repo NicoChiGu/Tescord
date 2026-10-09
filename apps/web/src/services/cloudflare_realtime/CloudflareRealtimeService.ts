@@ -1370,7 +1370,6 @@ export class CloudflareRealtimeService {
         this.emitPublications();
         if (this.connectionStatus === "connected")
           void this.scheduleTrackAnnouncement();
-        if (source === "screen") void this.refreshViewerCount(sessionId);
         if (track.kind === "video")
           this.emitVideo(
             {
@@ -1646,6 +1645,11 @@ export class CloudflareRealtimeService {
               throw new Error(`Media announcement failed (${response.status})`);
             for (const item of pending)
               this.announcedTracks.add(item.trackName);
+            if (
+              pending.some((item) => item.source === "screen") &&
+              !this.watchStates.has(sessionId)
+            )
+              void this.refreshViewerCount(sessionId);
             return true;
           });
           if (announced) return true;
@@ -2100,7 +2104,14 @@ export class CloudflareRealtimeService {
 
   private async refreshViewerCount(publisherSessionId: string): Promise<void> {
     if (!this.currentChannelId || !this.sessionId) return;
+    if (publisherSessionId === this.sessionId) {
+      const screen = this.publishedTracks.get("screen");
+      // The server exposes a stream only after encrypted RTP readiness is
+      // acknowledged. A locally published track can still be pending then.
+      if (!screen || !this.announcedTracks.has(screen.trackName)) return;
+    }
     const channelId = this.currentChannelId;
+    const requestingSessionId = this.sessionId;
     try {
       const query = new URLSearchParams({
         channelId,
@@ -2111,7 +2122,12 @@ export class CloudflareRealtimeService {
         `${API_BASE}/api/cloudflare-realtime/streams/viewers?${query}`,
         { headers: this.authHeaders },
       );
-      if (!response.ok || this.currentChannelId !== channelId) return;
+      if (
+        !response.ok ||
+        this.currentChannelId !== channelId ||
+        this.sessionId !== requestingSessionId
+      )
+        return;
       const event = (await response.json()) as CfStreamViewersEvent;
       this.setWatchState({
         ...event,

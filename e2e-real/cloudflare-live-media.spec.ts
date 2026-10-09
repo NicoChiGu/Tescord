@@ -68,8 +68,24 @@ async function sampleDisplayedVideoLatency(page: Page, startedAt: number) {
           videoState,
           (observedVideos.get(videoState) || 0) + 1,
         );
-        if (video.readyState < 2 || video.videoWidth < 640) continue;
-        ctx.drawImage(video, 0, 0, 640, 100, 0, 0, 640, 100);
+        if (
+          video.readyState < 2 ||
+          video.videoWidth <= 0 ||
+          video.videoHeight <= 0
+        )
+          continue;
+        // Normalize adaptive encoder resolution back to the sender's marker grid.
+        ctx.drawImage(
+          video,
+          0,
+          0,
+          video.videoWidth,
+          video.videoHeight,
+          0,
+          0,
+          640,
+          360,
+        );
         const sample = (x: number) =>
           ctx.getImageData(x, 40, 1, 1).data[0] > 128;
         markerPixels = [560, 580, 600, 620].map(
