@@ -24,7 +24,7 @@ overrides:
 patchedDependencies:
   app-builder-lib@26.15.3: d5203e565fc09adad63f8106b38cc1e1750601f50879410c9a613675f024c4d0
   braces@3.0.3: a8e919e5d3ee4e9a94fc1e8d986ea5c3d2d308d32fb0ee0ac32da017ac744b36
-  minio@8.0.7: b787a769d4f9dac7c25cb33a8e26b0a7ea28f1d9befc04f1941020bed5de0e37
+  minio@8.0.7: 3b4a4a43f6505cc0678bb6831b43a42ee3c3a8055865753f2ad9bcd880c0a979
 
 importers:
 
@@ -132,7 +132,7 @@ importers:
         version: 2.19.0
       minio:
         specifier: ^8.0.7
-        version: 8.0.7(patch_hash=b787a769d4f9dac7c25cb33a8e26b0a7ea28f1d9befc04f1941020bed5de0e37)
+        version: 8.0.7(patch_hash=3b4a4a43f6505cc0678bb6831b43a42ee3c3a8055865753f2ad9bcd880c0a979)
       sharp:
         specifier: ^0.35.5
         version: 0.35.5(@types/node@22.20.4)
@@ -7567,7 +7567,7 @@ snapshots:
 
   minimist@1.2.8: {}
 
-  minio@8.0.7(patch_hash=b787a769d4f9dac7c25cb33a8e26b0a7ea28f1d9befc04f1941020bed5de0e37):
+  minio@8.0.7(patch_hash=3b4a4a43f6505cc0678bb6831b43a42ee3c3a8055865753f2ad9bcd880c0a979):
     dependencies:
       async: 3.2.6
       block-stream2: 2.1.0

@@ -646,14 +646,91 @@ export class StorageService {
     }
   }
 
-  private async removeStoredObject(fileKey: string): Promise<void> {
+  public extractFileKeyFromUrl(fileUrl: string): string | null {
+    if (!fileUrl) return null;
+    try {
+      const parsed = new URL(fileUrl, this.baseUrl);
+      const rawKey = parsed.pathname.split("/").pop() || "";
+      const decodedKey = decodeURIComponent(rawKey);
+      if (!decodedKey || path.basename(decodedKey) !== decodedKey) return null;
+      return decodedKey;
+    } catch {
+      return null;
+    }
+  }
+
+  public async deleteStoredFile(fileKey: string): Promise<boolean> {
+    if (!fileKey || path.basename(fileKey) !== fileKey) return false;
+    this.uploadGrants.delete(fileKey);
     if (this.isMinioAvailable && this.minioClient) {
-      await this.minioClient.removeObject(this.bucketName, fileKey);
-      return;
+      try {
+        await this.minioClient.removeObject(this.bucketName, fileKey);
+        return true;
+      } catch (err) {
+        console.warn(`[StorageService] MinIO removeObject failed for ${fileKey}:`, err);
+        return false;
+      }
     }
     const filePath = this.resolveLocalUploadPath(fileKey);
-    if (!filePath) throw new Error("Invalid public asset path");
-    await fs.promises.rm(filePath, { force: true });
+    if (!filePath) return false;
+    try {
+      await fs.promises.rm(filePath, { force: true });
+      return true;
+    } catch (err) {
+      console.warn(`[StorageService] Local file rm failed for ${filePath}:`, err);
+      return false;
+    }
+  }
+
+  public async listAllStoredObjects(): Promise<Array<{ key: string; size: number; lastModified: Date }>> {
+    if (this.isMinioAvailable && this.minioClient) {
+      return new Promise((resolve) => {
+        const results: Array<{ key: string; size: number; lastModified: Date }> = [];
+        const stream = this.minioClient!.listObjectsV2(this.bucketName, "", true);
+        stream.on("data", (item: any) => {
+          if (item && item.name) {
+            results.push({
+              key: item.name,
+              size: item.size || 0,
+              lastModified: item.lastModified ? new Date(item.lastModified) : new Date(0),
+            });
+          }
+        });
+        stream.on("end", () => resolve(results));
+        stream.on("error", (err: any) => {
+          console.warn("[StorageService] MinIO listObjectsV2 error:", err);
+          resolve(results);
+        });
+      });
+    }
+
+    try {
+      const entries = await fs.promises.readdir(this.uploadsDir, { withFileTypes: true });
+      const results: Array<{ key: string; size: number; lastModified: Date }> = [];
+      for (const entry of entries) {
+        if (entry.isFile()) {
+          try {
+            const fullPath = path.join(this.uploadsDir, entry.name);
+            const stat = await fs.promises.stat(fullPath);
+            results.push({
+              key: entry.name,
+              size: stat.size,
+              lastModified: stat.mtime,
+            });
+          } catch {
+            // Ignore single file stat error
+          }
+        }
+      }
+      return results;
+    } catch (err) {
+      console.warn("[StorageService] Local list directory error:", err);
+      return [];
+    }
+  }
+
+  private async removeStoredObject(fileKey: string): Promise<void> {
+    await this.deleteStoredFile(fileKey);
   }
 
   public verifyLocalUpload(
@@ -946,13 +1023,7 @@ export class StorageService {
   }
 
   private async removePreviewObject(previewKey: string): Promise<void> {
-    if (this.isMinioAvailable && this.minioClient) {
-      await this.minioClient.removeObject(this.bucketName, previewKey);
-      return;
-    }
-    const previewPath = this.resolveLocalUploadPath(previewKey);
-    if (!previewPath) throw new Error("Invalid preview path");
-    await fs.promises.rm(previewPath, { force: true });
+    await this.deleteStoredFile(previewKey);
   }
 
   private async withPreviewSlot<T>(task: () => Promise<T>): Promise<T> {

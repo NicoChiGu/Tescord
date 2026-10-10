@@ -9,14 +9,16 @@
     "tabUsersTitle": "全局注册用户治理与审查",
     "tabGuildsTitle": "全平台服务器审查与解散",
     "tabInvitesTitle": "全站注册邀请码与准入发放",
-    "tabSystemTitle": "全网在线广播与系统维护设置"
+    "tabSystemTitle": "全网在线广播与系统维护设置",
+    "tabStorageTitle": "对象存储空间监控与孤儿文件回收"
   },
   "nav": {
     "overview": "全网概览",
     "users": "用户管理",
     "guilds": "服务器治理",
     "invites": "注册邀请码",
-    "system": "系统设置与广播"
+    "system": "系统设置与广播",
+    "storage": "存储与维护"
   },
   "overview": {
     "title": "全网运行状态指标",
@@ -216,5 +218,35 @@
     "broadcastSuccess": "广播已成功下发给所有在线用户"
   },
   "allowNonSuperAdminCreateGuildTitle": "允许非超级管理员创建服务器",
-  "allowNonSuperAdminCreateGuildDesc": "开启后所有普通用户均可创建新服务器；关闭后仅超级管理员可建服（适合独立单服务器模式）"
+  "allowNonSuperAdminCreateGuildDesc": "开启后所有普通用户均可创建新服务器；关闭后仅超级管理员可建服（适合独立单服务器模式）",
+  "storage": {
+    "title": "存储空间与数据维护",
+    "subtitle": "监控对象存储及本地文件容量，清理已解绑附件与废弃草稿孤儿文件",
+    "cards": {
+      "totalUsed": "存储总占用",
+      "activeAttachments": "有效消息附件",
+      "orphanedAttachments": "已解绑待回收附件",
+      "orphanedDrafts": "无主草稿文件",
+      "fileCount": "个文件",
+      "lastGc": "上次清理时间",
+      "never": "尚未执行"
+    },
+    "policy": {
+      "title": "数据回收与保护策略",
+      "rule1": "消息删除后仅软解绑（将 messageId 置为 NULL），客户端即时阻断访问。",
+      "rule2": "系统自动执行 24 小时安全缓冲期（Grace Period），避免误删正在编辑的草稿。",
+      "rule3": "每日后台定时任务自动扫描并物理擦除超过缓冲期的孤立文件及缩略图。"
+    },
+    "actions": {
+      "cleanNow": "立即执行垃圾回收 (GC)",
+      "cleaning": "正在清理存储中...",
+      "confirmTitle": "确认立即执行存储垃圾回收？",
+      "confirmDesc": "将物理删除所有已解绑超 24 小时的附件文件、图片缩略图及无主草稿文件，并从数据库清理孤儿记录。此操作不可逆。",
+      "confirmBtn": "确认清理",
+      "cancelBtn": "取消",
+      "cleanSuccess": "垃圾回收执行成功！已删除 {{files}} 个文件，释放 {{freed}} 空间（耗时 {{duration}}ms）。",
+      "cleanFailed": "垃圾回收执行失败",
+      "loadFailed": "加载存储状态指标失败"
+    }
+  }
 }

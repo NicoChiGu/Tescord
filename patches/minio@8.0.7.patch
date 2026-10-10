@@ -49,3 +49,17 @@ diff --git a/dist/main/notification.js b/dist/main/notification.js
 @@ -199 +199 @@
 -      const asm = _Parser.make();
 +      const asm = _Parser.asStream();
+diff --git a/dist/main/helpers.js b/dist/main/helpers.js
+--- a/dist/main/helpers.js
++++ b/dist/main/helpers.js
+@@ -9 +9,2 @@
+-var querystring = _interopRequireWildcard(require("query-string"), true);
++var _querystring = require("query-string");
++var querystring = _querystring.default || _querystring;
+diff --git a/dist/main/internal/client.js b/dist/main/internal/client.js
+--- a/dist/main/internal/client.js
++++ b/dist/main/internal/client.js
+@@ -16 +16,2 @@
+-var qs = _interopRequireWildcard(require("query-string"), true);
++var _qs = require("query-string");
++var qs = _qs.default || _qs;

@@ -3430,6 +3430,26 @@ export interface MaintenanceUpdatePayload {
   triggeredAt?: string;
 }
 
+export interface AdminStorageStats {
+  totalUsedBytes: number;
+  activeAttachmentBytes: number;
+  activeAttachmentCount: number;
+  orphanedAttachmentBytes: number;
+  orphanedAttachmentCount: number;
+  orphanedDraftBytes: number;
+  orphanedDraftCount: number;
+  lastGcTimestamp?: number | null;
+}
+
+export interface AdminGcResult {
+  success: boolean;
+  deletedAttachmentRecords: number;
+  deletedPhysicalFiles: number;
+  freedBytes: number;
+  durationMs: number;
+  executedAt: number;
+}
+
 // ==========================================
 // 21. 私信与 1v1 实时音视频呼叫契约 (Direct Messages & 1v1 Calling)
 // ==========================================

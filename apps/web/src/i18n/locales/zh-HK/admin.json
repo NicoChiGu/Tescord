@@ -9,14 +9,16 @@
     "tabUsersTitle": "全局註冊用戶治理與審查",
     "tabGuildsTitle": "全平台伺服器審查與解散",
     "tabInvitesTitle": "全站註冊邀請碼與准入發放",
-    "tabSystemTitle": "全網線上廣播與系統維護設定"
+    "tabSystemTitle": "全網線上廣播與系統維護設定",
+    "tabStorageTitle": "物件儲存空間監控與孤立檔案回收"
   },
   "nav": {
     "overview": "全網概覽",
     "users": "用戶管理",
     "guilds": "伺服器治理",
     "invites": "註冊邀請碼",
-    "system": "系統設定與廣播"
+    "system": "系統設定與廣播",
+    "storage": "儲存與維護"
   },
   "overview": {
     "title": "全網運行狀態指標",
@@ -216,5 +218,35 @@
     "broadcastSuccess": "廣播已成功下發給所有線上用戶"
   },
   "allowNonSuperAdminCreateGuildTitle": "允許非超級管理員建立伺服器",
-  "allowNonSuperAdminCreateGuildDesc": "開啟後所有普通用戶均可建立新伺服器；關閉後僅超級管理員可建服（適合獨立單伺服器模式）"
+  "allowNonSuperAdminCreateGuildDesc": "開啟後所有普通用戶均可建立新伺服器；關閉後僅超級管理員可建服（適合獨立單伺服器模式）",
+  "storage": {
+    "title": "儲存空間與數據維護",
+    "subtitle": "監控物件儲存與本地檔案容量，清理已解綁附件與廢棄草稿孤立檔案",
+    "cards": {
+      "totalUsed": "儲存總佔用",
+      "activeAttachments": "有效訊息附件",
+      "orphanedAttachments": "已解綁待回收附件",
+      "orphanedDrafts": "無主草稿檔案",
+      "fileCount": "個檔案",
+      "lastGc": "上次清理時間",
+      "never": "尚未執行"
+    },
+    "policy": {
+      "title": "數據回收與保護策略",
+      "rule1": "訊息刪除後僅軟解綁（將 messageId 設為 NULL），客戶端即時阻斷存取。",
+      "rule2": "系統自動執行 24 小時安全緩衝期（Grace Period），避免誤刪正在編輯的草稿。",
+      "rule3": "每日後台定時任務自動掃描並實體抹除超過緩衝期的孤立檔案及縮圖。"
+    },
+    "actions": {
+      "cleanNow": "立即執行空間回收 (GC)",
+      "cleaning": "正在清理儲存中...",
+      "confirmTitle": "確認立即執行儲存空間回收？",
+      "confirmDesc": "將實體刪除所有已解綁逾 24 小時的附件檔案、圖片縮圖及無主草稿檔案，並從資料庫清理孤立記錄。此操作不可逆。",
+      "confirmBtn": "確認清理",
+      "cancelBtn": "取消",
+      "cleanSuccess": "空間回收執行成功！已刪除 {{files}} 個檔案，釋放 {{freed}} 空間（耗時 {{duration}}ms）。",
+      "cleanFailed": "空間回收執行失敗",
+      "loadFailed": "載入儲存狀態指標失敗"
+    }
+  }
 }

@@ -8,6 +8,8 @@ import {
   SystemSettingsDTO,
   SystemRole,
   RegistrationInviteDTO,
+  AdminStorageStats,
+  AdminGcResult,
 } from "@tescord/types";
 import {
   ShieldAlert,
@@ -33,6 +35,8 @@ import {
   Copy,
   Check,
   ChevronLeft,
+  HardDrive,
+  Database,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -50,7 +54,13 @@ interface AdminDashboardModalProps {
   onClose: () => void;
 }
 
-type TabType = "OVERVIEW" | "USERS" | "GUILDS" | "INVITES" | "SYSTEM";
+type TabType =
+  | "OVERVIEW"
+  | "USERS"
+  | "GUILDS"
+  | "INVITES"
+  | "SYSTEM"
+  | "STORAGE";
 
 export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   isOpen,
@@ -101,6 +111,20 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   const [newInviteCustomCode, setNewInviteCustomCode] = useState("");
   const [isCreatingInvite, setIsCreatingInvite] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  // 6. 存储管理数据
+  const [storageStats, setStorageStats] = useState<AdminStorageStats | null>(
+    null,
+  );
+  const [isCleaningStorage, setIsCleaningStorage] = useState(false);
+
+  const formatBytes = (bytes: number): string => {
+    if (!bytes || bytes <= 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${(bytes / Math.pow(k, i)).toFixed(i === 0 ? 0 : 2)} ${sizes[i]}`;
+  };
 
   useEffect(() => {
     if (isOpen) {
@@ -182,11 +206,64 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
           );
         }
         setSettings(await res.json());
+      } else if (tab === "STORAGE") {
+        const res = await fetch(`${API_BASE}/api/admin/storage/stats`, {
+          headers,
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(
+            getErrorMessage(data) || t("admin:storage.actions.loadFailed"),
+          );
+        }
+        setStorageStats(await res.json());
       }
     } catch (err: any) {
       setError(getErrorMessage(err) || t("errors:NETWORK_ERROR"));
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRunGc = async () => {
+    const confirmed = await dialog.confirm({
+      title: t("admin:storage.actions.confirmTitle"),
+      description: t("admin:storage.actions.confirmDesc"),
+      variant: "danger",
+      confirmText: t("admin:storage.actions.confirmBtn"),
+      cancelText: t("admin:storage.actions.cancelBtn"),
+    });
+    if (!confirmed) return;
+
+    setIsCleaningStorage(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/admin/storage/gc`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...getAuthHeaders(),
+        },
+        body: JSON.stringify({}),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(
+          getErrorMessage(data) || t("admin:storage.actions.cleanFailed"),
+        );
+      }
+      const result: AdminGcResult = await res.json();
+      showSuccess(
+        t("admin:storage.actions.cleanSuccess", {
+          files: result.deletedPhysicalFiles,
+          freed: formatBytes(result.freedBytes),
+          duration: result.durationMs,
+        }),
+      );
+      await loadTabData("STORAGE");
+    } catch (err: any) {
+      setError(getErrorMessage(err) || t("errors:INTERNAL_ERROR"));
+    } finally {
+      setIsCleaningStorage(false);
     }
   };
 
@@ -626,6 +703,19 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               <Sliders className="w-4 h-4 text-amber-400" />
               <span>{t("admin:nav.system")}</span>
             </button>
+
+            <button
+              onClick={() => selectTab("STORAGE")}
+              data-testid="admin-tab-storage"
+              className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg transition font-medium ${
+                activeTab === "STORAGE"
+                  ? "bg-[#3f4147] text-white"
+                  : "text-discord-textMuted hover:bg-[#35373c] hover:text-white"
+              }`}
+            >
+              <HardDrive className="w-4 h-4 text-cyan-400" />
+              <span>{t("admin:nav.storage")}</span>
+            </button>
           </nav>
 
           <button
@@ -662,6 +752,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
               {activeTab === "GUILDS" && t("admin:header.tabGuildsTitle")}
               {activeTab === "INVITES" && t("admin:header.tabInvitesTitle")}
               {activeTab === "SYSTEM" && t("admin:header.tabSystemTitle")}
+              {activeTab === "STORAGE" && t("admin:header.tabStorageTitle")}
             </h3>
             <button
               onClick={onClose}
@@ -1452,6 +1543,158 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                     className="px-4 py-2 bg-discord-green hover:bg-[#23a55a] text-white text-xs font-semibold rounded transition"
                   >
                     {t("admin:system.saveSettingsBtn")}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* 6. 存储空间与数据维护 */}
+            {activeTab === "STORAGE" && (
+              <div className="space-y-6">
+                <div>
+                  <h4 className="text-xl font-bold text-white mb-1">
+                    {t("admin:storage.title")}
+                  </h4>
+                  <p className="text-sm text-discord-textMuted">
+                    {t("admin:storage.subtitle")}
+                  </p>
+                </div>
+
+                {/* 指标卡片网格 */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {/* 总存储占用 */}
+                  <div className="bg-[#2b2d31] p-4 rounded-xl border border-[#3f4147] flex items-center space-x-4">
+                    <div className="p-3 bg-cyan-500/10 rounded-lg text-cyan-400">
+                      <HardDrive className="w-6 h-6" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-discord-textMuted font-medium truncate">
+                        {t("admin:storage.cards.totalUsed")}
+                      </p>
+                      <p className="text-xl font-bold text-white truncate">
+                        {formatBytes(storageStats?.totalUsedBytes || 0)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 有效附件 */}
+                  <div className="bg-[#2b2d31] p-4 rounded-xl border border-[#3f4147] flex items-center space-x-4">
+                    <div className="p-3 bg-emerald-500/10 rounded-lg text-emerald-400">
+                      <Database className="w-6 h-6" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-discord-textMuted font-medium truncate">
+                        {t("admin:storage.cards.activeAttachments")}
+                      </p>
+                      <p className="text-xl font-bold text-white truncate">
+                        {formatBytes(storageStats?.activeAttachmentBytes || 0)}
+                      </p>
+                      <p className="text-[11px] text-discord-textMuted">
+                        {storageStats?.activeAttachmentCount || 0}{" "}
+                        {t("admin:storage.cards.fileCount")}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 已解绑待回收附件 */}
+                  <div className="bg-[#2b2d31] p-4 rounded-xl border border-[#3f4147] flex items-center space-x-4">
+                    <div className="p-3 bg-rose-500/10 rounded-lg text-rose-400">
+                      <Trash2 className="w-6 h-6" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-discord-textMuted font-medium truncate">
+                        {t("admin:storage.cards.orphanedAttachments")}
+                      </p>
+                      <p className="text-xl font-bold text-white truncate">
+                        {formatBytes(storageStats?.orphanedAttachmentBytes || 0)}
+                      </p>
+                      <p className="text-[11px] text-discord-textMuted">
+                        {storageStats?.orphanedAttachmentCount || 0}{" "}
+                        {t("admin:storage.cards.fileCount")}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 废弃草稿孤儿文件 */}
+                  <div className="bg-[#2b2d31] p-4 rounded-xl border border-[#3f4147] flex items-center space-x-4">
+                    <div className="p-3 bg-amber-500/10 rounded-lg text-amber-400">
+                      <AlertTriangle className="w-6 h-6" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs text-discord-textMuted font-medium truncate">
+                        {t("admin:storage.cards.orphanedDrafts")}
+                      </p>
+                      <p className="text-xl font-bold text-white truncate">
+                        {formatBytes(storageStats?.orphanedDraftBytes || 0)}
+                      </p>
+                      <p className="text-[11px] text-discord-textMuted">
+                        {storageStats?.orphanedDraftCount || 0}{" "}
+                        {t("admin:storage.cards.fileCount")}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 策略说明面板 */}
+                <div className="bg-[#2b2d31] p-5 rounded-xl border border-[#3f4147] space-y-3">
+                  <div className="flex items-center justify-between border-b border-[#3f4147] pb-3">
+                    <h5 className="font-bold text-white text-sm flex items-center space-x-2">
+                      <ShieldAlert className="w-4 h-4 text-discord-brand" />
+                      <span>{t("admin:storage.policy.title")}</span>
+                    </h5>
+                    <span className="text-xs text-discord-textMuted">
+                      {t("admin:storage.cards.lastGc")}:{" "}
+                      {storageStats?.lastGcTimestamp
+                        ? new Date(
+                            storageStats.lastGcTimestamp,
+                          ).toLocaleString()
+                        : t("admin:storage.cards.never")}
+                    </span>
+                  </div>
+                  <ul className="text-xs text-discord-textMuted space-y-2 leading-relaxed">
+                    <li className="flex items-start space-x-2">
+                      <span className="text-discord-green font-bold">•</span>
+                      <span>{t("admin:storage.policy.rule1")}</span>
+                    </li>
+                    <li className="flex items-start space-x-2">
+                      <span className="text-discord-green font-bold">•</span>
+                      <span>{t("admin:storage.policy.rule2")}</span>
+                    </li>
+                    <li className="flex items-start space-x-2">
+                      <span className="text-discord-green font-bold">•</span>
+                      <span>{t("admin:storage.policy.rule3")}</span>
+                    </li>
+                  </ul>
+                </div>
+
+                {/* 一键清理操作栏 */}
+                <div className="flex items-center justify-between p-4 bg-[#2b2d31] rounded-xl border border-[#3f4147]">
+                  <div>
+                    <p className="text-sm font-semibold text-white">
+                      {t("admin:storage.actions.cleanNow")}
+                    </p>
+                    <p className="text-xs text-discord-textMuted">
+                      {t("admin:storage.actions.confirmDesc")}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRunGc}
+                    disabled={isCleaningStorage}
+                    data-testid="admin-run-gc-btn"
+                    className="flex items-center space-x-2 px-4 py-2.5 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-xs font-semibold rounded-lg transition shadow"
+                  >
+                    {isCleaningStorage ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>{t("admin:storage.actions.cleaning")}</span>
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4" />
+                        <span>{t("admin:storage.actions.cleanNow")}</span>
+                      </>
+                    )}
                   </button>
                 </div>
               </div>

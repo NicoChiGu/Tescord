@@ -24,6 +24,7 @@ import { dmService } from "./services/dm.service.js";
 import { dmCallService } from "./services/dm-call.service.js";
 import { registrationInviteService } from "./services/registration-invite.service.js";
 import { cloudflareRealtimeService } from "./services/cloudflare-realtime.service.js";
+import { storageGcService } from "./services/storage-gc.service.js";
 import { registerGuildIconRoutes } from "./guild-icon.routes.js";
 import { registerSteamGameRoutes } from "./steam-game.routes.js";
 import { guildIconProcessor } from "./services/guild-icon.service.js";
@@ -8549,9 +8550,11 @@ const cloudflareMediaSweep = setInterval(async () => {
   }
 }, 10_000);
 cloudflareMediaSweep.unref();
+storageGcService.startDailySchedule();
 server.addHook("onClose", async () => {
   clearInterval(cloudflareMediaSweep);
   await cloudflareRealtimeService.drainTeardowns();
+  storageGcService.stopDailySchedule();
 });
 
 // ==========================================
@@ -8740,6 +8743,33 @@ server.delete(
       return await registrationInviteService.deleteInvite(code, adminId);
     } catch (err: any) {
       return reply.status(400).send({ error: err.message || "删除邀请码失败" });
+    }
+  },
+);
+
+// 获取存储空间占用与孤儿文件统计指标
+server.get(
+  "/api/admin/storage/stats",
+  { preValidation: [(server as any).requireSuperAdmin] },
+  async () => {
+    return await storageGcService.getStorageStats();
+  },
+);
+
+// 手动触发存储垃圾回收 (GC)
+server.post(
+  "/api/admin/storage/gc",
+  { preValidation: [(server as any).requireSuperAdmin] },
+  async (request, reply) => {
+    try {
+      const body = (request.body || {}) as { gracePeriodMs?: number };
+      return await storageGcService.runGc({
+        gracePeriodMs: body.gracePeriodMs,
+      });
+    } catch (err: any) {
+      return reply
+        .status(400)
+        .send({ error: err.message || "存储垃圾回收执行失败" });
     }
   },
 );

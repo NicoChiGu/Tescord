@@ -9,14 +9,16 @@
     "tabUsersTitle": "全登録ユーザーの管理・監査",
     "tabGuildsTitle": "全サーバーの監査・解散",
     "tabInvitesTitle": "登録招待コードとアクセス管理",
-    "tabSystemTitle": "全網ブロードキャストとメンテナンス設定"
+    "tabSystemTitle": "全網ブロードキャストとメンテナンス設定",
+    "tabStorageTitle": "オブジェクトストレージ監視と孤立ファイル回収"
   },
   "nav": {
     "overview": "概要",
     "users": "ユーザー管理",
     "guilds": "サーバー管理",
     "invites": "登録招待コード",
-    "system": "システムと放送"
+    "system": "システムと放送",
+    "storage": "ストレージと保守"
   },
   "overview": {
     "title": "全網稼働ステータス",
@@ -216,5 +218,35 @@
     "broadcastSuccess": "全オンラインユーザーに配信されました"
   },
   "allowNonSuperAdminCreateGuildTitle": "非スーパー管理者によるサーバー作成を許可",
-  "allowNonSuperAdminCreateGuildDesc": "有効にすると一般ユーザーもサーバーを作成できます。無効にするとスーパー管理者のみが作成可能になります（シングルサーバー運用向け）。"
+  "allowNonSuperAdminCreateGuildDesc": "有効にすると一般ユーザーもサーバーを作成できます。無効にするとスーパー管理者のみが作成可能になります（シングルサーバー運用向け）。",
+  "storage": {
+    "title": "ストレージとデータ保守",
+    "subtitle": "オブジェクトストレージとローカル容量を監視し、未紐付けの添付ファイルや孤立下書きを整理します",
+    "cards": {
+      "totalUsed": "ストレージ合計使用量",
+      "activeAttachments": "有効なメッセージ添付",
+      "orphanedAttachments": "未紐付けの回収待ち添付",
+      "orphanedDrafts": "孤立した下書きファイル",
+      "fileCount": "件のファイル",
+      "lastGc": "最終クリーンアップ",
+      "never": "未実行"
+    },
+    "policy": {
+      "title": "データ回収と保護ポリシー",
+      "rule1": "メッセージ削除時はソフト解除（messageId を NULL に設定）のみ行い、クライアントアクセスを即時遮断します。",
+      "rule2": "編集中下書きの誤削除を防ぐため、24時間のセーフティ猶予期間（Grace Period）を設けています。",
+      "rule3": "毎日のバックグラウンド定期タスクが猶予期間を過ぎた孤立ファイルとサムネイルを自動で物理消去します。"
+    },
+    "actions": {
+      "cleanNow": "今すぐガベージコレクション (GC) を実行",
+      "cleaning": "ストレージをクリーンアップ中...",
+      "confirmTitle": "ストレージのガベージコレクションを実行しますか？",
+      "confirmDesc": "解除後24時間を経過した添付ファイル、サムネイル、孤立下書きファイルを物理消去し、DBから記録を削除します。この操作は取り消せません。",
+      "confirmBtn": "実行する",
+      "cancelBtn": "キャンセル",
+      "cleanSuccess": "ガベージコレクションが完了しました！{{files}}件のファイルを削除し、{{freed}}を解放しました（所要時間: {{duration}}ms）。",
+      "cleanFailed": "ガベージコレクションの実行に失敗しました",
+      "loadFailed": "ストレージ状態の読み込みに失敗しました"
+    }
+  }
 }

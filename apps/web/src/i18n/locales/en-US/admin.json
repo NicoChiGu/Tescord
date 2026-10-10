@@ -9,14 +9,16 @@
     "tabUsersTitle": "Global User Governance & Audit",
     "tabGuildsTitle": "Platform Server Audit & Moderation",
     "tabInvitesTitle": "Registration Invites & Access Control",
-    "tabSystemTitle": "Global Broadcast & Maintenance Settings"
+    "tabSystemTitle": "Global Broadcast & Maintenance Settings",
+    "tabStorageTitle": "Object Storage Monitoring & Orphaned File Cleanup"
   },
   "nav": {
     "overview": "Overview",
     "users": "Users",
     "guilds": "Servers",
     "invites": "Invite Codes",
-    "system": "System & Broadcast"
+    "system": "System & Broadcast",
+    "storage": "Storage & Maintenance"
   },
   "overview": {
     "title": "System Metrics & Health",
@@ -216,5 +218,35 @@
     "broadcastSuccess": "Broadcast sent to all online users"
   },
   "allowNonSuperAdminCreateGuildTitle": "Allow Non-Super Admins to Create Servers",
-  "allowNonSuperAdminCreateGuildDesc": "When enabled, all users can create new servers. When disabled, only Super Admins can create servers (suitable for single-server setups)."
+  "allowNonSuperAdminCreateGuildDesc": "When enabled, all users can create new servers. When disabled, only Super Admins can create servers (suitable for single-server setups).",
+  "storage": {
+    "title": "Storage & Data Maintenance",
+    "subtitle": "Monitor object storage and local disk usage; clean up unbound attachments and orphaned drafts",
+    "cards": {
+      "totalUsed": "Total Storage Used",
+      "activeAttachments": "Active Message Attachments",
+      "orphanedAttachments": "Unbound Attachments Pending GC",
+      "orphanedDrafts": "Orphaned Draft Files",
+      "fileCount": "files",
+      "lastGc": "Last Cleaned",
+      "never": "Never"
+    },
+    "policy": {
+      "title": "Data Retention & Protection Policy",
+      "rule1": "Deleting a message soft-unbinds attachments (sets messageId to NULL), immediately blocking client access.",
+      "rule2": "A 24-hour grace period protects attachments currently being drafted or edited from accidental deletion.",
+      "rule3": "Daily automated background jobs scan and permanently delete expired orphaned files and previews."
+    },
+    "actions": {
+      "cleanNow": "Run Garbage Collection (GC) Now",
+      "cleaning": "Cleaning storage...",
+      "confirmTitle": "Run Storage Garbage Collection?",
+      "confirmDesc": "This will permanently delete all unbound attachment files, previews, and draft files older than 24 hours, and remove orphaned database records. This action cannot be undone.",
+      "confirmBtn": "Confirm & Clean",
+      "cancelBtn": "Cancel",
+      "cleanSuccess": "Garbage collection succeeded! Deleted {{files}} files, freed {{freed}} (took {{duration}}ms).",
+      "cleanFailed": "Garbage collection failed",
+      "loadFailed": "Failed to load storage status metrics"
+    }
+  }
 }
