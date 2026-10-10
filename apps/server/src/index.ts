@@ -358,7 +358,15 @@ server.addHook("preHandler", async (request, reply) => {
   const pathOnly = request.url.split("?", 1)[0];
   const isPublicInviteQuery =
     request.method === "GET" && pathOnly.startsWith("/api/invites/");
-  if (publicApiPaths.has(pathOnly) || isPublicInviteQuery) return;
+  const isPublicCustomEmojiQuery =
+    (request.method === "GET" || request.method === "HEAD") &&
+    pathOnly.startsWith("/api/custom-emojis/");
+  if (
+    publicApiPaths.has(pathOnly) ||
+    isPublicInviteQuery ||
+    isPublicCustomEmojiQuery
+  )
+    return;
 
   await (server as any).authenticate(request, reply);
   if (reply.sent) return;
@@ -3231,12 +3239,26 @@ server.get("/api/guilds/:guildId/emojis", async (request, reply) => {
   }));
 });
 
+const FALLBACK_CUSTOM_EMOJI_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <rect width="128" height="128" rx="24" fill="#2b2d31"/>
+  <circle cx="64" cy="64" r="38" fill="none" stroke="#80848e" stroke-width="6"/>
+  <circle cx="50" cy="54" r="5" fill="#80848e"/>
+  <circle cx="78" cy="54" r="5" fill="#80848e"/>
+  <path d="M48 76 Q64 92 80 76" fill="none" stroke="#80848e" stroke-width="6" stroke-linecap="round"/>
+</svg>`;
+
 // 获取单个自定义表情重定向至对应图片
 server.get("/api/custom-emojis/:emojiId", async (request, reply) => {
   const { emojiId } = request.params as any;
   const emoji = await prisma.customEmoji.findUnique({ where: { id: emojiId } });
   if (!emoji) {
-    return sendApiError(reply, 404, ErrorCode.EMOJI_NOT_FOUND, "未找到该表情");
+    const accept = String(request.headers.accept || "");
+    if (accept.includes("application/json") && !accept.includes("image/")) {
+      return sendApiError(reply, 404, ErrorCode.EMOJI_NOT_FOUND, "未找到该表情");
+    }
+    reply.header("Content-Type", "image/svg+xml");
+    reply.header("Cache-Control", "public, max-age=60");
+    return reply.status(404).send(FALLBACK_CUSTOM_EMOJI_SVG);
   }
   reply.header(
     "Cache-Control",

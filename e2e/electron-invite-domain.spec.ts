@@ -25,16 +25,10 @@ test.describe("公会邀请弹窗与邀请链接生成真实渲染验收", () =>
     // 授予剪贴板权限
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
 
-    // 注入模拟登录凭据
-    await page.addInitScript(() => {
-      localStorage.setItem("tescord_access_token", "mock_ui_token");
-      localStorage.setItem("tescord_refresh_token", "mock_ui_refresh");
-    });
-
     // 禁用网关
     await page.routeWebSocket("**/gateway", (socket) => socket.close());
 
-    // Mock 认证
+    // Mock 认证（保持在线）
     await page.route("**/api/auth/me", (route) => {
       route.fulfill({
         status: 200,
@@ -89,9 +83,25 @@ test.describe("公会邀请弹窗与邀请链接生成真实渲染验收", () =>
       });
     });
 
-    // Mock 活跃邀请码
+    // Mock 活跃邀请码返回标准结构
     const testCode = "quantum_inv_999";
     await page.route("**/api/guilds/guild_electron_ui_test/invites/active", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          invite: {
+            code: testCode,
+            inviterId: "mock_user_1",
+            expiresAt: null,
+            maxUses: 0,
+            uses: 0,
+          },
+        }),
+      });
+    });
+
+    await page.route("**/api/guilds/guild_electron_ui_test/invites", (route) => {
       route.fulfill({
         status: 200,
         contentType: "application/json",

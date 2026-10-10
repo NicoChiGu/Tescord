@@ -71,6 +71,33 @@ const STRIKE_REGEX = /^~~([\s\S]+?)~~/;
 const LINK_REGEX = MARKDOWN_LINK_REGEX;
 const CUSTOM_EMOJI_REGEX = /^<(a)?:([a-zA-Z0-9_]{2,32}):([a-zA-Z0-9_-]+)>/;
 
+const CustomEmojiItem: React.FC<{
+  emojiId: string;
+  emojiName: string;
+}> = ({ emojiId, emojiName }) => {
+  const [hasError, setHasError] = useState(false);
+  if (hasError) {
+    return (
+      <span
+        className="inline-block text-[#949ba4] font-medium mx-0.5 select-none text-[13px] bg-[#2b2d31]/50 px-1 py-0.5 rounded border border-[#383a40]"
+        title={`:${emojiName}:`}
+      >
+        {`:${emojiName}:`}
+      </span>
+    );
+  }
+  return (
+    <img
+      src={resolveServerUrl(`/api/custom-emojis/${emojiId}`)}
+      alt={`:${emojiName}:`}
+      title={`:${emojiName}:`}
+      className="inline-block w-6 h-6 object-contain align-middle mx-0.5 select-none hover:scale-110 transition-transform cursor-pointer"
+      loading="lazy"
+      onError={() => setHasError(true)}
+    />
+  );
+};
+
 // 行内解析器：将文本解析为 React 节点流
 function parseInline(
   text: string,
@@ -91,13 +118,10 @@ function parseInline(
       const emojiName = match[2];
       const emojiId = match[3];
       nodes.push(
-        <img
+        <CustomEmojiItem
           key={key}
-          src={resolveServerUrl(`/api/custom-emojis/${emojiId}`)}
-          alt={`:${emojiName}:`}
-          title={`:${emojiName}:`}
-          className="inline-block w-6 h-6 object-contain align-middle mx-0.5 select-none hover:scale-110 transition-transform cursor-pointer"
-          loading="lazy"
+          emojiId={emojiId}
+          emojiName={emojiName}
         />,
       );
       prevChar = remaining[match[0].length - 1];

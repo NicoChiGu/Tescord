@@ -86,6 +86,25 @@ import { getUserDisplayName } from "../utils/userDisplay.js";
 // 频道草稿缓存字典（按频道隔离保留用户未发送的草稿，切回时自动恢复）
 const channelDraftMap = new Map<string, string>();
 
+const CustomReactionEmoji: React.FC<{
+  id: string;
+  name: string;
+}> = ({ id, name }) => {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return <span className="text-xs">:{name}:</span>;
+  }
+  return (
+    <img
+      src={resolveServerUrl(`/api/custom-emojis/${id}`)}
+      alt={name}
+      className="w-4 h-4 object-contain inline-block shrink-0"
+      loading="lazy"
+      onError={() => setFailed(true)}
+    />
+  );
+};
+
 interface ChatAreaProps {
   channel: Channel;
   guild?: Guild | null;
@@ -645,14 +664,7 @@ const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
                       );
                       if (customMatch) {
                         const [, name, id] = customMatch;
-                        return (
-                          <img
-                            src={resolveServerUrl(`/api/custom-emojis/${id}`)}
-                            alt={name}
-                            className="w-4 h-4 object-contain inline-block shrink-0"
-                            loading="lazy"
-                          />
-                        );
+                        return <CustomReactionEmoji id={id} name={name} />;
                       }
                       return <span>{r.emoji}</span>;
                     })()}
