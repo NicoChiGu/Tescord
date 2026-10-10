@@ -179,6 +179,7 @@ export const UserEmojisTab: React.FC = () => {
           </button>
           <input
             ref={fileInputRef}
+            data-testid="user-emoji-file-input"
             type="file"
             accept="image/png,image/jpeg,image/webp,image/gif"
             className="hidden"

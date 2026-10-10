@@ -3356,6 +3356,9 @@ server.delete(
       );
     }
     await prisma.customEmoji.delete({ where: { id: emojiId } });
+    if (emoji.imageUrl) {
+      void storageService.removePublicAsset(emoji.imageUrl).catch(() => {});
+    }
     return { success: true };
   },
 );
@@ -3452,6 +3455,9 @@ server.delete("/api/users/me/emojis/:emojiId", async (request, reply) => {
     return sendApiError(reply, 404, ErrorCode.EMOJI_NOT_FOUND, "未找到该表情");
   }
   await prisma.customEmoji.delete({ where: { id: emojiId } });
+  if (emoji.imageUrl) {
+    void storageService.removePublicAsset(emoji.imageUrl).catch(() => {});
+  }
   return { success: true };
 });
 
@@ -6462,7 +6468,16 @@ server.put("/api/attachments/upload/:fileName", async (request, reply) => {
         )
       : scope.purpose === "user-avatar" || scope.purpose === "user-banner"
         ? true
-        : Boolean(
+        : scope.purpose === "custom-emoji"
+          ? Boolean(
+              !scope.guildId ||
+              (await permissionService.hasGuildPermission(
+                userId,
+                scope.guildId,
+                PermissionFlags.MANAGE_GUILD,
+              )),
+            )
+          : Boolean(
             scope.channelId &&
             (await permissionService.hasChannelPermission(
               userId,
@@ -6807,7 +6822,25 @@ server.get("/public-assets/:fileName", async (request, reply) => {
         select: { id: true },
       });
 
-  if (!guild && !user) {
+  const customEmoji =
+    guild || user
+      ? null
+      : await prisma.customEmoji.findFirst({
+          where: {
+            OR: [
+              { imageUrl: fileUrl },
+              {
+                imageUrl: {
+                  endsWith: `/public-assets/${encodeURIComponent(decoded)}`,
+                },
+              },
+              { imageUrl: { endsWith: `/public-assets/${decoded}` } },
+            ],
+          },
+          select: { id: true },
+        });
+
+  if (!guild && !user && !customEmoji) {
     return sendPublicAssetError(404, "资源不存在");
   }
 

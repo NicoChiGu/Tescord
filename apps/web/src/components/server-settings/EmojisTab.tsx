@@ -200,6 +200,7 @@ export const EmojisTab: React.FC<EmojisTabProps> = ({ guild }) => {
           </button>
           <input
             ref={fileInputRef}
+            data-testid="guild-emoji-file-input"
             type="file"
             accept="image/png,image/jpeg,image/webp,image/gif"
             className="hidden"

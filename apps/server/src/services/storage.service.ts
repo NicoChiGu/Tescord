@@ -138,6 +138,7 @@ export class StorageService {
       req.purpose !== "guild-icon" &&
       req.purpose !== "user-avatar" &&
       req.purpose !== "user-banner" &&
+      req.purpose !== "custom-emoji" &&
       !req.channelId
     )
       throw new Error("channelId is required");
@@ -208,7 +209,8 @@ export class StorageService {
     const fileUrl =
       req.purpose === "guild-icon" ||
       req.purpose === "user-avatar" ||
-      req.purpose === "user-banner"
+      req.purpose === "user-banner" ||
+      req.purpose === "custom-emoji"
         ? `${this.baseUrl}/public-assets/${encodeURIComponent(fileKey)}`
         : `${this.baseUrl}/uploads/${encodeURIComponent(fileKey)}`;
 
