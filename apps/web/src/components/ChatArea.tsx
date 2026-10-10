@@ -173,7 +173,7 @@ interface ChatMessageItemProps {
 }
 
 const isImageMime = (mime: string, name: string) => {
-  return mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(name);
+  return mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(name);
 };
 
 const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
@@ -2330,7 +2330,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
   const isImageMime = (mime: string, name: string) => {
     return (
-      mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|svg)$/i.test(name)
+      mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(name)
     );
   };
 

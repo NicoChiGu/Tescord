@@ -662,6 +662,12 @@ export class StorageService {
   public async deleteStoredFile(fileKey: string): Promise<boolean> {
     if (!fileKey || path.basename(fileKey) !== fileKey) return false;
     this.uploadGrants.delete(fileKey);
+    if (!fileKey.includes(".preview.")) {
+      await Promise.allSettled([
+        this.deleteStoredFile(`${fileKey}.preview.avif`),
+        this.deleteStoredFile(`${fileKey}.preview.webp`),
+      ]);
+    }
     if (this.isMinioAvailable && this.minioClient) {
       try {
         await this.minioClient.removeObject(this.bucketName, fileKey);
@@ -938,6 +944,7 @@ export class StorageService {
     } finally {
       grant.uploading = false;
     }
+    let isAnimatedImage = false;
     if (
       grant.purpose === "attachment" &&
       /^(image\/jpeg|image\/png|image\/webp|image\/avif|image\/gif)$/i.test(
@@ -946,12 +953,16 @@ export class StorageService {
     ) {
       try {
         const meta = await sharp(bytes, {
+          animated: true,
           limitInputPixels: 40_000_000,
           failOn: "error",
         }).metadata();
         if (meta.width && meta.height) {
           grant.width = meta.width;
-          grant.height = meta.height;
+          grant.height = meta.pageHeight || meta.height;
+        }
+        if (meta.pages && meta.pages > 1) {
+          isAnimatedImage = true;
         }
       } catch {
         // ignore format read error
@@ -959,45 +970,104 @@ export class StorageService {
     }
     if (
       grant.purpose === "attachment" &&
+      !isAnimatedImage &&
       /^(image\/jpeg|image\/png|image\/webp|image\/avif)$/i.test(grant.mimeType)
     ) {
       try {
         await this.withPreviewSlot(async () => {
-          const pipeline = sharp(bytes, {
+          const probe = sharp(bytes, {
             limitInputPixels: 40_000_000,
             failOn: "error",
           }).rotate();
-          const metadata = await pipeline.metadata();
+          const metadata = await probe.metadata();
           if (!metadata.width || !metadata.height) return;
-          const output = await pipeline
-            .resize({
-              width: 1920,
-              height: 1920,
-              fit: "inside",
-              withoutEnlargement: true,
-            })
-            .webp({ quality: 82 })
-            .toBuffer({ resolveWithObject: true });
-          if (output.data.length >= bytes.length) return;
-          const previewKey = `${fileKey}.preview.webp`;
+
+          const origWidth = metadata.width;
+          const origHeight = metadata.height;
+          const shouldResize = origWidth > 2048 || origHeight > 2048;
+
+          let compressedData: Buffer | null = null;
+          let compressedWidth = origWidth;
+          let compressedHeight = origHeight;
+          let previewFormat: "avif" | "webp" = "avif";
+          let contentType = "image/avif";
+
+          try {
+            let avifPipeline = sharp(bytes, {
+              limitInputPixels: 40_000_000,
+              failOn: "error",
+            }).rotate();
+            if (shouldResize) {
+              avifPipeline = avifPipeline.resize({
+                width: 2048,
+                height: 2048,
+                fit: "inside",
+                withoutEnlargement: true,
+              });
+            }
+            const avifOutput = await avifPipeline
+              .avif({ quality: 80, effort: 4 })
+              .toBuffer({ resolveWithObject: true });
+            compressedData = avifOutput.data;
+            compressedWidth = avifOutput.info.width;
+            compressedHeight = avifOutput.info.height;
+            previewFormat = "avif";
+            contentType = "image/avif";
+          } catch (avifError) {
+            console.warn(
+              "[StorageService] AVIF compression failed, falling back to WebP:",
+              avifError,
+            );
+            try {
+              let webpPipeline = sharp(bytes, {
+                limitInputPixels: 40_000_000,
+                failOn: "error",
+              }).rotate();
+              if (shouldResize) {
+                webpPipeline = webpPipeline.resize({
+                  width: 2048,
+                  height: 2048,
+                  fit: "inside",
+                  withoutEnlargement: true,
+                });
+              }
+              const webpOutput = await webpPipeline
+                .webp({ quality: 82 })
+                .toBuffer({ resolveWithObject: true });
+              compressedData = webpOutput.data;
+              compressedWidth = webpOutput.info.width;
+              compressedHeight = webpOutput.info.height;
+              previewFormat = "webp";
+              contentType = "image/webp";
+            } catch (webpError) {
+              console.warn(
+                "[StorageService] WebP fallback compression failed:",
+                webpError,
+              );
+            }
+          }
+
+          if (!compressedData) return;
+          if (compressedData.length >= bytes.length) return;
+
+          const previewKey = `${fileKey}.preview.${previewFormat}`;
           try {
             if (this.isMinioAvailable && this.minioClient) {
               await this.minioClient.putObject(
                 this.bucketName,
                 previewKey,
-                output.data,
-                output.data.length,
-                { "Content-Type": "image/webp" },
+                compressedData,
+                compressedData.length,
+                { "Content-Type": contentType },
               );
             } else {
               const previewPath = this.resolveLocalUploadPath(previewKey);
               if (!previewPath) return;
-              await fs.promises.writeFile(previewPath, output.data, {
+              await fs.promises.writeFile(previewPath, compressedData, {
                 flag: "wx",
               });
             }
           } catch (error) {
-            // A failed write can leave a partial local file or remote object.
             await this.removePreviewObject(previewKey).catch((cleanupError) =>
               console.warn(
                 "[StorageService] Preview cleanup failed:",
@@ -1006,11 +1076,12 @@ export class StorageService {
             );
             throw error;
           }
+
           grant.preview = {
             url: `${this.baseUrl}/uploads/${encodeURIComponent(previewKey)}`,
-            size: output.data.length,
-            width: output.info.width,
-            height: output.info.height,
+            size: compressedData.length,
+            width: compressedWidth,
+            height: compressedHeight,
           };
         });
       } catch (error) {

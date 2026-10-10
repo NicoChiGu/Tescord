@@ -6730,17 +6730,26 @@ async function servePrivateAttachment(
     return sendAttachmentError(404, "预览图不存在");
   const objectUrl =
     variant === "preview" ? attachment.previewUrl! : attachment.url;
+  const previewIsAvif = Boolean(attachment.previewUrl?.endsWith(".avif"));
+  const previewIsWebp = Boolean(attachment.previewUrl?.endsWith(".webp"));
+  const previewMime = previewIsAvif
+    ? "image/avif"
+    : previewIsWebp
+      ? "image/webp"
+      : attachment.mimeType || "application/octet-stream";
+  const previewExt = previewIsAvif ? "avif" : previewIsWebp ? "webp" : "jpg";
+
   reply.header(
     "Content-Type",
     variant === "preview"
-      ? "image/webp"
+      ? previewMime
       : attachment.mimeType || "application/octet-stream",
   );
   reply.header("X-Content-Type-Options", "nosniff");
   reply.header("Cache-Control", "private, no-cache");
   reply.header(
     "Content-Disposition",
-    `${download || !/^(image\/(png|jpeg|gif|webp|avif)|audio\/(mpeg|ogg|wav|webm)|video\/(mp4|webm))$/i.test(attachment.mimeType) ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(variant === "preview" ? `${attachment.fileName}.webp` : attachment.fileName)}`,
+    `${download || !/^(image\/(png|jpeg|gif|webp|avif)|audio\/(mpeg|ogg|wav|webm)|video\/(mp4|webm))$/i.test(attachment.mimeType) ? "attachment" : "inline"}; filename*=UTF-8''${encodeURIComponent(variant === "preview" ? `${attachment.fileName}.${previewExt}` : attachment.fileName)}`,
   );
   try {
     const stat = await storageService.statObject(objectUrl);

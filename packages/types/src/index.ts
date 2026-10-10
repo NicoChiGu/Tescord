@@ -709,6 +709,8 @@ export interface JoinInviteDTO {
 }
 
 // 4. 消息系统与互动反应
+export type AttachmentVariant = "original" | "preview";
+
 export interface Attachment {
   id: string;
   url: string;
