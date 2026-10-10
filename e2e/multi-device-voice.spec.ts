@@ -129,4 +129,91 @@ test.describe("多设备语音互斥接管与会话状态自动化验收 (Multi-
     );
     expect(criticalErrors).toHaveLength(0);
   });
+
+  test("当同一账号在其他设备正常挂断离开语音时，本端静默退出，严禁显示转移至文字频道的错误横幅", async ({
+    page,
+  }) => {
+    await installEncryptedVoiceUi(page);
+    await page.goto("/");
+    await expect(page).toHaveTitle(/Tescord/i);
+
+    const serverButton = page
+      .getByRole("button", { name: /Tescord 极客总部|极客/i })
+      .first();
+    await expect(serverButton).toBeVisible({ timeout: 10000 });
+    await serverButton.click();
+
+    const voiceChannelBtn = page
+      .getByRole("button", { name: /语音闲聊|开黑开麦|voice/i })
+      .first();
+    await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
+    await voiceChannelBtn.dblclick();
+
+    const leaveVoiceBtn = page
+      .getByRole("button", { name: "断开连接" })
+      .first();
+    await expect(leaveVoiceBtn).toBeVisible({ timeout: 8000 });
+
+    // 模拟另一端挂断语音：发送 channelId: null 且带有其他 sessionId
+    await page.evaluate(() => {
+      const client = (window as any).__gatewayClient;
+      const user = (window as any).useAuthStore.getState().user;
+      if (client && user) {
+        client.emit("VOICE_STATE_UPDATE", {
+          userId: user.id,
+          channelId: null,
+          guildId: "mock_guild_id",
+          sessionId: "remote_session_999",
+          platform: "其他设备",
+        });
+      }
+    });
+
+    // 验证：语音已彻底退出，且绝不应出现转移横幅，更不应显示转移到文字频道 #general
+    await expect(leaveVoiceBtn).not.toBeVisible({ timeout: 5000 });
+    const transferNotice = page.locator(
+      '[data-testid="voice-transfer-notice"]',
+    );
+    await expect(transferNotice).not.toBeVisible();
+    await expect(page.locator("body")).not.toContainText("正在另一处语音频道中 #general");
+  });
+
+  test("左下角语音面板交互：点击卡片容器展示 Popover，点击频道名阻止穿透并关闭 Popover", async ({
+    page,
+  }) => {
+    await installEncryptedVoiceUi(page);
+    await page.goto("/");
+    await expect(page).toHaveTitle(/Tescord/i);
+
+    const serverButton = page
+      .getByRole("button", { name: /Tescord 极客总部|极客/i })
+      .first();
+    await expect(serverButton).toBeVisible({ timeout: 10000 });
+    await serverButton.click();
+
+    const voiceChannelBtn = page
+      .getByRole("button", { name: /语音闲聊|开黑开麦|voice/i })
+      .first();
+    await expect(voiceChannelBtn).toBeVisible({ timeout: 5000 });
+    await voiceChannelBtn.dblclick();
+
+    const trigger = page.getByTestId("voice-connection-status-btn");
+    await expect(trigger).toBeVisible({ timeout: 8000 });
+    await expect(trigger).toContainText("语音已连接");
+
+    // 1. 点击容器展开 Popover
+    await trigger.click();
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+    const popover = page.getByTestId("voice-connection-popover");
+    await expect(popover).toBeVisible();
+
+    // 2. 点击容器内的频道名称按钮，验证阻止冒泡且自动关闭 Popover
+    const channelNameBtn = page.getByTestId("voice-connection-channel-name");
+    await expect(channelNameBtn).toBeVisible();
+    await channelNameBtn.click();
+
+    // Popover 应自动关闭，trigger 的 aria-expanded 变为 false
+    await expect(popover).not.toBeVisible({ timeout: 3000 });
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+  });
 });

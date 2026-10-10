@@ -12,7 +12,7 @@ export const BUILD_CONFIG = {
   /** 编译期固化的 LiveKit SFU 媒体服务地址 */
   DEFAULT_LIVEKIT_URL: "",
   /** Installed host retains its media engine across Web updates. */
-  DEFAULT_VOICE_ENGINE: "livekit",
+  DEFAULT_VOICE_ENGINE: "cloudflare_realtime",
   /** 固化服务器配置来源 */
   SERVER_CONFIG_SOURCE: "apps/desktop/desktop.config.json.serverUrl",
   /** 是否启用了更新检测服务 (build 时未检测到仓库信息则为 false，此时不进行更新检测) */
@@ -26,7 +26,7 @@ export const BUILD_CONFIG = {
   /** Ed25519 public key in DER/SPKI base64; absent keys disable updates. */
   UPDATE_SIGNING_PUBLIC_KEY_BASE64: "",
   /** 编译时间戳 (ISO 8601) */
-  BUILD_TIME: "2026-10-10T10:23:10.146Z",
+  BUILD_TIME: "2026-10-10T10:42:32.208Z",
   /** 默认首选 gh-proxy 加速代理 (优先使用 v6.gh-proxy.org) */
   PRIMARY_GH_PROXY: "https://v6.gh-proxy.org/",
   /** 备用 gh-proxy 加速代理 (gh-proxy.com) */

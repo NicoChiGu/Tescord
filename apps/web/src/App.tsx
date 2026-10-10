@@ -1857,21 +1857,31 @@ export const App: React.FC = () => {
               audioEngine.stop();
               void cloudflareRealtimeService.disconnect();
               void livekitService.leaveRoom();
+              const prevActiveVoiceId = activeVoiceChannelIdRef.current;
               activeVoiceChannelIdRef.current = null;
               setActiveVoiceChannelId(null);
               setIsSpeaking(false);
               setIsScreenSharing(false);
               setIsVideoEnabled(false);
-              if (isOtherSession) {
+              if (isOtherSession && vs.channelId) {
                 const prevCh =
                   guildsRef.current
                     .flatMap((g) => g.channels)
-                    .find((c) => c.id === activeVoiceChannelIdRef.current) ||
-                  selectedChannelRef.current;
+                    .find(
+                      (c) =>
+                        c.type === "VOICE" &&
+                        (c.id === vs.channelId ||
+                          (prevActiveVoiceId && c.id === prevActiveVoiceId)),
+                    ) ||
+                  (selectedChannelRef.current?.type === "VOICE"
+                    ? selectedChannelRef.current
+                    : null);
                 setVoiceTransferNotice({
                   targetPlatform: vs.platform || t("voice:otherDevice"),
                   previousChannel: prevCh || null,
                 });
+              } else if (!vs.channelId) {
+                setVoiceTransferNotice(null);
               }
             } else {
               console.log(
@@ -2076,11 +2086,20 @@ export const App: React.FC = () => {
           return;
         }
         if (data.reason === "VOICE_TRANSFER") {
+          const prevActiveVoiceId = activeVoiceChannelIdRef.current;
+          const targetVoiceId = data.newChannelId || prevActiveVoiceId;
           const prevChannel =
             guildsRef.current
               .flatMap((g) => g.channels)
-              .find((c) => c.id === activeVoiceChannelIdRef.current) ||
-            selectedChannelRef.current;
+              .find(
+                (c) =>
+                  c.type === "VOICE" &&
+                  (c.id === targetVoiceId ||
+                    (prevActiveVoiceId && c.id === prevActiveVoiceId)),
+              ) ||
+            (selectedChannelRef.current?.type === "VOICE"
+              ? selectedChannelRef.current
+              : null);
 
           // 1. 彻底释放麦克风硬件与媒体流
           mediaEncryptionService.stop();
