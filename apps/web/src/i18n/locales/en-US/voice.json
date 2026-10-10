@@ -193,7 +193,11 @@
     "directTopology": "Direct Node Topology",
     "directPeerTopology": "Direct Node Topology",
     "overallPacketLoss": "Overall Packet Loss",
-    "peerCount": "Connected Peers"
+    "peerCount": "Connected Peers",
+    "connectionModeRatio": "Topology Distribution",
+    "connectionRatioFormat": "Direct {{direct}} · LAN {{lan}} · Relay {{relay}}",
+    "bucketUserCount": "{{count}} users",
+    "bucketRange": "Latency Range"
   },
   "connectionBadge": {
     "connecting": "Connecting...",

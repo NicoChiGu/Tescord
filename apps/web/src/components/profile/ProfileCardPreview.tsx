@@ -193,66 +193,72 @@ export const ProfileCardPreview: React.FC<ProfileCardPreviewProps> = ({
         {/* 4. 详细内容区域 */}
         <div className="px-4 space-y-3 pb-4">
           {/* 正在玩游戏专属活动面板 */}
-          {showActivity && activeGame && (() => {
-            const isSteam = Boolean(activeGame.applicationId);
-            return (
-              <div
-                data-testid="preview-playing-game-panel"
-                className="relative overflow-hidden p-3 rounded-xl bg-[#111214]/90 border border-emerald-500/30 shadow-md space-y-2 text-xs animate-in fade-in duration-150 group"
-              >
-                {isSteam && (
-                  <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-xl">
-                    <img
-                      src={`https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${activeGame.applicationId}/header.jpg`}
-                      alt=""
-                      className="w-full h-full object-cover filter blur-md opacity-20 scale-110"
-                      onError={(e) => {
-                        (e.target as HTMLElement).style.display = "none";
-                      }}
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#111214] via-[#111214]/70 to-transparent" />
-                  </div>
-                )}
-                <div className="relative z-10 flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-emerald-400">
-                  <div className="flex items-center gap-1.5">
-                    <Gamepad2 className="w-3.5 h-3.5" />
-                    <span>{t("settings:playingGame")}</span>
-                  </div>
+          {showActivity &&
+            activeGame &&
+            (() => {
+              const isSteam = Boolean(activeGame.applicationId);
+              return (
+                <div
+                  data-testid="preview-playing-game-panel"
+                  className="relative overflow-hidden p-3 rounded-xl bg-[#111214]/90 border border-emerald-500/30 shadow-md space-y-2 text-xs animate-in fade-in duration-150 group"
+                >
                   {isSteam && (
-                    <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/90 font-medium tracking-normal normal-case border border-white/10">
-                      <SteamLogo className="w-2.5 h-2.5" />
-                      <span>Steam</span>
-                    </span>
-                  )}
-                </div>
-                <div className="relative z-10 flex items-center gap-3">
-                  <SteamGameImage
-                    appId={activeGame.applicationId}
-                    src={activeGame.assets?.largeImage}
-                    gameName={activeGame.name}
-                    type="header"
-                    className="w-12 h-12 rounded-lg flex-shrink-0 shadow border border-white/10 bg-[#2b2d31]"
-                    imageClassName="w-full h-full object-cover rounded-lg"
-                    fallbackIconClassName="w-6 h-6 text-emerald-400"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="font-bold text-white truncate text-xs">
-                      {activeGame.name}
+                    <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-xl">
+                      <img
+                        src={`https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${activeGame.applicationId}/header.jpg`}
+                        alt=""
+                        className="w-full h-full object-cover filter blur-md opacity-20 scale-110"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = "none";
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#111214] via-[#111214]/70 to-transparent" />
                     </div>
-                    {activeGame.details && (
-                      <div className="text-[11px] text-[#949ba4] truncate">
-                        {activeGame.details}
-                      </div>
+                  )}
+                  <div className="relative z-10 flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-emerald-400">
+                    <div className="flex items-center gap-1.5">
+                      <Gamepad2 className="w-3.5 h-3.5" />
+                      <span>{t("settings:playingGame")}</span>
+                    </div>
+                    {isSteam && (
+                      <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/90 font-medium tracking-normal normal-case border border-white/10">
+                        <SteamLogo className="w-2.5 h-2.5" />
+                        <span>Steam</span>
+                      </span>
                     )}
-                    <div className="text-[10px] text-emerald-400 font-medium flex items-center gap-1 mt-0.5">
-                      <Clock className="w-3 h-3 flex-shrink-0" />
-                      <span>{t("settings:playedMinutes", { count: elapsedMinutes })}</span>
+                  </div>
+                  <div className="relative z-10 flex items-center gap-3">
+                    <SteamGameImage
+                      appId={activeGame.applicationId}
+                      src={activeGame.assets?.largeImage}
+                      gameName={activeGame.name}
+                      type="header"
+                      className="w-12 h-12 rounded-lg flex-shrink-0 shadow border border-white/10 bg-[#2b2d31]"
+                      imageClassName="w-full h-full object-cover rounded-lg"
+                      fallbackIconClassName="w-6 h-6 text-emerald-400"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-white truncate text-xs">
+                        {activeGame.name}
+                      </div>
+                      {activeGame.details && (
+                        <div className="text-[11px] text-[#949ba4] truncate">
+                          {activeGame.details}
+                        </div>
+                      )}
+                      <div className="text-[10px] text-emerald-400 font-medium flex items-center gap-1 mt-0.5">
+                        <Clock className="w-3 h-3 flex-shrink-0" />
+                        <span>
+                          {t("settings:playedMinutes", {
+                            count: elapsedMinutes,
+                          })}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            );
-          })()}
+              );
+            })()}
 
           {/* 如果关闭了 showActivity 或未在玩游戏时的提示 */}
           {!showActivity && (

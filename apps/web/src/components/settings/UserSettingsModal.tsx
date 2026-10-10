@@ -880,7 +880,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                             type="text"
                             value={displayName}
                             onChange={(e) => setDisplayName(e.target.value)}
-                            placeholder={userPrefix || t("settings:displayNamePlaceholder")}
+                            placeholder={
+                              userPrefix || t("settings:displayNamePlaceholder")
+                            }
                             data-testid="profile-display-name-input"
                             className="w-full rounded-xl bg-[#1e1f22] border border-white/5 px-4 py-2.5 text-base sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
                           />
@@ -1011,7 +1013,10 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                               <button
                                 key={c.value}
                                 type="button"
-                                title={t(`settings:colorPresets.${c.key}`, c.defaultName)}
+                                title={t(
+                                  `settings:colorPresets.${c.key}`,
+                                  c.defaultName,
+                                )}
                                 onClick={() => setBannerColor(c.value)}
                                 className={`w-7 h-7 rounded-full transition-transform border-2 ${
                                   bannerColor === c.value
@@ -1077,7 +1082,12 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                                   style={{ backgroundColor: tc.value }}
                                 />
                               )}
-                              <span>{t(`settings:colorPresets.${tc.key}`, tc.defaultName)}</span>
+                              <span>
+                                {t(
+                                  `settings:colorPresets.${tc.key}`,
+                                  tc.defaultName,
+                                )}
+                              </span>
                             </button>
                           ))}
                         </div>
@@ -1122,7 +1132,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                             <div>
                               <div className="font-semibold text-white">
                                 {detectedGame
-                                  ? t("settings:gameDetected", { name: detectedGame.name })
+                                  ? t("settings:gameDetected", {
+                                      name: detectedGame.name,
+                                    })
                                   : testGameActive
                                     ? t("settings:gameSimulating")
                                     : isElectron
@@ -1143,7 +1155,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                             onClick={() => setTestGameActive(!testGameActive)}
                             className="text-[11px] px-2.5 py-1 rounded bg-[#2b2d31] hover:bg-[#35373c] text-gray-300 hover:text-white border border-white/5 transition self-end sm:self-auto shrink-0"
                           >
-                            {testGameActive ? t("settings:stopTestGame") : t("settings:startTestGame")}
+                            {testGameActive
+                              ? t("settings:stopTestGame")
+                              : t("settings:startTestGame")}
                           </button>
                         </div>
                       </div>
@@ -1157,7 +1171,9 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                           type="text"
                           value={customStatus}
                           onChange={(e) => setCustomStatus(e.target.value)}
-                          placeholder={t("settings:customStatusInputPlaceholder")}
+                          placeholder={t(
+                            "settings:customStatusInputPlaceholder",
+                          )}
                           className="w-full rounded-xl bg-[#2b2d31] border border-white/5 px-4 py-3 text-base sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
                         />
                       </div>
@@ -1309,7 +1325,11 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                           ) : (
                             <Save className="w-3.5 h-3.5" />
                           )}
-                          <span>{isSaving ? t("settings:saving") : t("settings:saveChanges")}</span>
+                          <span>
+                            {isSaving
+                              ? t("settings:saving")
+                              : t("settings:saveChanges")}
+                          </span>
                         </button>
                       </div>
                     </div>

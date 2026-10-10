@@ -487,7 +487,8 @@ export const CurrentUserPopout: React.FC<CurrentUserPopoutProps> = ({
         {/* 正在玩游戏专属活动面板 */}
         {currentUser.showActivity !== false &&
           currentUser.activities &&
-          currentUser.activities.length > 0 && (() => {
+          currentUser.activities.length > 0 &&
+          (() => {
             const game = currentUser.activities[0];
             const isSteam = Boolean(game.applicationId);
             const elapsedMs = game.timestamps?.start

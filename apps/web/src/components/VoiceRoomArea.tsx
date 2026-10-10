@@ -2290,8 +2290,16 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                       key={`stage-${p.userId}`}
                       initial={{ opacity: 0, scale: 0.92, y: 12 }}
                       animate={{ opacity: 1, scale: 1, y: 0 }}
-                      exit={{ opacity: 0, scale: 0.88, transition: { duration: 0.18 } }}
-                      transition={{ type: "spring", stiffness: 380, damping: 28 }}
+                      exit={{
+                        opacity: 0,
+                        scale: 0.88,
+                        transition: { duration: 0.18 },
+                      }}
+                      transition={{
+                        type: "spring",
+                        stiffness: 380,
+                        damping: 28,
+                      }}
                       className="w-full flex justify-center"
                     >
                       <ParticipantCard
@@ -2300,7 +2308,9 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                         speaking={speaking}
                         stats={stats}
                         volume={userVol}
-                        onVolumeChange={(vol) => handleVolumeChange(p.userId, vol)}
+                        onVolumeChange={(vol) =>
+                          handleVolumeChange(p.userId, vol)
+                        }
                         isPinned={isPinned}
                         onTogglePin={() => {
                           setPinnedUserId(isPinned ? null : p.userId);
@@ -2338,7 +2348,9 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                         isNoiseSuppressionEnabled={isNoiseSuppressionEnabled}
                         noiseSuppressionMode={noiseSuppressionMode}
                         isSpotlight={true}
-                        onStopScreenShare={onStopScreenShare || onToggleScreenShare}
+                        onStopScreenShare={
+                          onStopScreenShare || onToggleScreenShare
+                        }
                         peerLatency={peerLatencies.get(p.userId)}
                         isP2P={isP2P}
                         showStatsHUD={statsUserId === p.userId}
@@ -2404,8 +2416,16 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                         key={`participant-${p.userId}`}
                         initial={{ opacity: 0, scale: 0.92, y: 12 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.88, transition: { duration: 0.18 } }}
-                        transition={{ type: "spring", stiffness: 380, damping: 28 }}
+                        exit={{
+                          opacity: 0,
+                          scale: 0.88,
+                          transition: { duration: 0.18 },
+                        }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 380,
+                          damping: 28,
+                        }}
                         className={
                           stageParticipants.length > 0 || isTheaterMode
                             ? "flex-shrink-0"
@@ -2455,7 +2475,8 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                           guild={guild}
                           currentUser={currentUser}
                           isTheaterMode={
-                            isTheaterMode || Boolean(stageParticipants.length > 0)
+                            isTheaterMode ||
+                            Boolean(stageParticipants.length > 0)
                           }
                           isNoiseSuppressionEnabled={isNoiseSuppressionEnabled}
                           noiseSuppressionMode={noiseSuppressionMode}

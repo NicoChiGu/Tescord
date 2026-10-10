@@ -193,7 +193,11 @@
     "directTopology": "直连节点拓扑",
     "directPeerTopology": "直连节点拓扑",
     "overallPacketLoss": "整体丢包率",
-    "peerCount": "直连成员节点数"
+    "peerCount": "直连成员节点数",
+    "connectionModeRatio": "连接模式分布",
+    "connectionRatioFormat": "直连 {{direct}} · 局域网 {{lan}} · 中继 {{relay}}",
+    "bucketUserCount": "{{count}} 人",
+    "bucketRange": "延迟区间"
   },
   "connectionBadge": {
     "connecting": "连接中...",

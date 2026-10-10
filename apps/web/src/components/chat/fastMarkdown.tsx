@@ -432,9 +432,7 @@ function parseFastMarkdownInternal(
       <span
         key={`line-${i}`}
         className={
-          isJumbo
-            ? "inline-flex items-center flex-wrap gap-1.5 my-1"
-            : "inline"
+          isJumbo ? "inline-flex items-center flex-wrap gap-1.5 my-1" : "inline"
         }
       >
         {parseInline(line, ctx, `l-${i}`, isJumbo)}

@@ -24,6 +24,82 @@ interface PingSample {
   rtt: number;
 }
 
+export interface LatencyBucket {
+  id: string;
+  minRtt: number;
+  maxRtt: number;
+  label: string;
+  reports: PeerLatencyReport[];
+  color: string;
+}
+
+export function computeLatencyBuckets(
+  reports: PeerLatencyReport[],
+): LatencyBucket[] {
+  if (reports.length === 0) return [];
+
+  const rtts = reports.map((r) => Math.max(0, Math.round(r.rtt)));
+  const minVal = Math.min(...rtts);
+  const maxVal = Math.max(...rtts);
+
+  let bucketRanges: Array<{ min: number; max: number; label: string }>;
+
+  const spread = maxVal - minVal;
+  if (spread < 20) {
+    const mid = Math.max(20, maxVal);
+    const step = Math.max(25, Math.ceil(mid / 2));
+    const b0Max = Math.max(20, Math.round(mid - step / 2));
+    const b1Max = b0Max + step;
+    const b2Max = b1Max + step;
+    bucketRanges = [
+      { min: 0, max: b0Max, label: `<${b0Max}ms` },
+      { min: b0Max + 1, max: b1Max, label: `${b0Max + 1}-${b1Max}ms` },
+      { min: b1Max + 1, max: b2Max, label: `>${b1Max}ms` },
+    ];
+  } else {
+    const bucketCount = spread >= 60 ? 4 : 3;
+    const step = Math.ceil(spread / bucketCount);
+    bucketRanges = [];
+    let currentMin = Math.max(0, minVal - 5);
+    for (let i = 0; i < bucketCount; i++) {
+      const isLast = i === bucketCount - 1;
+      const bMax = isLast
+        ? Math.max(maxVal, currentMin + step)
+        : currentMin + step;
+      const label =
+        i === 0 && currentMin === 0 ? `<${bMax}ms` : `${currentMin}-${bMax}ms`;
+      bucketRanges.push({ min: currentMin, max: bMax, label });
+      currentMin = bMax + 1;
+    }
+  }
+
+  return bucketRanges.map((range, idx) => {
+    const bucketReports = reports.filter((r) => {
+      const rtt = Math.max(0, Math.round(r.rtt));
+      if (idx === 0) {
+        return rtt <= range.max;
+      }
+      if (idx === bucketRanges.length - 1) {
+        return rtt >= range.min;
+      }
+      return rtt >= range.min && rtt <= range.max;
+    });
+
+    const midPoint = (range.min + range.max) / 2;
+    const color =
+      midPoint < 100 ? "#23a55a" : midPoint <= 200 ? "#f0b232" : "#f23f43";
+
+    return {
+      id: `bucket-${range.min}-${range.max}`,
+      minRtt: range.min,
+      maxRtt: range.max,
+      label: range.label,
+      reports: bucketReports,
+      color,
+    };
+  });
+}
+
 export const VoiceConnectionStatusPopover: React.FC<
   VoiceConnectionStatusPopoverProps
 > = ({ isOpen, onClose, onOpenMoreStats, channel, guild, voiceStates }) => {
@@ -251,6 +327,16 @@ export const VoiceConnectionStatusPopover: React.FC<
       : packetLossPercent;
 
   const maxMeshRtt = Math.max(150, ...connectedReports.map((r) => r.rtt));
+  const buckets = computeLatencyBuckets(connectedReports);
+  const lanCount = connectedReports.filter(
+    (r) => r.connectionType === "LAN",
+  ).length;
+  const directCount = connectedReports.filter(
+    (r) => r.connectionType === "P2P" || !r.connectionType,
+  ).length;
+  const relayCount = connectedReports.filter(
+    (r) => r.connectionType === "RELAY",
+  ).length;
 
   const getPeerUserInfo = (peerId: string) => {
     const vs = voiceStates?.find((v) => v.userId === peerId);
@@ -596,7 +682,7 @@ export const VoiceConnectionStatusPopover: React.FC<
       </div>
 
       <div className="px-4 pb-3 pt-3 space-y-3">
-        {/* 实时示波波形图容器 或 P2P 成员延迟柱状图 */}
+        {/* 实时示波波形图容器 或 P2P 成员延迟区间直方图 */}
         {meshActive ? (
           <div
             data-testid="p2p-mesh-histogram"
@@ -608,125 +694,246 @@ export const VoiceConnectionStatusPopover: React.FC<
               </div>
             ) : (
               <div className="flex items-end justify-around h-full gap-2 px-1 pt-6 pb-0.5">
-                {connectedReports.map((report) => {
-                  const { displayName, avatarUrl } = getPeerUserInfo(
-                    report.targetUserId,
+                {(() => {
+                  const maxBucketCount = Math.max(
+                    1,
+                    ...buckets.map((b) => b.reports.length),
                   );
-                  const barColor =
-                    report.rtt < 100
-                      ? "#23a55a"
-                      : report.rtt <= 200
-                        ? "#f0b232"
-                        : "#f23f43";
-                  const heightPercent = Math.min(
-                    100,
-                    Math.max(18, Math.round((report.rtt / maxMeshRtt) * 100)),
-                  );
+                  return buckets.map((bucket) => {
+                    const count = bucket.reports.length;
+                    const heightPercent =
+                      count > 0
+                        ? Math.min(
+                            100,
+                            Math.max(
+                              22,
+                              Math.round((count / maxBucketCount) * 100),
+                            ),
+                          )
+                        : 8;
+                    const barColor = bucket.color;
 
-                  return (
-                    <div
-                      key={report.targetUserId}
-                      data-testid={`p2p-histogram-bar-${report.targetUserId}`}
-                      className="relative flex flex-col items-center h-full justify-end group/bar flex-1 max-w-[56px] select-none"
-                    >
-                      {/* 悬停详情 Tooltip */}
-                      <div className="absolute bottom-full mb-1 opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none z-30 bg-[#111214]/95 backdrop-blur-md text-[10px] text-white p-2 rounded-lg shadow-2xl border border-white/10 whitespace-nowrap min-w-[120px]">
-                        <div className="font-bold text-white mb-1 truncate max-w-[130px]">
-                          {displayName}
-                        </div>
-                        <div className="space-y-0.5 font-mono text-discord-textMuted text-[9px]">
-                          <div className="flex justify-between gap-2">
-                            <span>RTT:</span>
-                            <strong style={{ color: barColor }}>
-                              {report.rtt}ms
-                            </strong>
-                          </div>
-                          <div className="flex justify-between gap-2">
-                            <span>{t("voice:audioQuality.jitter")}:</span>
-                            <span className="text-white/80">
-                              {report.jitter !== undefined
-                                ? `${report.jitter}ms`
-                                : "--"}
+                    return (
+                      <div
+                        key={bucket.id}
+                        data-testid={`p2p-histogram-bucket-${bucket.id}`}
+                        className="relative flex flex-col items-center h-full justify-end group/bar flex-1 max-w-[64px] select-none"
+                      >
+                        {/* 悬停详情 Tooltip */}
+                        <div className="absolute bottom-full mb-1 opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none z-30 bg-[#111214]/95 backdrop-blur-md text-[10px] text-white p-2.5 rounded-lg shadow-2xl border border-white/10 whitespace-nowrap min-w-[140px] max-w-[240px]">
+                          <div className="flex items-center justify-between gap-2 border-b border-white/10 pb-1 mb-1.5">
+                            <span className="font-bold text-white text-[11px]">
+                              {bucket.label}
+                            </span>
+                            <span
+                              className="text-[9px] font-mono font-semibold"
+                              style={{ color: barColor }}
+                            >
+                              {t("voice:connectionPopover.bucketUserCount", {
+                                count,
+                              })}
                             </span>
                           </div>
-                          <div className="flex justify-between gap-2">
-                            <span>{t("voice:packetLoss")}:</span>
-                            <span className="text-white/80">
-                              {report.packetLoss !== undefined
-                                ? `${report.packetLoss}%`
-                                : "--"}
-                            </span>
-                          </div>
-                          <div className="flex justify-between gap-2">
-                            <span>{t("voice:connectionMode")}:</span>
-                            <span className="text-emerald-400">
-                              {report.connectionType === "LAN"
-                                ? t("voice:topology.lan")
-                                : report.connectionType === "RELAY"
-                                  ? t("voice:topology.relay")
-                                  : t("voice:topology.p2p")}
-                            </span>
-                          </div>
-                          {report.remoteAddress && (
-                            <div className="flex justify-between gap-2 pt-0.5 border-t border-white/10 text-[8px]">
-                              <span>IP:</span>
-                              <span className="text-white/70 truncate max-w-[90px]">
-                                {report.remoteAddress}
-                              </span>
+                          {count === 0 ? (
+                            <div className="text-[9px] text-discord-textMuted py-0.5">
+                              {noData}
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                              {bucket.reports.map((report) => {
+                                const { displayName, avatarUrl } =
+                                  getPeerUserInfo(report.targetUserId);
+                                const peerColor =
+                                  report.rtt < 100
+                                    ? "#23a55a"
+                                    : report.rtt <= 200
+                                      ? "#f0b232"
+                                      : "#f23f43";
+                                return (
+                                  <div
+                                    key={report.targetUserId}
+                                    className="space-y-0.5 border-b border-white/5 pb-1 last:border-b-0 last:pb-0"
+                                  >
+                                    <div className="flex items-center gap-1.5">
+                                      <div
+                                        className="w-3.5 h-3.5 rounded-full overflow-hidden flex-shrink-0"
+                                        style={{
+                                          border: `1px solid ${peerColor}`,
+                                        }}
+                                      >
+                                        {avatarUrl &&
+                                        !failedAvatars.has(avatarUrl) ? (
+                                          <img
+                                            src={avatarUrl}
+                                            alt={displayName}
+                                            className="w-full h-full object-cover"
+                                          />
+                                        ) : (
+                                          <UserRound className="w-full h-full text-discord-textMuted" />
+                                        )}
+                                      </div>
+                                      <span className="font-semibold text-white truncate max-w-[90px] text-[10px]">
+                                        {displayName}
+                                      </span>
+                                      <strong
+                                        className="ml-auto font-mono text-[9px]"
+                                        style={{ color: peerColor }}
+                                      >
+                                        {report.rtt}ms
+                                      </strong>
+                                    </div>
+                                    <div className="flex justify-between text-[8px] text-discord-textMuted font-mono pl-5">
+                                      <span>
+                                        {report.connectionType === "LAN"
+                                          ? t("voice:topology.lan")
+                                          : report.connectionType === "RELAY"
+                                            ? t("voice:topology.relay")
+                                            : t("voice:topology.p2p")}
+                                      </span>
+                                      <span>
+                                        {t("voice:packetLoss")}:{" "}
+                                        {report.packetLoss !== undefined
+                                          ? `${report.packetLoss}%`
+                                          : "--"}
+                                      </span>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                         </div>
-                      </div>
 
-                      {/* 柱顶：用户圆形头像 + 毫秒标签 */}
-                      <div className="flex flex-col items-center mb-1 flex-shrink-0">
+                        {/* 柱顶：用户头像堆叠组（Avatar Stack）或单人头像 */}
+                        {count > 0 ? (
+                          <div className="flex flex-col items-center mb-1 flex-shrink-0">
+                            {count === 1 ? (
+                              (() => {
+                                const report = bucket.reports[0];
+                                const { displayName, avatarUrl } =
+                                  getPeerUserInfo(report.targetUserId);
+                                return (
+                                  <div
+                                    data-testid={`p2p-histogram-bar-${report.targetUserId}`}
+                                    className="flex flex-col items-center"
+                                  >
+                                    <div
+                                      className="w-5 h-5 rounded-full overflow-hidden border-2 shadow-sm mb-0.5"
+                                      style={{ borderColor: barColor }}
+                                    >
+                                      {avatarUrl &&
+                                      !failedAvatars.has(avatarUrl) ? (
+                                        <img
+                                          src={avatarUrl}
+                                          alt={displayName}
+                                          className="w-full h-full object-cover"
+                                          onError={() =>
+                                            setFailedAvatars((prev) =>
+                                              new Set(prev).add(avatarUrl),
+                                            )
+                                          }
+                                        />
+                                      ) : (
+                                        <UserRound
+                                          aria-label={displayName}
+                                          className="w-full h-full text-discord-textMuted"
+                                        />
+                                      )}
+                                    </div>
+                                    <span
+                                      className="text-[9px] font-mono font-bold leading-none"
+                                      style={{ color: barColor }}
+                                    >
+                                      {report.rtt}ms
+                                    </span>
+                                  </div>
+                                );
+                              })()
+                            ) : (
+                              <div className="flex flex-col items-center">
+                                <div className="flex items-center -space-x-1.5 mb-0.5">
+                                  {bucket.reports
+                                    .slice(0, 3)
+                                    .map((report, idx) => {
+                                      const { displayName, avatarUrl } =
+                                        getPeerUserInfo(report.targetUserId);
+                                      return (
+                                        <div
+                                          key={report.targetUserId}
+                                          data-testid={`p2p-histogram-bar-${report.targetUserId}`}
+                                          className="w-5 h-5 rounded-full overflow-hidden border-2 shadow-sm relative"
+                                          style={{
+                                            borderColor: barColor,
+                                            zIndex: 10 - idx,
+                                          }}
+                                        >
+                                          {avatarUrl &&
+                                          !failedAvatars.has(avatarUrl) ? (
+                                            <img
+                                              src={avatarUrl}
+                                              alt={displayName}
+                                              className="w-full h-full object-cover"
+                                              onError={() =>
+                                                setFailedAvatars((prev) =>
+                                                  new Set(prev).add(avatarUrl),
+                                                )
+                                              }
+                                            />
+                                          ) : (
+                                            <UserRound
+                                              aria-label={displayName}
+                                              className="w-full h-full text-discord-textMuted"
+                                            />
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  {bucket.reports.length > 3 && (
+                                    <div
+                                      className="w-5 h-5 rounded-full bg-[#111214] border border-white/20 text-[8px] font-bold text-white flex items-center justify-center relative shadow-sm"
+                                      style={{ zIndex: 6 }}
+                                    >
+                                      +{bucket.reports.length - 3}
+                                    </div>
+                                  )}
+                                </div>
+                                <span
+                                  className="text-[9px] font-mono font-bold leading-none"
+                                  style={{ color: barColor }}
+                                >
+                                  {count}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="h-6 mb-1" />
+                        )}
+
+                        {/* 延迟柱条 */}
                         <div
-                          className="w-5 h-5 rounded-full overflow-hidden border-2 shadow-sm mb-0.5"
-                          style={{ borderColor: barColor }}
-                        >
-                          {avatarUrl && !failedAvatars.has(avatarUrl) ? (
-                            <img
-                              src={avatarUrl}
-                              alt={displayName}
-                              className="w-full h-full object-cover"
-                              onError={() =>
-                                setFailedAvatars((previous) =>
-                                  new Set(previous).add(avatarUrl),
-                                )
-                              }
-                            />
-                          ) : (
-                            <UserRound
-                              aria-label={displayName}
-                              className="w-full h-full text-discord-textMuted"
-                            />
-                          )}
-                        </div>
-                        <span
-                          className="text-[9px] font-mono font-bold leading-none"
-                          style={{ color: barColor }}
-                        >
-                          {report.rtt}ms
+                          className={`w-5 sm:w-6 rounded-t transition-all duration-300 ${
+                            count === 0
+                              ? "opacity-25 border-dashed border-t border-white/20"
+                              : ""
+                          }`}
+                          style={{
+                            height: `${heightPercent}%`,
+                            backgroundColor:
+                              count === 0 ? "rgba(255,255,255,0.1)" : barColor,
+                            boxShadow:
+                              count > 0 ? `0 0 8px ${barColor}40` : "none",
+                          }}
+                        />
+
+                        {/* 底部区间标签 */}
+                        <span className="text-[9px] font-mono text-discord-textMuted truncate max-w-[56px] mt-1 leading-none text-center">
+                          {bucket.label}
                         </span>
                       </div>
-
-                      {/* 延迟柱条 */}
-                      <div
-                        className="w-4 sm:w-5 rounded-t transition-all duration-300"
-                        style={{
-                          height: `${heightPercent}%`,
-                          backgroundColor: barColor,
-                          boxShadow: `0 0 8px ${barColor}40`,
-                        }}
-                      />
-
-                      {/* 底部成员名简写 */}
-                      <span className="text-[9px] text-discord-textMuted truncate max-w-[48px] mt-0.5 leading-none">
-                        {displayName}
-                      </span>
-                    </div>
-                  );
-                })}
+                    );
+                  });
+                })()}
               </div>
             )}
           </div>
@@ -774,6 +981,18 @@ export const VoiceConnectionStatusPopover: React.FC<
                   <span>{t("voice:peerCount")} :</span>
                   <strong className="text-white font-bold">
                     {connectedReports.length}
+                  </strong>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <span>
+                    {t("voice:connectionPopover.connectionModeRatio")} :
+                  </span>
+                  <strong className="text-white font-medium text-[11px]">
+                    {t("voice:connectionPopover.connectionRatioFormat", {
+                      direct: directCount,
+                      lan: lanCount,
+                      relay: relayCount,
+                    })}
                   </strong>
                 </div>
                 <div>{rttSource}</div>

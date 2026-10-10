@@ -657,7 +657,8 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
                 >
                   <Plus className="w-3 h-3 text-[#949ba4] group-hover/bubble:text-white flex-shrink-0" />
                   <span className="text-xs text-[#dbdee1] group-hover/bubble:text-white truncate">
-                    {currentUser.customStatus || t("settings:statusDefaultFallback")}
+                    {currentUser.customStatus ||
+                      t("settings:statusDefaultFallback")}
                   </span>
                 </div>
               )}
@@ -746,7 +747,8 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
           {/* 正在玩游戏 (PLAYING A GAME) 专属沉浸式面板 */}
           {effectiveActivities &&
             effectiveActivities.length > 0 &&
-            effectiveShowActivity && (() => {
+            effectiveShowActivity &&
+            (() => {
               const game = effectiveActivities[0];
               const isSteam = Boolean(game.applicationId);
               const elapsedMs = game.timestamps?.start
@@ -791,7 +793,11 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
                   <div className="relative z-10 flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-emerald-400">
                     <div className="flex items-center gap-1.5">
                       <Gamepad2 className="w-3.5 h-3.5" />
-                      <span>{t("settings:playingGame", { defaultValue: "正在游玩" })}</span>
+                      <span>
+                        {t("settings:playingGame", {
+                          defaultValue: "正在游玩",
+                        })}
+                      </span>
                     </div>
                     {isSteam && (
                       <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/90 font-medium tracking-normal normal-case border border-white/10">

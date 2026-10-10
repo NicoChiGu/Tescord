@@ -112,6 +112,50 @@ test.describe("前端对抗与状态极限测试 (Challenger 2 Empirical Adversa
     await expect(popover).toContainText("(0 节点)");
     await expect(popover).not.toContainText("NaN");
 
+    // 1.4 注入多 Peer 动态延迟区间（Peer A 35ms LAN, Peer B 95ms P2P, Peer C 180ms P2P）
+    await page.evaluate(() => {
+      const vm = (window as any).voiceMeshManager;
+      const reports = new Map();
+      reports.set("peer-a", {
+        targetUserId: "peer-a",
+        rtt: 35,
+        jitter: 2,
+        packetLoss: 0,
+        connectionType: "LAN",
+        status: "connected",
+        updatedAt: Date.now(),
+      });
+      reports.set("peer-b", {
+        targetUserId: "peer-b",
+        rtt: 95,
+        jitter: 8,
+        packetLoss: 1,
+        connectionType: "P2P",
+        status: "connected",
+        updatedAt: Date.now(),
+      });
+      reports.set("peer-c", {
+        targetUserId: "peer-c",
+        rtt: 180,
+        jitter: 15,
+        packetLoss: 3,
+        connectionType: "P2P",
+        status: "connected",
+        updatedAt: Date.now(),
+      });
+      vm.latencyCallbacks.forEach((cb: (m: Map<string, any>) => void) =>
+        cb(reports),
+      );
+    });
+
+    await expect(histogram).toBeVisible();
+    await expect(page.getByTestId("p2p-histogram-bar-peer-a")).toBeVisible();
+    await expect(page.getByTestId("p2p-histogram-bar-peer-b")).toBeVisible();
+    await expect(page.getByTestId("p2p-histogram-bar-peer-c")).toBeVisible();
+    await expect(popover).toContainText("(3 节点)");
+    await expect(popover).toContainText("直连");
+    await expect(popover).toContainText("局域网");
+
     const fatalErrors = consoleErrors.filter(
       (e) => !e.includes("net::ERR_") && !e.includes("WebSocket"),
     );

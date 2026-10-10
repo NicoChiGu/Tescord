@@ -40,9 +40,7 @@ export function registerSteamGameRoutes(
       }
 
       const imgType =
-        request.query?.type === "capsule"
-          ? "capsule_231x87.jpg"
-          : "header.jpg";
+        request.query?.type === "capsule" ? "capsule_231x87.jpg" : "header.jpg";
       const cacheKey = `${appId}:${imgType}`;
       const now = Date.now();
 
@@ -74,8 +72,7 @@ export function registerSteamGameRoutes(
           if (res.ok) {
             const arrayBuffer = await res.arrayBuffer();
             const buffer = Buffer.from(arrayBuffer);
-            const contentType =
-              res.headers.get("content-type") || "image/jpeg";
+            const contentType = res.headers.get("content-type") || "image/jpeg";
 
             if (steamImageCache.size >= MAX_CACHE_ENTRIES) {
               const oldestKey = steamImageCache.keys().next().value;

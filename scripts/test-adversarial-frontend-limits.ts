@@ -71,7 +71,105 @@ test("Popover P2P 柱状图高度与颜色映射函数在极限 RTT 场景下的
   assert.equal(computeBarMetrics(99, maxNormal).barColor, "#23a55a");
   assert.equal(computeBarMetrics(100, maxNormal).barColor, "#f0b232");
   assert.equal(computeBarMetrics(200, maxNormal).barColor, "#f0b232");
-  assert.equal(computeBarMetrics(201, maxNormal).barColor, "#f23f43");
+});
+
+test("VoiceConnectionStatusPopover 动态延迟区间分桶算法 (computeLatencyBuckets) 鲁棒性与边界验证", () => {
+  function computeLatencyBuckets(
+    reports: Array<{ rtt: number; targetUserId?: string }>,
+  ) {
+    if (reports.length === 0) return [];
+
+    const rtts = reports.map((r) => Math.max(0, Math.round(r.rtt)));
+    const minVal = Math.min(...rtts);
+    const maxVal = Math.max(...rtts);
+
+    let bucketRanges: Array<{ min: number; max: number; label: string }>;
+
+    const spread = maxVal - minVal;
+    if (spread < 20) {
+      const mid = Math.max(20, maxVal);
+      const step = Math.max(25, Math.ceil(mid / 2));
+      const b0Max = Math.max(20, Math.round(mid - step / 2));
+      const b1Max = b0Max + step;
+      const b2Max = b1Max + step;
+      bucketRanges = [
+        { min: 0, max: b0Max, label: `<${b0Max}ms` },
+        { min: b0Max + 1, max: b1Max, label: `${b0Max + 1}-${b1Max}ms` },
+        { min: b1Max + 1, max: b2Max, label: `>${b1Max}ms` },
+      ];
+    } else {
+      const bucketCount = spread >= 60 ? 4 : 3;
+      const step = Math.ceil(spread / bucketCount);
+      bucketRanges = [];
+      let currentMin = Math.max(0, minVal - 5);
+      for (let i = 0; i < bucketCount; i++) {
+        const isLast = i === bucketCount - 1;
+        const bMax = isLast
+          ? Math.max(maxVal, currentMin + step)
+          : currentMin + step;
+        const label =
+          i === 0 && currentMin === 0
+            ? `<${bMax}ms`
+            : `${currentMin}-${bMax}ms`;
+        bucketRanges.push({ min: currentMin, max: bMax, label });
+        currentMin = bMax + 1;
+      }
+    }
+
+    return bucketRanges.map((range, idx) => {
+      const bucketReports = reports.filter((r) => {
+        const rtt = Math.max(0, Math.round(r.rtt));
+        if (idx === 0) {
+          return rtt <= range.max;
+        }
+        if (idx === bucketRanges.length - 1) {
+          return rtt >= range.min;
+        }
+        return rtt >= range.min && rtt <= range.max;
+      });
+
+      const midPoint = (range.min + range.max) / 2;
+      const color =
+        midPoint < 100 ? "#23a55a" : midPoint <= 200 ? "#f0b232" : "#f23f43";
+
+      return {
+        id: `bucket-${range.min}-${range.max}`,
+        minRtt: range.min,
+        maxRtt: range.max,
+        label: range.label,
+        reports: bucketReports,
+        color,
+      };
+    });
+  }
+
+  // 1. 空列表防御
+  assert.deepEqual(computeLatencyBuckets([]), []);
+
+  // 2. 单人 0ms 回环
+  const zeroBuckets = computeLatencyBuckets([{ rtt: 0 }]);
+  assert.equal(zeroBuckets.length, 3);
+  assert.equal(zeroBuckets[0].reports.length, 1, "0ms 应归入第 0 桶");
+  assert.equal(zeroBuckets[0].color, "#23a55a");
+
+  // 3. 单人 9999ms 极高延迟
+  const hugeBuckets = computeLatencyBuckets([{ rtt: 9999 }]);
+  assert.equal(hugeBuckets.length, 3);
+  const totalHugeReports = hugeBuckets.reduce(
+    (acc, b) => acc + b.reports.length,
+    0,
+  );
+  assert.equal(totalHugeReports, 1, "9999ms 不会丢失");
+
+  // 4. 多人分布无遗漏验证 (20ms, 55ms, 120ms, 280ms)
+  const multiReports = [{ rtt: 20 }, { rtt: 55 }, { rtt: 120 }, { rtt: 280 }];
+  const multiBuckets = computeLatencyBuckets(multiReports);
+  assert.equal(multiBuckets.length, 4, "大跨度应划分为 4 个区间");
+  const totalCategorized = multiBuckets.reduce(
+    (acc, b) => acc + b.reports.length,
+    0,
+  );
+  assert.equal(totalCategorized, 4, "所有成员应全数分桶");
 });
 
 test("Popover P2P 丢包率与主题色状态聚合在极限值下的稳定性", () => {

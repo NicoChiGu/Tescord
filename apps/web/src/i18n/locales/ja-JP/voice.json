@@ -193,7 +193,11 @@
     "directTopology": "直接接続ノードトポロジ",
     "directPeerTopology": "直接接続ノードトポロジ",
     "overallPacketLoss": "全体パケット損失率",
-    "peerCount": "直接接続ピア数"
+    "peerCount": "直接接続ピア数",
+    "connectionModeRatio": "接続モード分布",
+    "connectionRatioFormat": "直接 {{direct}} · LAN {{lan}} · リレー {{relay}}",
+    "bucketUserCount": "{{count}} 人",
+    "bucketRange": "遅延範囲"
   },
   "connectionBadge": {
     "connecting": "接続中...",

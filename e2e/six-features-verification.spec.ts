@@ -12,7 +12,9 @@ test.describe("Tescord 6 项核心改动全链路验收", () => {
     });
   });
 
-  test("1. 验证麦克风'闭麦'与扬声器'静音'文案及设置面板 i18n 适配", async ({ page }) => {
+  test("1. 验证麦克风'闭麦'与扬声器'静音'文案及设置面板 i18n 适配", async ({
+    page,
+  }) => {
     await page.goto("/");
 
     // 验证底部用户控制栏
@@ -33,7 +35,9 @@ test.describe("Tescord 6 项核心改动全链路验收", () => {
     await expect(settingsModal).toBeVisible({ timeout: 5000 });
 
     // 切换到个人资料标签
-    const profileTabBtn = settingsModal.locator('button:has-text("个人资料")').first();
+    const profileTabBtn = settingsModal
+      .locator('button:has-text("个人资料")')
+      .first();
     if (await profileTabBtn.isVisible()) {
       await profileTabBtn.click();
     }
@@ -41,8 +45,12 @@ test.describe("Tescord 6 项核心改动全链路验收", () => {
     // 验证展示卡与个人资料标签中的 i18n 文案
     const profileHeading = settingsModal.locator("h2").first();
     await expect(profileHeading).toHaveText(/展示卡与个人资料/);
-    await expect(settingsModal.getByTestId("profile-display-name-input")).toBeVisible();
-    await expect(settingsModal.getByTestId("profile-preview-display-name")).toBeVisible();
+    await expect(
+      settingsModal.getByTestId("profile-display-name-input"),
+    ).toBeVisible();
+    await expect(
+      settingsModal.getByTestId("profile-preview-display-name"),
+    ).toBeVisible();
 
     // 关闭设置
     await page.keyboard.press("Escape");
@@ -53,7 +61,9 @@ test.describe("Tescord 6 项核心改动全链路验收", () => {
     await page.goto("/");
 
     // 寻找语音频道并双击加入
-    const voiceChannel = page.locator('button[data-channel-type="VOICE"]').first();
+    const voiceChannel = page
+      .locator('button[data-channel-type="VOICE"]')
+      .first();
     if (await voiceChannel.isVisible()) {
       await voiceChannel.dblclick();
 
@@ -74,7 +84,9 @@ test.describe("Tescord 6 项核心改动全链路验收", () => {
     }
   });
 
-  test("3. 验证聊天纯自定义表情 (64px Jumboji) 与行内表情 (28px) 尺寸规则", async ({ page }) => {
+  test("3. 验证聊天纯自定义表情 (64px Jumboji) 与行内表情 (28px) 尺寸规则", async ({
+    page,
+  }) => {
     await page.goto("/");
 
     // 验证客户端 fastMarkdown 导出的 isJumbojiContent 判定与样式
