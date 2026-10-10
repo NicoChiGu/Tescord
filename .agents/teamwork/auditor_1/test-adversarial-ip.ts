@@ -36,13 +36,19 @@ check(isUlaIpv6("fdff:ffff:ffff:ffff::1"), "fdff:: should be ULA");
 check(!isUlaIpv6("fe00::1"), "fe00::1 should NOT be ULA");
 
 // 2. Bitmask boundary tests for Link-Local (fe80::/10 -> fe80 to febf)
-check(!isLinkLocalIpv6("fe7f:ffff:ffff:ffff::1"), "fe7f should NOT be Link-Local");
+check(
+  !isLinkLocalIpv6("fe7f:ffff:ffff:ffff::1"),
+  "fe7f should NOT be Link-Local",
+);
 check(isLinkLocalIpv6("fe80::1"), "fe80::1 should be Link-Local");
 check(isLinkLocalIpv6("febf:ffff:ffff:ffff::1"), "febf should be Link-Local");
 check(!isLinkLocalIpv6("fec0::1"), "fec0 should NOT be Link-Local");
 
 // 3. Bitmask boundary tests for Public Global Unicast (2000::/3 -> 2000 to 3fff)
-check(!isPublicIpv6("1fff:ffff:ffff:ffff::1"), "1fff should NOT be Public IPv6");
+check(
+  !isPublicIpv6("1fff:ffff:ffff:ffff::1"),
+  "1fff should NOT be Public IPv6",
+);
 check(isPublicIpv6("2000::1"), "2000::1 should be Public IPv6");
 check(isPublicIpv6("240e::1"), "240e::1 should be Public IPv6");
 check(isPublicIpv6("2408::1"), "2408::1 should be Public IPv6");
@@ -70,21 +76,35 @@ check(!isPrivateIpv4("192.169.0.0"), "192.169 is not private");
 check(classifyIp(":::") === "unknown", "::: should be unknown");
 check(classifyIp("1.2.3.4.5") === "unknown", "5 octets should be unknown");
 check(classifyIp("256.1.1.1") === "unknown", "256 octet should be unknown");
-check(classifyIp("01.02.03.04") === "unknown", "leading zero should be unknown");
-check(classifyIp("fe80::1%eth0") === "link-local-v6", "Scope zone fe80::1%eth0 should be link-local-v6");
-check(classifyIp("::ffff:192.168.1.1") === "private-v4", "IPv4-mapped private IPv6");
+check(
+  classifyIp("01.02.03.04") === "unknown",
+  "leading zero should be unknown",
+);
+check(
+  classifyIp("fe80::1%eth0") === "link-local-v6",
+  "Scope zone fe80::1%eth0 should be link-local-v6",
+);
+check(
+  classifyIp("::ffff:192.168.1.1") === "private-v4",
+  "IPv4-mapped private IPv6",
+);
 check(classifyIp("::ffff:8.8.8.8") === "public-v4", "IPv4-mapped public IPv6");
-check(classifyIp("<script>alert(1)</script>") === "unknown", "XSS string should be unknown");
+check(
+  classifyIp("<script>alert(1)</script>") === "unknown",
+  "XSS string should be unknown",
+);
 check(classifyIp("") === "unknown", "Empty string should be unknown");
 check(classifyIp(null as any) === "unknown", "null should be unknown");
 
 // 6. determineP2PConnectionType adversarial combinations
 check(
-  determineP2PConnectionType("192.168.1.1", "240e:398:1::1", "host", "host") === "P2P",
+  determineP2PConnectionType("192.168.1.1", "240e:398:1::1", "host", "host") ===
+    "P2P",
   "Mixed LAN and public IPv6 host-host must be P2P",
 );
 check(
-  determineP2PConnectionType("192.168.1.1", "10.0.0.1", "host", "host") === "LAN",
+  determineP2PConnectionType("192.168.1.1", "10.0.0.1", "host", "host") ===
+    "LAN",
   "Both LAN host-host must be LAN",
 );
 check(
@@ -92,16 +112,21 @@ check(
   "Both ULA host-host must be LAN",
 );
 check(
-  determineP2PConnectionType("192.168.1.1", "192.168.1.2", "host", "srflx") === "P2P",
+  determineP2PConnectionType("192.168.1.1", "192.168.1.2", "host", "srflx") ===
+    "P2P",
   "Non-host candidate must be P2P",
 );
 check(
-  determineP2PConnectionType("192.168.1.1", "192.168.1.2", "relay", "host") === "RELAY",
+  determineP2PConnectionType("192.168.1.1", "192.168.1.2", "relay", "host") ===
+    "RELAY",
   "Any relay candidate must be RELAY",
 );
 check(
-  determineP2PConnectionType("192.168.1.1", "192.168.1.2", "relay", "relay") === "RELAY",
+  determineP2PConnectionType("192.168.1.1", "192.168.1.2", "relay", "relay") ===
+    "RELAY",
   "Both relay must be RELAY",
 );
 
-console.log(`[PASS] ALL ${assertionsCount} ADVERSARIAL STRESS TEST ASSERTIONS VERIFIED!`);
+console.log(
+  `[PASS] ALL ${assertionsCount} ADVERSARIAL STRESS TEST ASSERTIONS VERIFIED!`,
+);

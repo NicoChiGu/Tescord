@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Bug, ExternalLink, Lock, Check } from "lucide-react";
+import { Bug, ExternalLink, Lock, Check, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Channel, Guild, VoiceState, PeerLatencyReport } from "@tescord/types";
 import { useNetworkStats } from "../hooks/useNetworkStats.js";
@@ -36,6 +36,7 @@ export const VoiceConnectionStatusPopover: React.FC<
   const userId = useAuthStore((state) => state.user?.id);
   const [copied, setCopied] = useState(false);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+  const [failedAvatars, setFailedAvatars] = useState<Set<string>>(new Set());
 
   // 纯语音 Mesh P2P 点对点各节点独立物理延迟状态
   const [peerLatencies, setPeerLatencies] = useState<
@@ -258,11 +259,11 @@ export const VoiceConnectionStatusPopover: React.FC<
     const displayName = getUserDisplayName(
       user || null,
       member,
-      `Peer ${peerId.slice(0, 4)}`,
+      peerId.slice(0, 4),
     );
     const avatarUrl = user?.avatarUrl
       ? resolveServerUrl(user.avatarUrl)
-      : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user?.username || peerId)}`;
+      : undefined;
     return { displayName, avatarUrl };
   };
 
@@ -679,16 +680,28 @@ export const VoiceConnectionStatusPopover: React.FC<
 
                       {/* 柱顶：用户圆形头像 + 毫秒标签 */}
                       <div className="flex flex-col items-center mb-1 flex-shrink-0">
-                        <img
-                          src={avatarUrl}
-                          alt={displayName}
-                          className="w-5 h-5 rounded-full object-cover border-2 shadow-sm mb-0.5"
+                        <div
+                          className="w-5 h-5 rounded-full overflow-hidden border-2 shadow-sm mb-0.5"
                           style={{ borderColor: barColor }}
-                          onError={(e) => {
-                            (e.currentTarget as HTMLImageElement).src =
-                              `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(displayName)}`;
-                          }}
-                        />
+                        >
+                          {avatarUrl && !failedAvatars.has(avatarUrl) ? (
+                            <img
+                              src={avatarUrl}
+                              alt={displayName}
+                              className="w-full h-full object-cover"
+                              onError={() =>
+                                setFailedAvatars((previous) =>
+                                  new Set(previous).add(avatarUrl),
+                                )
+                              }
+                            />
+                          ) : (
+                            <UserRound
+                              aria-label={displayName}
+                              className="w-full h-full text-discord-textMuted"
+                            />
+                          )}
+                        </div>
                         <span
                           className="text-[9px] font-mono font-bold leading-none"
                           style={{ color: barColor }}

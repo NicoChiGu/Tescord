@@ -1,117 +1,218 @@
 import { test, expect } from "@playwright/test";
+import type { CustomEmoji, PresignedUploadResponse } from "@tescord/types";
 
-test.describe("自定义表情上传与生命周期验收 (Custom Emoji Upload & Lifecycle)", () => {
-  test.beforeEach(async ({ page }) => {
-    await page.addInitScript(() => {
-      const accessToken =
-        localStorage.getItem("tescord_e2e_access_token") ||
-        localStorage.getItem("tescord_access_token");
-      if (accessToken) {
-        localStorage.setItem("tescord_access_token", accessToken);
-      }
-    });
+const png = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
+  "base64",
+);
+
+test("personal emoji upload renders and deletion revokes public access", async ({
+  page,
+  request,
+}) => {
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
   });
-
-  test("在用户设置中上传个人自定义表情，验证无 channelId 错误、成功入库并在列表中呈现", async ({
-    page,
-  }) => {
-    const consoleErrors: string[] = [];
-    page.on("console", (msg) => {
-      if (msg.type() === "error") {
-        consoleErrors.push(msg.text());
-      }
-    });
-
-    await page.goto("/");
-    await expect(page.locator("#root")).toBeVisible({ timeout: 15000 });
-
-    // 1. 打开用户设置面板
-    const userSettingsBtn = page.getByTestId("user-settings-gear-btn");
-    await expect(userSettingsBtn).toBeVisible({ timeout: 10000 });
-    await userSettingsBtn.click();
-
-    // 2. 点击“我的表情”Tab
-    const emojisTab = page.locator('button[data-testid="tab-emojis-btn"]');
-    await expect(emojisTab).toBeVisible({ timeout: 5000 });
-    await emojisTab.click();
-
-    // 3. 拦截预签名上传接口与创建表情接口
-    let presignedUrlResponse: any = null;
-    let createEmojiResponse: any = null;
-
-    page.on("response", async (response) => {
-      const url = response.url();
-      if (url.includes("/api/attachments/presigned-url") && response.request().method() === "POST") {
-        try {
-          presignedUrlResponse = {
-            status: response.status(),
-            body: await response.json(),
-          };
-        } catch {
-          // ignore
-        }
-      } else if (url.includes("/api/users/me/emojis") && response.request().method() === "POST") {
-        try {
-          createEmojiResponse = {
-            status: response.status(),
-            body: await response.json(),
-          };
-        } catch {
-          // ignore
-        }
-      }
-    });
-
-    // 4. 选择表情图片文件
-    const uniqueEmojiName = `emoji_${Date.now().toString().slice(-6)}`;
-    const pngBuffer = Buffer.from(
-      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=",
-      "base64",
-    );
-
-    const fileInput = page.locator('input[data-testid="user-emoji-file-input"]');
-    await fileInput.setInputFiles({
-      name: `${uniqueEmojiName}.png`,
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/");
+  const token = await page.evaluate(() =>
+    localStorage.getItem("tescord_e2e_access_token"),
+  );
+  expect(token).toBeTruthy();
+  const headers = { Authorization: `Bearer ${token}` };
+  let emoji: CustomEmoji | undefined;
+  try {
+    await page.getByTestId("user-settings-gear-btn").click();
+    await page.getByTestId("tab-emojis-btn").click();
+    const name = `emoji_${Date.now().toString(36)}`;
+    await page.getByTestId("user-emoji-file-input").setInputFiles({
+      name: `${name}.png`,
       mimeType: "image/png",
-      buffer: pngBuffer,
+      buffer: png,
     });
-
-    // 5. 验证上传编辑表单出现
-    const nameInput = page.locator('input[placeholder="my_sticker"]').first();
-    await expect(nameInput).toBeVisible({ timeout: 5000 });
-    await nameInput.fill(uniqueEmojiName);
-
-    // 6. 点击“保存”提交上传
-    const saveButton = page.locator('button[type="submit"]:has-text("保存")').first();
-    await expect(saveButton).toBeEnabled();
-    await saveButton.click();
-
-    // 7. 核心断言：预签名接口不能有 channelId is required 错误，状态码必须是 200
-    await expect
-      .poll(() => presignedUrlResponse?.status, { timeout: 15000 })
-      .toBe(200);
-
-    expect(presignedUrlResponse?.body?.uploadUrl).toBeTruthy();
-    expect(presignedUrlResponse?.body?.fileUrl).toContain("/public-assets/");
-
-    // 8. 核心断言：创建表情接口必须返回 200
-    await expect
-      .poll(() => createEmojiResponse?.status, { timeout: 15000 })
-      .toBe(200);
-
-    expect(createEmojiResponse?.body?.name).toBe(uniqueEmojiName);
-
-    // 9. 验证界面中表情卡片呈现
-    const emojiItem = page.locator(`text=":${uniqueEmojiName}:"`).first();
-    await expect(emojiItem).toBeVisible({ timeout: 10000 });
-
-    // 10. 检查没有未捕获的严重控制台错误
-    const criticalErrors = consoleErrors.filter(
-      (err) =>
-        !err.includes("net::ERR_") &&
-        !err.includes("WebSocket") &&
-        !err.includes("404"),
+    await page.getByPlaceholder("my_sticker").fill(name);
+    const presign = page.waitForResponse(
+      (response) =>
+        response.url().includes("/api/attachments/presigned-url") &&
+        response.request().method() === "POST",
     );
-    expect(criticalErrors).toHaveLength(0);
+    const created = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/users/me/emojis") &&
+        response.request().method() === "POST",
+    );
+    await page
+      .locator("form")
+      .filter({ has: page.getByPlaceholder("my_sticker") })
+      .locator('button[type="submit"]')
+      .click();
+    const grantResponse = await presign;
+    expect(grantResponse.status()).toBe(200);
+    const grant = (await grantResponse.json()) as PresignedUploadResponse;
+    expect(grant.fileUrl).toContain("/public-assets/");
+    const response = await created;
+    expect(response.status()).toBe(200);
+    emoji = (await response.json()) as CustomEmoji;
+    expect(emoji.name).toBe(name);
+    await expect(page.getByText(`:${name}:`, { exact: true })).toBeVisible();
+    const asset = await request.get(emoji.imageUrl);
+    expect(asset.status()).toBe(200);
+    expect((await asset.body()).subarray(0, 8)).toEqual(png.subarray(0, 8));
+    await expect(page.locator(`img[src="${emoji.imageUrl}"]`)).toHaveJSProperty(
+      "naturalWidth",
+      1,
+    );
+    expect(errors).toEqual([]);
+  } finally {
+    if (emoji) {
+      expect(
+        (
+          await request.delete(`/api/users/me/emojis/${emoji.id}`, { headers })
+        ).status(),
+      ).toBe(200);
+      expect((await request.get(emoji.imageUrl)).status()).toBe(404);
+    }
+  }
+});
+
+test("emoji upload rejects invalid sessions, grants, bytes and ownership", async ({
+  request,
+}) => {
+  const login = await request.post("/api/auth/login", {
+    data: { emailOrUsername: "Jackey", password: "adminpassword123" },
   });
+  expect(login.ok()).toBeTruthy();
+  const { accessToken } = (await login.json()) as { accessToken: string };
+  const headers = { Authorization: `Bearer ${accessToken}` };
+  const data = {
+    fileName: "security_emoji.png",
+    fileSize: png.length,
+    mimeType: "image/png",
+    purpose: "custom-emoji",
+  };
+  for (const auth of [undefined, "Bearer forged.invalid.token"]) {
+    expect(
+      (
+        await request.post("/api/attachments/presigned-url", {
+          headers: auth ? { Authorization: auth } : {},
+          data,
+        })
+      ).status(),
+    ).toBe(401);
+  }
+  for (const invalid of [
+    { ...data, fileName: "bad.exe", mimeType: "application/x-msdownload" },
+    { ...data, fileSize: 1024 * 1024 + 1 },
+  ])
+    expect(
+      (
+        await request.post("/api/attachments/presigned-url", {
+          headers,
+          data: invalid,
+        })
+      ).status(),
+    ).toBe(400);
+  const result = await request.post("/api/attachments/presigned-url", {
+    headers,
+    data,
+  });
+  expect(result.status()).toBe(200);
+  const grant = (await result.json()) as PresignedUploadResponse;
+  expect((await request.get(grant.fileUrl)).status()).toBe(404);
+  expect(
+    (
+      await request.put(grant.uploadUrl, {
+        headers: { ...headers, "Content-Type": "image/png" },
+        data: Buffer.alloc(png.length),
+      })
+    ).status(),
+  ).toBe(415);
+  expect(
+    (
+      await request.put(grant.uploadUrl, {
+        headers: { ...headers, "Content-Type": "image/png" },
+        data: png.subarray(1),
+      })
+    ).status(),
+  ).toBe(403);
+  const tampered = new URL(grant.uploadUrl);
+  tampered.searchParams.set("signature", "forged");
+  expect(
+    (
+      await request.put(tampered.href, {
+        headers: { ...headers, "Content-Type": "image/png" },
+        data: png,
+      })
+    ).status(),
+  ).toBe(403);
+  expect(
+    (
+      await request.put(grant.uploadUrl, {
+        headers: { ...headers, "Content-Type": "image/png" },
+        data: png,
+      })
+    ).status(),
+  ).toBe(200);
+  expect((await request.get(grant.fileUrl)).status()).toBe(404);
+  const normalLogin = await request.post("/api/auth/login", {
+    data: { emailOrUsername: "Alice", password: "alicepassword123" },
+  });
+  const normal = (await normalLogin.json()) as { accessToken: string };
+  const otherHeaders = { Authorization: `Bearer ${normal.accessToken}` };
+  expect(
+    (
+      await request.post("/api/users/me/emojis", {
+        headers: otherHeaders,
+        data: { name: "stolen_emoji", imageUrl: grant.fileUrl },
+      })
+    ).status(),
+  ).toBe(400);
+  expect(
+    (
+      await request.post("/api/attachments/presigned-url", {
+        headers: otherHeaders,
+        data: { ...data, guildId: "gld_default_01" },
+      })
+    ).status(),
+  ).toBe(403);
+  expect(
+    (
+      await request.post("/api/guilds/gld_default_01/emojis", {
+        headers,
+        data: { name: "wrong_scope", imageUrl: grant.fileUrl },
+      })
+    ).status(),
+  ).toBe(400);
+  const created = await request.post("/api/users/me/emojis", {
+    headers,
+    data: { name: "security_emoji", imageUrl: grant.fileUrl },
+  });
+  expect(created.status()).toBe(200);
+  const emoji = (await created.json()) as CustomEmoji;
+  try {
+    expect(
+      (
+        await request.post("/api/users/me/emojis", {
+          headers,
+          data: { name: "reused_emoji", imageUrl: grant.fileUrl },
+        })
+      ).status(),
+    ).toBe(400);
+    expect(
+      (
+        await request.delete(`/api/users/me/emojis/${emoji.id}`, {
+          headers: otherHeaders,
+        })
+      ).status(),
+    ).toBe(404);
+    expect((await request.get(grant.fileUrl)).status()).toBe(200);
+  } finally {
+    expect(
+      (
+        await request.delete(`/api/users/me/emojis/${emoji.id}`, { headers })
+      ).status(),
+    ).toBe(200);
+    expect((await request.get(grant.fileUrl)).status()).toBe(404);
+  }
 });

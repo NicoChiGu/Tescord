@@ -4,6 +4,7 @@
 - **Last visited**: 2026-10-09T23:27:00Z
 
 ## Checklist
+
 - [x] Received dispatch and initialized BRIEFING.md
 - [x] Read Challenger 1 handoff report & stress test
 - [x] Inspect `apps/web/src/services/p2p/ipClassifier.ts` & `scripts/test-p2p-ip-classification.ts`

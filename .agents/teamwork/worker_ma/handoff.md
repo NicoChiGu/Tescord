@@ -94,6 +94,7 @@
 ## 4. Conclusion (结论)
 
 Milestone M-A 核心任务全部高质量交付完毕：
+
 1. `packages/types` 已更新并构建成功；
 2. `apps/web/src/services/p2p/ipClassifier.ts` 算法严密且零外部依赖；
 3. `VoiceMeshManager.ts` 成功提取直连 IP/端口与 candidateType，修复了公网 IPv6 误判为 LAN 的缺陷；
@@ -107,28 +108,34 @@ Milestone M-A 核心任务全部高质量交付完毕：
 请下游验证专家或 Orchestrator 运行以下命令验证：
 
 1. **类型构建验证**：
+
    ```bash
    pnpm --filter @tescord/types build
    ```
-   *预期结果*：退出码 0，成功生成 types 声明与 cjs/esm 产物。
+
+   _预期结果_：退出码 0，成功生成 types 声明与 cjs/esm 产物。
 
 2. **IP 分类与拓扑判定单元测试**：
+
    ```bash
    pnpm --filter @tescord/server exec tsx ../../scripts/test-p2p-ip-classification.ts
    # 或直接使用 server 的 tsx 运行：
    .\apps\server\node_modules\.bin\tsx scripts/test-p2p-ip-classification.ts
    ```
-   *预期结果*：9 个测试子集全部 PASS（`tests 9, pass 9, fail 0`）。
+
+   _预期结果_：9 个测试子集全部 PASS（`tests 9, pass 9, fail 0`）。
 
 3. **服务端构建与 Phase 4 全量验证**：
+
    ```bash
    pnpm --filter @tescord/server build
    pnpm --filter @tescord/server exec tsx src/verify-phase4-full.ts
    ```
-   *预期结果*：退出码 0，62 项测试用例全部 PASS。
+
+   _预期结果_：退出码 0，62 项测试用例全部 PASS。
 
 4. **代码格式验证**：
    ```bash
    pnpm prettier --check packages/types/src/index.ts apps/web/src/services/p2p/ipClassifier.ts apps/web/src/services/p2p/VoiceMeshManager.ts apps/server/src/verify-phase4-full.ts scripts/test-p2p-ip-classification.ts
    ```
-   *预期结果*：All matched files use Prettier code style!
+   _预期结果_：All matched files use Prettier code style!

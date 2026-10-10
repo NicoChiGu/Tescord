@@ -1,9 +1,11 @@
 # BRIEFING — 2026-10-09T21:35:00Z
 
 ## Mission
+
 全面调研 R6（图片加载与原图预览 UI/UX）、R7（i18n 5套语言包现状与文案规划）及项目测试工程现状（Vitest / Playwright）。
 
 ## 🔒 My Identity
+
 - Archetype: explorer
 - Roles: [explorer, research, qa-verification]
 - Working directory: e:\nodejs_project\Tescord\.agents\teamwork\explorer_survey_3\
@@ -11,16 +13,19 @@
 - Milestone: milestone-1-survey
 
 ## 🔒 Key Constraints
+
 - Read-only investigation — do NOT modify application source code
 - 仅在工作目录内编写调研与交付文件（report.md, handoff.md, BRIEFING.md, progress.md）
 - 严禁硬编码中英文文案，检查 5 种官方语言包（zh-CN, zh-TW, zh-HK, en-US, ja-JP）100% 对齐
 - 最高思考等级（High Thinking Level）推演方案
 
 ## Current Parent
+
 - Conversation ID: 537841da-1748-407d-8cfe-ba123572c95f
 - Updated: 2026-10-09T21:35:00Z
 
 ## Investigation State
+
 - **Explored paths**:
   - `apps/web/src/components/chat/ImageAttachment.tsx`
   - `apps/web/src/components/chat/LightboxModal.tsx`（修正此前 modals 路径误区）
@@ -42,11 +47,13 @@
 - **Unexplored areas**: 全部目标项已深度勘查完毕。
 
 ## Key Decisions Made
+
 - 建议 IP 分类单测置于 `scripts/test-p2p-ip-classification.ts`；
 - Lightbox 重构必须保留 `data-testid="lightbox-load-status"` 以防破坏已有自动化门禁；
 - 撰写完整调研报告 `report.md` 与交接报告 `handoff.md`。
 
 ## Artifact Index
+
 - DISPATCH.md — 派发指令记录
 - BRIEFING.md — 持久化上下文
 - progress.md — 心跳与进度记录

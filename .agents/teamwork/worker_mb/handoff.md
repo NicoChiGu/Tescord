@@ -116,16 +116,20 @@ Milestone MB requirements (R2, R3, R4, R5, R6) have been completely and faithful
 To independently verify the implementation:
 
 1. **Build Verification**:
+
    ```bash
    pnpm --filter @tescord/web build
    ```
-   *Expected outcome*: Exit code 0, 0 TypeScript errors, bundle generated in `apps/web/dist`.
+
+   _Expected outcome_: Exit code 0, 0 TypeScript errors, bundle generated in `apps/web/dist`.
 
 2. **Git Boundary Verification**:
+
    ```bash
    git status -s
    ```
-   *Verify files modified by Worker MB*:
+
+   _Verify files modified by Worker MB_:
    - `apps/web/src/App.tsx`
    - `apps/web/src/services/livekit.ts`
    - `apps/web/src/components/VoiceRoomArea.tsx`

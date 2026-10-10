@@ -221,7 +221,18 @@ export class AudioOutputController {
     this.bindings.add(binding);
     const ready = this.enqueue(async () => {
       if (!this.bindings.has(binding)) return;
-      await this.applySink(binding, this.deviceId);
+      try {
+        await this.applySink(binding, this.deviceId);
+      } catch (error) {
+        if (
+          this.deviceId === "default" ||
+          !(error instanceof DOMException) ||
+          error.name !== "NotFoundError"
+        )
+          throw error;
+        const recovery = await this.switchDeviceNow("default");
+        if (!recovery.success) throw error;
+      }
       if (!this.bindings.has(binding)) return;
       if (binding.element) await binding.element.play();
       binding.ready = true;
@@ -272,75 +283,77 @@ export class AudioOutputController {
   }
 
   switchDevice(deviceId: string): Promise<AudioDeviceSelectionResult> {
-    return this.enqueue(async () => {
-      const previous = this.deviceId;
-      if (deviceId !== "default" && !this.supportsDeviceSelection())
-        return {
-          success: false,
-          deviceId: previous,
-          code: "AUDIO_DEVICE_UNSUPPORTED",
+    return this.enqueue(() => this.switchDeviceNow(deviceId));
+  }
+
+  private async switchDeviceNow(
+    deviceId: string,
+  ): Promise<AudioDeviceSelectionResult> {
+    const previous = this.deviceId;
+    if (deviceId !== "default" && !this.supportsDeviceSelection())
+      return {
+        success: false,
+        deviceId: previous,
+        code: "AUDIO_DEVICE_UNSUPPORTED",
+      };
+    let probe: { context: AudioContext; binding: OutputBinding } | undefined;
+    const affected: { binding: OutputBinding; ready: boolean }[] = [];
+    try {
+      // Validate even when no call or sound context exists yet.
+      if (!this.bindings.size) {
+        const context = new AudioContext();
+        const binding: OutputBinding = {
+          context,
+          gain: context.createGain(),
+          ready: false,
+          deafenable: false,
+          masterVolume: false,
         };
-      let probe: { context: AudioContext; binding: OutputBinding } | undefined;
-      const affected: { binding: OutputBinding; ready: boolean }[] = [];
-      try {
-        // Validate even when no call or sound context exists yet.
-        if (!this.bindings.size) {
-          const context = new AudioContext();
-          const binding: OutputBinding = {
-            context,
-            gain: context.createGain(),
-            ready: false,
-            deafenable: false,
-            masterVolume: false,
-          };
-          if (!(context as SinkContext).setSinkId)
-            binding.element = document.createElement("audio") as SinkElement;
-          probe = { context, binding };
-          this.bindings.add(binding);
-        }
-        for (const binding of this.bindings) {
-          affected.push({ binding, ready: binding.ready });
-          await this.applySink(binding, deviceId);
-          if (binding !== probe?.binding) {
-            if (binding.element && !binding.ready) await binding.element.play();
-            binding.ready = true;
-          }
-        }
-        this.deviceId = deviceId;
-        localStorage.setItem("tescord_selected_audio_output_id", deviceId);
-        useSettingsStore
-          .getState()
-          .setAudioConfig({ outputDeviceId: deviceId });
-        this.refresh();
-        return { success: true, deviceId };
-      } catch {
-        this.deviceId = previous;
-        for (const { binding, ready } of affected) {
-          try {
-            await this.applySink(binding, previous);
-            binding.ready = ready;
-          } catch {
-            binding.ready = false;
-          }
-        }
-        if (useSettingsStore.getState().audio.outputDeviceId !== previous) {
-          useSettingsStore
-            .getState()
-            .setAudioConfig({ outputDeviceId: previous });
-        }
-        this.refresh();
-        return {
-          success: false,
-          deviceId: previous,
-          code: "AUDIO_DEVICE_SWITCH_FAILED",
-        };
-      } finally {
-        if (probe) {
-          this.bindings.delete(probe.binding);
-          await probe.context.close().catch(() => undefined);
+        if (!(context as SinkContext).setSinkId)
+          binding.element = document.createElement("audio") as SinkElement;
+        probe = { context, binding };
+        this.bindings.add(binding);
+      }
+      for (const binding of this.bindings) {
+        affected.push({ binding, ready: binding.ready });
+        await this.applySink(binding, deviceId);
+        if (binding !== probe?.binding) {
+          if (binding.element && !binding.ready) await binding.element.play();
+          binding.ready = true;
         }
       }
-    });
+      this.deviceId = deviceId;
+      localStorage.setItem("tescord_selected_audio_output_id", deviceId);
+      useSettingsStore.getState().setAudioConfig({ outputDeviceId: deviceId });
+      this.refresh();
+      return { success: true, deviceId };
+    } catch {
+      this.deviceId = previous;
+      for (const { binding, ready } of affected) {
+        try {
+          await this.applySink(binding, previous);
+          binding.ready = ready;
+        } catch {
+          binding.ready = false;
+        }
+      }
+      if (useSettingsStore.getState().audio.outputDeviceId !== previous) {
+        useSettingsStore
+          .getState()
+          .setAudioConfig({ outputDeviceId: previous });
+      }
+      this.refresh();
+      return {
+        success: false,
+        deviceId: previous,
+        code: "AUDIO_DEVICE_SWITCH_FAILED",
+      };
+    } finally {
+      if (probe) {
+        this.bindings.delete(probe.binding);
+        await probe.context.close().catch(() => undefined);
+      }
+    }
   }
 }
 

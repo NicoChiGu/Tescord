@@ -3290,7 +3290,7 @@ server.post("/api/guilds/:guildId/emojis", async (request, reply) => {
       "服务器自定义表情已达上限 (50个)",
     );
   }
-  const claimed = storageService.claimCustomEmoji(userId, imageUrl);
+  const claimed = storageService.claimCustomEmoji(userId, imageUrl, guildId);
   if (!claimed) {
     return sendApiError(
       reply,
@@ -3302,15 +3302,20 @@ server.post("/api/guilds/:guildId/emojis", async (request, reply) => {
   const isAnimated = Boolean(
     animated || imageUrl.toLowerCase().endsWith(".gif"),
   );
-  const emoji = await prisma.customEmoji.create({
-    data: {
-      name: trimmedName,
-      imageUrl,
-      animated: isAnimated,
-      guildId,
-      createdById: userId,
-    },
-  });
+  const emoji = await prisma.customEmoji
+    .create({
+      data: {
+        name: trimmedName,
+        imageUrl,
+        animated: isAnimated,
+        guildId,
+        createdById: userId,
+      },
+    })
+    .catch((error: unknown) => {
+      storageService.releaseCustomEmojiClaim(userId, imageUrl, guildId);
+      throw error;
+    });
   return {
     id: emoji.id,
     name: emoji.name,
@@ -3357,7 +3362,7 @@ server.delete(
     }
     await prisma.customEmoji.delete({ where: { id: emojiId } });
     if (emoji.imageUrl) {
-      void storageService.removePublicAsset(emoji.imageUrl).catch(() => {});
+      await storageService.removePublicAsset(emoji.imageUrl);
     }
     return { success: true };
   },
@@ -3423,15 +3428,20 @@ server.post("/api/users/me/emojis", async (request, reply) => {
   const isAnimated = Boolean(
     animated || imageUrl.toLowerCase().endsWith(".gif"),
   );
-  const emoji = await prisma.customEmoji.create({
-    data: {
-      name: trimmedName,
-      imageUrl,
-      animated: isAnimated,
-      userId,
-      createdById: userId,
-    },
-  });
+  const emoji = await prisma.customEmoji
+    .create({
+      data: {
+        name: trimmedName,
+        imageUrl,
+        animated: isAnimated,
+        userId,
+        createdById: userId,
+      },
+    })
+    .catch((error: unknown) => {
+      storageService.releaseCustomEmojiClaim(userId, imageUrl);
+      throw error;
+    });
   return {
     id: emoji.id,
     name: emoji.name,
@@ -3456,7 +3466,7 @@ server.delete("/api/users/me/emojis/:emojiId", async (request, reply) => {
   }
   await prisma.customEmoji.delete({ where: { id: emojiId } });
   if (emoji.imageUrl) {
-    void storageService.removePublicAsset(emoji.imageUrl).catch(() => {});
+    await storageService.removePublicAsset(emoji.imageUrl);
   }
   return { success: true };
 });
@@ -6340,7 +6350,12 @@ server.post("/api/attachments/presigned-url", async (request, reply) => {
             PermissionFlags.MANAGE_GUILD,
           ))
         ) {
-          return reply.status(403).send({ error: "缺少管理服务器权限" });
+          return sendApiError(
+            reply,
+            403,
+            ErrorCode.GUILD_PERMISSION_DENIED,
+            "Guild permission denied",
+          );
         }
       }
       if (
@@ -6478,23 +6493,23 @@ server.put("/api/attachments/upload/:fileName", async (request, reply) => {
               )),
             )
           : Boolean(
-            scope.channelId &&
-            (await permissionService.hasChannelPermission(
-              userId,
-              scope.channelId,
-              PermissionFlags.VIEW_CHANNEL,
-            )) &&
-            (await permissionService.hasChannelPermission(
-              userId,
-              scope.channelId,
-              PermissionFlags.SEND_MESSAGES,
-            )) &&
-            (await permissionService.hasChannelPermission(
-              userId,
-              scope.channelId,
-              PermissionFlags.ATTACH_FILES,
-            )),
-          );
+              scope.channelId &&
+              (await permissionService.hasChannelPermission(
+                userId,
+                scope.channelId,
+                PermissionFlags.VIEW_CHANNEL,
+              )) &&
+              (await permissionService.hasChannelPermission(
+                userId,
+                scope.channelId,
+                PermissionFlags.SEND_MESSAGES,
+              )) &&
+              (await permissionService.hasChannelPermission(
+                userId,
+                scope.channelId,
+                PermissionFlags.ATTACH_FILES,
+              )),
+            );
   if (!stillAuthorized) {
     return reply.status(403).send({ error: "上传权限已被撤销" });
   }

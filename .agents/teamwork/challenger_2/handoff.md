@@ -5,6 +5,7 @@
 Direct empirical observations, commands, line numbers, and verbatim test outputs:
 
 ### 1.1 审查目标文件与关键代码观测
+
 1. **`apps/web/src/components/VoiceConnectionStatusPopover.tsx`**:
    - 行 231-233：`connectedReports` 过滤条件 `Array.from(peerLatencies.values()).filter((r) => r.status === "connected" && r.rtt > 0)`。
    - 行 235-252：空网格与未采样时 `allPeersAvgRtt` 安全降级为 `null`；`maxMeshRtt` 采用 `Math.max(150, ...connectedReports.map((r) => r.rtt))`，保底 150ms 杜绝除以零。
@@ -32,8 +33,13 @@ Direct empirical observations, commands, line numbers, and verbatim test outputs
    - 行 843-856：环形进度条 `strokeDashoffset` 计算：
      ```tsx
      const percent = loadProgress.total
-       ? Math.min(100, Math.round((loadProgress.loaded / loadProgress.total) * 100))
-       : loadProgress.phase === "decoding" ? 100 : 0;
+       ? Math.min(
+           100,
+           Math.round((loadProgress.loaded / loadProgress.total) * 100),
+         )
+       : loadProgress.phase === "decoding"
+         ? 100
+         : 0;
      return 201.06 * (1 - percent / 100);
      ```
    - 行 867-870：无总长度时优雅呈现 `"..."`，避免 `NaN%`；解码中展示 `animate-spin`。
@@ -46,6 +52,7 @@ Direct empirical observations, commands, line numbers, and verbatim test outputs
 ---
 
 ### 1.2 实测命令与执行输出
+
 1. **算法与数学极限回归套件 (`scripts/test-adversarial-frontend-limits.ts`)**:
    - 命令：`pnpm --filter @tescord/server exec tsx ../../scripts/test-adversarial-frontend-limits.ts`
    - 输出：
@@ -139,6 +146,7 @@ Direct empirical observations, commands, line numbers, and verbatim test outputs
 ### **判定：APPROVE**
 
 前端实现经受住了所有极限状态对抗验证：
+
 - 极端 RTT (0ms, 9999ms)、100% 丢包及空房间下 Popover 渲染健壮稳定，无除零与 NaN 异常；
 - 32:9、9:16、1:1、0x0 视频流聚焦模式动态贴合原画，无黑边无视口溢出；
 - LightboxModal 毛玻璃环形进度条状态机闭环完备，失败与重试恢复顺畅；
@@ -151,25 +159,31 @@ Direct empirical observations, commands, line numbers, and verbatim test outputs
 独立复现验证指令：
 
 1. **数学模型与极限算法对抗实测**：
+
    ```bash
    pnpm --filter @tescord/server exec tsx ../../scripts/test-adversarial-frontend-limits.ts
    ```
-   *预期结果*：6/6 tests pass，0 fail。
+
+   _预期结果_：6/6 tests pass，0 fail。
 
 2. **真实浏览器 Playwright 极限对抗实测**：
+
    ```bash
    pnpm exec playwright test e2e/adversarial-ui-limits.spec.ts
    ```
-   *预期结果*：4 passed (含 setup 与 3 组极限用例)。
+
+   _预期结果_：4 passed (含 setup 与 3 组极限用例)。
 
 3. **全链路 UI 与多语言 E2E 回归测试**：
+
    ```bash
    pnpm exec playwright test e2e/live-streaming-and-connection-popover.spec.ts e2e/lightbox-interaction-and-download.spec.ts e2e/chat-image-skeleton.spec.ts e2e/i18n-language-switch.spec.ts
    ```
-   *预期结果*：11 passed (全部绿色通过)。
+
+   _预期结果_：11 passed (全部绿色通过)。
 
 4. **全仓库类型构建**：
    ```bash
    pnpm build
    ```
-   *预期结果*：Exit code 0, 0 TS errors。
+   _预期结果_：Exit code 0, 0 TS errors。

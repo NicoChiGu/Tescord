@@ -73,6 +73,8 @@ test.describe("前端对抗与状态极限测试 (Challenger 2 Empirical Adversa
     const bar = page.getByTestId("p2p-histogram-bar-peer-extreme-1");
     await expect(bar).toBeVisible();
     await expect(bar).toContainText("9999ms");
+    await expect(bar.locator("svg[aria-label]")).toHaveCount(1);
+    await expect(bar.locator("img")).toHaveCount(0);
     await expect(popover).toContainText("9999");
     await expect(popover).toContainText("100.0%");
 

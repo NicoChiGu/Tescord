@@ -72,17 +72,17 @@
    ```bash
    pnpm build
    ```
-   *预期结果*：零 TypeScript 错误，所有包（types, web, desktop, server）构建成功。
+   _预期结果_：零 TypeScript 错误，所有包（types, web, desktop, server）构建成功。
 2. **死代码检索检验**：
    ```bash
    git grep -i "audioMixer"
    git grep -i "computeMixGains"
    ```
-   *预期结果*：除 git 历史外，工作区代码中匹配为 0。
+   _预期结果_：除 git 历史外，工作区代码中匹配为 0。
 3. **E2E 屏幕分享原生音频与分辨率回归测试**：
    ```bash
    pnpm exec playwright test e2e/screen-share-audio-fallback.spec.ts e2e/screen-share-resolution-16x9.spec.ts
    ```
-   *预期结果*：全部用例 PASS，证明原生伴音捕获与降级逻辑完好。
+   _预期结果_：全部用例 PASS，证明原生伴音捕获与降级逻辑完好。
 4. **多语言与硬编码扫描**：
    检查 `VoiceRoomArea.tsx` 确认无硬编码中文，且 5 套语言包中键名对称。

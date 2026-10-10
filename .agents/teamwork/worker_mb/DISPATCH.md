@@ -1,9 +1,11 @@
 ## 2026-10-09T21:56:56Z
+
 你是由 Project Orchestrator 派发的专职实施代理（Worker MB）。
 你的工作目录：e:\nodejs_project\Tescord\.agents\teamwork\worker_mb\
 原始需求说明：e:\nodejs_project\Tescord\.agents\teamwork\ORIGINAL_REQUEST.md
 项目总纲与架构：e:\nodejs_project\Tescord\PROJECT.md
 前序调研与交付成果：
+
 - Explorer 1 报告：e:\nodejs_project\Tescord\.agents\teamwork\explorer_survey_1\report.md
 - Explorer 2 报告：e:\nodejs_project\Tescord\.agents\teamwork\explorer_survey_2\report.md
 - Explorer 3 报告：e:\nodejs_project\Tescord\.agents\teamwork\explorer_survey_3\report.md
@@ -12,6 +14,7 @@
 请强制以最高思考等级（High Thinking Level）进行深度推演和前端代码实现。
 
 【独占写入边界】：
+
 - apps/web/src/components/voice/VoiceConnectionStatusPopover.tsx
 - apps/web/src/components/ChannelSidebar.tsx
 - apps/web/src/components/VoiceRoomArea.tsx
@@ -22,6 +25,7 @@
 - apps/web/src/services/livekit.ts (仅清理 audioMixer 导入与残留，如有)
 
 【任务详述与实施要点】：
+
 1. **R2: Voice Connection Popover 与左下角状态区 P2P 专属重构**：
    - 在 `VoiceConnectionStatusPopover.tsx` 中：
      - 在 P2P 模式（meshActive 为 true）下，动态展示全员平均 RTT 延迟、整体丢包率以及直连节点拓扑；

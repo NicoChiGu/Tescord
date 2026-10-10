@@ -4,15 +4,15 @@
  */
 export const BUILD_CONFIG = {
   /** 编译期固化的服务器 API 地址 (若未指定则为空字符串，客户端默认连接 localhost:3001) */
-  DEFAULT_SERVER_URL: "https://tescord.terata.top",
+  DEFAULT_SERVER_URL: "",
   /** 编译期固化的 WebSocket Gateway 地址 */
-  DEFAULT_GATEWAY_URL: "wss://tescord.terata.top/gateway",
+  DEFAULT_GATEWAY_URL: "",
   /** 编译期固化的 LiveKit SFU 媒体服务地址 */
   DEFAULT_LIVEKIT_URL: "",
   /** Installed host retains its media engine across Web updates. */
   DEFAULT_VOICE_ENGINE: "livekit",
   /** 固化服务器配置来源 */
-  SERVER_CONFIG_SOURCE: "apps/desktop/desktop.config.json.serverUrl",
+  SERVER_CONFIG_SOURCE: "default (http://localhost:3001)",
   /** 是否启用了更新检测服务 (build 时未检测到仓库信息则为 false，此时不进行更新检测) */
   IS_UPDATER_ENABLED: false,
   /** GitHub 仓库拥有者 (Owner) */
@@ -24,7 +24,7 @@ export const BUILD_CONFIG = {
   /** Ed25519 public key in DER/SPKI base64; absent keys disable updates. */
   UPDATE_SIGNING_PUBLIC_KEY_BASE64: "",
   /** 编译时间戳 (ISO 8601) */
-  BUILD_TIME: "2026-10-09T21:15:51.858Z",
+  BUILD_TIME: "2026-10-06T13:12:49.116Z",
   /** 默认首选 gh-proxy 加速代理 (优先使用 v6.gh-proxy.org) */
   PRIMARY_GH_PROXY: "https://v6.gh-proxy.org/",
   /** 备用 gh-proxy 加速代理 (gh-proxy.com) */

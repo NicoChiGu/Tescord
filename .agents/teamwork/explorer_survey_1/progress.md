@@ -3,6 +3,7 @@
 Last visited: 2026-10-09T21:43:50Z
 
 ## Status
+
 - [x] Initialized DISPATCH.md and BRIEFING.md
 - [x] Investigating Task 1: `packages/types/src/index.ts` (PeerLatencyReport)
 - [x] Investigating Task 2: `apps/web/src/services/p2p/VoiceMeshManager.ts` (getStats, candidate pairs, LAN logic)

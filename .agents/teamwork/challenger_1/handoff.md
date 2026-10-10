@@ -1,13 +1,14 @@
 # Challenger 1 对抗挑战与压力测试报告: IP 分类与网络状态机鲁棒性评估
 
 **判定结果**：`CHALLENGE_FAILED`
-*(核心业务场景（公网 IPv6 直连断言 P2P、私网/ULA/Link-Local 直连断言 LAN、中继断言 RELAY）已实现并能正确工作；但在极限对抗与模糊测试中发现 3 处确定性缺陷，未能达成 `APPROVE` 标准所要求的“算法坚固无破绽”)*
+_(核心业务场景（公网 IPv6 直连断言 P2P、私网/ULA/Link-Local 直连断言 LAN、中继断言 RELAY）已实现并能正确工作；但在极限对抗与模糊测试中发现 3 处确定性缺陷，未能达成 `APPROVE` 标准所要求的“算法坚固无破绽”)_
 
 ---
 
 ## 1. Observation (客观观察与实测数据)
 
 ### 1.1 代码审阅与算法结构观察
+
 - **目标文件**：`apps/web/src/services/p2p/ipClassifier.ts`
 - **关键逻辑点**：
   1. `extractIpAddress` (第 34-38 行)：
@@ -42,6 +43,7 @@
      ```
 
 ### 1.2 独立对抗压力测试脚本执行记录
+
 - **测试脚本**：`e:\nodejs_project\Tescord\.agents\teamwork\challenger_1\stress_test.ts`
 - **执行命令**：
   ```powershell
@@ -77,6 +79,7 @@
 ## 2. Logic Chain (推演与漏洞链条)
 
 ### 2.1 针对 4 大挑战目标的正面验证链条
+
 1. **IPv4 映射的 IPv6 (RFC 4291)**：
    - 观察：`::ffff:192.168.1.1` 被 `parseIpv6` 正确解出 6 字节前缀与后 2 字节 IPv4 地址，在 `classifyIp` 第 261-274 行递归解包并分类为 `private-v4`（`isLanCandidateIp` 返回 `true`）；
    - 观察：`::ffff:1.2.3.4` 正确分类为 `public-v4`（`isLanCandidateIp` 返回 `false`）；
@@ -96,6 +99,7 @@
 ### 2.2 对抗挖掘暴露的 3 项确定性缺陷推演 (Vulnerabilities)
 
 #### 漏洞 1 (高危边界解析缺陷)：三冒号 `:::` 畸形 IPv6 解析旁路 (Triple-Colon Parser Bypass)
+
 - **成因推演**：
   1. RFC 4291 明确规定 `::` 在整个 IPv6 地址中最多出现一次，严禁连续 3 个冒号 `:::`。
   2. 在 `ipClassifier.ts` 第 135 行，`cleaned.match(/::/g)` 匹配非重叠子串。对于 `"fe80:::1"`，正则步进吃掉前两个冒号后剩余一个 `:`，计算得出的 `doubleColons` 仍为 1。
@@ -108,6 +112,7 @@
   - `240e:::1` 被判定为合法的 `public-v6`。
 
 #### 漏洞 2 (中危字符清洗缺陷)：IPv4 盲目剔除 `%` 导致污染字符串被洗白
+
 - **成因推演**：
   1. RFC 4007 / RFC 6874 中 `%zone` 仅对 IPv6 Link-Local 作用域（如 `fe80::1%eth0`）有效，IPv4 绝无 Scope ID 语法规范。
   2. 在 `ipClassifier.ts` 第 35-38 行，未判断地址是否包含 `:` 即盲目执行 `addr.slice(0, zoneIndex)`。
@@ -117,6 +122,7 @@
   - 破坏了输入清洗的纯粹性，给上层带来地址混淆风险。
 
 #### 漏洞 3 (低危类型健壮性缺陷)：非字符串输入引发未捕获的运行时 TypeError
+
 - **成因推演**：
   1. `extractIpAddress(raw)` 第 17-18 行使用 `if (!raw) return ""; let addr = raw.trim();`。若运行时调用者传入数字（如 `123`）或对象，`raw.trim` 将直接抛出 `TypeError: raw.trim is not a function`。
   2. `determineP2PConnectionType` 第 334 行 `lType?.toLowerCase()`，若传入对象中 `localCandidateType` 非字符串，直接抛出 `TypeError`。
@@ -134,7 +140,7 @@
 ## 4. Conclusion (结论与改进建议)
 
 **最终判定**：`CHALLENGE_FAILED`
-*(未达成 APPROVE 所附带的“算法坚固无破绽”红线)*
+_(未达成 APPROVE 所附带的“算法坚固无破绽”红线)_
 
 ### 修复补丁建议 (供 Worker MA 或后续维护者参考)
 
@@ -174,19 +180,23 @@
 任何团队成员或 Orchestrator 可直接运行以下命令复现本报告中的所有实测结论与漏洞证明：
 
 1. **运行对抗压力测试与漏洞实证套件**：
+
    ```powershell
    .\apps\server\node_modules\.bin\tsx .agents/teamwork/challenger_1/stress_test.ts
    ```
-   *预期结果*：控制台打印 3 处 `[VULN-X PROOF]` 实证输出，25 项测试全量执行完毕。
+
+   _预期结果_：控制台打印 3 处 `[VULN-X PROOF]` 实证输出，25 项测试全量执行完毕。
 
 2. **单行命令快速复现漏洞 1 (三冒号非法绕过)**：
+
    ```powershell
    .\apps\server\node_modules\.bin\tsx -e "import { isValidIpv6, classifyIp } from './apps/web/src/services/p2p/ipClassifier.ts'; console.log('isValid(:::):', isValidIpv6(':::')); console.log('classify(fe80:::1):', classifyIp('fe80:::1'));"
    ```
-   *复现结果*：输出 `isValid(:::): true` 与 `classify(fe80:::1): link-local-v6`，直接证实漏洞存在。
+
+   _复现结果_：输出 `isValid(:::): true` 与 `classify(fe80:::1): link-local-v6`，直接证实漏洞存在。
 
 3. **单行命令快速复现漏洞 2 (IPv4 盲目 % 洗白)**：
    ```powershell
    .\apps\server\node_modules\.bin\tsx -e "import { extractIpAddress, classifyIp } from './apps/web/src/services/p2p/ipClassifier.ts'; console.log('extract:', extractIpAddress('127.0.0.1%00.evil.com')); console.log('classify:', classifyIp('127.0.0.1%00.evil.com'));"
    ```
-   *复现结果*：输出 `extract: 127.0.0.1` 与 `classify: loopback`，证实被错误洗白。
+   _复现结果_：输出 `extract: 127.0.0.1` 与 `classify: loopback`，证实被错误洗白。

@@ -1,4 +1,5 @@
 ## 2026-10-09T21:24:44Z
+
 你是由 Project Orchestrator 派发的专职调研子代理（Explorer 3）。
 工作目录：e:\nodejs_project\Tescord\.agents\teamwork\explorer_survey_3\
 原始需求：e:\nodejs_project\Tescord\.agents\teamwork\ORIGINAL_REQUEST.md
@@ -7,6 +8,7 @@
 任务目标：针对需求 R6、R7 以及全项目测试与国际化现状进行全面调研。
 
 重点调研项：
+
 1. apps/web/src/components/chat/ImageAttachment.tsx：
    - 当前图片加载机制与骨架占位实现。
    - 平滑呼吸扫光（shimmer）骨架屏与淡入（fade-in）过渡的 CSS 与组件实现方案。

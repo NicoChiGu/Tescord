@@ -3,41 +3,52 @@
 ## 1. Observation (客观观察与实测数据)
 
 ### 1.1 缺陷复现观察
+
 在前序复验报告 `challenger_reverify/handoff.md` 指出的启发式旁路（Heuristic Bypass）中，`apps/web/src/services/p2p/ipClassifier.ts` 原始代码第 35 行采用 `if (addr.includes(":"))` 判断是否属于 IPv6 地址。
 执行单行测试命令：
+
 ```powershell
 pnpm --filter @tescord/server exec tsx -e "import { extractIpAddress, classifyIp } from '../../apps/web/src/services/p2p/ipClassifier.ts'; console.log('extract:', extractIpAddress('127.0.0.1%00.evil.com:80')); console.log('classify:', classifyIp('127.0.0.1%00.evil.com:80'));"
 ```
+
 实测输出：
+
 ```text
 extract: 127.0.0.1
 classify: loopback
 ```
+
 证明当受污染的 IPv4 附带端口冒号时（如 `127.0.0.1%00.evil.com:80` 或 `192.168.1.1%attacker:5000`），`addr.includes(":")` 会因端口冒号判定为 `true`，从而意外触发 `%` 截断，将污染串洗白为 `127.0.0.1`（回环）或 `192.168.1.1`（私网）。
 
 ### 1.2 加固实施位置
+
 在 `apps/web/src/services/p2p/ipClassifier.ts` 第 34-45 行：
+
 ```typescript
-  // 剔除 IPv6 Scope/Zone 标识（如 fe80::1%eth0 或 fe80::1%12），仅对合法 IPv6 (包含 :: 或至少 2 个冒号) 执行
-  const colonCount = (addr.match(/:/g) || []).length;
-  if (addr.includes("::") || colonCount >= 2) {
-    const zoneIndex = addr.indexOf("%");
-    if (zoneIndex !== -1) {
-      const preZone = addr.slice(0, zoneIndex);
-      const preColons = (preZone.match(/:/g) || []).length;
-      if (preZone.includes("::") || preColons >= 2) {
-        addr = preZone;
-      }
+// 剔除 IPv6 Scope/Zone 标识（如 fe80::1%eth0 或 fe80::1%12），仅对合法 IPv6 (包含 :: 或至少 2 个冒号) 执行
+const colonCount = (addr.match(/:/g) || []).length;
+if (addr.includes("::") || colonCount >= 2) {
+  const zoneIndex = addr.indexOf("%");
+  if (zoneIndex !== -1) {
+    const preZone = addr.slice(0, zoneIndex);
+    const preColons = (preZone.match(/:/g) || []).length;
+    if (preZone.includes("::") || preColons >= 2) {
+      addr = preZone;
     }
   }
+}
 ```
 
 ### 1.3 修复后实测输出
+
 再次执行相同的单行复现命令：
+
 ```powershell
 pnpm --filter @tescord/server exec tsx -e "import { extractIpAddress, classifyIp } from '../../apps/web/src/services/p2p/ipClassifier.ts'; console.log('127.0.0.1%00.evil.com:80 ->', extractIpAddress('127.0.0.1%00.evil.com:80'), classifyIp('127.0.0.1%00.evil.com:80')); console.log('192.168.1.1%attacker:5000 ->', extractIpAddress('192.168.1.1%attacker:5000'), classifyIp('192.168.1.1%attacker:5000')); console.log('[fe80::1%eth0]:80 ->', extractIpAddress('[fe80::1%eth0]:80'), classifyIp('[fe80::1%eth0]:80')); console.log('fe80::1%eth0 ->', extractIpAddress('fe80::1%eth0'), classifyIp('fe80::1%eth0'));"
 ```
+
 实测输出：
+
 ```text
 127.0.0.1%00.evil.com:80 -> 127.0.0.1%00.evil.com:80 unknown
 192.168.1.1%attacker:5000 -> 192.168.1.1%attacker:5000 unknown
@@ -46,6 +57,7 @@ fe80::1%eth0 -> fe80::1 link-local-v6
 ```
 
 ### 1.4 测试与构建验证
+
 1. **单元测试**：`pnpm --filter @tescord/server exec tsx ../../scripts/test-p2p-ip-classification.ts`
    ```text
    # tests 10
@@ -90,6 +102,7 @@ No caveats. 所有边界条件、合法 IPv6 链路本地形式及非法 IPv4 �
 ## 4. Conclusion (交付结论)
 
 `apps/web/src/services/p2p/ipClassifier.ts` 中的 IPv6 Scope 剥离旁路已彻底加固封闭：
+
 - 任何形式的污染 IPv4（无论是否携带端口冒号或特殊字符）均不再会误触发 Scope 剥离，保留 `%` 字符后经后续合法性校验必定被判定为 `"unknown"`。
 - 合法的 RFC 4291 / RFC 6874 IPv6（带/不带方括号、带/不带端口）的 Zone ID 剥离与分类逻辑保持 100% 准确无损。
 - 单元测试与全局 Monorepo 构建全部通过（0 TS 错误）。
@@ -101,28 +114,35 @@ No caveats. 所有边界条件、合法 IPv6 链路本地形式及非法 IPv4 �
 可执行以下命令进行独立复核：
 
 1. **单行对抗验证**：
+
    ```powershell
    pnpm --filter @tescord/server exec tsx -e "import { extractIpAddress, classifyIp } from '../../apps/web/src/services/p2p/ipClassifier.ts'; console.log('127.0.0.1%00.evil.com:80 ->', extractIpAddress('127.0.0.1%00.evil.com:80'), classifyIp('127.0.0.1%00.evil.com:80'));"
    ```
-   *预期输出*：
+
+   _预期输出_：
+
    ```text
    127.0.0.1%00.evil.com:80 -> 127.0.0.1%00.evil.com:80 unknown
    ```
 
 2. **核心单测套件**：
+
    ```powershell
    pnpm --filter @tescord/server exec tsx ../../scripts/test-p2p-ip-classification.ts
    ```
-   *预期输出*：10/10 tests pass, 0 fail.
+
+   _预期输出_：10/10 tests pass, 0 fail.
 
 3. **Challenger 复验套件**：
+
    ```powershell
    pnpm --filter @tescord/server exec tsx ../../scripts/reverify-challenger-suite.ts
    ```
-   *预期输出*：5/5 tests pass, 0 fail.
+
+   _预期输出_：5/5 tests pass, 0 fail.
 
 4. **全仓库编译检查**：
    ```powershell
    pnpm build
    ```
-   *预期输出*：Tasks: 4 successful, 4 total. 0 errors.
+   _预期输出_：Tasks: 4 successful, 4 total. 0 errors.

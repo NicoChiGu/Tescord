@@ -3,8 +3,9 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 const git = (...args) => execFileSync("git", args, { encoding: "utf8" }).trim();
-let base = "HEAD";
-if (process.env.CI) {
+let base = process.env.TESCORD_FORMAT_BASE || "HEAD";
+if (process.env.TESCORD_FORMAT_BASE) git("cat-file", "-e", `${base}^{commit}`);
+if (process.env.CI && !process.env.TESCORD_FORMAT_BASE) {
   const branch = process.env.GITHUB_BASE_REF;
   const previous = process.env.GITHUB_EVENT_BEFORE;
   try {

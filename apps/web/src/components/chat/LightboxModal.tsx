@@ -700,7 +700,7 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({
             title={t("lightbox.hdBadge")}
           >
             <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-            <span>HD</span>
+            <span>{t("lightbox.hdBadge")}</span>
           </div>
         ) : (
           <button

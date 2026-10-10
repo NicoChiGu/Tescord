@@ -5,12 +5,14 @@
 原始需求说明：e:\nodejs_project\Tescord\.agents\teamwork\ORIGINAL_REQUEST.md
 项目总纲与架构：e:\nodejs_project\Tescord\PROJECT.md
 前序调研成果：
+
 - Explorer 1 报告：e:\nodejs_project\Tescord\.agents\teamwork\explorer_survey_1\report.md
 - Explorer 2 报告：e:\nodejs_project\Tescord\.agents\teamwork\explorer_survey_2\report.md
 
 请强制以最高思考等级（High Thinking Level）进行深度推演和代码实现。
 
 【独占写入边界】：
+
 - packages/types/src/index.ts
 - apps/web/src/services/p2p/ipClassifier.ts (新建)
 - apps/web/src/services/p2p/VoiceMeshManager.ts
@@ -19,6 +21,7 @@
 - scripts/test-p2p-ip-classification.ts (新建)
 
 【任务详述与实施要点】：
+
 1. **类型协议更新 (R4 & R5)**：
    - 在 `packages/types/src/index.ts` 中的 `PeerLatencyReport` 接口扩充字段：
      ```ts

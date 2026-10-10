@@ -31,6 +31,7 @@
 ## 2. R1 专项调研：P2P 局域网识别与严格 IP 分类算法
 
 ### 2.1 涉及文件与具体代码位置
+
 - **`apps/web/src/services/p2p/VoiceMeshManager.ts`**
   - 行 1671-1770：`startStatsMonitoring()` 统计轮询定时器（每 1.5 秒采集一次）。
   - 行 1752-1759：当前缺陷代码：
@@ -52,6 +53,7 @@
 ### 2.2 严格网络协议 RFC 与 IP 边界界定
 
 根据网络工程标准，合法的局域网直连必须同时满足：
+
 1. **双方 ICE 候选类型均为 `"host"`**（排除 STUN 反射 `srflx`、对端反射 `prflx` 与 TURN 中继 `relay`）；
 2. **双方物理 IP 必须全部位于私有/链路本地/回环地址块内**：
    - **RFC 1918 私网 IPv4**：
@@ -95,7 +97,9 @@ export function extractIpAddress(raw?: string | null): string {
     addr = bracketMatch[1];
   } else {
     // 匹配形如 192.168.1.1:5000
-    const ipv4PortMatch = addr.match(/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):\d+$/);
+    const ipv4PortMatch = addr.match(
+      /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):\d+$/,
+    );
     if (ipv4PortMatch) {
       addr = ipv4PortMatch[1];
     }
@@ -176,13 +180,17 @@ export function parseIpv6(ip: string): number[] | null {
     const rightParts = right ? right.split(":") : [];
 
     let embeddedIpv4: number[] = [];
-    if (rightParts.length > 0 && rightParts[rightParts.length - 1].includes(".")) {
+    if (
+      rightParts.length > 0 &&
+      rightParts[rightParts.length - 1].includes(".")
+    ) {
       const v4 = parseIpv4(rightParts.pop()!);
       if (!v4) return null;
       embeddedIpv4 = [(v4[0] << 8) | v4[1], (v4[2] << 8) | v4[3]];
     }
 
-    const totalProvided = leftParts.length + rightParts.length + embeddedIpv4.length;
+    const totalProvided =
+      leftParts.length + rightParts.length + embeddedIpv4.length;
     if (totalProvided > 7) return null;
     const zeros = new Array(8 - totalProvided).fill(0);
 
@@ -287,7 +295,12 @@ export function determineP2PConnectionType(params: {
   localAddress?: string;
   remoteAddress?: string;
 }): "LAN" | "P2P" | "RELAY" {
-  const { localCandidateType, remoteCandidateType, localAddress, remoteAddress } = params;
+  const {
+    localCandidateType,
+    remoteCandidateType,
+    localAddress,
+    remoteAddress,
+  } = params;
 
   if (localCandidateType === "relay" || remoteCandidateType === "relay") {
     return "RELAY";
@@ -304,15 +317,21 @@ export function determineP2PConnectionType(params: {
 ```
 
 ### 2.4 在 `VoiceMeshManager.ts` 中的调用集成方案
+
 在 `startStatsMonitoring()`（行 1741-1770）中：
+
 ```typescript
 if (selectedPair) {
   const pair = selectedPair as RTCStats & {
     localCandidateId?: string;
     remoteCandidateId?: string;
   };
-  const localCandidate = pair.localCandidateId ? stats.get(pair.localCandidateId) : undefined;
-  const remoteCandidate = pair.remoteCandidateId ? stats.get(pair.remoteCandidateId) : undefined;
+  const localCandidate = pair.localCandidateId
+    ? stats.get(pair.localCandidateId)
+    : undefined;
+  const remoteCandidate = pair.remoteCandidateId
+    ? stats.get(pair.remoteCandidateId)
+    : undefined;
   const localType = localCandidate?.candidateType;
   const remoteType = remoteCandidate?.candidateType;
   const rawLocalAddr = localCandidate?.address || localCandidate?.ip;
@@ -326,6 +345,7 @@ if (selectedPair) {
   });
 }
 ```
+
 此改造确保了电信、联通、移动的全局单播 IPv6 即使作为物理网卡 host 接入，也绝对不会进入 `LAN` 分支，100% 准确显示为 `P2P`。
 
 ---
@@ -335,6 +355,7 @@ if (selectedPair) {
 ### 3.1 左下角状态栏解耦改造分析 (`apps/web/src/components/ChannelSidebar.tsx`)
 
 #### 当前代码调用链与结构现状
+
 - 行 1334-1468：
   ```tsx
   <div className="flex items-center justify-between">
@@ -364,6 +385,7 @@ if (selectedPair) {
   ```
 
 #### 缺陷与 E2E 测试兼容性注意点
+
 - **E2E 断言依赖**：
   - `e2e/live-streaming-and-connection-popover.spec.ts:25` 和 `e2e/voice-channel-topology-mode.spec.ts:192` 明确断言：
     `await expect(page.getByTestId("voice-connection-status-btn")).toContainText("语音已连接");`
@@ -375,6 +397,7 @@ if (selectedPair) {
   3. 彻底移除 ` / {t("voice:medianLatency")}` 与 ` / {t("voice:activeSpeakerLatency")}` 后缀，仅保留纯净的频道名称 `{activeVoiceChannel.name}`。
 
 #### 拟修改 TSX 结构设计
+
 ```tsx
 <div className="flex items-center justify-between">
   <div className="flex flex-col min-w-0 max-w-[calc(100%-36px)]">
@@ -465,31 +488,41 @@ if (selectedPair) {
 ### 3.2 Popover P2P 面板重构分析 (`apps/web/src/components/VoiceConnectionStatusPopover.tsx`)
 
 #### 当前代码现状
+
 - 目前无论 SFU 还是 P2P，都渲染同一个 Canvas 折线图（行 538-545）：
   `<canvas ref={canvasRef} className="w-full h-full block" />`
 - 行 80-82：`const meshActive = !!channel?.id && mediaConnected && voiceMeshManager.getIsMeshActive();`
 - 行 91-97：当前 P2P 下只取了单点中位数延迟构造时间序列曲线。
 
 #### P2P 专属面板新需求拆解与架构设计
+
 根据需求 R2，当 `meshActive === true` 时，应呈现专用 P2P 拓扑面板：
+
 1. **顶部指标行**：
    - **全员平均 RTT 延迟**：
      ```typescript
      const connectedReports = Array.from(peerLatencies.values()).filter(
-       (r) => r.status === "connected" && r.rtt > 0
+       (r) => r.status === "connected" && r.rtt > 0,
      );
-     const allPeersAvgRtt = connectedReports.length > 0
-       ? Math.round(connectedReports.reduce((s, r) => s + r.rtt, 0) / connectedReports.length)
-       : null;
+     const allPeersAvgRtt =
+       connectedReports.length > 0
+         ? Math.round(
+             connectedReports.reduce((s, r) => s + r.rtt, 0) /
+               connectedReports.length,
+           )
+         : null;
      ```
    - **整体丢包率**：
      ```typescript
      const validLosses = connectedReports
        .filter((r) => typeof r.packetLoss === "number")
        .map((r) => r.packetLoss!);
-     const overallPacketLoss = validLosses.length > 0
-       ? (validLosses.reduce((s, l) => s + l, 0) / validLosses.length).toFixed(1)
-       : packetLossPercent;
+     const overallPacketLoss =
+       validLosses.length > 0
+         ? (
+             validLosses.reduce((s, l) => s + l, 0) / validLosses.length
+           ).toFixed(1)
+         : packetLossPercent;
      ```
 2. **直连节点柱状图 (Direct Peer Histogram)**：
    - 采用精致的 DOM/SVG 弹性布局（高质感 Discord 极客风），横轴按直连在线成员排列；
@@ -517,6 +550,7 @@ if (selectedPair) {
 ## 4. R4 专项调研：WebRTC 媒体引擎与网络健康看板直连 IP 呈现
 
 ### 4.1 类型协议扩充 (`packages/types/src/index.ts`)
+
 - **位置**：行 1202-1210
 - **当前定义**：
   ```typescript
@@ -539,14 +573,15 @@ if (selectedPair) {
     packetLoss?: number;
     connectionType: "LAN" | "P2P" | "RELAY" | "SFU";
     status: "connecting" | "connected" | "failed";
-    localAddress?: string;      // 本端直连 IP 地址 (可能带端口，如 192.168.1.10:52341 或 [240e:...]:52341)
-    remoteAddress?: string;     // 远端直连 IP 地址 (可能带端口)
-    candidateType?: string;     // 候选类型 (host | srflx | prflx | relay)
+    localAddress?: string; // 本端直连 IP 地址 (可能带端口，如 192.168.1.10:52341 或 [240e:...]:52341)
+    remoteAddress?: string; // 远端直连 IP 地址 (可能带端口)
+    candidateType?: string; // 候选类型 (host | srflx | prflx | relay)
     updatedAt: number;
   }
   ```
 
 ### 4.2 统计采集与上报 (`apps/web/src/services/p2p/VoiceMeshManager.ts`)
+
 - **位置**：行 1670-1770 `startStatsMonitoring()`
 - **采集逻辑**：
   WebRTC `RTCStatsReport` 中，选中的 `candidate-pair` 会关联 `localCandidateId` 和 `remoteCandidateId`。
@@ -562,6 +597,7 @@ if (selectedPair) {
   写入 `this.latencyReports.set(peerId, { ... })`，通过 `notifyLatencyUpdate()` 实时广播。
 
 ### 4.3 看板 UI 展示 (`apps/web/src/components/modals/NetworkQualityModal.tsx`)
+
 - **位置**：行 712-732
 - **现状**：
   ```tsx
@@ -583,27 +619,35 @@ if (selectedPair) {
 - **拟修改方案**：
   在每个 Peer 卡片顶部或收发指标上方，增加直连 IP/端口展示行：
   ```tsx
-  {(rep.remoteAddress || rep.localAddress) && (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-mono text-discord-textMuted bg-black/25 px-2 py-1 rounded border border-white/5">
-      {rep.remoteAddress && (
-        <span className="flex items-center space-x-1">
-          <span className="text-white/60">{t("voice:networkStats.remoteIp")}:</span>
-          <span className="text-emerald-400 select-all">{rep.remoteAddress}</span>
-        </span>
-      )}
-      {rep.localAddress && (
-        <span className="flex items-center space-x-1">
-          <span className="text-white/60">{t("voice:networkStats.localIp")}:</span>
-          <span className="text-white/90 select-all">{rep.localAddress}</span>
-        </span>
-      )}
-      {rep.candidateType && (
-        <span className="px-1 py-0.2 rounded bg-white/10 text-white/70 uppercase text-[9px]">
-          {rep.candidateType}
-        </span>
-      )}
-    </div>
-  )}
+  {
+    (rep.remoteAddress || rep.localAddress) && (
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] font-mono text-discord-textMuted bg-black/25 px-2 py-1 rounded border border-white/5">
+        {rep.remoteAddress && (
+          <span className="flex items-center space-x-1">
+            <span className="text-white/60">
+              {t("voice:networkStats.remoteIp")}:
+            </span>
+            <span className="text-emerald-400 select-all">
+              {rep.remoteAddress}
+            </span>
+          </span>
+        )}
+        {rep.localAddress && (
+          <span className="flex items-center space-x-1">
+            <span className="text-white/60">
+              {t("voice:networkStats.localIp")}:
+            </span>
+            <span className="text-white/90 select-all">{rep.localAddress}</span>
+          </span>
+        )}
+        {rep.candidateType && (
+          <span className="px-1 py-0.2 rounded bg-white/10 text-white/70 uppercase text-[9px]">
+            {rep.candidateType}
+          </span>
+        )}
+      </div>
+    );
+  }
   ```
 
 ---
@@ -613,7 +657,9 @@ if (selectedPair) {
 遵循 `AGENTS.md` 规范，修改与新增文案必须**严格且对称地同步到 5 套语言包**（`zh-CN`, `zh-TW`, `zh-HK`, `en-US`, `ja-JP`），绝对禁止硬编码中文。
 
 ### 涉及的多语言键值：
+
 在 `apps/web/src/i18n/locales/*/voice.json` 中：
+
 1. `connectionPopover.allPeersAvgRtt`:
    - `zh-CN`: "全员平均延迟"
    - `zh-TW`: "全員平均延遲"
@@ -650,7 +696,9 @@ if (selectedPair) {
 ## 6. 测试与质量保证方案
 
 ### 6.1 单元测试方案 (`apps/web/src/utils/ipClassifier.spec.ts`)
+
 编写专项单元测试，全面覆盖各类网络场景与边缘边界：
+
 1. **RFC 1918 私网 IPv4**：
    - 断言 `10.0.0.1`, `172.16.0.1`, `172.31.255.254`, `192.168.1.1` 为 `true`；
    - 断言 `172.15.255.255`, `172.32.0.1`, `8.8.8.8`, `1.1.1.1` 为 `false`。
@@ -673,6 +721,7 @@ if (selectedPair) {
    - 场景 5：一方为 relay -> 断言 `"RELAY"`。
 
 ### 6.2 端到端 (Playwright E2E) 测试方案
+
 1. 验证左下角状态栏无“全员中位数延迟”文字残留，仅显示频道名称；
 2. 验证点击左下角频道名称能正常触发切回语音频道主舞台；
 3. 验证点击左下角信号图标能展开 Popover，且在 P2P 模式下渲染直连成员柱状图与头像；

@@ -1,9 +1,11 @@
 ## 2026-10-09T22:43:26Z
+
 你是由 Project Orchestrator 派发的专职实施代理（Worker MC）。
 你的工作目录：e:\nodejs_project\Tescord\.agents\teamwork\worker_mc\
 原始需求说明：e:\nodejs_project\Tescord\.agents\teamwork\ORIGINAL_REQUEST.md
 项目总纲与规范：e:\nodejs_project\Tescord\PROJECT.md 与 e:\nodejs_project\Tescord\AGENTS.md
 前序报告参考：
+
 - Explorer 3 报告：e:\nodejs_project\Tescord\.agents\teamwork\explorer_survey_3\report.md (重点参考其国际化多语言词条矩阵)
 - Worker MA 报告：e:\nodejs_project\Tescord\.agents\teamwork\worker_ma\handoff.md
 - Worker MB 报告：e:\nodejs_project\Tescord\.agents\teamwork\worker_mb\handoff.md
@@ -11,6 +13,7 @@
 请强制以最高思考等级（High Thinking Level）进行深度推演与代码落地。
 
 【独占写入边界】：
+
 - apps/web/src/i18n/locales/{zh-CN,zh-TW,zh-HK,en-US,ja-JP}/*.json
 - apps/web/src/components/voice/VoiceConnectionStatusPopover.tsx (仅做 i18n 替换与硬编码清除)
 - apps/web/src/components/modals/NetworkQualityModal.tsx (仅做 i18n 替换与硬编码清除)
@@ -19,6 +22,7 @@
 - apps/web/src/components/ChannelSidebar.tsx (仅做 i18n 替换与硬编码清除)
 
 【任务详述与实施要点】：
+
 1. **R7: 国际化 5 语言全域对称性落地 (Strict 5 Locales)**：
    - 检查并补齐 `zh-CN`, `zh-TW`, `zh-HK`, `en-US`, `ja-JP` 全部 5 套语言字典：
      - 在 `voice.json`、`modals.json`、`chat.json` 中，补齐 Worker MB 新增的 UI 文案对应的国际化翻译（包括 P2P 连接指标、全员平均/中位数延迟、丢包率、直连局域网/公网P2P/中继RELAY、远端IP、本端IP、点对点独立RTT、HD 高清原图徽章提示、图片加载中/解码中等）；

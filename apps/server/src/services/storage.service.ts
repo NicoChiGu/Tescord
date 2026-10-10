@@ -428,7 +428,11 @@ export class StorageService {
     }
   }
 
-  public claimCustomEmoji(userId: string, fileUrl: string): boolean {
+  public claimCustomEmoji(
+    userId: string,
+    fileUrl: string,
+    guildId?: string,
+  ): boolean {
     let key: string;
     try {
       const url = new URL(fileUrl, this.baseUrl);
@@ -449,12 +453,30 @@ export class StorageService {
       grant.expiresAt < Date.now() ||
       grant.userId !== userId ||
       grant.purpose !== "custom-emoji" ||
+      grant.guildId !== guildId ||
       grant.fileUrl !== fileUrl ||
       !grant.mimeType.startsWith("image/")
     )
       return false;
     grant.claimed = true;
     return true;
+  }
+
+  public releaseCustomEmojiClaim(
+    userId: string,
+    fileUrl: string,
+    guildId?: string,
+  ): void {
+    const key = this.getPublicAssetKey(fileUrl);
+    const grant = key ? this.uploadGrants.get(key) : undefined;
+    if (
+      grant?.claimed &&
+      grant.userId === userId &&
+      grant.guildId === guildId &&
+      grant.fileUrl === fileUrl &&
+      grant.purpose === "custom-emoji"
+    )
+      grant.claimed = false;
   }
 
   public releasePublicAssetClaim(

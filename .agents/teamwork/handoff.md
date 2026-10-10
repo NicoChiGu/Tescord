@@ -1,6 +1,7 @@
 # Sentinel Project Handoff Report
 
 ## 1. Observation
+
 - **Original User Request**: 修复与优化 Tescord 的 P2P 语音链路指标（延迟/局域网判断/IP展示/直连信息弹窗）、视频聚焦纵横比、移除伴音混音器，并重塑图片加载与原图预览 UI，满足 R1-R7 及 7 大验收标准。完整需求登记于 `.agents/teamwork/ORIGINAL_REQUEST.md`。
 - **Routing Decision**: 任务涉及网络分类算法、音视频多媒体流控、前端组件重构及 5 语种国际化治理，判定并路由至 General 路径（`teamwork_preview_orchestrator`）。
 - **Execution Trajectory**:
@@ -11,6 +12,7 @@
   - Phase 4: 独立胜利审计员（`teamwork_preview_victory_auditor`）执行独立 3 阶段审计，出具 `VICTORY CONFIRMED` 权威裁决。
 
 ## 2. Logic Chain
+
 - **严格遵循哨兵职责**：
   1. 准确记录原始需求，全程保持超轻上下文，不干涉任何技术实现细节；
   2. 运行双 Cron（进度汇报 `*/8 * * * *` 与存活检测 `*/10 * * * *`），保障任务透明度与防挂死；
@@ -18,16 +20,19 @@
   4. 审计裁决通过后，按规范撤销后台 Cron 任务并执行全量子代理生命周期回收（`kill_all`）。
 
 ## 3. Caveats
+
 - 原生屏幕共享音频流（`getDisplayMedia({ audio: true })`）完整保留，未受伴音混音器删除影响。
 - IPv6 分类算法严格遵循 RFC 3587 全局单播（`2000::/3`）与位掩码运算，国内电信 `240e`、联通 `2408`、移动 `2409` 及教育网均准确判定为 P2P 直连而非局域网。
 - 多语言更新涉及全部 5 种官方语言（`zh-CN`, `zh-TW`, `zh-HK`, `en-US`, `ja-JP`），结构 100% 对称。
 
 ## 4. Conclusion
+
 - 全量 R1 到 R7 需求及 7 大验收标准 100% 达成；
 - 独立法证审计裁决：**`VICTORY CONFIRMED`**；
 - 项目已具备高质量生产交付标准。
 
 ## 5. Verification Method
+
 - **构建检查**: `pnpm -r exec tsc --noEmit` & `pnpm build`（4/4 模块成功构建，0 TS 错误）；
 - **单元测试**: `pnpm --filter @tescord/server exec tsx ../../scripts/test-p2p-ip-classification.ts`（10/10 PASS）；
 - **对抗压力测试**: `scripts/test-final-gate-adversarial.ts` & `reverify-challenger-suite.ts`（16/16 PASS）；

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import zhVoice from "../apps/web/src/i18n/locales/zh-CN/voice.json";
 import { installConnectedLiveKitStub } from "./helpers/media";
 
 test.describe("真实延迟状态与网关连接指示端到端验收", () => {
@@ -110,9 +111,13 @@ test.describe("真实延迟状态与网关连接指示端到端验收", () => {
     await expect(modalHeading).toBeVisible({ timeout: 5000 });
 
     // 验证指标包含往返延迟 RTT
-    await expect(page.getByText("往返延迟 RTT")).toBeVisible();
-    await expect(page.getByText("丢包率 Loss")).toBeVisible();
-    await expect(page.getByText("抖动 Jitter")).toBeVisible();
+    await expect(page.getByText(zhVoice.rtt, { exact: true })).toBeVisible();
+    await expect(
+      page.getByText(zhVoice.packetLoss, { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(zhVoice.hud.jitter, { exact: true }),
+    ).toBeVisible();
 
     // 关闭看板
     await page.keyboard.press("Escape");

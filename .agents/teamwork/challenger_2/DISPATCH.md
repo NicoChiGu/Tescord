@@ -5,11 +5,13 @@
 原始需求：e:\nodejs_project\Tescord\.agents\teamwork\ORIGINAL_REQUEST.md
 项目总纲与架构：e:\nodejs_project\Tescord\PROJECT.md
 前序交付物：
+
 - Worker MB: e:\nodejs_project\Tescord\.agents\teamwork\worker_mb\handoff.md
 - Worker MC: e:\nodejs_project\Tescord\.agents\teamwork\worker_mc\handoff.md
 
 请强制以最高思考等级（High Thinking Level）进行经验证的前端对抗与状态极限测试。
 挑战目标（UI 极限渲染、多语言一致性与防崩溃）：
+
 1. 验证极端边界状态下的 UI 健壮性：
    - P2P 延迟为 0ms、极高延迟（如 9999ms）、丢包率 100%、0 成员在房间时的 Popover 柱状图渲染稳定性；
    - 极端纵横比视频（如超宽 32:9、竖屏 9:16、1:1、0x0 异常分辨率）下聚焦模式的容器样式计算与防溢出行为；

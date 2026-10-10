@@ -52,14 +52,38 @@ test("Final Gate Gate 1: 终极验证受污染 IPv4 (带端口/Scope/特殊伪�
     const lan = isLanCandidateIp(raw);
 
     // 严禁洗白为纯净 IPv4
-    assert.notEqual(extracted, "127.0.0.1", `Should not whitelist to 127.0.0.1: ${raw}`);
-    assert.notEqual(extracted, "192.168.1.1", `Should not whitelist to 192.168.1.1: ${raw}`);
-    assert.notEqual(extracted, "10.0.0.1", `Should not whitelist to 10.0.0.1: ${raw}`);
-    assert.notEqual(extracted, "172.16.0.1", `Should not whitelist to 172.16.0.1: ${raw}`);
-    assert.notEqual(extracted, "172.20.0.1", `Should not whitelist to 172.20.0.1: ${raw}`);
+    assert.notEqual(
+      extracted,
+      "127.0.0.1",
+      `Should not whitelist to 127.0.0.1: ${raw}`,
+    );
+    assert.notEqual(
+      extracted,
+      "192.168.1.1",
+      `Should not whitelist to 192.168.1.1: ${raw}`,
+    );
+    assert.notEqual(
+      extracted,
+      "10.0.0.1",
+      `Should not whitelist to 10.0.0.1: ${raw}`,
+    );
+    assert.notEqual(
+      extracted,
+      "172.16.0.1",
+      `Should not whitelist to 172.16.0.1: ${raw}`,
+    );
+    assert.notEqual(
+      extracted,
+      "172.20.0.1",
+      `Should not whitelist to 172.20.0.1: ${raw}`,
+    );
 
     // 分类必须为 unknown
-    assert.equal(classified, "unknown", `classifyIp("${raw}") must be "unknown", got "${classified}"`);
+    assert.equal(
+      classified,
+      "unknown",
+      `classifyIp("${raw}") must be "unknown", got "${classified}"`,
+    );
     assert.equal(valid, false, `isValidIp("${raw}") must be false`);
     assert.equal(lan, false, `isLanCandidateIp("${raw}") must be false`);
   }
@@ -76,8 +100,14 @@ test("Final Gate Gate 2: 终极验证合法 IPv6 链路本地地址 (带/不带�
     { input: "fe80::1%12", expectedExtract: "fe80::1" },
     { input: "[fe80::1]:80", expectedExtract: "fe80::1" },
     { input: "fe80::1", expectedExtract: "fe80::1" },
-    { input: "fe80::200:5efe:192.168.1.1%eth0", expectedExtract: "fe80::200:5efe:192.168.1.1" },
-    { input: "[fe80::200:5efe:192.168.1.1%eth0]:80", expectedExtract: "fe80::200:5efe:192.168.1.1" },
+    {
+      input: "fe80::200:5efe:192.168.1.1%eth0",
+      expectedExtract: "fe80::200:5efe:192.168.1.1",
+    },
+    {
+      input: "[fe80::200:5efe:192.168.1.1%eth0]:80",
+      expectedExtract: "fe80::200:5efe:192.168.1.1",
+    },
     { input: "FE80::1%WLAN0", expectedExtract: "fe80::1" },
   ];
 
@@ -90,14 +120,18 @@ test("Final Gate Gate 2: 终极验证合法 IPv6 链路本地地址 (带/不带�
     assert.equal(
       extracted,
       expectedExtract,
-      `extractIpAddress("${input}") should be "${expectedExtract}", got "${extracted}"`
+      `extractIpAddress("${input}") should be "${expectedExtract}", got "${extracted}"`,
     );
     assert.equal(
       classified,
       "link-local-v6",
-      `classifyIp("${input}") should be "link-local-v6", got "${classified}"`
+      `classifyIp("${input}") should be "link-local-v6", got "${classified}"`,
     );
-    assert.equal(isLinkLocal, true, `isLinkLocalIpv6("${input}") should be true`);
+    assert.equal(
+      isLinkLocal,
+      true,
+      `isLinkLocalIpv6("${input}") should be true`,
+    );
     assert.equal(isLan, true, `isLanCandidateIp("${input}") should be true`);
   }
 });
@@ -122,8 +156,16 @@ test("Final Gate Gate 3: 终极验证三冒号与多连冒号畸形 IPv6 拒绝"
 
   for (const raw of multiColonCases) {
     assert.equal(parseIpv6(raw), null, `parseIpv6("${raw}") should be null`);
-    assert.equal(isValidIpv6(raw), false, `isValidIpv6("${raw}") should be false`);
-    assert.equal(classifyIp(raw), "unknown", `classifyIp("${raw}") should be "unknown"`);
+    assert.equal(
+      isValidIpv6(raw),
+      false,
+      `isValidIpv6("${raw}") should be false`,
+    );
+    assert.equal(
+      classifyIp(raw),
+      "unknown",
+      `classifyIp("${raw}") should be "unknown"`,
+    );
     assert.equal(isValidIp(raw), false, `isValidIp("${raw}") should be false`);
   }
 });
@@ -168,16 +210,11 @@ test("Final Gate Gate 5: 拓扑决策及极限 Fuzzing 防护", () => {
       localCandidateType: "host",
       remoteCandidateType: "host",
     }),
-    "LAN"
+    "LAN",
   );
   assert.equal(
-    determineP2PConnectionType(
-      "fe80::1%eth0",
-      "fe80::2%eth0",
-      "host",
-      "host",
-    ),
-    "LAN"
+    determineP2PConnectionType("fe80::1%eth0", "fe80::2%eth0", "host", "host"),
+    "LAN",
   );
   assert.equal(
     determineP2PConnectionType({
@@ -186,7 +223,7 @@ test("Final Gate Gate 5: 拓扑决策及极限 Fuzzing 防护", () => {
       localCandidateType: "host",
       remoteCandidateType: "host",
     }),
-    "P2P"
+    "P2P",
   );
   assert.equal(
     determineP2PConnectionType({
@@ -195,7 +232,7 @@ test("Final Gate Gate 5: 拓扑决策及极限 Fuzzing 防护", () => {
       localCandidateType: "relay",
       remoteCandidateType: "host",
     }),
-    "RELAY"
+    "RELAY",
   );
 
   // Fuzzing boundary types
@@ -232,6 +269,8 @@ test("Final Gate Gate 5: 拓扑决策及极限 Fuzzing 防护", () => {
     // @ts-ignore
     assert.doesNotThrow(() => isLanCandidateIp(input));
     // @ts-ignore
-    assert.doesNotThrow(() => determineP2PConnectionType(input, input, input, input));
+    assert.doesNotThrow(() =>
+      determineP2PConnectionType(input, input, input, input),
+    );
   }
 });

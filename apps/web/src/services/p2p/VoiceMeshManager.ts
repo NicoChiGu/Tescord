@@ -27,6 +27,13 @@ import {
   formatCandidateAddress,
 } from "./ipClassifier.js";
 
+type IceCandidateStats = RTCStats & {
+  address?: string;
+  ip?: string;
+  port?: number;
+  candidateType?: RTCIceCandidateType;
+};
+
 export type LatencyUpdateCallback = (
   reports: Map<string, PeerLatencyReport>,
 ) => void;
@@ -1355,6 +1362,7 @@ export class VoiceMeshManager {
 
       const existing = this.participantAudioMap.get(peerId);
       existing?.gainNode?.disconnect();
+      existing?.analyserNode?.disconnect();
       if (existing?.sourceNode) {
         try {
           existing.sourceNode.disconnect();
@@ -1755,10 +1763,12 @@ export class VoiceMeshManager {
               remoteCandidateId?: string;
             };
             const localCandidate = pair.localCandidateId
-              ? (stats.get(pair.localCandidateId) as any)
+              ? (stats.get(pair.localCandidateId) as
+                  IceCandidateStats | undefined)
               : undefined;
             const remoteCandidate = pair.remoteCandidateId
-              ? (stats.get(pair.remoteCandidateId) as any)
+              ? (stats.get(pair.remoteCandidateId) as
+                  IceCandidateStats | undefined)
               : undefined;
             const localType = localCandidate?.candidateType;
             const remoteType = remoteCandidate?.candidateType;

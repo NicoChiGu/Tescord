@@ -1,13 +1,14 @@
 # Tescord 调研报告：R6、R7、国际化多语言与测试工程全貌
 
-> **调研员**：Explorer 3 (qa-verification / research)  
-> **日期**：2026-10-09  
-> **工作目录**：`e:\nodejs_project\Tescord\.agents\teamwork\explorer_survey_3\`  
+> **调研员**：Explorer 3 (qa-verification / research)
+> **日期**：2026-10-09
+> **工作目录**：`e:\nodejs_project\Tescord\.agents\teamwork\explorer_survey_3\`
 > **目标需求**：R6（图片加载与原图查看器体验升级）、R7（国际化全域对齐与代码整洁度红线）及测试工程现状（Vitest / Playwright）
 
 ---
 
 ## 目录
+
 1. [重点项 1：聊天图片加载动效（ImageAttachment.tsx）现状与升级方案](#1-重点项-1聊天图片加载动效imageattachmenttsx现状与升级方案)
 2. [重点项 2：原图预览 Lightbox（LightboxModal.tsx）现状与体验升级方案](#2-重点项-2原图预览-lightboxlightboxmodaltsx现状与体验升级方案)
 3. [重点项 3：国际化多语言（5套语言包）全域对齐现状与改动词条规划](#3-重点项-3国际化多语言5套语言包全域对齐现状与改动词条规划)
@@ -19,27 +20,32 @@
 ## 1. 重点项 1：聊天图片加载动效（ImageAttachment.tsx）现状与升级方案
 
 ### 1.1 代码位置与当前实现分析
+
 - **文件路径**：`apps/web/src/components/chat/ImageAttachment.tsx`
 - **状态流转**：
   ```ts
-  const [status, setStatus] = useState<"loading" | "renewing" | "loaded" | "error">("loading");
+  const [status, setStatus] = useState<
+    "loading" | "renewing" | "loaded" | "error"
+  >("loading");
   const [imageUrl, setImageUrl] = useState<string>();
   ```
 - **现有骨架屏逻辑**（L149-163）：
   ```tsx
-  {status === "loading" && (
-    <div
-      data-testid="image-skeleton"
-      style={{ width: "100%", height: "100%" }}
-      className="relative bg-[#2b2d31] animate-pulse overflow-hidden flex flex-col items-center justify-center text-discord-textMuted/40"
-    >
-      <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.6s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent pointer-events-none" />
-      <div className="relative flex items-center justify-center">
-        <ImageIcon className="w-8 h-8 opacity-40 animate-pulse" />
-        <Loader2 className="absolute w-5 h-5 text-discord-brand/70 animate-spin" />
+  {
+    status === "loading" && (
+      <div
+        data-testid="image-skeleton"
+        style={{ width: "100%", height: "100%" }}
+        className="relative bg-[#2b2d31] animate-pulse overflow-hidden flex flex-col items-center justify-center text-discord-textMuted/40"
+      >
+        <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.6s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent pointer-events-none" />
+        <div className="relative flex items-center justify-center">
+          <ImageIcon className="w-8 h-8 opacity-40 animate-pulse" />
+          <Loader2 className="absolute w-5 h-5 text-discord-brand/70 animate-spin" />
+        </div>
       </div>
-    </div>
-  )}
+    );
+  }
   ```
 - **现有图片挂载与加载逻辑**（L205-251）：
   ```tsx
@@ -61,6 +67,7 @@
   ```
 
 ### 1.2 现状缺陷诊断
+
 1. **突兀消失（Pop-in），缺乏淡入过渡**：
    - 当 `<img>` 触发 `onLoad` 时，`setStatus("loaded")`。
    - 条件 `{status === "loading" && <div ...>}` 在同一渲染帧内变为 `false`，骨架屏在 0ms 内瞬间卸载被销毁；
@@ -74,6 +81,7 @@
    - 方案必须保证在 CSS 淡出的同时，Playwright 能够正确判定骨架屏已离开视口或不可见（Playwright 会将 `opacity: 0` 判定为 `not.toBeVisible()`）。
 
 ### 1.3 改造方案设计与代码建议
+
 1. **双层重叠 + 平滑淡入淡出机制**：
    - 骨架屏不再采用即时卸载，而是作为底层绝对定位容器，附加 `transition-opacity duration-300 ease-out`：
      ```tsx
@@ -81,7 +89,9 @@
        data-testid="image-skeleton"
        aria-hidden={status === "loaded"}
        className={`absolute inset-0 bg-[#2b2d31] overflow-hidden flex flex-col items-center justify-center transition-opacity duration-300 ease-out ${
-         status === "loaded" ? "opacity-0 pointer-events-none" : "opacity-100 animate-pulse"
+         status === "loaded"
+           ? "opacity-0 pointer-events-none"
+           : "opacity-100 animate-pulse"
        }`}
      >
        {/* 增强质感平滑扫光 */}
@@ -130,11 +140,13 @@
 ## 2. 重点项 2：原图预览 Lightbox（LightboxModal.tsx）现状与体验升级方案
 
 ### 2.1 代码真实位置纠偏
+
 - **重要发现**：派发需求中提到的目标文件路径为 `apps/web/src/components/modals/LightboxModal.tsx`，但在代码库中，**实际真实路径为**：
   `apps/web/src/components/chat/LightboxModal.tsx`
   （`apps/web/src/components/modals/` 下并无此文件，实现时务必直接修改 `chat/LightboxModal.tsx`）。
 
 ### 2.2 现状实现与缺陷诊断
+
 - **当前加载进度与反馈条**（L794-851）：
   - 位于视口底部边缘：`className="absolute bottom-16 left-1/2 -translate-x-1/2 max-w-[90vw] bg-black/80 rounded-lg px-4 py-3 text-sm text-white flex flex-col gap-2"`；
   - 采用原生 HTML `<progress>` 标签搭配生硬的纯文本：`<span>{{loaded}} / {{total}} MB · XX%</span>`；
@@ -149,6 +161,7 @@
 ### 2.3 升级设计方案
 
 #### A. 画面中心高质感磨砂毛玻璃环形进度环（Radial Progress）
+
 1. **居中覆盖定位**：
    - 脱离底部边界，使用绝对居中卡片：
      `absolute inset-0 flex items-center justify-center pointer-events-none z-30`；
@@ -160,7 +173,10 @@
    - 动态进度轨：周长 $C = 2 \times \pi \times 32 \approx 201.06$；
      ```tsx
      const percent = loadProgress.total
-       ? Math.min(100, Math.round((loadProgress.loaded / loadProgress.total) * 100))
+       ? Math.min(
+           100,
+           Math.round((loadProgress.loaded / loadProgress.total) * 100),
+         )
        : 0;
      const strokeDashoffset = 201.06 * (1 - percent / 100);
      ```
@@ -172,12 +188,14 @@
    - 外层依然标记 `data-testid="lightbox-load-status"` 和 `role="status"`，确保 E2E 测试兼容。
 
 #### B. 交叉渐隐（Cross-fade）无缝替换缩略图
+
 1. **双图层重叠渲染**：
    - 底层（缩略图预览层）：展示已有本地 `fallbackUrl` 或首帧 preview，保持缩放变换；
    - 顶层（原图高清层）：原图解码前设置 `opacity-0`，解码就绪（`originalReady === true`）后切换为 `opacity-100 transition-opacity duration-300 ease-in-out`；
    - 两张图片共享完全一致的 `transform: translate3d(...) scale(...)` 视口矩阵，确保无论在缩放或平移状态下，原图与缩略图绝对重合，无缝平滑渐隐替换。
 
 #### C. 点亮 HD 高清徽章
+
 1. **右上角工具栏点亮**：
    - 当 `originalReady === true` 时，将原有的“查看原图”普通按钮升级为点亮的高清徽章：
      ```tsx
@@ -198,6 +216,7 @@
 ## 3. 重点项 3：国际化多语言（5套语言包）全域对齐现状与改动词条规划
 
 ### 3.1 语言包架构现状审查
+
 - **受控语言目录**：`apps/web/src/i18n/locales/` 下共有且仅有 5 个标准子目录：
   1. `zh-CN`（简体中文）
   2. `zh-TW`（繁體中文・台灣）
@@ -213,24 +232,26 @@
 
 下表详尽列出本次重构与优化中，涉及的所有需要**新增**、**清理**或**替换**的多语言词条规划（确保 5 套语言包键名严格 100% 对齐）：
 
-| 命名空间 | 键路径 (`Key Path`) | 类型 | zh-CN | zh-TW | zh-HK | en-US | ja-JP | 说明 |
-| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`voice.json`** | `connectionPopover.p2pAvgPing` | **新增** | 全员平均延迟 | 全員平均延遲 | 全員平均延遲 | Average Mesh Latency | 全メンバー平均遅延 | R2：Popover P2P 面板全员延迟 |
-| **`voice.json`** | `connectionPopover.directTopology` | **新增** | 直连节点拓扑 | 直連節點拓撲 | 直連節點拓撲 | Direct Node Topology | 直接接続ノードトポロジ | R2：直连拓扑指标标题 |
-| **`voice.json`** | `connectionPopover.peerCount` | **已存在** | 直连成员节点数 | 直連成員節點數 | 直連成員節點數 | Connected Peers | 直接接続ピア数 | 节点计数 |
-| **`voice.json`** | `connectionPopover.statsTooltip` | **已存在** | 往返时间：{{rtt}} \| 丢包：{{loss}} \| 抖动：{{jitter}} | 往返時間：{{rtt}} \| 丟包：{{loss}} \| 抖動：{{jitter}} | 往返時間：{{rtt}} \| 丟包：{{loss}} \| 抖動：{{jitter}} | Round trip: {{rtt}} \| Packet loss: {{loss}} \| Jitter: {{jitter}} | 往復時間：{{rtt}} \| パケット損失：{{loss}} \| ジッター：{{jitter}} | 柱状图悬停详情 |
-| **`voice.json`** | `p2pIndependentRtt` | **新增** | 点对点独立 RTT | 點對點獨立 RTT | 點對點獨立 RTT | P2P Independent RTT | P2P 独立 RTT | R4：替换看板硬编码中文 |
-| **`voice.json`** | `remoteAddress` | **新增** | 远端 IP: {{address}} | 遠端 IP: {{address}} | 遠端 IP: {{address}} | Remote IP: {{address}} | リモート IP: {{address}} | R4：直连远端 IP 地址 |
-| **`voice.json`** | `localAddress` | **新增** | 本端 IP: {{address}} | 本端 IP: {{address}} | 本端 IP: {{address}} | Local IP: {{address}} | ローカル IP: {{address}} | R4：直连本端 IP 地址 |
-| **`voice.json`** | `candidateType` | **新增** | 候选类型: {{type}} | 候選類型: {{type}} | 候選類型: {{type}} | Candidate: {{type}} | 候補タイプ: {{type}} | R4：候选类型展示 |
-| **`voice.json`** | `nodeCount` | **新增** | {{count}} 节点 | {{count}} 節點 | {{count}} 節點 | {{count}} Nodes | {{count}} ノード | 替换看板硬编码“节点” |
-| **`voice.json`** | `mediaTooltips.mixPanel` | **清理** | *(已废弃)* | *(已废弃)* | *(已废弃)* | *(已废弃)* | *(已废弃)* | R5：伴音混音器彻底清理 |
-| **`chat.json`** | `lightbox.hdBadge` | **新增** | HD 高清 | HD 高畫質 | HD 高清 | HD | HD 高画質 | R6：点亮 HD 高清徽章标签 |
-| **`chat.json`** | `lightbox.decoding` | **已存在** | 正在解码原图… | 正在解碼原圖… | 正在解碼原圖… | Decoding the original image… | 元画像をデコード中… | 居中毛玻璃环形解码状态 |
-| **`chat.json`** | `lightbox.downloadProgress`| **已存在** | {{loaded}} / {{total}} MB | {{loaded}} / {{total}} MB | {{loaded}} / {{total}} MB | {{loaded}} / {{total}} MB | {{loaded}} / {{total}} MB | 居中毛玻璃环形下载数值 |
+| 命名空间         | 键路径 (`Key Path`)                | 类型       | zh-CN                                                   | zh-TW                                                   | zh-HK                                                   | en-US                                                              | ja-JP                                                               | 说明                         |
+| :--------------- | :--------------------------------- | :--------- | :------------------------------------------------------ | :------------------------------------------------------ | :------------------------------------------------------ | :----------------------------------------------------------------- | :------------------------------------------------------------------ | :--------------------------- |
+| **`voice.json`** | `connectionPopover.p2pAvgPing`     | **新增**   | 全员平均延迟                                            | 全員平均延遲                                            | 全員平均延遲                                            | Average Mesh Latency                                               | 全メンバー平均遅延                                                  | R2：Popover P2P 面板全员延迟 |
+| **`voice.json`** | `connectionPopover.directTopology` | **新增**   | 直连节点拓扑                                            | 直連節點拓撲                                            | 直連節點拓撲                                            | Direct Node Topology                                               | 直接接続ノードトポロジ                                              | R2：直连拓扑指标标题         |
+| **`voice.json`** | `connectionPopover.peerCount`      | **已存在** | 直连成员节点数                                          | 直連成員節點數                                          | 直連成員節點數                                          | Connected Peers                                                    | 直接接続ピア数                                                      | 节点计数                     |
+| **`voice.json`** | `connectionPopover.statsTooltip`   | **已存在** | 往返时间：{{rtt}} \| 丢包：{{loss}} \| 抖动：{{jitter}} | 往返時間：{{rtt}} \| 丟包：{{loss}} \| 抖動：{{jitter}} | 往返時間：{{rtt}} \| 丟包：{{loss}} \| 抖動：{{jitter}} | Round trip: {{rtt}} \| Packet loss: {{loss}} \| Jitter: {{jitter}} | 往復時間：{{rtt}} \| パケット損失：{{loss}} \| ジッター：{{jitter}} | 柱状图悬停详情               |
+| **`voice.json`** | `p2pIndependentRtt`                | **新增**   | 点对点独立 RTT                                          | 點對點獨立 RTT                                          | 點對點獨立 RTT                                          | P2P Independent RTT                                                | P2P 独立 RTT                                                        | R4：替换看板硬编码中文       |
+| **`voice.json`** | `remoteAddress`                    | **新增**   | 远端 IP: {{address}}                                    | 遠端 IP: {{address}}                                    | 遠端 IP: {{address}}                                    | Remote IP: {{address}}                                             | リモート IP: {{address}}                                            | R4：直连远端 IP 地址         |
+| **`voice.json`** | `localAddress`                     | **新增**   | 本端 IP: {{address}}                                    | 本端 IP: {{address}}                                    | 本端 IP: {{address}}                                    | Local IP: {{address}}                                              | ローカル IP: {{address}}                                            | R4：直连本端 IP 地址         |
+| **`voice.json`** | `candidateType`                    | **新增**   | 候选类型: {{type}}                                      | 候選類型: {{type}}                                      | 候選類型: {{type}}                                      | Candidate: {{type}}                                                | 候補タイプ: {{type}}                                                | R4：候选类型展示             |
+| **`voice.json`** | `nodeCount`                        | **新增**   | {{count}} 节点                                          | {{count}} 節點                                          | {{count}} 節點                                          | {{count}} Nodes                                                    | {{count}} ノード                                                    | 替换看板硬编码“节点”         |
+| **`voice.json`** | `mediaTooltips.mixPanel`           | **清理**   | _(已废弃)_                                              | _(已废弃)_                                              | _(已废弃)_                                              | _(已废弃)_                                                         | _(已废弃)_                                                          | R5：伴音混音器彻底清理       |
+| **`chat.json`**  | `lightbox.hdBadge`                 | **新增**   | HD 高清                                                 | HD 高畫質                                               | HD 高清                                                 | HD                                                                 | HD 高画質                                                           | R6：点亮 HD 高清徽章标签     |
+| **`chat.json`**  | `lightbox.decoding`                | **已存在** | 正在解码原图…                                           | 正在解碼原圖…                                           | 正在解碼原圖…                                           | Decoding the original image…                                       | 元画像をデコード中…                                                 | 居中毛玻璃环形解码状态       |
+| **`chat.json`**  | `lightbox.downloadProgress`        | **已存在** | {{loaded}} / {{total}} MB                               | {{loaded}} / {{total}} MB                               | {{loaded}} / {{total}} MB                               | {{loaded}} / {{total}} MB                                          | {{loaded}} / {{total}} MB                                           | 居中毛玻璃环形下载数值       |
 
 ### 3.3 TSX 硬编码文本清理红线审查
+
 经深入扫描，发现以下代码存在硬编码中文，必须在此次改动中一并彻底消除：
+
 1. `apps/web/src/components/modals/NetworkQualityModal.tsx`：
    - L610：`${peerLatencies.size} 节点`（硬编码“节点”，改为 `t("voice:nodeCount", { count: peerLatencies.size })`）；
    - L708：`点对点独立 RTT`（硬编码中文，改为 `t("voice:p2pIndependentRtt")`）。
@@ -245,6 +266,7 @@
 ## 4. 重点项 4：测试工程体系现状与单测／E2E 补充方案
 
 ### 4.1 Vitest 与单元测试体系调研
+
 1. **现状发现**：
    - 虽然 `AGENTS.md` 提及了 Vitest，但主工程 `package.json` 的 `devDependencies` 中当前并**未安装 `vitest`**；
    - 现存单元逻辑测试采用两种高效的原生机制：
@@ -259,6 +281,7 @@
      - **断言为 RELAY**：Candidate 类型为 `relay`，断言为 `"RELAY"`。
 
 ### 4.2 Playwright E2E 测试体系调研
+
 1. **架构与配置**（`playwright.config.ts`）：
    - 测试目录：`./e2e/`（现存 128 个自动化测试文件）；
    - 运行环境：Chromium 带模拟音视频参数（`--use-fake-ui-for-media-stream`, `--use-fake-device-for-media-stream`）；
@@ -292,6 +315,7 @@
 ## 5. 综合架构建议与实施风险检查清单
 
 ### 5.1 实施顺序与依赖拓扑
+
 1. **阶段 1：类型先行（Contract-First）**
    - 修改 `packages/types/src/index.ts`：扩充 `PeerLatencyReport` 字段（`localAddress`, `remoteAddress`, `candidateType`），清理 `AudioMixerConfig` 与 `computeMixGains`；
    - 执行 `pnpm --filter @tescord/types build`。
@@ -311,6 +335,7 @@
    - 运行 Playwright E2E 专项测试。
 
 ### 5.2 避坑与防御要点
+
 - **文件路径陷阱**：LightboxModal 实际位于 `apps/web/src/components/chat/LightboxModal.tsx`，不要在 `modals/` 下创建多余文件。
 - **Playwright 选择器防碎**：`data-testid="image-skeleton"` 与 `data-testid="lightbox-load-status"` 是现存自动化用例的锚点，重构 UI 时必须完整保留这组属性。
 - **i18n 严禁遗漏语言**：任何新增键名必须同步提交到 `zh-CN`, `zh-TW`, `zh-HK`, `en-US`, `ja-JP` 所有 5 个文件，坚决遵守 AGENTS.md 红线。

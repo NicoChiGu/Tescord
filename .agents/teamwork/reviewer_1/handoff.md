@@ -13,6 +13,7 @@
 ## 1. Observation (客观观察与证据链)
 
 ### 1.1 协议扩展与废弃类型清理 (`packages/types/src/index.ts`)
+
 - **行号 1202-1213**：`PeerLatencyReport` 接口明确扩充了物理端点与候选类型字段：
   ```typescript
   export interface PeerLatencyReport {
@@ -32,6 +33,7 @@
 - **构建测试**：运行 `pnpm --filter @tescord/types build`，退出码为 0，成功生成 ESM 与 CJS 类型产物。
 
 ### 1.2 核心算法与位运算审查 (`apps/web/src/services/p2p/ipClassifier.ts`)
+
 - **RFC 4193 ULA IPv6 (`fc00::/7`)**：
   - 行号 195-199：`(hextets[0] & 0xfe00) === 0xfc00`
   - 数学推演：高 7 位掩码为 `0b1111_1110_0000_0000` = `0xfe00`，匹配 `0xfc00` 覆盖 `fc00::/8` 与 `fd00::/8`。算法严密正确。
@@ -47,6 +49,7 @@
   - 行号 337-347：任一方包含 `relay` 立即返回 `"RELAY"`；双方候选为 `host` 且物理 IP 均为局域网/ULA/Link-Local/Loopback 时断言为 `"LAN"`；其余情况（包括公网单播 IPv6 host 候选直连、公网 IPv4 直连、srflx/prflx）均断言为 `"P2P"`。
 
 ### 1.3 WebRTC 候选解析与统计接入 (`apps/web/src/services/p2p/VoiceMeshManager.ts`)
+
 - **行号 1752-1780**：
   - 成功从 `selectedPair` 提取 `localCandidateId` 与 `remoteCandidateId`；
   - 兼容读取 `address || ip` 及 `port`，满足 W3C 新旧规范与跨平台浏览器实现；
@@ -55,14 +58,17 @@
   - 将 `localAddress`, `remoteAddress`, `candidateType`, `connectionType` 写入 `latencyReports` 并通过 `onLatencyUpdate` 派发给 UI 面板。
 
 ### 1.4 伴音混音器物理删除与代码库零残留
+
 - `apps/web/src/services/audioMixer.ts` 文件在磁盘上已不存在（`find_by_name` 结果为 0）。
 - 全仓库扫描无任何 active import 残留；`VoiceRoomArea.tsx`、`livekit.ts`、`App.tsx` 均已清理干净。
 
 ### 1.5 服务端自动化测试守护 (`apps/server/src/verify-phase4-full.ts`)
+
 - 移除了外部 `computeMixGains` 依赖，采用自包含的软压限防爆音与多轨共存状态机仿真。
 - 运行 `pnpm --filter @tescord/server exec tsx src/verify-phase4-full.ts`：全部 62 项阶段四测试 100% 通过（PASS）。
 
 ### 1.6 单元测试与 E2E 测试实测结果
+
 1. `pnpm --filter @tescord/server exec tsx ../../scripts/test-p2p-ip-classification.ts`：
    - 9 个测试子集全部 PASS（`tests 9, pass 9, fail 0`，耗时 9.5ms）。
 2. `pnpm build`：
@@ -91,6 +97,7 @@
 作为对立面对抗审查员（Adversarial Critic），针对 `ipClassifier.ts` 实施了以下攻击场景与压力测试：
 
 ### 挑战 1：畸形与超常规边界输入压力测试
+
 - **攻击向量**：
   - 空串、`null`、`undefined`、超长空白串；
   - 含有 C 风格截断字符的输入：`192.168.1.1\0`；
@@ -107,6 +114,7 @@
   - 6to4 与 Teredo 因落入 `2000::/3` 被正确判定为 `public-v6`，拓扑归入 `P2P`。
 
 ### 挑战 2：ReDoS（正则表达式拒绝服务）漏洞审计
+
 - **代码审查**：
   - `addr.match(/^\[([a-fA-F0-9:.%_\-]+)\](?::\d+)?$/)`：字符集内无歧义，无嵌套量词；
   - `/^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}):\d+$/`：定长 4 段数字，严格线性；
@@ -114,6 +122,7 @@
 - **结论**：所有正则均为严格的线性复杂度 O(N)，**不存在灾难性回溯爆炸（ReDoS）隐患**。
 
 ### 挑战 3：诚实性与作弊审查（Anti-Cheating Audit）
+
 - **审查要点**：
   - 是否存在针对测试脚本中 `240e:398:123:456::1` 等特定字符串的写死（Hardcoded）判断？
   - 是否存在伪造断言或者跳过逻辑？
@@ -133,6 +142,7 @@
 ## 5. Conclusion (审查裁决)
 
 基于对协议定义、核心分类算法、候选统计解析、废弃代码清理、服务端测试守护以及对抗性压力测试的全面深入审查：
+
 - **功能完备度**：100% 达成需求规范 R1、R4（协议/统计）、R5（彻底移除伴音）。
 - **代码质量**：模块高内聚低耦合，零外部依赖，TypeScript 零错误。
 - **裁决结果**：**`APPROVE`**。

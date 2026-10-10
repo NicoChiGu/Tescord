@@ -108,7 +108,7 @@ test.describe("频道与分类拖拽及创建/邀请入口权限控制专项端�
     const createChannelBtn = page.locator(
       '[data-testid="sidebar-create-channel-btn"]',
     );
-    const inviteBtn = page.locator('button[title="生成并复制邀请码"]');
+    const inviteBtn = page.getByTestId("sidebar-invite-friends-btn");
 
     await expect(createCategoryBtn).toHaveCount(0);
     await expect(createChannelBtn).toHaveCount(0);
@@ -215,9 +215,7 @@ test.describe("频道与分类拖拽及创建/邀请入口权限控制专项端�
     await expect(
       page.locator('[data-testid="sidebar-create-channel-btn"]'),
     ).toBeVisible();
-    await expect(
-      page.locator('button[title="生成并复制邀请码"]'),
-    ).toBeVisible();
+    await expect(page.getByTestId("sidebar-invite-friends-btn")).toBeVisible();
 
     // 3. 验证分类标题栏具备可拖拽样式且包含“+”新建频道按钮
     const catHeader = page.locator('[data-testid^="category-header-"]').first();

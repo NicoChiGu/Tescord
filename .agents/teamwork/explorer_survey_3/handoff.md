@@ -1,15 +1,22 @@
 # Handoff Report - Explorer 3
 
 ## 1. Observation
+
 1. **图片加载与骨架屏实现**：
    - 文件：`apps/web/src/components/chat/ImageAttachment.tsx`，L150-163 骨架屏渲染：
      ```tsx
-     {status === "loading" && (
-       <div data-testid="image-skeleton" style={{ width: "100%", height: "100%" }} className="relative bg-[#2b2d31] animate-pulse overflow-hidden flex flex-col items-center justify-center text-discord-textMuted/40">
-         <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.6s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent pointer-events-none" />
-         ...
-       </div>
-     )}
+     {
+       status === "loading" && (
+         <div
+           data-testid="image-skeleton"
+           style={{ width: "100%", height: "100%" }}
+           className="relative bg-[#2b2d31] animate-pulse overflow-hidden flex flex-col items-center justify-center text-discord-textMuted/40"
+         >
+           <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.6s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent pointer-events-none" />
+           ...
+         </div>
+       );
+     }
      ```
    - L223-250 图片挂载：
      ```tsx
@@ -42,19 +49,23 @@
    - E2E 体系基于 Playwright（`playwright.config.ts`），包含 128 个 spec 文件，已具备 `e2e/chat-image-skeleton.spec.ts` 与 `e2e/lightbox-interaction-and-download.spec.ts`。
 
 ## 2. Logic Chain
+
 1. 基于 Observation 1，`ImageAttachment.tsx` 之所以没有淡入过渡，是因为骨架屏容器直接受条件渲染控制，在 `loaded` 状态下立即从 DOM 中卸载，且真实图片直接变更为可见块级元素；推导改造方案：使骨架屏与真实图片分层绝对定位，真实图片采用 `transition-opacity duration-300` 渐变显现，骨架屏渐隐淡出，平滑消除画面闪变。
 2. 基于 Observation 2，`LightboxModal.tsx` 当前的进度条位于底部，未能吸引用户视觉焦点；推导改造方案：将 `data-testid="lightbox-load-status"` 移至画面正中心并升级为毛玻璃卡片中的 SVG 环形进度条，原图就绪后使用双图层交叉渐隐（cross-fade），并将右上角工具栏的原图按钮升级为点亮的绿色 HD 徽章。
 3. 基于 Observation 3，系统遵循 AGENTS.md 强约束，新增与清理词条必须保持 5 语言 100% 对称；梳理出 9 个需要新增的键名（涵盖 Popover 拓扑指标、看板直连 IP、HD 徽章）及伴音废弃键名，并在所有 5 套语言包中完整对齐。
 4. 基于 Observation 4，项目虽有 Vitest 角色定义但尚未引入包依赖，当前所有核心逻辑均通过 `scripts/test-*.ts` 完成单测；推导方案：在 `scripts/test-p2p-ip-classification.ts` 中编写专职 IP 分类算法单测，并复用现有 Playwright 用例保证 R6 与全链路验收。
 
 ## 3. Caveats
+
 1. `LightboxModal.tsx` 位于 `apps/web/src/components/chat/`，若后续开发人员按需求文档在 `modals/` 寻找将无法定位或可能创建重复文件。
 2. 重构骨架屏和 Lightbox 模态框时，不得移除现有的 `data-testid="image-skeleton"` 与 `data-testid="lightbox-load-status"`，否则会导致 Playwright E2E 现有测试断言失败。
 
 ## 4. Conclusion
+
 R6 图片加载淡入与 Lightbox 居中毛玻璃环形进度重构方案已完全明确；R7 涉及的 5 套语言包（zh-CN, zh-TW, zh-HK, en-US, ja-JP）全部词条已完成矩阵梳理且无漏键风险；单测与 E2E 自动化测试验证路径已跑通并制定完整方案。全部详尽分析已沉淀至工作目录下的 `report.md`。
 
 ## 5. Verification Method
+
 1. **查看完整报告文件**：
    - 路径：`e:\nodejs_project\Tescord\.agents\teamwork\explorer_survey_3\report.md`
 2. **测试环境验证命令**：

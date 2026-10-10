@@ -2,6 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./e2e-real",
+  outputDir: "test-results/cloudflare-target-browser",
   workers: 1,
   timeout: 120_000,
   reporter: [

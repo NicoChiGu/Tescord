@@ -167,7 +167,12 @@ test("4. 运行时类型守卫安全复验 (防 TypeError 奔溃)", () => {
     "P2P",
   );
   assert.equal(
-    determineP2PConnectionType(null as any, null as any, null as any, null as any),
+    determineP2PConnectionType(
+      null as any,
+      null as any,
+      null as any,
+      null as any,
+    ),
     "P2P",
   );
   assert.equal(
@@ -199,10 +204,13 @@ test("5. 全函数导出鲁棒性 Fuzzing 测试", () => {
   for (const [name, fn] of Object.entries(classifier)) {
     if (typeof fn !== "function") continue;
     for (const input of badInputs) {
-      assert.doesNotThrow(() => {
-        // @ts-ignore
-        fn(input);
-      }, `Function ${name} should not throw when called with ${String(input)}`);
+      assert.doesNotThrow(
+        () => {
+          // @ts-ignore
+          fn(input);
+        },
+        `Function ${name} should not throw when called with ${String(input)}`,
+      );
     }
   }
 });

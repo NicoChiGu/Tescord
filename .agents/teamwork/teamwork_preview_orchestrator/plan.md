@@ -1,6 +1,7 @@
 # Project Plan: Tescord P2P Metrics, Media Adaptive & Image UX Refactor
 
 ## Objectives
+
 1. R1: P2P LAN recognition algorithm fix & public IPv6 classification (RFC 1918 / RFC 4193 / Link-Local / Loopback vs 2000::/3 P2P) + unit tests.
 2. R2: VoiceConnectionStatusPopover P2P dynamic metrics (avg RTT, packet loss, latency bar chart with avatars & ms labels, health colors, hover jitter/loss) + bottom-left status bar decouple (remove median text, click channel -> stage, click icon -> popover).
 3. R3: VoiceRoomArea focus mode dynamic aspect ratio based on videoWidth/videoHeight, remove hardcoded aspect-video and black background, viewport elasticity.
@@ -10,6 +11,7 @@
 7. R7: 5-locale i18n full symmetry (zh-CN, zh-TW, zh-HK, en-US, ja-JP), zero hardcoded strings, AGENTS.md compliance, pnpm build TS zero errors, tests passing.
 
 ## Milestones & Phasing
+
 - **Phase 0: Survey & Scope Mapping**
   - Dispatch 3 parallel Explorers:
     - Explorer 1: P2P Network, IP classification, WebRTC stats & Popover/Status bar (R1, R2, R4)

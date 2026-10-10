@@ -11,6 +11,7 @@ interface AcceptanceResources {
   channelIds?: string[];
   guildInviteCodes?: string[];
   dmChannelId?: string;
+  emojiFileKeys?: string[];
 }
 
 async function main(): Promise<void> {
@@ -246,6 +247,60 @@ async function main(): Promise<void> {
       "Test account has resources outside the exact test guild; cleanup refused",
     );
 
+  const emojiFileKeys = resources.emojiFileKeys || [];
+  if (
+    emojiFileKeys.length > 2 ||
+    new Set(emojiFileKeys).size !== emojiFileKeys.length ||
+    emojiFileKeys.some(
+      (key) =>
+        !new RegExp(
+          `^[0-9]{13}-[a-f0-9]{8}-(personal|guild)_${marker}\\.png$`,
+        ).test(key),
+    )
+  )
+    throw new Error(
+      "Emoji object keys do not match the exact acceptance marker",
+    );
+  if (emojiFileKeys.length) {
+    const urls = emojiFileKeys.map(
+      (key) =>
+        `${process.env.SERVER_BASE_URL}/public-assets/${encodeURIComponent(key)}`,
+    );
+    const emojis = await prisma.customEmoji.findMany({
+      where: { imageUrl: { in: urls } },
+    });
+    if (
+      emojis.some(
+        (emoji) =>
+          emoji.createdById !== adminId ||
+          (emoji.guildId !== null && emoji.guildId !== resources.guildId) ||
+          (emoji.userId !== null && emoji.userId !== adminId),
+      )
+    )
+      throw new Error(
+        "Emoji object has references outside the exact test resources",
+      );
+    const { storageService } =
+      await import("../src/services/storage.service.js");
+    await storageService.init();
+    for (const url of urls) {
+      await storageService.removePublicAsset(url);
+      try {
+        await storageService.statObject(url);
+        throw new Error("Emoji object remains after deletion");
+      } catch (error) {
+        if (!(
+          error instanceof Error &&
+          "code" in error &&
+          (error.code === "NoSuchKey" ||
+            error.code === "NotFound" ||
+            error.code === "ENOENT")
+        ))
+          throw error;
+      }
+    }
+  }
+
   await prisma.$transaction(async (tx) => {
     if (dmId) {
       await tx.mediaKeyEnvelope.deleteMany({ where: { channelId: dmId } });
@@ -328,6 +383,8 @@ async function main(): Promise<void> {
       remainingDm,
       remainingDmRecipients,
       remainingMediaKeys,
+      deletedEmojiObjects: emojiFileKeys.length,
+      remainingEmojiObjects: 0,
     }) + "\n",
   );
 }

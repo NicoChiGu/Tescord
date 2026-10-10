@@ -4,6 +4,7 @@
 - Status: Completed all tasks within exclusive write boundary. Build verification passed (`pnpm --filter @tescord/web build` exit code 0).
 
 ## Plan & Progress
+
 - [x] Read Explorer 1, 2, 3 reports and Worker MA handoff
 - [x] Inspect existing files in exclusive write boundary
 - [x] Task 4: Clean up audioMixer in App.tsx, livekit.ts, VoiceRoomArea.tsx

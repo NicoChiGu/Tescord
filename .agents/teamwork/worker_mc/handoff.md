@@ -1,6 +1,7 @@
 # Handoff Report - Worker MC (i18n & Zero Hardcoded Copy)
 
 ## 1. Observation
+
 - **独占写入边界审查**：
   - 语言字典：`apps/web/src/i18n/locales/{zh-CN,zh-TW,zh-HK,en-US,ja-JP}/*.json`
   - 目标组件：
@@ -66,6 +67,7 @@
      ```
 
 ## 2. Logic Chain
+
 1. **多语言词条补齐与对称性对齐**：
    - 根据 Explorer 3 的调研报告与 Worker MB 的改动，梳理出所有新增 UI 交互词条（P2P 延迟指标、NAT 探测、直连/局域网/中继拓扑、高清原图徽章、画中画切换、邀请好友等）。
    - 在 `voice.json`, `modals.json`, `chat.json`, `common.json` 中统一命名空间与键名层次结构。
@@ -87,18 +89,23 @@
    - 运行 Playwright 关键 E2E 套件验证多语言切换、图片灯箱骨架屏及连线状态气泡渲染均无回归。
 
 ## 3. Caveats
+
 - No caveats. 本次修改完全限定在指定的独占写入边界内，未改动任何非目标文件，亦未引入任何破坏性 API 变更。
 
 ## 4. Conclusion
+
 Worker MC 负责的 R7 任务与工程验收已全部圆满交付：
+
 1. 5 种语言包 (`zh-CN`, `zh-TW`, `zh-HK`, `en-US`, `ja-JP`) 10 大业务域 100% 对称对齐。
 2. 边界内所有 TSX 前端组件硬编码中文彻底清零 (Zero Hardcoded Copy)。
 3. `pnpm build`、IP 分类测试（9/9）、Playwright E2E（12/12）与 Prettier 校验全部全绿通过。
 
 ## 5. Verification Method
+
 可执行以下指令进行全量独立复现验证：
 
 1. **多语言对称性验证**：
+
    ```bash
    node -e "
    const fs = require('fs');
@@ -127,16 +134,19 @@ Worker MC 负责的 R7 任务与工程验收已全部圆满交付：
    ```
 
 2. **全仓库类型构建检查**：
+
    ```bash
    pnpm build
    ```
 
 3. **P2P IP 分类核心算法单元测试**：
+
    ```bash
    pnpm --filter @tescord/server exec tsx ../../scripts/test-p2p-ip-classification.ts
    ```
 
 4. **Playwright E2E 核心链路验收**：
+
    ```bash
    pnpm exec playwright test e2e/chat-image-skeleton.spec.ts e2e/lightbox-interaction-and-download.spec.ts e2e/i18n-language-switch.spec.ts
    pnpm exec playwright test e2e/live-streaming-and-connection-popover.spec.ts

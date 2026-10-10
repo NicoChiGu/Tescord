@@ -1,7 +1,7 @@
 # Challenger Reverification 对抗复验报告: IP 分类与清洗加固实测评估
 
-**判定结果**：`CHALLENGE_FAILED`  
-*(未能达成 `APPROVE` 标准所要求的“算法坚固无破绽，所有缺陷彻底消除”。虽然缺陷 1（三冒号）和缺陷 3（运行时类型守卫）已彻底解决，但在针对缺陷 2（IPv4 污染清洗）的深度实测中，挖掘出确定性的**“启发式旁路（Heuristic Bypass）”**：由于采用 `addr.includes(":")` 作为判断 IPv6 的粗糙依据，当 IPv4 污染字符串附带端口冒号时（如 `127.0.0.1%00.evil.com:80` 或 `192.168.1.1%evil:5000`），清洗逻辑仍然会错误截断 `%` 之后的所有内容，导致污染字符串被洗白为回环或私网 IP)*
+**判定结果**：`CHALLENGE_FAILED`
+_(未能达成 `APPROVE` 标准所要求的“算法坚固无破绽，所有缺陷彻底消除”。虽然缺陷 1（三冒号）和缺陷 3（运行时类型守卫）已彻底解决，但在针对缺陷 2（IPv4 污染清洗）的深度实测中，挖掘出确定性的__“启发式旁路（Heuristic Bypass）”\**：由于采用 `addr.includes(":")` 作为判断 IPv6 的粗糙依据，当 IPv4 污染字符串附带端口冒号时（如 `127.0.0.1%00.evil.com:80` 或 `192.168.1.1%evil:5000`），清洗逻辑仍然会错误截断 `%` 之后的所有内容，导致污染字符串被洗白为回环或私网 IP)_
 
 ---
 
@@ -9,14 +9,14 @@
 
 ### 1.1 针对 5 项复验目标的实测结果汇总
 
-| 复验目标 | 测试输入与命令 | 预期严格结果 | 实测客观结果 | 状态 |
-|---|---|---|---|---|
-| **1. 三冒号/多连冒号拦截** | `parseIpv6(":::")`<br>`isValidIpv6(":::")`<br>`classifyIp("fe80:::1")`<br>`classifyIp("240e:::1")` | `null`<br>`false`<br>`"unknown"`<br>`"unknown"` | `null`<br>`false`<br>`"unknown"`<br>`"unknown"` | **PASS (彻底加固)** |
-| **2.1 IPv4 无端口污染清洗** | `extractIpAddress("127.0.0.1%00.evil.com")`<br>`classifyIp("127.0.0.1%00.evil.com")` | `"127.0.0.1%00.evil.com"`<br>`"unknown"` | `"127.0.0.1%00.evil.com"`<br>`"unknown"` | **PASS** |
-| **2.2 合法 IPv6 链路本地 Scope** | `extractIpAddress("fe80::1%eth0")`<br>`classifyIp("fe80::1%eth0")` | `"fe80::1"`<br>`"link-local-v6"` | `"fe80::1"`<br>`"link-local-v6"` | **PASS** |
-| **3. 运行时类型守卫** | `extractIpAddress(123 as any)`<br>`determineP2PConnectionType({ localCandidateType: 123 as any })` | `""`<br>`"P2P"` (无未捕获异常) | `""`<br>`"P2P"` (0 uncaught throw) | **PASS (彻底加固)** |
-| **4. 核心单测套件** | `pnpm --filter @tescord/server exec tsx ../../scripts/test-p2p-ip-classification.ts` | 10/10 tests pass | `tests 10, pass 10, fail 0` (耗时 10.08ms) | **PASS** |
-| **5. 全局编译构建** | `pnpm build` | 4/4 packages success, 0 TS errors | `Tasks: 4 successful, 4 total` (0 TS error) | **PASS** |
+| 复验目标                         | 测试输入与命令                                                                                     | 预期严格结果                                    | 实测客观结果                                    | 状态                |
+| -------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------- | ----------------------------------------------- | ------------------- |
+| **1. 三冒号/多连冒号拦截**       | `parseIpv6(":::")`<br>`isValidIpv6(":::")`<br>`classifyIp("fe80:::1")`<br>`classifyIp("240e:::1")` | `null`<br>`false`<br>`"unknown"`<br>`"unknown"` | `null`<br>`false`<br>`"unknown"`<br>`"unknown"` | **PASS (彻底加固)** |
+| **2.1 IPv4 无端口污染清洗**      | `extractIpAddress("127.0.0.1%00.evil.com")`<br>`classifyIp("127.0.0.1%00.evil.com")`               | `"127.0.0.1%00.evil.com"`<br>`"unknown"`        | `"127.0.0.1%00.evil.com"`<br>`"unknown"`        | **PASS**            |
+| **2.2 合法 IPv6 链路本地 Scope** | `extractIpAddress("fe80::1%eth0")`<br>`classifyIp("fe80::1%eth0")`                                 | `"fe80::1"`<br>`"link-local-v6"`                | `"fe80::1"`<br>`"link-local-v6"`                | **PASS**            |
+| **3. 运行时类型守卫**            | `extractIpAddress(123 as any)`<br>`determineP2PConnectionType({ localCandidateType: 123 as any })` | `""`<br>`"P2P"` (无未捕获异常)                  | `""`<br>`"P2P"` (0 uncaught throw)              | **PASS (彻底加固)** |
+| **4. 核心单测套件**              | `pnpm --filter @tescord/server exec tsx ../../scripts/test-p2p-ip-classification.ts`               | 10/10 tests pass                                | `tests 10, pass 10, fail 0` (耗时 10.08ms)      | **PASS**            |
+| **5. 全局编译构建**              | `pnpm build`                                                                                       | 4/4 packages success, 0 TS errors               | `Tasks: 4 successful, 4 total` (0 TS error)     | **PASS**            |
 
 ### 1.2 对抗挖掘实证：带端口/特殊伪装的 IPv4 污染清洗启发式旁路
 
@@ -76,12 +76,13 @@
 
 ## 4. Conclusion (结论与修复方案)
 
-**最终裁决**：`CHALLENGE_FAILED`  
-*(因存在针对端口后缀 IPv4 的启发式洗白旁路，未能达成“算法坚固无破绽”之 APPROVE 标准)*
+**最终裁决**：`CHALLENGE_FAILED`
+_(因存在针对端口后缀 IPv4 的启发式洗白旁路，未能达成“算法坚固无破绽”之 APPROVE 标准)_
 
 ### 极简加固方案建议 (供 Worker 采纳)
 
 在 `apps/web/src/services/p2p/ipClassifier.ts` 第 35 行，将朴素的 `addr.includes(":")` 替换为准确的 IPv6 冒号特征检测：
+
 ```typescript
 // IPv6 无方括号时必包含 :: 或至少 2 个冒号；IPv4:port 仅包含单个冒号
 if (addr.includes("::") || (addr.match(/:/g) || []).length >= 2) {
@@ -91,6 +92,7 @@ if (addr.includes("::") || (addr.match(/:/g) || []).length >= 2) {
   }
 }
 ```
+
 此改动单行即可彻底杜绝携带端口冒号的 IPv4 误入 Scope 截断流程，实现坚固无破绽的防御闭环。
 
 ---
@@ -100,16 +102,18 @@ if (addr.includes("::") || (addr.match(/:/g) || []).length >= 2) {
 任何智能体或 Orchestrator 均可运行以下命令验证本报告的实测结论：
 
 1. **运行独立复验套件**：
+
    ```powershell
    pnpm --filter @tescord/server exec tsx ../../scripts/reverify-challenger-suite.ts
    ```
-   *预期结果*：控制台打印 4 处 `[CHALLENGE-EVIDENCE]`，实证 `127.0.0.1%00.evil.com:80` 被洗白为 `loopback`。
+
+   _预期结果_：控制台打印 4 处 `[CHALLENGE-EVIDENCE]`，实证 `127.0.0.1%00.evil.com:80` 被洗白为 `loopback`。
 
 2. **单行命令直接复现旁路洗白**：
    ```powershell
    pnpm --filter @tescord/server exec tsx -e "import { extractIpAddress, classifyIp } from '../../apps/web/src/services/p2p/ipClassifier.ts'; console.log('extract:', extractIpAddress('127.0.0.1%00.evil.com:80')); console.log('classify:', classifyIp('127.0.0.1%00.evil.com:80'));"
    ```
-   *复现输出*：
+   _复现输出_：
    ```text
    extract: 127.0.0.1
    classify: loopback
