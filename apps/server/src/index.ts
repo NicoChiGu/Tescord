@@ -25,6 +25,7 @@ import { dmCallService } from "./services/dm-call.service.js";
 import { registrationInviteService } from "./services/registration-invite.service.js";
 import { cloudflareRealtimeService } from "./services/cloudflare-realtime.service.js";
 import { registerGuildIconRoutes } from "./guild-icon.routes.js";
+import { registerSteamGameRoutes } from "./steam-game.routes.js";
 import { guildIconProcessor } from "./services/guild-icon.service.js";
 import { registerMediaEncryptionRoutes } from "./services/media-encryption.routes.js";
 import { mediaEncryptionRegistry } from "./services/media-encryption.service.js";
@@ -361,10 +362,13 @@ server.addHook("preHandler", async (request, reply) => {
   const isPublicCustomEmojiQuery =
     (request.method === "GET" || request.method === "HEAD") &&
     pathOnly.startsWith("/api/custom-emojis/");
+  const isPublicSteamGameImageQuery =
+    request.method === "GET" && pathOnly.startsWith("/api/games/steam/");
   if (
     publicApiPaths.has(pathOnly) ||
     isPublicInviteQuery ||
-    isPublicCustomEmojiQuery
+    isPublicCustomEmojiQuery ||
+    isPublicSteamGameImageQuery
   )
     return;
 
@@ -404,6 +408,7 @@ server.addHook("preHandler", async (request, reply) => {
 });
 
 registerGuildIconRoutes(server, getActiveUserIdFromRequest, sendApiError);
+registerSteamGameRoutes(server, sendApiError);
 registerMediaEncryptionRoutes(server, getActiveUserIdFromRequest, sendApiError);
 
 server.decorate(

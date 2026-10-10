@@ -357,6 +357,7 @@
   "authenticatedUser": "已驗證使用者",
   "playingGame": "正在遊玩",
   "playedMinutes": "已遊玩 {{count}} 分鐘",
+  "playedHours": "已遊玩 {{hours}} 小時 {{minutes}} 分鐘",
   "gameActivityHidden": "遊戲狀態已設定為隱藏",
   "aboutMe": "關於我",
   "bioPlaceholderEmpty": "這個人很神秘，什麼都還沒寫...",

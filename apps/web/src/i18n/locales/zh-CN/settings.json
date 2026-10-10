@@ -357,6 +357,7 @@
   "authenticatedUser": "已认证用户",
   "playingGame": "正在游玩",
   "playedMinutes": "已游玩 {{count}} 分钟",
+  "playedHours": "已游玩 {{hours}} 小时 {{minutes}} 分钟",
   "gameActivityHidden": "游戏状态已设置为隐藏",
   "aboutMe": "关于我",
   "bioPlaceholderEmpty": "这个人很神秘，什么都还没写...",

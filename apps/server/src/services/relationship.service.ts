@@ -33,6 +33,9 @@ export class RelationshipService {
         if (presence?.status) {
           formattedUser.status = presence.status;
           formattedUser.customStatus = presence.customStatus || null;
+          if (presence.activities && formattedUser.showActivity !== false) {
+            formattedUser.activities = presence.activities;
+          }
         }
 
         return {

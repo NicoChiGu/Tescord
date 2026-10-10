@@ -12,6 +12,7 @@ import {
   UserPlus,
   Trash2,
   Menu,
+  Gamepad2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Guild } from "@tescord/types";
@@ -19,6 +20,7 @@ import { useFriendStore, FriendTab } from "../../stores/useFriendStore.js";
 import { usePresenceStore } from "../../stores/usePresenceStore.js";
 import { useSettingsStore } from "../../stores/useSettingsStore.js";
 import { UserContextMenu } from "../context-menu/UserContextMenu.js";
+import { SteamLogo } from "../common/SteamGameImage.js";
 
 interface FriendsDashboardProps {
   currentUser: User;
@@ -197,6 +199,10 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
       realtimePresence?.customStatus !== undefined
         ? realtimePresence.customStatus
         : friend.customStatus;
+    const activities =
+      realtimePresence?.activities !== undefined
+        ? realtimePresence.activities
+        : friend.activities;
 
     // 备注与名称分层：若有备注优先展示备注，副标题展示 @username
     const note = userNotes?.[friend.id];
@@ -234,6 +240,7 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
         onSendMessage={() => onStartDM(friend.id)}
       >
         <div
+          data-testid={`friend-item-${friend.id}`}
           onDoubleClick={() => onStartDM(friend.id)}
           className="group flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-[#35373c]/50 transition border-t border-[#1f2023]/40 first:border-none cursor-pointer"
         >
@@ -278,7 +285,21 @@ export const FriendsDashboard: React.FC<FriendsDashboardProps> = ({
                   </span>
                 )}
               </div>
-              {customStatus ? (
+              {activities &&
+              activities.length > 0 &&
+              friend.showActivity !== false ? (
+                <div className="flex items-center space-x-1.5 text-xs text-discord-textMuted truncate mt-0.5">
+                  {activities[0].applicationId ? (
+                    <SteamLogo className="w-3.5 h-3.5 text-[#c7d5e0] flex-shrink-0" />
+                  ) : (
+                    <Gamepad2 className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+                  )}
+                  <span className="truncate">
+                    {t("common:activity.playing", { defaultValue: "正在游玩" })}{" "}
+                    {activities[0].name}
+                  </span>
+                </div>
+              ) : customStatus ? (
                 <div className="text-xs text-discord-textMuted truncate mt-0.5">
                   {customStatus}
                 </div>

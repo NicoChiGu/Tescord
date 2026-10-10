@@ -36,6 +36,16 @@ const STEAM_KNOWN_NAMES: Record<string, string> = {
   "1623730": "幻兽帕鲁 (Palworld)",
   "2246340": "怪物猎人：荒野 (Monster Hunter Wilds)",
   "582010": "怪物猎人：世界 (Monster Hunter: World)",
+  "252490": "Rust",
+  "440": "Team Fortress 2",
+  "289070": "文明 6 (Civilization VI)",
+  "1551360": "极限竞速：地平线 5 (Forza Horizon 5)",
+  "553850": "绝地潜兵 2 (HELLDIVERS™ 2)",
+  "292030": "巫师 3：狂猎 (The Witcher 3: Wild Hunt)",
+  "2050650": "生化危机 4 重制版 (Resident Evil 4)",
+  "2861690": "小丑牌 (Balatro)",
+  "1794680": "吸血鬼幸存者 (Vampire Survivors)",
+  "646570": "杀戮尖塔 (Slay the Spire)",
 };
 
 // 常见独立或非 Steam 热门游戏特征字典
@@ -235,10 +245,16 @@ export class GameDetector {
       return {
         name: gameName,
         type: "PLAYING",
-        details: "正在游戏中 (Steam)",
+        details: "Steam",
         applicationId: appIdStr,
         timestamps: {
           start: this.currentGameStartTime || Date.now(),
+        },
+        assets: {
+          largeImage: `https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${appIdStr}/header.jpg`,
+          largeText: gameName,
+          smallImage: "steam",
+          smallText: "Steam",
         },
       };
     } catch {

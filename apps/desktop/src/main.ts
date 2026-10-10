@@ -15,6 +15,7 @@ import {
   IpcMainInvokeEvent,
   utilityProcess,
   dialog,
+  powerMonitor,
 } from "electron";
 import path from "path";
 import fs from "fs";
@@ -2027,6 +2028,19 @@ app.whenReady().then(async () => {
   // 监听游戏状态变动并推送给渲染进程
   gameDetector.onActivityChange((activity) => {
     mainWindow?.webContents.send("game-activity-changed", activity);
+  });
+
+  powerMonitor.on("suspend", () => {
+    gameDetector.stopPolling();
+  });
+  powerMonitor.on("resume", () => {
+    gameDetector.startPolling();
+  });
+  powerMonitor.on("lock-screen", () => {
+    gameDetector.stopPolling();
+  });
+  powerMonitor.on("unlock-screen", () => {
+    gameDetector.startPolling();
   });
 
   app.on("activate", async () => {

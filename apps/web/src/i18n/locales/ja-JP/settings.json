@@ -357,6 +357,7 @@
   "authenticatedUser": "認証済みユーザー",
   "playingGame": "プレイ中",
   "playedMinutes": "{{count}} 分プレイ中",
+  "playedHours": "{{hours}}時間 {{minutes}}分プレイ中",
   "gameActivityHidden": "ゲームアクティビティは非表示に設定されています",
   "aboutMe": "自己紹介",
   "bioPlaceholderEmpty": "このユーザーはまだ何も書いていません...",

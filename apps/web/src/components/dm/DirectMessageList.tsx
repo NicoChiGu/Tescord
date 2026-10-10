@@ -9,6 +9,7 @@ import {
   Users,
   Pin,
   BellOff,
+  Gamepad2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { API_BASE } from "../../config.js";
@@ -18,6 +19,7 @@ import { useFriendStore } from "../../stores/useFriendStore.js";
 import { useSettingsStore } from "../../stores/useSettingsStore.js";
 import { UserContextMenu } from "../context-menu/UserContextMenu.js";
 import { StatusBadge } from "../ui/StatusBadge.js";
+import { SteamLogo } from "../common/SteamGameImage.js";
 
 interface DirectMessageListProps {
   channels: Channel[];
@@ -220,6 +222,10 @@ export const DirectMessageList: React.FC<DirectMessageListProps> = ({
             realtimePresence?.customStatus !== undefined
               ? realtimePresence.customStatus
               : otherUser?.customStatus;
+          const activities =
+            realtimePresence?.activities !== undefined
+              ? realtimePresence.activities
+              : otherUser?.activities;
           const unread = channel.unreadCount || 0;
           const isPinned = pinnedDMs?.includes(channel.id) || false;
           const isMuted = otherUser ? isUserMuted(otherUser.id) : false;
@@ -281,12 +287,30 @@ export const DirectMessageList: React.FC<DirectMessageListProps> = ({
                       )}
                     </div>
                     <p className="text-xs text-discord-textMuted truncate">
-                      {channel.lastMessage
-                        ? formatMessageSnippet(channel.lastMessage.content)
-                        : customStatus ||
-                          t("chat:dm.clickToChat", {
-                            defaultValue: "点击开始私信沟通",
-                          })}
+                      {channel.lastMessage ? (
+                        formatMessageSnippet(channel.lastMessage.content)
+                      ) : activities &&
+                        activities.length > 0 &&
+                        otherUser?.showActivity !== false ? (
+                        <span className="flex items-center space-x-1 text-emerald-400">
+                          {activities[0].applicationId ? (
+                            <SteamLogo className="w-3 h-3 text-[#c7d5e0] flex-shrink-0 inline" />
+                          ) : (
+                            <Gamepad2 className="w-3 h-3 text-emerald-400 flex-shrink-0 inline" />
+                          )}
+                          <span className="truncate">
+                            {t("common:activity.playing", {
+                              defaultValue: "正在游玩",
+                            })}{" "}
+                            {activities[0].name}
+                          </span>
+                        </span>
+                      ) : (
+                        customStatus ||
+                        t("chat:dm.clickToChat", {
+                          defaultValue: "点击开始私信沟通",
+                        })
+                      )}
                     </p>
                   </div>
                 </div>

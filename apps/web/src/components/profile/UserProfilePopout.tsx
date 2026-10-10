@@ -33,6 +33,7 @@ import { useSettingsStore } from "../../stores/useSettingsStore.js";
 import { gatewayClient } from "../../services/gateway.js";
 import { getUserDisplayName, formatUserTag } from "../../utils/userDisplay.js";
 import { StatusBadge } from "../ui/StatusBadge.js";
+import { SteamGameImage, SteamLogo } from "../common/SteamGameImage.js";
 
 interface UserProfilePopoutProps {
   isOpen: boolean;
@@ -112,6 +113,14 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
     : targetPresence?.customStatus !== undefined
       ? targetPresence.customStatus
       : user.customStatus;
+  const effectiveActivities = isSelf
+    ? currentUser.activities
+    : targetPresence?.activities !== undefined
+      ? targetPresence.activities
+      : user.activities;
+  const effectiveShowActivity = isSelf
+    ? currentUser.showActivity !== false
+    : user.showActivity !== false;
 
   // 桌面端弹出卡片坐标与指向箭头垂直位置（自适应目标元素的左侧或右侧）
   const calculatePosition = (rect: DOMRect | null, measuredHeight?: number) => {
@@ -734,52 +743,95 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
 
         {/* 4. 中间详细信息区 */}
         <div className="px-4 space-y-2.5 pb-2">
-          {/* 正在玩游戏 (PLAYING A GAME) 专属面板 */}
-          {user.activities &&
-            user.activities.length > 0 &&
-            user.showActivity !== false && (
-              <div
-                data-testid="user-playing-game-panel"
-                className="p-3 rounded-xl bg-[#111214]/80 border border-emerald-500/20 text-xs space-y-2 shadow-inner"
-              >
-                <div className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
-                  <Gamepad2 className="w-3.5 h-3.5" />
-                  <span>{t("settings:playingGame")}</span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-[#2b2d31] flex items-center justify-center flex-shrink-0 border border-white/5">
-                    <Gamepad2 className="w-5 h-5 text-emerald-400" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="font-semibold text-white truncate text-xs">
-                      {user.activities[0].name}
+          {/* 正在玩游戏 (PLAYING A GAME) 专属沉浸式面板 */}
+          {effectiveActivities &&
+            effectiveActivities.length > 0 &&
+            effectiveShowActivity && (() => {
+              const game = effectiveActivities[0];
+              const isSteam = Boolean(game.applicationId);
+              const elapsedMs = game.timestamps?.start
+                ? Math.max(0, Date.now() - game.timestamps.start)
+                : 0;
+              const elapsedMins = Math.max(1, Math.floor(elapsedMs / 60000));
+              const elapsedHours = Math.floor(elapsedMins / 60);
+              const remainMins = elapsedMins % 60;
+              const timeString =
+                elapsedHours > 0
+                  ? t("settings:playedHours", {
+                      hours: elapsedHours,
+                      minutes: remainMins,
+                      defaultValue: `已游玩 ${elapsedHours} 小时 ${remainMins} 分钟`,
+                    })
+                  : t("settings:playedMinutes", {
+                      count: elapsedMins,
+                      defaultValue: `已游玩 ${elapsedMins} 分钟`,
+                    });
+
+              return (
+                <div
+                  data-testid="user-playing-game-panel"
+                  className="relative overflow-hidden p-3 rounded-xl bg-[#111214]/90 border border-emerald-500/30 text-xs space-y-2.5 shadow-lg group"
+                >
+                  {/* 背景暗色磨砂氛围图层 */}
+                  {isSteam && (
+                    <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-xl">
+                      <img
+                        src={`https://shared.cloudflare.steamstatic.com/store_item_assets/steam/apps/${game.applicationId}/header.jpg`}
+                        alt=""
+                        className="w-full h-full object-cover filter blur-md opacity-25 scale-110"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = "none";
+                        }}
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-[#111214] via-[#111214]/70 to-transparent" />
                     </div>
-                    {user.activities[0].details && (
-                      <div className="text-[11px] text-[#949ba4] truncate">
-                        {user.activities[0].details}
-                      </div>
-                    )}
-                    {user.activities[0].timestamps?.start && (
-                      <div className="text-[10px] text-emerald-400/90 font-medium flex items-center gap-1 mt-0.5">
-                        <Clock className="w-3 h-3" />
-                        <span>
-                          {t("settings:playedMinutes", {
-                            count: Math.max(
-                              1,
-                              Math.floor(
-                                (Date.now() -
-                                  user.activities[0].timestamps.start) /
-                                  60000,
-                              ),
-                            ),
-                          })}
-                        </span>
-                      </div>
+                  )}
+
+                  {/* 顶栏标题与平台标识 */}
+                  <div className="relative z-10 flex items-center justify-between text-[10px] font-extrabold uppercase tracking-wider text-emerald-400">
+                    <div className="flex items-center gap-1.5">
+                      <Gamepad2 className="w-3.5 h-3.5" />
+                      <span>{t("settings:playingGame", { defaultValue: "正在游玩" })}</span>
+                    </div>
+                    {isSteam && (
+                      <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded bg-white/10 text-white/90 font-medium tracking-normal normal-case border border-white/10">
+                        <SteamLogo className="w-2.5 h-2.5" />
+                        <span>Steam</span>
+                      </span>
                     )}
                   </div>
+
+                  {/* 主体图文 */}
+                  <div className="relative z-10 flex items-center gap-3">
+                    <SteamGameImage
+                      appId={game.applicationId}
+                      src={game.assets?.largeImage}
+                      gameName={game.name}
+                      type="header"
+                      className="w-14 h-14 rounded-lg flex-shrink-0 shadow-md border border-white/10 bg-[#2b2d31]"
+                      imageClassName="w-full h-full object-cover rounded-lg"
+                      fallbackIconClassName="w-7 h-7 text-emerald-400"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="font-bold text-white truncate text-sm leading-snug">
+                        {game.name}
+                      </div>
+                      {game.details && (
+                        <div className="text-[11px] text-[#949ba4] truncate mt-0.5">
+                          {game.details}
+                        </div>
+                      )}
+                      {game.timestamps?.start && (
+                        <div className="text-[10px] text-emerald-400 font-medium flex items-center gap-1 mt-1">
+                          <Clock className="w-3 h-3 flex-shrink-0" />
+                          <span className="truncate">{timeString}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
           {/* 共同服务器 */}
           {!isSelf && (

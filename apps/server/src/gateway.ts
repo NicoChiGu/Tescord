@@ -520,6 +520,7 @@ export class GatewayManager {
           members: g.members.map((m) => {
             if (!m.user) return m;
             if (m.userId === user.id) {
+              const selfPresence = presences.get(user.id);
               return {
                 ...m,
                 user: {
@@ -530,6 +531,10 @@ export class GatewayManager {
                   bannerColor: user.bannerColor,
                   themeColor: user.themeColor,
                   showActivity: user.showActivity,
+                  activities:
+                    user.showActivity !== false
+                      ? selfPresence?.activities
+                      : undefined,
                 },
               };
             }
@@ -572,6 +577,10 @@ export class GatewayManager {
               bannerColor: user.bannerColor,
               themeColor: user.themeColor,
               showActivity: user.showActivity,
+              activities:
+                user.showActivity !== false
+                  ? presences.get(user.id)?.activities
+                  : undefined,
             },
             guilds: hydratedGuilds,
             voiceStates: (

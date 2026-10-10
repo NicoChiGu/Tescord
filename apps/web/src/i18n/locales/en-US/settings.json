@@ -357,6 +357,7 @@
   "authenticatedUser": "Verified User",
   "playingGame": "PLAYING A GAME",
   "playedMinutes": "for {{count}} minutes",
+  "playedHours": "for {{hours}}h {{minutes}}m",
   "gameActivityHidden": "Game activity is hidden",
   "aboutMe": "ABOUT ME",
   "bioPlaceholderEmpty": "This user hasn't written anything yet...",

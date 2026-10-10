@@ -34,11 +34,13 @@ import {
   BellOff,
   GripVertical,
   Network,
+  Gamepad2,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { VOICE_ENGINE, resolveServerUrl } from "../config.js";
 import { VoiceConnectionStatusPopover } from "./VoiceConnectionStatusPopover.js";
 import { StatusBadge } from "./ui/StatusBadge.js";
+import { SteamLogo } from "./common/SteamGameImage.js";
 import { Tooltip } from "./ui/Tooltip.js";
 import {
   DndContext,
@@ -1632,16 +1634,31 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                 {getUserDisplayName(currentUser)}
               </span>
               <span className="text-[10px] text-discord-textMuted truncate flex items-center gap-1">
-                <span>
-                  {currentUser.customStatus ||
-                    (currentUser.status === "ONLINE"
-                      ? t("common:status.online")
-                      : currentUser.status === "IDLE"
-                        ? t("common:status.idle")
-                        : currentUser.status === "DND"
-                          ? t("common:status.dnd")
-                          : t("common:status.invisible"))}
-                </span>
+                {currentUser.activities &&
+                currentUser.activities.length > 0 &&
+                currentUser.showActivity !== false ? (
+                  <span className="flex items-center gap-1 text-emerald-400 font-medium truncate">
+                    {currentUser.activities[0].applicationId ? (
+                      <SteamLogo className="w-2.5 h-2.5 text-[#c7d5e0] flex-shrink-0" />
+                    ) : (
+                      <Gamepad2 className="w-2.5 h-2.5 flex-shrink-0" />
+                    )}
+                    <span className="truncate">
+                      {currentUser.activities[0].name}
+                    </span>
+                  </span>
+                ) : (
+                  <span>
+                    {currentUser.customStatus ||
+                      (currentUser.status === "ONLINE"
+                        ? t("common:status.online")
+                        : currentUser.status === "IDLE"
+                          ? t("common:status.idle")
+                          : currentUser.status === "DND"
+                            ? t("common:status.dnd")
+                            : t("common:status.invisible"))}
+                  </span>
+                )}
               </span>
             </div>
           </button>

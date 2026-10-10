@@ -1212,7 +1212,7 @@ export const App: React.FC = () => {
       },
     );
 
-    // 监听 Electron 桌面端游戏进程侦测变动
+    // 监听 Electron 桌面端游戏进程侦测变动与首屏主动拉取
     let unbindGameActivity: (() => void) | undefined;
     if (window.electronAPI?.onGameActivityChanged) {
       unbindGameActivity = window.electronAPI.onGameActivityChanged(
@@ -1231,6 +1231,28 @@ export const App: React.FC = () => {
           );
         },
       );
+
+      window.electronAPI
+        .getDetectedGame?.()
+        .then((initialActivity) => {
+          if (initialActivity) {
+            const u = useAuthStore.getState().user;
+            if (!u) return;
+            const activities = [initialActivity];
+            useAuthStore.getState().setUser({
+              ...u,
+              activities,
+            });
+            gatewayClient.updateStatus(
+              u.status || "ONLINE",
+              u.customStatus,
+              activities,
+            );
+          }
+        })
+        .catch(() => {
+          // ignore
+        });
     }
 
     // 监听全量用户信息变更广播

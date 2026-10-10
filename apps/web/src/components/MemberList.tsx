@@ -8,6 +8,7 @@ import { usePresenceStore } from "../stores/usePresenceStore.js";
 import { resolveServerUrl } from "../config.js";
 import { getUserDisplayName } from "../utils/userDisplay.js";
 import { StatusBadge } from "./ui/StatusBadge.js";
+import { SteamLogo } from "./common/SteamGameImage.js";
 
 interface MemberListProps {
   guild: Guild | null;
@@ -322,9 +323,16 @@ export const MemberList: React.FC<MemberListProps> = ({
                     m.rawUser.activities.length > 0 &&
                     m.rawUser.showActivity !== false ? (
                       <div className="flex items-center space-x-1 text-[10px] text-discord-textMuted truncate">
-                        <Gamepad2 className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+                        {m.rawUser.activities[0].applicationId ? (
+                          <SteamLogo className="w-3 h-3 text-[#c7d5e0] flex-shrink-0" />
+                        ) : (
+                          <Gamepad2 className="w-3 h-3 text-emerald-400 flex-shrink-0" />
+                        )}
                         <span className="truncate">
-                          正在玩 {m.rawUser.activities[0].name}
+                          {t("common:activity.playing", {
+                            defaultValue: "正在游玩",
+                          })}{" "}
+                          {m.rawUser.activities[0].name}
                         </span>
                       </div>
                     ) : m.customStatus ? (
