@@ -7878,13 +7878,18 @@ server.get("/public-assets/:fileName", async (request, reply) => {
         .send(png);
     }
     if (customEmoji) {
-      reply.header("Cache-Control", "no-store");
+      reply.header(
+        "Cache-Control",
+        "no-store, no-cache, must-revalidate, max-age=0, s-maxage=0",
+      );
+      reply.header("Pragma", "no-cache");
+      reply.header("Expires", "0");
       reply.header("Cloudflare-CDN-Cache-Control", "no-store");
       reply.header("CDN-Cache-Control", "no-store");
     } else {
       reply.header("Cache-Control", "public, max-age=31536000, immutable");
+      reply.header("ETag", `"${decoded}"`);
     }
-    reply.header("ETag", `"${decoded}"`);
     return reply.send(stream);
   } catch {
     return sendPublicAssetError(404, "资源不存在");
