@@ -145,11 +145,11 @@
     "videoCodec": "当前视频轨道编码格式：{{codec}}",
     "volume": "调节该用户的远端独立音量 (0% - 200%)",
     "openDrawer": "打开频道与服务器抽屉",
-    "mixPanel": "声卡伴音与麦克风混音控制面板",
     "closeNotice": "关闭提示",
     "micOptions": "麦克风选项",
     "cameraOptions": "摄像头选项",
-    "disconnect": "断开连接"
+    "disconnect": "断开连接",
+    "swap": "切换"
   },
   "networkStats": {
     "noMedia": "暂无媒体数据",
@@ -161,7 +161,9 @@
     "sfuRtt": "{{value}} 毫秒（本机 ↔ SFU）",
     "noRate": "暂无速率",
     "noCodec": "暂无协商编解码器",
-    "remoteEncoderUnknown": "远端编码器不可见"
+    "remoteEncoderUnknown": "远端编码器不可见",
+    "remoteIp": "远端 IP",
+    "localIp": "本端 IP"
   },
   "connectionPopover": {
     "title": "连线",
@@ -185,7 +187,13 @@
     "p2pLatencyTooltip": "P2P 直连往返时间：{{value}}（{{type}}）",
     "statsTooltip": "往返时间：{{rtt}} | 丢包：{{loss}} | 抖动：{{jitter}}",
     "streamTrackNotReady": "主播的视频轨道尚未准备好，请稍后重试",
-    "streamJoinFailed": "直播连接失败"
+    "streamJoinFailed": "直播连接失败",
+    "p2pAvgPing": "全员平均延迟",
+    "allPeersAvgRtt": "全员平均延迟",
+    "directTopology": "直连节点拓扑",
+    "directPeerTopology": "直连节点拓扑",
+    "overallPacketLoss": "整体丢包率",
+    "peerCount": "直连成员节点数"
   },
   "connectionBadge": {
     "connecting": "连接中...",
@@ -264,5 +272,40 @@
       "closed": "已关闭",
       "interrupted": "已中断"
     }
+  },
+  "p2pIndependentRtt": "点对点独立 RTT",
+  "nodeCount": "{{count}} 节点",
+  "connectionMode": "拓扑",
+  "remoteAddress": "远端 IP: {{address}}",
+  "localAddress": "本端 IP: {{address}}",
+  "candidateType": "候选类型: {{type}}",
+  "networkModalTitle": "WebRTC 媒体引擎与网络健康看板",
+  "closeModalTitle": "关闭 (Esc)",
+  "mediaSessionProperties": "媒体会话属性与编解码器",
+  "opusStereo": "Opus 48kHz (高清晰度立体声)",
+  "opusFullband": "Opus 48kHz (高保真全频带立体声)",
+  "videoCodecBroadcast": "视频编码与广播",
+  "pushToTalkKey": "按键说话 [{{key}}]",
+  "vadThreshold": "智能 VAD 门限 ({{percent}}%)",
+  "ipv6Pass": "🟢 原生畅通 (零NAT极速穿透)",
+  "ipv6Unconfigured": "⚪ 未配置 (走IPv4 STUN)",
+  "fallbackReasonDefault": "P2P 穿透协商受阻或节点网络变动，已自动平滑降级回退至 LiveKit SFU 服务器，保障语音通话不中断。",
+  "noiseDirect": "直通",
+  "hardwareAccelActive": "Intel QSV / WebCodecs / NVENC 畅通",
+  "relayingClients": "{{count}} 个客户端正在中继",
+  "probingNatCandidates": "正在探测 NAT 穿透候选对与拓扑节点...",
+  "p2pMeshTitle": "点对点直连 (P2P)",
+  "encryptedChannel": "端到端加密",
+  "you": "你",
+  "topology": {
+    "lan": "直连局域网",
+    "p2p": "公网 P2P",
+    "relay": "中继 RELAY"
+  },
+  "qualityLevels": {
+    "excellent": "极佳 (Excellent)",
+    "good": "良好 (Good)",
+    "poor": "较差 (Poor)",
+    "unknown": "未知 (Unknown)"
   }
 }

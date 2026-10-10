@@ -25,6 +25,16 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
   >("loading");
   const [imageUrl, setImageUrl] = useState<string>();
   const [retryCount, setRetryCount] = useState(0);
+  const [skeletonMounted, setSkeletonMounted] = useState(true);
+
+  useEffect(() => {
+    if (status === "loaded" || status === "error") {
+      const t = setTimeout(() => setSkeletonMounted(false), 350);
+      return () => clearTimeout(t);
+    } else {
+      setSkeletonMounted(true);
+    }
+  }, [status]);
 
   const fileName =
     attachment.fileName ||
@@ -146,17 +156,21 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
       }}
       className={`relative group/att rounded-lg overflow-hidden border border-[#3f4147] bg-[#1e1f22] select-none ${className}`}
     >
-      {/* 1. 初始加载态：优雅流光骨架屏 + 微光脉冲 (与真实图片 1:1 像素级等比预占位) */}
-      {status === "loading" && (
+      {/* 1. 初始加载态：精致呼吸扫光骨架屏 (Shimmer skeleton) */}
+      {skeletonMounted && (
         <div
           data-testid="image-skeleton"
           style={{ width: "100%", height: "100%" }}
-          className="relative bg-[#2b2d31] animate-pulse overflow-hidden flex flex-col items-center justify-center text-discord-textMuted/40"
+          className={`absolute inset-0 bg-[#2b2d31] overflow-hidden flex flex-col items-center justify-center text-discord-textMuted/40 transition-opacity duration-300 ease-out z-10 ${
+            status === "loaded"
+              ? "opacity-0 pointer-events-none"
+              : "opacity-100 animate-pulse"
+          }`}
         >
-          {/* Shimmer 光效 */}
-          <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.6s_infinite] bg-gradient-to-r from-transparent via-white/5 to-transparent pointer-events-none" />
+          {/* 高质感呼吸扫光光效 */}
+          <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.5s_infinite] bg-gradient-to-r from-transparent via-white/[0.08] to-transparent pointer-events-none" />
           <div className="relative flex items-center justify-center">
-            <ImageIcon className="w-8 h-8 opacity-40 animate-pulse" />
+            <ImageIcon className="w-8 h-8 opacity-40 animate-pulse text-discord-textMuted/40" />
             <Loader2 className="absolute w-5 h-5 text-discord-brand/70 animate-spin" />
           </div>
         </div>
@@ -201,7 +215,7 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
         </div>
       )}
 
-      {/* 4. 成功渲染态：平滑淡入呈现，尺寸无缝衔接 */}
+      {/* 4. 成功渲染态：丝滑淡入呈现，尺寸无缝衔接 */}
       {imageUrl && status !== "error" && (
         <button
           type="button"
@@ -220,11 +234,11 @@ export const ImageAttachment: React.FC<ImageAttachmentProps> = ({
                   };
             onPreview?.(fullAttachment);
           }}
-          className={
+          className={`block w-full h-full transition-opacity duration-300 ease-out ${
             status === "loaded"
-              ? "block w-full h-full"
-              : "absolute opacity-0 pointer-events-none w-full h-full"
-          }
+              ? "opacity-100"
+              : "opacity-0 pointer-events-none"
+          }`}
           aria-label={t("lightbox.previewAria", { fileName })}
         >
           <img

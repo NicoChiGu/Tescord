@@ -193,7 +193,8 @@
     "originalBadge": "原圖",
     "zoomBadge": "縮放 {{percent}}%",
     "decoding": "正在解碼原圖…",
-    "downloadProgress": "{{loaded}} / {{total}} MB"
+    "downloadProgress": "{{loaded}} / {{total}} MB",
+    "hdBadge": "HD 高畫質"
   },
   "searchEmoji": "搜尋表情...",
   "emojiCategoryRecent": "常用表情",

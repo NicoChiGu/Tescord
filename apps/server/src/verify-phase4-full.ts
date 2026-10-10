@@ -4,7 +4,6 @@ import {
   ScreenSharePreset,
   SimulcastLayer,
   computeSimulcastLayers,
-  computeMixGains,
   DesktopSource,
   DesktopNotificationPayload,
   AutoLaunchSettings,
@@ -246,44 +245,6 @@ async function runFullPhase4Verification() {
   // 2. 验证 4.2：Electron 桌面端声卡伴音混音
   // ==========================================
   console.log("\n--- 2. 验证 4.2 Electron 桌面端声卡伴音采集与混音 ---");
-
-  // 2.1 验证混音增益换算 (computeMixGains)
-  const defaultMix = computeMixGains(100, 80, false);
-  assert(
-    defaultMix.micGain === 1.0 && defaultMix.systemGain === 0.8,
-    "麦克风 100% + 伴音 80% 精确映射为 Gain(1.0, 0.8)",
-  );
-
-  const mutedMicMix = computeMixGains(100, 80, true);
-  assert(
-    mutedMicMix.micGain === 0.0 && mutedMicMix.systemGain === 0.8,
-    "麦克风静音时 micGain 为 0.0，系统伴音不受影响仍为 0.8",
-  );
-
-  // 2.2 验证异常输入与边界钳位防御
-  const clampedNegative = computeMixGains(-20, -50, false);
-  assert(
-    clampedNegative.micGain === 0.0 && clampedNegative.systemGain === 0.0,
-    "负数音量自动下限钳位为 0.0",
-  );
-
-  const clampedOverflow = computeMixGains(150, 200, false);
-  assert(
-    clampedOverflow.micGain === 1.0 && clampedOverflow.systemGain === 1.0,
-    "超额音量自动上限钳位为 1.0",
-  );
-
-  const clampedNaN = computeMixGains(NaN, NaN, false);
-  assert(
-    clampedNaN.micGain === 1.0 && clampedNaN.systemGain === 1.0,
-    "NaN 异常输入安全回退为默认增益 1.0",
-  );
-
-  const clampedNull = computeMixGains(null as any, undefined as any, false);
-  assert(
-    clampedNull.micGain === 1.0 && clampedNull.systemGain === 1.0,
-    "null/undefined 异常输入安全回退为默认增益 1.0",
-  );
 
   // 2.3 验证双轨立体声混音器 (Software Stereo Mixer) 振幅叠加防爆音仿真
   class StereoMixerSimulator {

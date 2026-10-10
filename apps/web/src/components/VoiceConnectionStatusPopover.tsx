@@ -1,19 +1,22 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Bug, ExternalLink, Lock, Check } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Channel } from "@tescord/types";
+import { Channel, Guild, VoiceState, PeerLatencyReport } from "@tescord/types";
 import { useNetworkStats } from "../hooks/useNetworkStats.js";
 import { livekitService } from "../services/livekit.js";
 import { voiceMeshManager } from "../services/p2p/VoiceMeshManager.js";
-import { VOICE_ENGINE } from "../config.js";
+import { VOICE_ENGINE, resolveServerUrl } from "../config.js";
 import { cloudflareRealtimeService } from "../services/cloudflare_realtime/index.js";
 import { useAuthStore } from "../stores/useAuthStore.js";
+import { getUserDisplayName } from "../utils/userDisplay.js";
 
 interface VoiceConnectionStatusPopoverProps {
   isOpen: boolean;
   onClose: () => void;
   onOpenMoreStats: () => void;
   channel?: Channel | null;
+  guild?: Guild | null;
+  voiceStates?: VoiceState[];
 }
 
 interface PingSample {
@@ -23,7 +26,7 @@ interface PingSample {
 
 export const VoiceConnectionStatusPopover: React.FC<
   VoiceConnectionStatusPopoverProps
-> = ({ isOpen, onClose, onOpenMoreStats, channel }) => {
+> = ({ isOpen, onClose, onOpenMoreStats, channel, guild, voiceStates }) => {
   const { t } = useTranslation(["voice", "common"]);
   const popoverRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -33,6 +36,20 @@ export const VoiceConnectionStatusPopover: React.FC<
   const userId = useAuthStore((state) => state.user?.id);
   const [copied, setCopied] = useState(false);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
+
+  // 纯语音 Mesh P2P 点对点各节点独立物理延迟状态
+  const [peerLatencies, setPeerLatencies] = useState<
+    Map<string, PeerLatencyReport>
+  >(new Map());
+
+  useEffect(() => {
+    const unsubscribe = voiceMeshManager.onLatencyUpdate((reports) => {
+      setPeerLatencies(new Map(reports));
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   // 记录最近有效 RTT，杜绝由于单次采样空窗导致的跳动闪烁
   const lastKnownRttRef = useRef<number | null>(null);
@@ -210,11 +227,55 @@ export const VoiceConnectionStatusPopover: React.FC<
       ? localStats.packetLoss.toFixed(1)
       : null;
 
+  // P2P Mesh 直连统计与成员指标
+  const connectedReports = Array.from(peerLatencies.values()).filter(
+    (r) => r.status === "connected" && r.rtt > 0,
+  );
+
+  const allPeersAvgRtt =
+    connectedReports.length > 0
+      ? Math.round(
+          connectedReports.reduce((s, r) => s + r.rtt, 0) /
+            connectedReports.length,
+        )
+      : null;
+
+  const validLosses = connectedReports
+    .filter((r) => typeof r.packetLoss === "number")
+    .map((r) => r.packetLoss!);
+
+  const overallPacketLoss =
+    validLosses.length > 0
+      ? (validLosses.reduce((s, l) => s + l, 0) / validLosses.length).toFixed(1)
+      : packetLossPercent;
+
+  const maxMeshRtt = Math.max(150, ...connectedReports.map((r) => r.rtt));
+
+  const getPeerUserInfo = (peerId: string) => {
+    const vs = voiceStates?.find((v) => v.userId === peerId);
+    const member = guild?.members?.find((m) => m.userId === peerId);
+    const user = vs?.user;
+    const displayName = getUserDisplayName(
+      user || null,
+      member,
+      `Peer ${peerId.slice(0, 4)}`,
+    );
+    const avatarUrl = user?.avatarUrl
+      ? resolveServerUrl(user.avatarUrl)
+      : `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(user?.username || peerId)}`;
+    return { displayName, avatarUrl };
+  };
+
   // 网络状态健康主色调（Discord 标准：极佳绿 #23a55a / 轻微黄 #f0b232 / 警告红 #f23f43）
+  const effectiveRtt = meshActive ? (allPeersAvgRtt ?? currentRtt) : currentRtt;
+  const effectiveLoss = meshActive
+    ? (overallPacketLoss ?? packetLossPercent)
+    : packetLossPercent;
+
   const themeColor =
-    (currentRtt ?? 0) >= 200 || Number(packetLossPercent ?? 0) > 5
+    (effectiveRtt ?? 0) >= 200 || Number(effectiveLoss ?? 0) > 5
       ? "#f23f43"
-      : (currentRtt ?? 0) >= 100 || Number(packetLossPercent ?? 0) > 2
+      : (effectiveRtt ?? 0) >= 100 || Number(effectiveLoss ?? 0) > 2
         ? "#f0b232"
         : "#23a55a";
 
@@ -534,49 +595,208 @@ export const VoiceConnectionStatusPopover: React.FC<
       </div>
 
       <div className="px-4 pb-3 pt-3 space-y-3">
-        {/* 实时示波波形图容器 */}
-        <div
-          ref={containerRef}
-          onMouseMove={handleMouseMove}
-          onMouseLeave={handleMouseLeave}
-          className="w-full h-28 bg-[#1e1f22]/90 rounded-lg p-1 relative border border-white/5 overflow-hidden cursor-crosshair"
-        >
-          <canvas ref={canvasRef} className="w-full h-full block" />
-        </div>
+        {/* 实时示波波形图容器 或 P2P 成员延迟柱状图 */}
+        {meshActive ? (
+          <div
+            data-testid="p2p-mesh-histogram"
+            className="w-full h-36 bg-[#1e1f22]/90 rounded-lg p-2 relative border border-white/5 overflow-hidden flex flex-col justify-end"
+          >
+            {connectedReports.length === 0 ? (
+              <div className="flex-1 flex items-center justify-center text-xs text-discord-textMuted">
+                {noData}
+              </div>
+            ) : (
+              <div className="flex items-end justify-around h-full gap-2 px-1 pt-6 pb-0.5">
+                {connectedReports.map((report) => {
+                  const { displayName, avatarUrl } = getPeerUserInfo(
+                    report.targetUserId,
+                  );
+                  const barColor =
+                    report.rtt < 100
+                      ? "#23a55a"
+                      : report.rtt <= 200
+                        ? "#f0b232"
+                        : "#f23f43";
+                  const heightPercent = Math.min(
+                    100,
+                    Math.max(18, Math.round((report.rtt / maxMeshRtt) * 100)),
+                  );
+
+                  return (
+                    <div
+                      key={report.targetUserId}
+                      data-testid={`p2p-histogram-bar-${report.targetUserId}`}
+                      className="relative flex flex-col items-center h-full justify-end group/bar flex-1 max-w-[56px] select-none"
+                    >
+                      {/* 悬停详情 Tooltip */}
+                      <div className="absolute bottom-full mb-1 opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none z-30 bg-[#111214]/95 backdrop-blur-md text-[10px] text-white p-2 rounded-lg shadow-2xl border border-white/10 whitespace-nowrap min-w-[120px]">
+                        <div className="font-bold text-white mb-1 truncate max-w-[130px]">
+                          {displayName}
+                        </div>
+                        <div className="space-y-0.5 font-mono text-discord-textMuted text-[9px]">
+                          <div className="flex justify-between gap-2">
+                            <span>RTT:</span>
+                            <strong style={{ color: barColor }}>
+                              {report.rtt}ms
+                            </strong>
+                          </div>
+                          <div className="flex justify-between gap-2">
+                            <span>{t("voice:audioQuality.jitter")}:</span>
+                            <span className="text-white/80">
+                              {report.jitter !== undefined
+                                ? `${report.jitter}ms`
+                                : "--"}
+                            </span>
+                          </div>
+                          <div className="flex justify-between gap-2">
+                            <span>{t("voice:packetLoss")}:</span>
+                            <span className="text-white/80">
+                              {report.packetLoss !== undefined
+                                ? `${report.packetLoss}%`
+                                : "--"}
+                            </span>
+                          </div>
+                          <div className="flex justify-between gap-2">
+                            <span>{t("voice:connectionMode")}:</span>
+                            <span className="text-emerald-400">
+                              {report.connectionType === "LAN"
+                                ? t("voice:topology.lan")
+                                : report.connectionType === "RELAY"
+                                  ? t("voice:topology.relay")
+                                  : t("voice:topology.p2p")}
+                            </span>
+                          </div>
+                          {report.remoteAddress && (
+                            <div className="flex justify-between gap-2 pt-0.5 border-t border-white/10 text-[8px]">
+                              <span>IP:</span>
+                              <span className="text-white/70 truncate max-w-[90px]">
+                                {report.remoteAddress}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* 柱顶：用户圆形头像 + 毫秒标签 */}
+                      <div className="flex flex-col items-center mb-1 flex-shrink-0">
+                        <img
+                          src={avatarUrl}
+                          alt={displayName}
+                          className="w-5 h-5 rounded-full object-cover border-2 shadow-sm mb-0.5"
+                          style={{ borderColor: barColor }}
+                          onError={(e) => {
+                            (e.currentTarget as HTMLImageElement).src =
+                              `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(displayName)}`;
+                          }}
+                        />
+                        <span
+                          className="text-[9px] font-mono font-bold leading-none"
+                          style={{ color: barColor }}
+                        >
+                          {report.rtt}ms
+                        </span>
+                      </div>
+
+                      {/* 延迟柱条 */}
+                      <div
+                        className="w-4 sm:w-5 rounded-t transition-all duration-300"
+                        style={{
+                          height: `${heightPercent}%`,
+                          backgroundColor: barColor,
+                          boxShadow: `0 0 8px ${barColor}40`,
+                        }}
+                      />
+
+                      {/* 底部成员名简写 */}
+                      <span className="text-[9px] text-discord-textMuted truncate max-w-[48px] mt-0.5 leading-none">
+                        {displayName}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div
+            ref={containerRef}
+            onMouseMove={handleMouseMove}
+            onMouseLeave={handleMouseLeave}
+            className="w-full h-28 bg-[#1e1f22]/90 rounded-lg p-1 relative border border-white/5 overflow-hidden cursor-crosshair"
+          >
+            <canvas ref={canvasRef} className="w-full h-full block" />
+          </div>
+        )}
 
         {/* 服务器标识与核心指标 */}
         <div className="space-y-1.5 pt-0.5">
           <div className="text-sm font-bold text-white tracking-tight break-all">
-            {connectionPath}
+            {meshActive
+              ? `${t("voice:connectionPopover.directPeerTopology")} (${t("voice:nodeCount", { count: connectedReports.length })})`
+              : connectionPath}
           </div>
 
           <div className="text-xs text-discord-textMuted space-y-0.5 leading-snug">
-            <div className="flex items-center space-x-1">
-              <span>{t("voice:connectionPopover.avgPing")} :</span>
-              <strong className="text-white font-bold">
-                {avgRtt === null ? noData : `${avgRtt} ${msUnit}`}
-              </strong>
-            </div>
-            <div className="flex items-center space-x-1">
-              <span>{t("voice:connectionPopover.lastPing")} :</span>
-              <strong className="text-white font-bold">
-                {lastRtt === null ? noData : `${lastRtt} ${msUnit}`}
-              </strong>
-            </div>
-            <div className="flex items-center space-x-1">
-              <span>
-                {t(
-                  VOICE_ENGINE === "cloudflare_realtime"
-                    ? "voice:connectionPopover.uploadPacketLoss"
-                    : "voice:connectionPopover.packetLoss",
-                )}{" "}
-                :
-              </span>
-              <strong className="text-white font-bold">
-                {packetLossPercent === null ? noData : `${packetLossPercent}%`}
-              </strong>
-            </div>
-            <div>{rttSource}</div>
+            {meshActive ? (
+              <>
+                <div className="flex items-center space-x-1">
+                  <span>{t("voice:connectionPopover.allPeersAvgRtt")} :</span>
+                  <strong className="text-white font-bold">
+                    {allPeersAvgRtt === null
+                      ? noData
+                      : `${allPeersAvgRtt} ${msUnit}`}
+                  </strong>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <span>
+                    {t("voice:connectionPopover.overallPacketLoss")} :
+                  </span>
+                  <strong className="text-white font-bold">
+                    {overallPacketLoss === null
+                      ? noData
+                      : `${overallPacketLoss}%`}
+                  </strong>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <span>{t("voice:peerCount")} :</span>
+                  <strong className="text-white font-bold">
+                    {connectedReports.length}
+                  </strong>
+                </div>
+                <div>{rttSource}</div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center space-x-1">
+                  <span>{t("voice:connectionPopover.avgPing")} :</span>
+                  <strong className="text-white font-bold">
+                    {avgRtt === null ? noData : `${avgRtt} ${msUnit}`}
+                  </strong>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <span>{t("voice:connectionPopover.lastPing")} :</span>
+                  <strong className="text-white font-bold">
+                    {lastRtt === null ? noData : `${lastRtt} ${msUnit}`}
+                  </strong>
+                </div>
+                <div className="flex items-center space-x-1">
+                  <span>
+                    {t(
+                      VOICE_ENGINE === "cloudflare_realtime"
+                        ? "voice:connectionPopover.uploadPacketLoss"
+                        : "voice:connectionPopover.packetLoss",
+                    )}{" "}
+                    :
+                  </span>
+                  <strong className="text-white font-bold">
+                    {packetLossPercent === null
+                      ? noData
+                      : `${packetLossPercent}%`}
+                  </strong>
+                </div>
+                <div>{rttSource}</div>
+              </>
+            )}
           </div>
         </div>
 

@@ -1206,6 +1206,9 @@ export interface PeerLatencyReport {
   packetLoss?: number; // 丢包率百分比 (0 - 100)，与 NetworkStats 一致
   connectionType: "LAN" | "P2P" | "RELAY" | "SFU";
   status: "connecting" | "connected" | "failed";
+  localAddress?: string;
+  remoteAddress?: string;
+  candidateType?: string;
   updatedAt: number;
 }
 
@@ -2050,33 +2053,6 @@ export interface ScreenShareOptions {
   mixedAudio?: boolean;
   videoCodec?: VideoCodecType; // 本次屏幕分享指定编码器
   customBitrate?: number; // 本次屏幕分享自定义目标码率 (bps)
-}
-
-export interface AudioMixerConfig {
-  micVolume: number; // 0 - 100
-  systemAudioVolume: number; // 0 - 100
-  enabled: boolean;
-  stereoDirect: boolean; // 立体声直通
-}
-
-export function computeMixGains(
-  micVolume: number,
-  systemAudioVolume: number,
-  isMuted: boolean = false,
-): { micGain: number; systemGain: number } {
-  const safeMicVol =
-    typeof micVolume !== "number" || isNaN(micVolume) ? 100 : micVolume;
-  const safeSysVol =
-    typeof systemAudioVolume !== "number" || isNaN(systemAudioVolume)
-      ? 100
-      : systemAudioVolume;
-
-  const safeMic = isMuted ? 0 : Math.max(0, Math.min(100, safeMicVol)) / 100;
-  const safeSystem = Math.max(0, Math.min(100, safeSysVol)) / 100;
-  return {
-    micGain: +safeMic.toFixed(2),
-    systemGain: +safeSystem.toFixed(2),
-  };
 }
 
 export interface DesktopNotificationPayload {

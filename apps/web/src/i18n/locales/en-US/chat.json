@@ -193,7 +193,8 @@
     "originalBadge": "Original",
     "zoomBadge": "Zoom {{percent}}%",
     "decoding": "Decoding the original image…",
-    "downloadProgress": "{{loaded}} / {{total}} MB"
+    "downloadProgress": "{{loaded}} / {{total}} MB",
+    "hdBadge": "HD"
   },
   "searchEmoji": "Search emojis...",
   "emojiCategoryRecent": "Recently Used",

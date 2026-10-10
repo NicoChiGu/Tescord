@@ -9,6 +9,7 @@ import {
   X,
   ZoomIn,
   ZoomOut,
+  Sparkles,
 } from "lucide-react";
 import {
   loadAttachmentBlob,
@@ -691,20 +692,33 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({
 
         <div className="w-[1px] h-4 bg-white/20 mx-1" />
 
-        {/* 查看原图 */}
-        <button
-          type="button"
-          onClick={() => {
-            setShowOriginal(true);
-            setLoadAttempt((n) => n + 1);
-          }}
-          disabled={originalReady || Boolean(loadProgress)}
-          className="px-2 py-1.5 rounded hover:bg-white/10 hover:text-white disabled:opacity-50 inline-flex gap-1 items-center text-xs transition"
-          title={t("lightbox.viewOriginalTitle")}
-        >
-          <Maximize2 className="w-3.5 h-3.5" />
-          <span className="hidden sm:inline">{t("lightbox.viewOriginal")}</span>
-        </button>
+        {/* 查看原图 / HD 高清徽章 */}
+        {originalReady ? (
+          <div
+            data-testid="lightbox-hd-badge"
+            className="px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 inline-flex items-center gap-1.5 text-xs font-bold shadow-[0_0_12px_rgba(16,185,129,0.3)] animate-fadeIn select-none"
+            title={t("lightbox.hdBadge")}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+            <span>HD</span>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => {
+              setShowOriginal(true);
+              setLoadAttempt((n) => n + 1);
+            }}
+            disabled={Boolean(loadProgress)}
+            className="px-2 py-1.5 rounded hover:bg-white/10 hover:text-white disabled:opacity-50 inline-flex gap-1 items-center text-xs transition"
+            title={t("lightbox.viewOriginalTitle")}
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">
+              {t("lightbox.viewOriginal")}
+            </span>
+          </button>
+        )}
 
         {/* 转发按钮 */}
         <button
@@ -782,7 +796,7 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({
               src={imageUrl}
               alt={attachment.fileName}
               draggable={false}
-              className="max-w-[85vw] max-h-[75vh] object-contain rounded shadow-2xl pointer-events-auto select-none"
+              className="max-w-[85vw] max-h-[75vh] object-contain rounded shadow-2xl pointer-events-auto select-none transition-all duration-300 ease-in-out animate-fadeIn"
             />
           </div>
         ) : (
@@ -796,57 +810,116 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({
             data-testid="lightbox-load-status"
             role="status"
             aria-live="polite"
-            className="absolute bottom-16 left-1/2 -translate-x-1/2 max-w-[90vw] bg-black/80 rounded-lg px-4 py-3 text-sm text-white flex flex-col gap-2"
+            className="absolute inset-0 flex items-center justify-center pointer-events-none z-30"
             onClick={(event) => event.stopPropagation()}
           >
-            {loadProgress ? (
-              <>
-                <span className="inline-flex items-center gap-2">
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  {t(
-                    loadProgress.phase === "decoding"
-                      ? "lightbox.decoding"
-                      : "lightbox.loading",
-                  )}
-                </span>
-                {loadProgress.phase === "downloading" && (
-                  <>
-                    <progress
-                      aria-label={t("lightbox.loading")}
-                      className="w-full"
-                      max={loadProgress.total || 1}
-                      value={
-                        loadProgress.total
-                          ? Math.min(loadProgress.loaded, loadProgress.total)
-                          : undefined
-                      }
-                    />
-                    <span>
-                      {t("lightbox.downloadProgress", {
-                        loaded: (loadProgress.loaded / 1048576).toFixed(1),
-                        total: loadProgress.total
-                          ? (loadProgress.total / 1048576).toFixed(1)
-                          : "?",
-                      })}
-                      {loadProgress.total
-                        ? ` · ${Math.min(100, Math.round((loadProgress.loaded / loadProgress.total) * 100))}%`
-                        : ""}
-                    </span>
-                  </>
-                )}
-              </>
-            ) : (
-              <>
-                <span>{error}</span>
-                <button
-                  type="button"
-                  onClick={() => setLoadAttempt((n) => n + 1)}
-                  className="rounded bg-discord-brand px-3 py-1"
-                >
-                  {t("common:retry")}
-                </button>
-              </>
-            )}
+            <div className="pointer-events-auto bg-[#1e1f22]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-6 shadow-2xl flex flex-col items-center gap-3 animate-fadeIn min-w-[200px]">
+              {loadProgress ? (
+                <>
+                  {/* SVG 环形进度条 (Radial Progress) */}
+                  <div className="relative w-20 h-20 flex items-center justify-center">
+                    <svg
+                      viewBox="0 0 80 80"
+                      className="w-full h-full -rotate-90"
+                    >
+                      {/* 底轨 */}
+                      <circle
+                        cx="40"
+                        cy="40"
+                        r="32"
+                        stroke="rgba(255, 255, 255, 0.1)"
+                        strokeWidth="5"
+                        fill="none"
+                      />
+                      {/* 动态进度轨 (周长 C = 2 * PI * 32 ≈ 201.06) */}
+                      <circle
+                        cx="40"
+                        cy="40"
+                        r="32"
+                        stroke="#5865F2"
+                        strokeWidth="5"
+                        strokeLinecap="round"
+                        strokeDasharray={201.06}
+                        strokeDashoffset={(() => {
+                          const percent = loadProgress.total
+                            ? Math.min(
+                                100,
+                                Math.round(
+                                  (loadProgress.loaded / loadProgress.total) *
+                                    100,
+                                ),
+                              )
+                            : loadProgress.phase === "decoding"
+                              ? 100
+                              : 0;
+                          return 201.06 * (1 - percent / 100);
+                        })()}
+                        fill="none"
+                        className="transition-[stroke-dashoffset] duration-200"
+                      />
+                    </svg>
+                    {/* 环形中心状态数值 */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      {loadProgress.phase === "decoding" ? (
+                        <Loader2 className="w-6 h-6 animate-spin text-discord-brand" />
+                      ) : (
+                        <span className="text-sm font-bold font-mono text-white">
+                          {loadProgress.total
+                            ? `${Math.min(100, Math.round((loadProgress.loaded / loadProgress.total) * 100))}%`
+                            : "..."}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 状态文本与下载体积 */}
+                  <div className="text-center space-y-1">
+                    <div className="text-xs font-medium text-white/90">
+                      {t(
+                        loadProgress.phase === "decoding"
+                          ? "lightbox.decoding"
+                          : "lightbox.loading",
+                      )}
+                    </div>
+                    {loadProgress.phase === "downloading" && (
+                      <div className="text-[11px] font-mono text-discord-textMuted">
+                        {t("lightbox.downloadProgress", {
+                          loaded: (loadProgress.loaded / 1048576).toFixed(1),
+                          total: loadProgress.total
+                            ? (loadProgress.total / 1048576).toFixed(1)
+                            : "?",
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 兼容 E2E 测试 expect(status.locator("progress")).toBeVisible() */}
+                  <progress
+                    aria-label={t("lightbox.loading")}
+                    className="w-28 h-1 accent-discord-brand bg-white/10 rounded overflow-hidden"
+                    max={loadProgress.total || 1}
+                    value={
+                      loadProgress.total
+                        ? Math.min(loadProgress.loaded, loadProgress.total)
+                        : undefined
+                    }
+                  />
+                </>
+              ) : (
+                <div className="flex flex-col items-center gap-2">
+                  <span className="text-red-400 text-xs font-medium">
+                    {error}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setLoadAttempt((n) => n + 1)}
+                    className="rounded bg-discord-brand hover:bg-discord-brand/80 px-4 py-1.5 text-xs text-white font-medium transition"
+                  >
+                    {t("common:retry")}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
         {/* 底部信息条 */}
@@ -856,10 +929,19 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({
             opacity: dismissOpacity,
             transition: dismissOffset > 0 ? "none" : "opacity 0.18s ease-out",
           }}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none text-xs text-white/60 bg-black/60 px-3 py-1 rounded-full truncate max-w-[90vw]"
+          className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-none text-xs text-white/60 bg-black/60 px-3 py-1 rounded-full truncate max-w-[90vw] inline-flex items-center gap-1.5"
         >
-          {attachment.fileName}
-          {originalReady ? ` · ${t("lightbox.originalBadge")}` : ""}
+          <span>{attachment.fileName}</span>
+          {originalReady ? (
+            <span className="inline-flex items-center gap-1">
+              <span> · {t("lightbox.originalBadge")}</span>
+              <span className="px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[9px] border border-emerald-500/30">
+                HD
+              </span>
+            </span>
+          ) : (
+            ""
+          )}
           {scale !== 1
             ? ` · ${t("lightbox.zoomBadge", { percent: Math.round(scale * 100) })}`
             : ""}

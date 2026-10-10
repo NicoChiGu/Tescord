@@ -326,9 +326,7 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
                   <span
                     data-testid="voice-p2p-icon"
                     className="absolute -top-1 -right-1.5 flex items-center justify-center bg-[#1e1f22] rounded-full p-[1px] shadow ring-1 ring-[#1e1f22]"
-                    title={t("voice:p2pMeshTitle", {
-                      defaultValue: "点对点直连 (P2P)",
-                    })}
+                    title={t("voice:p2pMeshTitle")}
                   >
                     <Network className="w-2.5 h-2.5 text-blue-400" />
                   </span>
@@ -338,9 +336,7 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
               {channel.isE2EE && (
                 <span
                   data-testid="voice-e2ee-lock-icon"
-                  title={t("voice:encryptedChannel", {
-                    defaultValue: "端到端加密",
-                  })}
+                  title={t("voice:encryptedChannel")}
                   className="inline-flex items-center ml-1.5 flex-shrink-0"
                 >
                   <Lock className="w-3.5 h-3.5 text-discord-green" />
@@ -581,7 +577,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   onOpenInviteFriends,
   channelUnreadMap,
 }) => {
-  const { t } = useTranslation(["voice", "common", "contextMenu"]);
+  const { t } = useTranslation(["voice", "common", "contextMenu", "server"]);
   const [copiedInvite, setCopiedInvite] = useState<string | null>(null);
   const networkStats = useNetworkStats();
   const { ping: gatewayPing } = useGatewayStatus();
@@ -1124,7 +1120,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                   data-testid="sidebar-invite-friends-btn"
                   onClick={handleOpenInviteModal}
                   className="p-1 rounded hover:bg-[#3f4147] text-discord-textMuted hover:text-white transition flex items-center space-x-1"
-                  title="生成并复制邀请码"
+                  title={t("server:inviteFriends")}
                 >
                   <UserPlus className="w-4 h-4" />
                 </button>
@@ -1330,54 +1326,56 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
               onOpenNetworkStats?.();
             }}
             channel={activeVoiceChannel}
+            guild={guild}
+            voiceStates={voiceStates}
           />
           <div className="flex items-center justify-between">
-            <button
-              type="button"
-              data-testid="voice-connection-status-btn"
-              aria-expanded={isConnectionPopoverOpen}
-              onClick={
-                voiceConnectionStatus === "connecting"
-                  ? undefined
-                  : () => setIsConnectionPopoverOpen((prev) => !prev)
-              }
-              className={`flex items-center space-x-2 text-left p-1 -ml-1 rounded-lg transition group max-w-[calc(100%-36px)] ${
-                voiceConnectionStatus === "connecting"
-                  ? "cursor-default opacity-90"
-                  : "hover:bg-[#35373c]/60 cursor-pointer"
-              }`}
-              title={(() => {
-                if (voiceConnectionStatus === "connecting") {
-                  return t("voice:voiceConnecting");
+            <div className="flex flex-col min-w-0 max-w-[calc(100%-36px)]">
+              <button
+                type="button"
+                data-testid="voice-connection-status-btn"
+                aria-expanded={isConnectionPopoverOpen}
+                onClick={
+                  voiceConnectionStatus === "connecting"
+                    ? undefined
+                    : () => setIsConnectionPopoverOpen((prev) => !prev)
                 }
-                const audioMode = voiceMeshManager.getIsFallbackToSFU()
-                  ? t("voice:fallbackToSFUActive")
-                  : voiceMeshManager.getIsMeshActive()
-                    ? `${t("voice:p2pMeshMode")} (${peerLatencies.size})`
-                    : t("voice:sfuServerMode");
-                const isBroadcasting = p2pStreamManager.isBroadcasting(
-                  activeVoiceChannel?.id,
-                );
-                const isWatching = !!p2pStreamManager.getRemoteStream();
-                const videoMode = isBroadcasting
-                  ? `${t("voice:videoStatusBroadcasting")} (${p2pStreamManager.getTargetVideoCodec().toUpperCase()})`
-                  : isWatching
-                    ? `${t("voice:videoStatusWatching")} (P2P)`
-                    : t("voice:videoStatusIdle");
-                return `[${t("voice:tabAudio")}] ${audioMode}\n[${t("voice:tabVideo")}] ${videoMode}\n${t("voice:statsHUD")} (Esc / Click)`;
-              })()}
-            >
-              {voiceConnectionStatus === "connecting" ? (
-                <Loader2 className="w-4 h-4 text-[#faa61a] animate-spin flex-shrink-0" />
-              ) : voiceConnectionStatus === "reconnecting" ? (
-                <Loader2 className="w-4 h-4 text-discord-danger animate-spin flex-shrink-0" />
-              ) : (
-                <Signal
-                  className={`w-4 h-4 ${qualityColor} animate-pulse flex-shrink-0`}
-                />
-              )}
-              <div className="min-w-0">
-                <div className="flex items-center space-x-1.5 leading-tight">
+                className={`flex items-center space-x-2 text-left p-1 -ml-1 rounded-lg transition group ${
+                  voiceConnectionStatus === "connecting"
+                    ? "cursor-default opacity-90"
+                    : "hover:bg-[#35373c]/60 cursor-pointer"
+                }`}
+                title={(() => {
+                  if (voiceConnectionStatus === "connecting") {
+                    return t("voice:voiceConnecting");
+                  }
+                  const audioMode = voiceMeshManager.getIsFallbackToSFU()
+                    ? t("voice:fallbackToSFUActive")
+                    : voiceMeshManager.getIsMeshActive()
+                      ? `${t("voice:p2pMeshMode")} (${peerLatencies.size})`
+                      : t("voice:sfuServerMode");
+                  const isBroadcasting = p2pStreamManager.isBroadcasting(
+                    activeVoiceChannel?.id,
+                  );
+                  const isWatching = !!p2pStreamManager.getRemoteStream();
+                  const videoMode = isBroadcasting
+                    ? `${t("voice:videoStatusBroadcasting")} (${p2pStreamManager.getTargetVideoCodec().toUpperCase()})`
+                    : isWatching
+                      ? `${t("voice:videoStatusWatching")} (P2P)`
+                      : t("voice:videoStatusIdle");
+                  return `[${t("voice:tabAudio")}] ${audioMode}\n[${t("voice:tabVideo")}] ${videoMode}\n${t("voice:statsHUD")} (Esc / Click)`;
+                })()}
+              >
+                {voiceConnectionStatus === "connecting" ? (
+                  <Loader2 className="w-4 h-4 text-[#faa61a] animate-spin flex-shrink-0" />
+                ) : voiceConnectionStatus === "reconnecting" ? (
+                  <Loader2 className="w-4 h-4 text-discord-danger animate-spin flex-shrink-0" />
+                ) : (
+                  <Signal
+                    className={`w-4 h-4 ${qualityColor} animate-pulse flex-shrink-0`}
+                  />
+                )}
+                <div className="flex items-center space-x-1.5 leading-tight min-w-0">
                   <span
                     className={`text-xs font-bold ${
                       voiceConnectionStatus === "connecting"
@@ -1424,36 +1422,23 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                     })()}
                   </span>
                 </div>
-                <div className="text-[11px] text-discord-textMuted truncate max-w-[130px]">
-                  {activeVoiceChannel.name} /{" "}
-                  {(() => {
-                    if (voiceConnectionStatus === "connecting") {
-                      return t("voice:handshaking");
-                    }
-                    if (voiceConnectionStatus === "reconnecting") {
-                      return t("voice:networkReconnecting");
-                    }
-                    const activeSpeakerId =
-                      activeSpeakers && activeSpeakers.length > 0
-                        ? activeSpeakers[0]
-                        : null;
-                    const meshMetrics =
-                      voiceMeshManager.getActiveSpeakerOrMedianLatency(
-                        activeSpeakerId,
-                      );
-                    if (meshMetrics.isSpeaker) {
-                      return t("voice:activeSpeakerLatency");
-                    }
-                    if (peerLatencies.size > 0) {
-                      return t("voice:medianLatency");
-                    }
-                    return VOICE_ENGINE === "cloudflare_realtime"
-                      ? "Cloudflare SFU"
-                      : "LiveKit SFU";
-                  })()}
-                </div>
-              </div>
-            </button>
+              </button>
+              {/* 独立可点击语音频道名称：点击切回语音主舞台 */}
+              <button
+                type="button"
+                data-testid="voice-connection-channel-name"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (activeVoiceChannel) {
+                    onSelectChannel(activeVoiceChannel);
+                  }
+                }}
+                className="text-left text-[11px] text-discord-textMuted hover:text-white transition-colors truncate max-w-[150px] px-1 -ml-1 py-0.5 rounded hover:bg-[#35373c]/40 cursor-pointer"
+                title={activeVoiceChannel.name}
+              >
+                {activeVoiceChannel.name}
+              </button>
+            </div>
             <button
               onClick={onLeaveVoiceChannel}
               className="p-1.5 text-discord-textMuted hover:text-discord-danger hover:bg-[#35373c] rounded transition flex-shrink-0"

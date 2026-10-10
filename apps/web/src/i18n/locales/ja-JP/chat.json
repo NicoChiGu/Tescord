@@ -193,7 +193,8 @@
     "originalBadge": "原寸",
     "zoomBadge": "ズーム {{percent}}%",
     "decoding": "元の画像をデコード中…",
-    "downloadProgress": "{{loaded}} / {{total}} MB"
+    "downloadProgress": "{{loaded}} / {{total}} MB",
+    "hdBadge": "HD 高画質"
   },
   "searchEmoji": "絵文字を検索...",
   "emojiCategoryRecent": "よく使う絵文字",

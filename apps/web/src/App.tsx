@@ -92,7 +92,6 @@ import { audioEngine } from "./services/audioEngine.js";
 import { useMessageHistory } from "./hooks/useMessageHistory.js";
 import { livekitService, ActiveScreenShare } from "./services/livekit.js";
 import { cloudflareRealtimeService } from "./services/cloudflare_realtime/index.js";
-import { audioMixer } from "./services/audioMixer.js";
 import { doubleRatchetManager } from "./services/doubleRatchet.js";
 import { sframeManager } from "./services/sframe.js";
 import { mediaEncryptionService } from "./services/mediaEncryption.js";

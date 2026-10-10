@@ -364,5 +364,18 @@
       "v0_3_0_security_desc": "Electron 41.10.6 に更新し、コンテキスト分離、プロトコルアクセス、サンドボックスに関する既知の問題を修正。ビルド依存関係も更新しました。"
     }
   },
-  "createGuildRestrictedNotice": "現在、管理設定によりサーバー作成が制限されています。下記の招待コードを入力して既存サーバーに参加できます。"
+  "createGuildRestrictedNotice": "現在、管理設定によりサーバー作成が制限されています。下記の招待コードを入力して既存サーバーに参加できます。",
+  "networkQuality": {
+    "title": "WebRTC メディアエンジンとネットワーク健康ダッシュボード",
+    "p2pIndependentRtt": "P2P 独立 RTT",
+    "remoteAddress": "リモート IP: {{address}}",
+    "localAddress": "ローカル IP: {{address}}",
+    "candidateType": "候補タイプ: {{type}}",
+    "nodeCount": "{{count}} ノード"
+  },
+  "lightbox": {
+    "hdBadge": "HD 高画質",
+    "decoding": "元画像をデコード中…",
+    "downloadProgress": "{{loaded}} / {{total}} MB"
+  }
 }

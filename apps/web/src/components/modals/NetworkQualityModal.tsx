@@ -106,31 +106,31 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
     (audioEngine.config.inputMode as string) === "PUSH_TO_TALK";
   const effectiveNoiseLabel =
     audioEngine.noiseStatus.effectiveMode === "off"
-      ? "直通"
+      ? t("voice:noiseDirect")
       : `${audioEngine.noiseStatus.effectiveMode.toUpperCase()} (${audioEngine.noiseStatus.backend})`;
 
   const getQualityBadge = (quality?: string) => {
     switch (quality) {
       case "excellent":
         return {
-          label: "极佳 (Excellent)",
+          label: t("voice:qualityLevels.excellent"),
           className:
             "text-discord-green bg-discord-green/10 border-discord-green/30",
         };
       case "good":
         return {
-          label: "良好 (Good)",
+          label: t("voice:qualityLevels.good"),
           className: "text-amber-400 bg-amber-400/10 border-amber-400/30",
         };
       case "poor":
         return {
-          label: "较差 (Poor)",
+          label: t("voice:qualityLevels.poor"),
           className:
             "text-discord-danger bg-discord-danger/10 border-discord-danger/30",
         };
       default:
         return {
-          label: "未知 (Unknown)",
+          label: t("voice:qualityLevels.unknown"),
           className: "text-discord-textMuted bg-white/5 border-white/10",
         };
     }
@@ -170,7 +170,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
             </div>
             <div>
               <h4 className="font-bold text-discord-textHeader text-base leading-tight">
-                WebRTC 媒体引擎与网络健康看板
+                {t("voice:networkModalTitle")}
               </h4>
               {channel && (
                 <p className="text-xs text-discord-textMuted mt-0.5">
@@ -182,7 +182,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
           <button
             onClick={onClose}
             className="p-1.5 text-discord-textMuted hover:text-white hover:bg-[#35373c] rounded-lg transition"
-            title="关闭 (Esc)"
+            title={t("voice:closeModalTitle")}
           >
             <X className="w-5 h-5" />
           </button>
@@ -255,7 +255,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                 <div className="text-xs font-bold text-discord-textMuted uppercase mb-3 flex items-center justify-between">
                   <span className="flex items-center space-x-1.5">
                     <Wifi className="w-3.5 h-3.5" />
-                    <span>本地上行网络指标 (Local Upstream)</span>
+                    <span>{t("voice:localMetrics")}</span>
                   </span>
                   <span
                     className={`font-bold px-2 py-0.5 rounded border text-[11px] ${badge.className}`}
@@ -266,12 +266,12 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                 <div className="grid grid-cols-4 gap-2.5 text-center">
                   <div className="bg-[#1e1f22] p-2.5 rounded-lg border border-[#2b2d31]">
                     <div className="text-[11px] text-discord-textMuted mb-0.5">
-                      往返延迟 RTT
+                      {t("voice:rtt")}
                     </div>
                     <div className="text-lg font-bold text-discord-green font-mono">
                       {typeof localStats?.rtt === "number"
                         ? localStats.rtt
-                        : "未知"}{" "}
+                        : t("voice:networkStats.unknown")}{" "}
                       {typeof localStats?.rtt === "number" && (
                         <span className="text-xs font-normal">ms</span>
                       )}
@@ -279,12 +279,12 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                   </div>
                   <div className="bg-[#1e1f22] p-2.5 rounded-lg border border-[#2b2d31]">
                     <div className="text-[11px] text-discord-textMuted mb-0.5">
-                      丢包率 Loss
+                      {t("voice:packetLoss")}
                     </div>
                     <div className="text-lg font-bold text-discord-textHeader font-mono">
                       {typeof localStats?.packetLoss === "number"
                         ? localStats.packetLoss
-                        : "未知"}{" "}
+                        : t("voice:networkStats.unknown")}{" "}
                       {typeof localStats?.packetLoss === "number" && (
                         <span className="text-xs font-normal">%</span>
                       )}
@@ -292,12 +292,12 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                   </div>
                   <div className="bg-[#1e1f22] p-2.5 rounded-lg border border-[#2b2d31]">
                     <div className="text-[11px] text-discord-textMuted mb-0.5">
-                      抖动 Jitter
+                      {t("voice:hud.jitter")}
                     </div>
                     <div className="text-lg font-bold text-discord-textHeader font-mono">
                       {typeof localStats?.jitter === "number"
                         ? localStats.jitter
-                        : "未知"}{" "}
+                        : t("voice:networkStats.unknown")}{" "}
                       {typeof localStats?.jitter === "number" && (
                         <span className="text-xs font-normal">ms</span>
                       )}
@@ -305,12 +305,12 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                   </div>
                   <div className="bg-[#1e1f22] p-2.5 rounded-lg border border-[#2b2d31]">
                     <div className="text-[11px] text-discord-textMuted mb-0.5">
-                      推流码率
+                      {t("voice:audioBitrate")}
                     </div>
                     <div className="text-lg font-bold text-discord-brand font-mono">
                       {typeof localStats?.bitrate === "number"
                         ? localStats.bitrate
-                        : "未知"}{" "}
+                        : t("voice:networkStats.unknown")}{" "}
                       {typeof localStats?.bitrate === "number" && (
                         <span className="text-xs font-normal">kbps</span>
                       )}
@@ -391,7 +391,8 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                         {t("voice:videoCodec")}
                       </span>
                       <span className="text-white font-mono">
-                        {localStats?.videoCodec || "未知"}
+                        {localStats?.videoCodec ||
+                          t("voice:networkStats.unknown")}
                       </span>
                     </div>
                     <div className="flex justify-between text-[11px]">
@@ -414,16 +415,20 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
               <div className="bg-[#2b2d31] p-4 rounded-xl border border-[#383a40] space-y-2 text-xs">
                 <div className="font-bold text-discord-textHeader mb-1 flex items-center space-x-1.5">
                   <Cpu className="w-3.5 h-3.5 text-discord-brand" />
-                  <span>媒体会话属性与编解码器</span>
+                  <span>{t("voice:mediaSessionProperties")}</span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-[#35373c]">
-                  <span className="text-discord-textMuted">音频编码格式</span>
+                  <span className="text-discord-textMuted">
+                    {t("voice:audioCodec")}
+                  </span>
                   <span className="text-white font-mono">
-                    Opus 48kHz (高清晰度立体声)
+                    {t("voice:opusStereo")}
                   </span>
                 </div>
                 <div className="flex justify-between py-1 border-b border-[#35373c]">
-                  <span className="text-discord-textMuted">视频编码与广播</span>
+                  <span className="text-discord-textMuted">
+                    {t("voice:videoCodecBroadcast")}
+                  </span>
                   <span className="text-discord-brand font-mono">
                     {localStats?.videoCodec
                       ? `${localStats.videoCodec} ${
@@ -435,7 +440,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                               })`
                             : ""
                         }`
-                      : "未知"}
+                      : t("voice:networkStats.unknown")}
                   </span>
                 </div>
                 {localStats?.videoBitrate ? (
@@ -472,8 +477,12 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                   </span>
                   <span className="text-white font-mono">
                     {isPTTMode
-                      ? `按键说话 [${audioEngine.config.pushToTalkKey || "Space"}]`
-                      : `智能 VAD 门限 (${audioEngine.config.vadSensitivity}%)`}
+                      ? t("voice:pushToTalkKey", {
+                          key: audioEngine.config.pushToTalkKey || "Space",
+                        })
+                      : t("voice:vadThreshold", {
+                          percent: audioEngine.config.vadSensitivity,
+                        })}
                   </span>
                 </div>
               </div>
@@ -484,7 +493,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                   <div className="text-xs font-bold text-discord-textMuted uppercase flex items-center justify-between">
                     <span className="flex items-center space-x-1.5">
                       <Network className="w-3.5 h-3.5 text-emerald-400" />
-                      <span>P2P 穿透与拓扑诊断 (NAT & Relay HUD)</span>
+                      <span>{t("voice:natDiagnosticsTitle")}</span>
                     </span>
                     <span
                       className={`text-[10px] px-2 py-0.5 rounded font-mono ${
@@ -494,17 +503,17 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                       }`}
                     >
                       {p2pDiagnostics.transmissionMode === "sfu"
-                        ? "服务器 SFU 模式"
+                        ? t("voice:sfuServerMode")
                         : p2pDiagnostics.transmissionMode === "p2p_direct"
-                          ? "P2P 直连 (Mesh)"
-                          : "P2P 智能接力 (Tree)"}
+                          ? t("voice:topology.p2p")
+                          : t("voice:treeRelayMode")}
                     </span>
                   </div>
 
                   <div className="text-xs space-y-1.5">
                     <div className="flex justify-between py-1 border-b border-[#35373c]">
                       <span className="text-discord-textMuted">
-                        NAT 穿透类型
+                        {t("voice:natType")}
                       </span>
                       <span className="text-white font-mono flex items-center gap-1.5">
                         <span
@@ -521,7 +530,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
 
                     <div className="flex justify-between py-1 border-b border-[#35373c]">
                       <span className="text-discord-textMuted">
-                        全球公网 IPv6 状态
+                        {t("voice:ipv6Status")}
                       </span>
                       <span
                         className={`font-mono ${
@@ -531,15 +540,15 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                         }`}
                       >
                         {p2pDiagnostics.hasIPv6
-                          ? "🟢 原生畅通 (零NAT极速穿透)"
-                          : "⚪ 未配置 (走IPv4 STUN)"}
+                          ? t("voice:ipv6Pass")
+                          : t("voice:ipv6Unconfigured")}
                       </span>
                     </div>
 
                     {p2pDiagnostics.activeCandidatePair && (
                       <div className="flex justify-between py-1">
                         <span className="text-discord-textMuted">
-                          活跃候选对类型
+                          {t("voice:activeCandidatePair")}
                         </span>
                         <span className="text-emerald-300 font-mono text-[11px]">
                           {
@@ -575,8 +584,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                       {t("voice:fallbackToSFUActive")}
                     </div>
                     <div className="text-[11px] text-amber-300/80 mt-0.5">
-                      {fallbackReason ||
-                        "P2P 穿透协商受阻或节点网络变动，已自动平滑降级回退至 LiveKit SFU 服务器，保障语音通话不中断。"}
+                      {fallbackReason || t("voice:fallbackReasonDefault")}
                     </div>
                   </div>
                 </div>
@@ -607,7 +615,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                   </span>
                   <span className="text-emerald-400 font-mono">
                     {isMeshActive
-                      ? `${t("voice:p2pMeshMode")} (${peerLatencies.size} 节点)`
+                      ? `${t("voice:p2pMeshMode")} (${t("voice:nodeCount", { count: peerLatencies.size })})`
                       : t("voice:sfuServerMode")}
                   </span>
                 </div>
@@ -617,7 +625,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                     {t("voice:audioCodec")}
                   </span>
                   <span className="text-white font-mono">
-                    Opus 48kHz (高保真全频带立体声)
+                    {t("voice:opusFullband")}
                   </span>
                 </div>
 
@@ -628,7 +636,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                   <span className="text-discord-brand font-mono">
                     {typeof localStats?.bitrate === "number"
                       ? `${localStats.bitrate} kbps`
-                      : "未知"}
+                      : t("voice:networkStats.unknown")}
                   </span>
                 </div>
 
@@ -648,8 +656,12 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                   </span>
                   <span className="text-white font-mono">
                     {isPTTMode
-                      ? `按键说话 [${audioEngine.config.pushToTalkKey || "Space"}]`
-                      : `智能 VAD 门限 (${audioEngine.config.vadSensitivity}%)`}
+                      ? t("voice:pushToTalkKey", {
+                          key: audioEngine.config.pushToTalkKey || "Space",
+                        })
+                      : t("voice:vadThreshold", {
+                          percent: audioEngine.config.vadSensitivity,
+                        })}
                   </span>
                 </div>
 
@@ -705,7 +717,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                       </span>
                     </span>
                     <span className="text-[11px] text-discord-textMuted">
-                      点对点独立 RTT
+                      {t("voice:p2pIndependentRtt")}
                     </span>
                   </div>
                   <div className="space-y-1.5 pt-1">
@@ -726,10 +738,43 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                                   : t("voice:networkStats.unknown")}
                               </span>
                               <span className="text-discord-textMuted text-[10px]">
-                                {rep.connectionType}
+                                {rep.connectionType === "LAN"
+                                  ? t("voice:topology.lan")
+                                  : rep.connectionType === "RELAY"
+                                    ? t("voice:topology.relay")
+                                    : t("voice:topology.p2p")}
                               </span>
                             </div>
                           </div>
+                          {(rep.remoteAddress || rep.localAddress) && (
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-mono text-discord-textMuted bg-black/25 px-2 py-1 rounded border border-white/5">
+                              {rep.remoteAddress && (
+                                <span className="flex items-center space-x-1">
+                                  <span className="text-white/60">
+                                    {t("voice:networkStats.remoteIp")}:
+                                  </span>
+                                  <span className="text-emerald-400 select-all font-semibold">
+                                    {rep.remoteAddress}
+                                  </span>
+                                </span>
+                              )}
+                              {rep.localAddress && (
+                                <span className="flex items-center space-x-1">
+                                  <span className="text-white/60">
+                                    {t("voice:networkStats.localIp")}:
+                                  </span>
+                                  <span className="text-white/90 select-all font-semibold">
+                                    {rep.localAddress}
+                                  </span>
+                                </span>
+                              )}
+                              {rep.candidateType && (
+                                <span className="px-1 py-0.5 rounded bg-white/10 text-white/70 uppercase text-[9px]">
+                                  {rep.candidateType}
+                                </span>
+                              )}
+                            </div>
+                          )}
                           {voiceMeshManager
                             .getAudioQuality(peerId)
                             .map((quality) => (
@@ -829,7 +874,10 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                   </span>
                   <span className="text-white font-mono flex items-center gap-1.5">
                     <Cpu className="w-3.5 h-3.5 text-discord-brand" />
-                    <span>{localStats?.videoCodec || "未知"}</span>
+                    <span>
+                      {localStats?.videoCodec ||
+                        t("voice:networkStats.unknown")}
+                    </span>
                   </span>
                 </div>
 
@@ -839,7 +887,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                   </span>
                   <span className="text-emerald-400 font-mono flex items-center gap-1">
                     <HardDrive className="w-3.5 h-3.5" />
-                    <span>Intel QSV / WebCodecs / NVENC 畅通</span>
+                    <span>{t("voice:hardwareAccelActive")}</span>
                   </span>
                 </div>
 
@@ -848,7 +896,8 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                     {t("voice:videoResolutionFps")}
                   </span>
                   <span className="text-white font-mono">
-                    {localStats?.videoResolution || "未知"}
+                    {localStats?.videoResolution ||
+                      t("voice:networkStats.unknown")}
                     {localStats?.videoFramerate
                       ? ` @ ${localStats.videoFramerate} fps`
                       : ""}
@@ -862,7 +911,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                   <span className="text-emerald-400 font-mono">
                     {typeof localStats?.videoBitrate === "number"
                       ? `${localStats.videoBitrate} kbps`
-                      : "未知"}
+                      : t("voice:networkStats.unknown")}
                   </span>
                 </div>
               </div>
@@ -924,8 +973,8 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                         }`}
                       >
                         {p2pDiagnostics.hasIPv6
-                          ? "🟢 原生畅通 (零NAT极速穿透)"
-                          : "⚪ 未配置 (走IPv4 STUN)"}
+                          ? t("voice:ipv6Pass")
+                          : t("voice:ipv6Unconfigured")}
                       </span>
                     </div>
 
@@ -957,7 +1006,9 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                           {t("voice:downstreamPeers")}
                         </span>
                         <span className="text-discord-brand font-mono">
-                          {p2pDiagnostics.downstreamPeersCount} 个客户端正在中继
+                          {t("voice:relayingClients", {
+                            count: p2pDiagnostics.downstreamPeersCount,
+                          })}
                         </span>
                       </div>
                     )}
@@ -965,7 +1016,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
                 </div>
               ) : (
                 <div className="bg-[#2b2d31] p-6 rounded-xl border border-[#383a40] text-center text-discord-textMuted text-xs">
-                  正在探测 NAT 穿透候选对与拓扑节点...
+                  {t("voice:probingNatCandidates")}
                 </div>
               )}
             </div>
@@ -978,7 +1029,7 @@ export const NetworkQualityModal: React.FC<NetworkQualityModalProps> = ({
             onClick={onClose}
             className="px-5 py-1.5 rounded-lg bg-discord-brand text-white text-sm font-semibold hover:bg-discord-brand-hover transition"
           >
-            {t("common:close", "关闭")}
+            {t("common:close")}
           </button>
         </div>
       </div>

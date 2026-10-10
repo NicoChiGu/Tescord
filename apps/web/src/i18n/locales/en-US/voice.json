@@ -145,11 +145,11 @@
     "videoCodec": "Current video track codec: {{codec}}",
     "volume": "Adjust this person's playback volume (0%–200%)",
     "openDrawer": "Open channels and servers",
-    "mixPanel": "System audio and microphone mixer",
     "closeNotice": "Close notice",
     "micOptions": "Microphone options",
     "cameraOptions": "Camera options",
-    "disconnect": "Disconnect"
+    "disconnect": "Disconnect",
+    "swap": "Swap"
   },
   "networkStats": {
     "noMedia": "No media data yet",
@@ -161,7 +161,9 @@
     "sfuRtt": "{{value}} ms (device ↔ SFU)",
     "noRate": "No current rate",
     "noCodec": "No negotiated codec",
-    "remoteEncoderUnknown": "Remote encoder unavailable"
+    "remoteEncoderUnknown": "Remote encoder unavailable",
+    "remoteIp": "Remote IP",
+    "localIp": "Local IP"
   },
   "connectionPopover": {
     "title": "Connection",
@@ -185,7 +187,13 @@
     "p2pLatencyTooltip": "P2P round trip: {{value}} ({{type}})",
     "statsTooltip": "Round trip: {{rtt}} | Packet loss: {{loss}} | Jitter: {{jitter}}",
     "streamTrackNotReady": "The streamer's video track is not ready. Please try again shortly.",
-    "streamJoinFailed": "Could not connect to the stream"
+    "streamJoinFailed": "Could not connect to the stream",
+    "p2pAvgPing": "Average Mesh Latency",
+    "allPeersAvgRtt": "Average Mesh Latency",
+    "directTopology": "Direct Node Topology",
+    "directPeerTopology": "Direct Node Topology",
+    "overallPacketLoss": "Overall Packet Loss",
+    "peerCount": "Connected Peers"
   },
   "connectionBadge": {
     "connecting": "Connecting...",
@@ -264,5 +272,40 @@
       "closed": "Closed",
       "interrupted": "Interrupted"
     }
+  },
+  "p2pIndependentRtt": "P2P Independent RTT",
+  "nodeCount": "{{count}} Nodes",
+  "connectionMode": "Topology",
+  "remoteAddress": "Remote IP: {{address}}",
+  "localAddress": "Local IP: {{address}}",
+  "candidateType": "Candidate: {{type}}",
+  "networkModalTitle": "WebRTC Media Engine & Network Health Dashboard",
+  "closeModalTitle": "Close (Esc)",
+  "mediaSessionProperties": "Media Session Properties & Codecs",
+  "opusStereo": "Opus 48kHz (High Definition Stereo)",
+  "opusFullband": "Opus 48kHz (Fullband High Fidelity Stereo)",
+  "videoCodecBroadcast": "Video Codec & Broadcast",
+  "pushToTalkKey": "Push to Talk [{{key}}]",
+  "vadThreshold": "Smart VAD Threshold ({{percent}}%)",
+  "ipv6Pass": "🟢 Native Open (Zero NAT Direct Hole-punching)",
+  "ipv6Unconfigured": "⚪ Not configured (Using IPv4 STUN)",
+  "fallbackReasonDefault": "P2P hole-punching hindered or peer topology changed; smoothly downgraded to LiveKit SFU server to keep call active.",
+  "noiseDirect": "Passthrough",
+  "hardwareAccelActive": "Intel QSV / WebCodecs / NVENC Active",
+  "relayingClients": "{{count}} client(s) relaying",
+  "probingNatCandidates": "Probing NAT hole-punching candidate pairs and topology nodes...",
+  "p2pMeshTitle": "Peer-to-Peer Direct (P2P)",
+  "encryptedChannel": "End-to-End Encrypted",
+  "you": "You",
+  "topology": {
+    "lan": "Direct LAN",
+    "p2p": "Public P2P",
+    "relay": "Relay TURN"
+  },
+  "qualityLevels": {
+    "excellent": "Excellent",
+    "good": "Good",
+    "poor": "Poor",
+    "unknown": "Unknown"
   }
 }

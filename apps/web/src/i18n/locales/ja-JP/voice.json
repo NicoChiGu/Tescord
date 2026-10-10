@@ -145,11 +145,11 @@
     "videoCodec": "現在の映像コーデック: {{codec}}",
     "volume": "このユーザーの再生音量を調整 (0%～200%)",
     "openDrawer": "チャンネルとサーバーを開く",
-    "mixPanel": "システム音声とマイクのミキサー",
     "closeNotice": "通知を閉じる",
     "micOptions": "マイクの設定",
     "cameraOptions": "カメラの設定",
-    "disconnect": "切断"
+    "disconnect": "切断",
+    "swap": "切り替え"
   },
   "networkStats": {
     "noMedia": "メディアデータはまだありません",
@@ -161,7 +161,9 @@
     "sfuRtt": "{{value}} ms（端末 ↔ SFU）",
     "noRate": "現在の速度なし",
     "noCodec": "ネゴシエート済みコーデックなし",
-    "remoteEncoderUnknown": "相手のエンコーダーは取得できません"
+    "remoteEncoderUnknown": "相手のエンコーダーは取得できません",
+    "remoteIp": "リモート IP",
+    "localIp": "ローカル IP"
   },
   "connectionPopover": {
     "title": "接続",
@@ -185,7 +187,13 @@
     "p2pLatencyTooltip": "P2P 往復時間：{{value}}（{{type}}）",
     "statsTooltip": "往復時間：{{rtt}} | パケット損失：{{loss}} | ジッター：{{jitter}}",
     "streamTrackNotReady": "配信者の映像トラックはまだ準備できていません。しばらくしてから再試行してください。",
-    "streamJoinFailed": "配信に接続できませんでした"
+    "streamJoinFailed": "配信に接続できませんでした",
+    "p2pAvgPing": "全メンバー平均遅延",
+    "allPeersAvgRtt": "全メンバー平均遅延",
+    "directTopology": "直接接続ノードトポロジ",
+    "directPeerTopology": "直接接続ノードトポロジ",
+    "overallPacketLoss": "全体パケット損失率",
+    "peerCount": "直接接続ピア数"
   },
   "connectionBadge": {
     "connecting": "接続中...",
@@ -264,5 +272,40 @@
       "closed": "終了",
       "interrupted": "中断"
     }
+  },
+  "p2pIndependentRtt": "P2P 独立 RTT",
+  "nodeCount": "{{count}} ノード",
+  "connectionMode": "トポロジ",
+  "remoteAddress": "リモート IP: {{address}}",
+  "localAddress": "ローカル IP: {{address}}",
+  "candidateType": "候補タイプ: {{type}}",
+  "networkModalTitle": "WebRTC メディアエンジンとネットワーク健康ダッシュボード",
+  "closeModalTitle": "閉じる (Esc)",
+  "mediaSessionProperties": "メディアセッションプロパティとコーデック",
+  "opusStereo": "Opus 48kHz (高精細ステレオ)",
+  "opusFullband": "Opus 48kHz (フルバンド高忠実度ステレオ)",
+  "videoCodecBroadcast": "ビデオコーデックとブロードキャスト",
+  "pushToTalkKey": "プッシュツートーク [{{key}}]",
+  "vadThreshold": "スマート VAD しきい値 ({{percent}}%)",
+  "ipv6Pass": "🟢 ネイティブ開通 (ゼロNATダイレクト貫通)",
+  "ipv6Unconfigured": "⚪ 未設定 (IPv4 STUN経由)",
+  "fallbackReasonDefault": "P2P貫通交渉の阻害またはノードネットワークの変動により、LiveKit SFUサーバーへ自動的かつスムーズにダウングレードし、通話を維持しました。",
+  "noiseDirect": "パススルー",
+  "hardwareAccelActive": "Intel QSV / WebCodecs / NVENC 有効",
+  "relayingClients": "{{count}} クライアントがリレー中",
+  "probingNatCandidates": "NAT 貫通候補ペアとトポロジノードを検出中...",
+  "p2pMeshTitle": "ピアツーピア直接接続 (P2P)",
+  "encryptedChannel": "エンドツーエンド暗号化",
+  "you": "あなた",
+  "topology": {
+    "lan": "直接 LAN",
+    "p2p": "パブリック P2P",
+    "relay": "リレー RELAY"
+  },
+  "qualityLevels": {
+    "excellent": "極めて良好 (Excellent)",
+    "good": "良好 (Good)",
+    "poor": "不良 (Poor)",
+    "unknown": "不明 (Unknown)"
   }
 }

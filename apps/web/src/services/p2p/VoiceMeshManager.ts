@@ -22,6 +22,10 @@ import {
 } from "./audioQuality.js";
 import type { AudioReceiveQuality } from "@tescord/types";
 import { getP2PIceServers } from "./iceServers.js";
+import {
+  determineP2PConnectionType,
+  formatCandidateAddress,
+} from "./ipClassifier.js";
 
 export type LatencyUpdateCallback = (
   reports: Map<string, PeerLatencyReport>,
@@ -1489,6 +1493,9 @@ export class VoiceMeshManager {
       packetLoss: previous?.packetLoss,
       connectionType: previous?.connectionType ?? "P2P",
       status: previous?.status ?? "connecting",
+      localAddress: previous?.localAddress,
+      remoteAddress: previous?.remoteAddress,
+      candidateType: previous?.candidateType,
       ...patch,
       updatedAt: Date.now(),
     });
@@ -1738,24 +1745,38 @@ export class VoiceMeshManager {
             }
           });
 
+          let localAddress: string | undefined;
+          let remoteAddress: string | undefined;
+          let candidateType: string | undefined;
+
           if (selectedPair) {
             const pair = selectedPair as RTCStats & {
               localCandidateId?: string;
               remoteCandidateId?: string;
             };
             const localCandidate = pair.localCandidateId
-              ? stats.get(pair.localCandidateId)
+              ? (stats.get(pair.localCandidateId) as any)
               : undefined;
             const remoteCandidate = pair.remoteCandidateId
-              ? stats.get(pair.remoteCandidateId)
+              ? (stats.get(pair.remoteCandidateId) as any)
               : undefined;
             const localType = localCandidate?.candidateType;
             const remoteType = remoteCandidate?.candidateType;
-            if (localType === "relay" || remoteType === "relay") {
-              connectionType = "RELAY";
-            } else if (localType === "host" && remoteType === "host") {
-              connectionType = "LAN";
-            }
+            const localIp = localCandidate?.address || localCandidate?.ip;
+            const remoteIp = remoteCandidate?.address || remoteCandidate?.ip;
+            const localPort = localCandidate?.port;
+            const remotePort = remoteCandidate?.port;
+
+            candidateType = remoteType || localType;
+            localAddress = formatCandidateAddress(localIp, localPort);
+            remoteAddress = formatCandidateAddress(remoteIp, remotePort);
+
+            connectionType = determineP2PConnectionType(
+              localIp,
+              remoteIp,
+              localType,
+              remoteType,
+            );
           }
 
           this.audioQuality.set(peerId, trackQuality);
@@ -1766,6 +1787,9 @@ export class VoiceMeshManager {
             packetLoss,
             connectionType,
             status: "connected",
+            localAddress,
+            remoteAddress,
+            candidateType,
             updatedAt: Date.now(),
           });
         } catch (e) {

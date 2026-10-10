@@ -34,7 +34,6 @@ import {
   ConnectionTopology,
 } from "@tescord/types";
 import { resolveLiveKitUrl } from "../config";
-import { audioMixer } from "./audioMixer.js";
 import { audioEngine } from "./audioEngine.js";
 import { soundManager } from "./soundManager.js";
 import { useSettingsStore } from "../stores/useSettingsStore.js";
@@ -2197,8 +2196,6 @@ export class LiveKitService {
         this.localAudioPublication.track.unmute();
       } catch {}
     }
-
-    audioMixer.cleanup();
 
     this.localScreenShare = null;
     const localIdentity = this.room?.localParticipant?.identity || "local";

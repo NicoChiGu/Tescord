@@ -364,5 +364,18 @@
       "v0_3_0_security_desc": "升級 Electron 41.10.6，修正內容隔離、通訊協定存取與沙箱相關的已知安全問題，並更新建置相依套件。"
     }
   },
-  "createGuildRestrictedNotice": "目前平台已由管理員設定為單伺服器模式，僅支援透過邀請碼加入已有伺服器。"
+  "createGuildRestrictedNotice": "目前平台已由管理員設定為單伺服器模式，僅支援透過邀請碼加入已有伺服器。",
+  "networkQuality": {
+    "title": "WebRTC 媒體引擎與網路健康看板",
+    "p2pIndependentRtt": "點對點獨立 RTT",
+    "remoteAddress": "遠端 IP: {{address}}",
+    "localAddress": "本端 IP: {{address}}",
+    "candidateType": "候選類型: {{type}}",
+    "nodeCount": "{{count}} 節點"
+  },
+  "lightbox": {
+    "hdBadge": "HD 高畫質",
+    "decoding": "正在解碼原圖…",
+    "downloadProgress": "{{loaded}} / {{total}} MB"
+  }
 }

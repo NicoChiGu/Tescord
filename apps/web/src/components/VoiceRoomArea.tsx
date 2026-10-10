@@ -5,7 +5,13 @@ import {
   audioDeviceLabel,
   type AudioDeviceEntry,
 } from "../services/audioDevices.js";
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useMemo,
+  useCallback,
+} from "react";
 import {
   Channel,
   User,
@@ -29,7 +35,6 @@ import { livekitService, ActiveScreenShare } from "../services/livekit.js";
 import { cloudflareRealtimeService } from "../services/cloudflare_realtime/index.js";
 import { VOICE_ENGINE, resolveServerUrl } from "../config.js";
 import { audioEngine } from "../services/audioEngine.js";
-import { audioMixer } from "../services/audioMixer.js";
 import { sframeManager, SFrameStats } from "../services/sframe.js";
 import { p2pStreamManager } from "../services/p2p/P2PStreamManager.js";
 import { voiceMeshManager } from "../services/p2p/VoiceMeshManager.js";
@@ -53,7 +58,6 @@ import {
   Minimize2,
   ShieldCheck,
   Wifi,
-  Sliders,
   X,
   Keyboard,
   PictureInPicture2,
@@ -82,6 +86,7 @@ interface VideoTrackPlayerProps {
   isMirrored?: boolean;
   className?: string;
   dataTestId?: string;
+  onResolutionChange?: (width: number, height: number) => void;
 }
 
 const VideoTrackPlayer: React.FC<VideoTrackPlayerProps> = ({
@@ -89,12 +94,22 @@ const VideoTrackPlayer: React.FC<VideoTrackPlayerProps> = ({
   isMirrored = false,
   className = "w-full h-full object-cover",
   dataTestId,
+  onResolutionChange,
 }) => {
   const videoElRef = useRef<HTMLVideoElement | null>(null);
 
+  const checkResolution = (el: HTMLVideoElement | null) => {
+    if (el && el.videoWidth > 0 && el.videoHeight > 0) {
+      onResolutionChange?.(el.videoWidth, el.videoHeight);
+    }
+  };
+
   useEffect(() => {
     const el = videoElRef.current;
-    if (!el || !track) return;
+    if (!el || !track) {
+      onResolutionChange?.(0, 0);
+      return;
+    }
     try {
       if (typeof track.attach === "function") {
         track.attach(el);
@@ -109,6 +124,7 @@ const VideoTrackPlayer: React.FC<VideoTrackPlayerProps> = ({
     } catch (e) {
       console.warn("VideoTrackPlayer attach error:", e);
     }
+    checkResolution(el);
 
     return () => {
       try {
@@ -118,6 +134,7 @@ const VideoTrackPlayer: React.FC<VideoTrackPlayerProps> = ({
           el.srcObject = null;
         }
       } catch {}
+      onResolutionChange?.(0, 0);
     };
   }, [track]);
 
@@ -129,6 +146,8 @@ const VideoTrackPlayer: React.FC<VideoTrackPlayerProps> = ({
       muted
       data-testid={dataTestId}
       className={`${className} ${isMirrored ? "-scale-x-100" : ""}`}
+      onLoadedMetadata={(e) => checkResolution(e.currentTarget)}
+      onResize={(e) => checkResolution(e.currentTarget)}
     />
   );
 };
@@ -371,10 +390,23 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
   const isPipMirrored =
     hasScreen && hasCamera ? (isSwapped ? false : isMe) : false;
 
+  const [videoAspectRatio, setVideoAspectRatio] = useState<number | null>(null);
+
+  const handleResolutionChange = useCallback(
+    (width: number, height: number) => {
+      if (width > 0 && height > 0) {
+        setVideoAspectRatio(width / height);
+      } else {
+        setVideoAspectRatio(null);
+      }
+    },
+    [],
+  );
+
   const mainFitClass = isFullscreen
     ? "w-full h-full object-contain bg-black"
     : (hasScreen && hasCamera && !isSwapped) || (hasScreen && !hasCamera)
-      ? "w-full h-full object-contain bg-black"
+      ? "w-full h-full object-contain"
       : "w-full h-full object-cover";
 
   const pipFitClass = isSwapped
@@ -406,6 +438,16 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
     avatarUrl: undefined,
   };
 
+  const spotlightStyle: React.CSSProperties | undefined =
+    isSpotlight && !isFullscreen
+      ? {
+          aspectRatio: videoAspectRatio ? `${videoAspectRatio}` : "16 / 9",
+          width: videoAspectRatio
+            ? `min(100%, calc(72vh * ${videoAspectRatio}))`
+            : "min(100%, calc(72vh * 1.7778))",
+        }
+      : undefined;
+
   return (
     <UserContextMenu
       targetUser={targetUser}
@@ -417,6 +459,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
     >
       <div
         ref={cardRef}
+        style={spotlightStyle}
         onMouseMove={handleMouseMove}
         onDoubleClick={(e) => {
           e.stopPropagation();
@@ -445,7 +488,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
           isFullscreen
             ? "!fixed !inset-0 !z-50 !w-screen !h-screen !max-w-none !rounded-none !border-0 !aspect-auto bg-black shadow-none"
             : isSpotlight
-              ? "w-full max-w-5xl aspect-video md:h-[62vh] shadow-2xl"
+              ? "w-full max-h-[72vh] max-w-full shadow-2xl"
               : isTheaterMode
                 ? "min-w-[140px] max-w-[160px] h-[130px] flex-shrink-0"
                 : "min-h-[140px] sm:min-h-[190px] aspect-video w-full"
@@ -465,6 +508,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
               isMirrored={isMainMirrored}
               className={mainFitClass}
               dataTestId={`participant-main-video-${participant.userId}`}
+              onResolutionChange={handleResolutionChange}
             />
 
             {/* 右下角画中画 (PiP) 叠加小窗：当用户同时开屏幕分享与摄像头时展示 */}
@@ -494,7 +538,7 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
                     <ArrowLeftRight className="w-3.5 h-3.5" />
                   </div>
                   <span className="text-[11px] text-white font-medium drop-shadow hidden sm:inline">
-                    切换
+                    {t("voice:mediaTooltips.swap")}
                   </span>
                 </div>
               </div>
@@ -1124,7 +1168,6 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
   const [streamViewersMap, setStreamViewersMap] = useState<
     Map<string, Set<string>>
   >(() => new Map());
-  const [isMixerOpen, setIsMixerOpen] = useState(false);
   const [isTheaterMode, setIsTheaterMode] = useState(false);
   const [activeVolumeUserId, setActiveVolumeUserId] = useState<string | null>(
     null,
@@ -1200,10 +1243,6 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
   >(null);
   const p2pAudioContextRef = useRef<AudioContext | null>(null);
   const p2pAudioGainRef = useRef<GainNode | null>(null);
-  const [micMixGain, setMicMixGain] = useState(audioMixer.config.micVolume);
-  const [systemMixGain, setSystemMixGain] = useState(
-    audioMixer.config.systemAudioVolume,
-  );
 
   // 监听 LiveKit 屏幕分享轨与摄像头轨道状态变动
   useEffect(() => {
@@ -2063,13 +2102,6 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
   const isPTTMode =
     audioEngine.config.inputMode === "PTT" || audioEngine.config.pushToTalk;
 
-  // 伴音与麦克风混音增益调节
-  const handleMixGainChange = (mic: number, sys: number) => {
-    setMicMixGain(mic);
-    setSystemMixGain(sys);
-    audioMixer.setGains(mic, sys, isMuted);
-  };
-
   return (
     <div
       ref={voiceContainerRef}
@@ -2122,24 +2154,6 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
               </span>
             </div>
           )}
-        </div>
-
-        {/* 顶部右侧：伴音混音与网络健康看板切换按钮 */}
-        <div className="flex items-center space-x-1.5 sm:space-x-2 flex-shrink-0">
-          {/* 声卡伴音混音控制开关 */}
-          <button
-            onClick={() => setIsMixerOpen(!isMixerOpen)}
-            className={`flex items-center space-x-1 sm:space-x-1.5 px-2 sm:px-2.5 py-1 rounded-lg text-xs font-semibold border transition ${
-              isMixerOpen
-                ? "bg-discord-brand text-white border-discord-brand"
-                : "bg-[#1e1f22] text-discord-textMuted border-[#2b2d31] hover:text-white hover:border-[#383a40]"
-            }`}
-            title={t("voice:mediaTooltips.mixPanel")}
-          >
-            <Sliders className="w-3.5 h-3.5 text-discord-brand" />
-            <span className="hidden sm:inline">伴音混音器</span>
-            <span className="sm:hidden">混音</span>
-          </button>
         </div>
       </div>
 
@@ -2248,7 +2262,7 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
             <div
               className={`w-full grid gap-3 sm:gap-4 mb-4 transition-all animate-fadeIn ${
                 stageParticipants.length === 1
-                  ? "grid-cols-1 max-w-4xl"
+                  ? "grid-cols-1 max-w-7xl place-items-center justify-center"
                   : stageParticipants.length === 2
                     ? "grid-cols-1 md:grid-cols-2 max-w-6xl"
                     : stageParticipants.length === 3
@@ -2939,71 +2953,6 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
           </>
         )}
       </div>
-
-      {/* 4.2 伴音与麦克风声卡混音控制模态浮层 */}
-      {isMixerOpen && (
-        <div className="absolute bottom-24 right-6 z-40 bg-[#313338] w-80 p-5 rounded-2xl border border-[#3f4147] shadow-2xl animate-fadeIn space-y-4">
-          <div className="flex justify-between items-center border-b border-[#383a40] pb-2">
-            <div className="flex items-center space-x-2">
-              <Sliders className="w-4 h-4 text-discord-brand" />
-              <h4 className="font-bold text-sm text-white">
-                声卡伴音混音控制台
-              </h4>
-            </div>
-            <button
-              onClick={() => setIsMixerOpen(false)}
-              className="text-discord-textMuted hover:text-white"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* 麦克风人声音量 */}
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-xs">
-              <span className="text-discord-textMuted">麦克风人声增益</span>
-              <span className="text-white font-mono">{micMixGain}%</span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={micMixGain}
-              onChange={(e) =>
-                handleMixGainChange(Number(e.target.value), systemMixGain)
-              }
-              className="w-full h-1.5 bg-[#2b2d31] rounded-lg appearance-none cursor-pointer accent-discord-brand"
-            />
-          </div>
-
-          {/* 系统游戏伴音音量 */}
-          <div className="space-y-1.5">
-            <div className="flex justify-between text-xs">
-              <span className="text-discord-textMuted">系统/游戏音频伴音</span>
-              <span className="text-discord-green font-mono">
-                {systemMixGain}%
-              </span>
-            </div>
-            <input
-              type="range"
-              min="0"
-              max="100"
-              value={systemMixGain}
-              onChange={(e) =>
-                handleMixGainChange(micMixGain, Number(e.target.value))
-              }
-              className="w-full h-1.5 bg-[#2b2d31] rounded-lg appearance-none cursor-pointer accent-discord-green"
-            />
-          </div>
-
-          <div className="pt-2 border-t border-[#383a40] flex justify-between items-center text-[11px] text-discord-textMuted">
-            <span>立体声推流状态:</span>
-            <span className="text-discord-green font-bold bg-discord-green/10 px-2 py-0.5 rounded">
-              已合成立体声
-            </span>
-          </div>
-        </div>
-      )}
 
       {/* 全局单例详细媒体属性与实时统计 (Stats for nerds) HUD，支持在中间内容区域内自由拖拽并记住位置 */}
       {statsUserId && (

@@ -364,5 +364,18 @@
       "v0_3_0_security_desc": "Upgrade to Electron 41.10.6 to fix known issues with context isolation, protocol access, and sandboxing, and update build dependencies."
     }
   },
-  "createGuildRestrictedNotice": "Server creation is restricted. You can join an existing server by entering an invite code below."
+  "createGuildRestrictedNotice": "Server creation is restricted. You can join an existing server by entering an invite code below.",
+  "networkQuality": {
+    "title": "WebRTC Media Engine & Network Health Dashboard",
+    "p2pIndependentRtt": "P2P Independent RTT",
+    "remoteAddress": "Remote IP: {{address}}",
+    "localAddress": "Local IP: {{address}}",
+    "candidateType": "Candidate: {{type}}",
+    "nodeCount": "{{count}} Nodes"
+  },
+  "lightbox": {
+    "hdBadge": "HD",
+    "decoding": "Decoding the original image…",
+    "downloadProgress": "{{loaded}} / {{total}} MB"
+  }
 }
