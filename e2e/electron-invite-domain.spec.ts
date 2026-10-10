@@ -67,13 +67,16 @@ test.describe("公会邀请弹窗与邀请链接生成真实渲染验收", () =>
       });
     });
 
-    await page.route("**/api/guilds/guild_electron_ui_test/channels", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify(mockGuild.channels),
-      });
-    });
+    await page.route(
+      "**/api/guilds/guild_electron_ui_test/channels",
+      (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify(mockGuild.channels),
+        });
+      },
+    );
 
     await page.route("**/api/channels/ch_general_1/messages*", (route) => {
       route.fulfill({
@@ -85,35 +88,41 @@ test.describe("公会邀请弹窗与邀请链接生成真实渲染验收", () =>
 
     // Mock 活跃邀请码返回标准结构
     const testCode = "quantum_inv_999";
-    await page.route("**/api/guilds/guild_electron_ui_test/invites/active", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          invite: {
+    await page.route(
+      "**/api/guilds/guild_electron_ui_test/invites/active",
+      (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            invite: {
+              code: testCode,
+              inviterId: "mock_user_1",
+              expiresAt: null,
+              maxUses: 0,
+              uses: 0,
+            },
+          }),
+        });
+      },
+    );
+
+    await page.route(
+      "**/api/guilds/guild_electron_ui_test/invites",
+      (route) => {
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
             code: testCode,
             inviterId: "mock_user_1",
             expiresAt: null,
             maxUses: 0,
             uses: 0,
-          },
-        }),
-      });
-    });
-
-    await page.route("**/api/guilds/guild_electron_ui_test/invites", (route) => {
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({
-          code: testCode,
-          inviterId: "mock_user_1",
-          expiresAt: null,
-          maxUses: 0,
-          uses: 0,
-        }),
-      });
-    });
+          }),
+        });
+      },
+    );
 
     await page.goto("/");
 
@@ -145,11 +154,15 @@ test.describe("公会邀请弹窗与邀请链接生成真实渲染验收", () =>
     expect(inviteUrlVal).toMatch(/^https?:\/\/.+\/invite\/quantum_inv_999$/);
 
     // 测试点击复制按钮
-    const copyButton = page.locator("button", { hasText: /複製|复制|Copy/i }).last();
+    const copyButton = page
+      .locator("button", { hasText: /複製|复制|Copy/i })
+      .last();
     await copyButton.click();
 
     // 验证按钮变为已复制状态
-    await expect(page.locator("button", { hasText: /已複製|已复制|Copied/i })).toBeVisible({
+    await expect(
+      page.locator("button", { hasText: /已複製|已复制|Copied/i }),
+    ).toBeVisible({
       timeout: 3000,
     });
   });

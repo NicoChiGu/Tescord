@@ -3254,7 +3254,12 @@ server.get("/api/custom-emojis/:emojiId", async (request, reply) => {
   if (!emoji) {
     const accept = String(request.headers.accept || "");
     if (accept.includes("application/json") && !accept.includes("image/")) {
-      return sendApiError(reply, 404, ErrorCode.EMOJI_NOT_FOUND, "未找到该表情");
+      return sendApiError(
+        reply,
+        404,
+        ErrorCode.EMOJI_NOT_FOUND,
+        "未找到该表情",
+      );
     }
     reply.header("Content-Type", "image/svg+xml");
     reply.header("Cache-Control", "public, max-age=60");

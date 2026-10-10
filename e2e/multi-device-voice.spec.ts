@@ -175,7 +175,9 @@ test.describe("多设备语音互斥接管与会话状态自动化验收 (Multi-
       '[data-testid="voice-transfer-notice"]',
     );
     await expect(transferNotice).not.toBeVisible();
-    await expect(page.locator("body")).not.toContainText("正在另一处语音频道中 #general");
+    await expect(page.locator("body")).not.toContainText(
+      "正在另一处语音频道中 #general",
+    );
   });
 
   test("左下角语音面板交互：点击卡片容器展示 Popover，点击频道名阻止穿透并关闭 Popover", async ({

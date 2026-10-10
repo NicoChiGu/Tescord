@@ -116,6 +116,7 @@ import { deviceKeyService } from "./services/deviceKeys.js";
 import { messageDb } from "./services/messageDb.js";
 import { preheatManager } from "./services/preheatManager.js";
 import { ScreenCaptureOverlay } from "./components/chat/ScreenCaptureOverlay.js";
+import type { KeybindConfig } from "@tescord/types";
 import { normalizeShortcut, DEFAULT_KEYBINDS } from "./hooks/useKeybinds.js";
 
 type DMCallHistorySnapshot = {
@@ -2843,15 +2844,17 @@ export const App: React.FC = () => {
       handleToggleMuteRef.current?.();
     });
 
-    const unbindGlobalDeafen =
-      window.electronAPI?.onGlobalDeafenToggle?.(() => {
+    const unbindGlobalDeafen = window.electronAPI?.onGlobalDeafenToggle?.(
+      () => {
         handleToggleDeafenRef.current?.();
-      });
+      },
+    );
 
-    const unbindTriggerCapture =
-      window.electronAPI?.onTriggerScreenCapture?.(() => {
+    const unbindTriggerCapture = window.electronAPI?.onTriggerScreenCapture?.(
+      () => {
         handleTriggerScreenCaptureRef.current?.();
-      });
+      },
+    );
 
     const handleCustomTriggerCapture = () => {
       handleTriggerScreenCaptureRef.current?.();
@@ -2860,6 +2863,40 @@ export const App: React.FC = () => {
       "trigger-screen-capture",
       handleCustomTriggerCapture,
     );
+
+    const readStoredKeybinds = (): KeybindConfig[] => {
+      try {
+        const saved = localStorage.getItem("tescord_keybinds_config");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            return DEFAULT_KEYBINDS.map((def) => {
+              const f = parsed.find((p: any) => p.id === def.id);
+              return f ? { ...def, ...f } : def;
+            });
+          }
+        }
+      } catch {}
+      return DEFAULT_KEYBINDS;
+    };
+
+    const currentKeybindsRef = { current: readStoredKeybinds() };
+
+    if (window.electronAPI?.registerKeybinds) {
+      window.electronAPI
+        .registerKeybinds(currentKeybindsRef.current)
+        .catch(() => {});
+    }
+
+    const handleKeybindsChanged = (e: Event) => {
+      const customEvent = e as CustomEvent<KeybindConfig[]>;
+      if (Array.isArray(customEvent.detail)) {
+        currentKeybindsRef.current = customEvent.detail;
+      } else {
+        currentKeybindsRef.current = readStoredKeybinds();
+      }
+    };
+    window.addEventListener("tescord:keybinds-changed", handleKeybindsChanged);
 
     const handleWindowKeydown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
@@ -2882,20 +2919,7 @@ export const App: React.FC = () => {
       const currentShortcut = normalizeShortcut(parts.join("+"));
       if (!currentShortcut) return;
 
-      let keybindsList = DEFAULT_KEYBINDS;
-      try {
-        const saved = localStorage.getItem("tescord_keybinds_config");
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (Array.isArray(parsed)) {
-            keybindsList = DEFAULT_KEYBINDS.map((def) => {
-              const f = parsed.find((p: any) => p.id === def.id);
-              return f ? { ...def, ...f } : def;
-            });
-          }
-        }
-      } catch {}
-
+      const keybindsList = currentKeybindsRef.current;
       for (const item of keybindsList) {
         if (!item.enabled || !item.shortcut) continue;
         if (normalizeShortcut(item.shortcut) === currentShortcut) {
@@ -2996,6 +3020,10 @@ export const App: React.FC = () => {
       window.removeEventListener(
         "trigger-screen-capture",
         handleCustomTriggerCapture,
+      );
+      window.removeEventListener(
+        "tescord:keybinds-changed",
+        handleKeybindsChanged,
       );
       window.removeEventListener("keydown", handleWindowKeydown, {
         capture: true,

@@ -293,8 +293,11 @@
     "cropCopied": "スクリーンショットをクリップボードにコピーしました",
     "cropSaved": "スクリーンショットを保存しました",
     "copy": "クリップボードにコピー",
+    "copyShort": "コピー",
     "save": "画像を保存",
+    "saveShort": "保存",
     "send": "チャットに送信",
+    "sendShort": "送信",
     "cancel": "キャンセル (ESC)"
   }
 }

@@ -142,12 +142,12 @@ cp apps/desktop/desktop.config.example.json apps/desktop/desktop.config.json
 
 #### 配置字段说明：
 
-| 字段名        | 类型     | 必填   | 说明                                                                                                         | 示例                             |
-| :------------ | :------- | :----- | :----------------------------------------------------------------------------------------------------------- | :------------------------------- |
-| `serverUrl`   | `string` | **是** | 服务端 REST API 根地址 (支持 HTTP/HTTPS，可带端口)                                                           | `"https://im.company.com"`       |
-| `gatewayUrl`  | `string` | 否     | WebSocket 网关地址；若省略，系统自动根据 `serverUrl` 推导                                                    | `"wss://im.company.com/gateway"` |
+| 字段名        | 类型     | 必填   | 说明                                                                                                               | 示例                             |
+| :------------ | :------- | :----- | :----------------------------------------------------------------------------------------------------------------- | :------------------------------- |
+| `serverUrl`   | `string` | **是** | 服务端 REST API 根地址 (支持 HTTP/HTTPS，可带端口)                                                                 | `"https://im.company.com"`       |
+| `gatewayUrl`  | `string` | 否     | WebSocket 网关地址；若省略，系统自动根据 `serverUrl` 推导                                                          | `"wss://im.company.com/gateway"` |
 | `voiceEngine` | `string` | 否     | 语音媒体引擎，可选 `"cloudflare_realtime"` 或 `"livekit"`（Cloudflare SFU 架构下必须设为 `"cloudflare_realtime"`） | `"cloudflare_realtime"`          |
-| `livekitUrl`  | `string` | 否     | LiveKit SFU 媒体服务地址；使用 Cloudflare SFU 时可留空                                                       | `"wss://livekit.company.com"`    |
+| `livekitUrl`  | `string` | 否     | LiveKit SFU 媒体服务地址；使用 Cloudflare SFU 时可留空                                                             | `"wss://livekit.company.com"`    |
 
 > [!NOTE]
 > `apps/desktop/desktop.config.json` 已加入根目录 `.gitignore`。地址仍会写入构建产物和构建日志，请勿在 URL 中包含密码、令牌或其他秘密。

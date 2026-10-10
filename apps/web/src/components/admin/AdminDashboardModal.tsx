@@ -35,7 +35,11 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { API_BASE, resolveServerUrl, getRegistrationInviteUrl } from "../../config.js";
+import {
+  API_BASE,
+  resolveServerUrl,
+  getRegistrationInviteUrl,
+} from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { useMaintenanceStore } from "../../stores/useMaintenanceStore.js";
 import { dialog } from "../../stores/useDialogStore.js";

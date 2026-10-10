@@ -55,7 +55,11 @@ export function getPublicWebUrl(): string {
   const configuredWeb =
     desktopConfig?.webUrl ||
     (import.meta.env.VITE_PUBLIC_URL as string | undefined);
-  if (configuredWeb && typeof configuredWeb === "string" && configuredWeb.trim()) {
+  if (
+    configuredWeb &&
+    typeof configuredWeb === "string" &&
+    configuredWeb.trim()
+  ) {
     return configuredWeb.trim().replace(/\/+$/, "");
   }
 
@@ -63,7 +67,11 @@ export function getPublicWebUrl(): string {
     desktopConfig?.serverUrl ||
     (import.meta.env.VITE_API_URL as string | undefined) ||
     API_BASE;
-  if (baseServer && typeof baseServer === "string" && !baseServer.startsWith("file:")) {
+  if (
+    baseServer &&
+    typeof baseServer === "string" &&
+    !baseServer.startsWith("file:")
+  ) {
     const trimmed = baseServer.trim().replace(/\/+$/, "");
     if (/^https?:\/\/(localhost|127\.0\.0\.1):3001$/i.test(trimmed)) {
       return "http://localhost:3000";
@@ -71,7 +79,7 @@ export function getPublicWebUrl(): string {
     return trimmed;
   }
 
-  return "https://tescord.terata.top";
+  return "http://localhost:3000";
 }
 
 export function getInviteUrl(inviteCode: string): string {

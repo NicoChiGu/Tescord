@@ -29,10 +29,13 @@ export const KeybindsSettingsTab: React.FC = () => {
     message: string;
   } | null>(null);
 
-  const showToast = useCallback((message: string, type: "error" | "success") => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 3000);
-  }, []);
+  const showToast = useCallback(
+    (message: string, type: "error" | "success") => {
+      setToast({ message, type });
+      setTimeout(() => setToast(null), 3000);
+    },
+    [],
+  );
 
   const getActionName = useCallback(
     (action: KeybindAction): string => {
@@ -193,11 +196,6 @@ export const KeybindsSettingsTab: React.FC = () => {
                 <div>
                   <div className="text-sm font-semibold text-white flex items-center gap-2">
                     <span>{getActionName(item.id)}</span>
-                    {item.id === "SCREEN_CAPTURE" && (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400 font-medium">
-                        桌面客户端专属
-                      </span>
-                    )}
                   </div>
                   <p className="text-xs text-gray-400 mt-0.5">
                     {getActionDesc(item.id)}

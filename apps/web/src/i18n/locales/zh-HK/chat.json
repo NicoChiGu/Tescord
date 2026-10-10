@@ -293,8 +293,11 @@
     "cropCopied": "截圖已複製到剪貼簿",
     "cropSaved": "截圖已儲存",
     "copy": "複製到剪貼簿",
+    "copyShort": "複製",
     "save": "儲存圖片",
+    "saveShort": "儲存",
     "send": "傳送到聊天",
+    "sendShort": "傳送",
     "cancel": "取消 (ESC)"
   }
 }

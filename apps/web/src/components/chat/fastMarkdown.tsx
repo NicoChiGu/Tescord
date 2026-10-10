@@ -118,11 +118,7 @@ function parseInline(
       const emojiName = match[2];
       const emojiId = match[3];
       nodes.push(
-        <CustomEmojiItem
-          key={key}
-          emojiId={emojiId}
-          emojiName={emojiName}
-        />,
+        <CustomEmojiItem key={key} emojiId={emojiId} emojiName={emojiName} />,
       );
       prevChar = remaining[match[0].length - 1];
       remaining = remaining.slice(match[0].length);

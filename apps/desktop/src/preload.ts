@@ -13,6 +13,8 @@ import type {
   StorageSearchMessagesQuery,
   DisplayCaptureRequest,
   DesktopCaptureAudioStart,
+  KeybindConfig,
+  SupportedLocale,
 } from "@tescord/types";
 
 // The sandboxed preload can require Electron only. Keep IPC literals checked
@@ -137,10 +139,11 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.send("sync-user-status", status),
   syncTrayUnread: (state: DesktopUnreadStatePayload) =>
     ipcRenderer.send("sync-tray-unread", state),
-  syncLocale: (locale: any) => ipcRenderer.send("sync-locale", locale),
+  syncLocale: (locale: SupportedLocale) =>
+    ipcRenderer.send("sync-locale", locale),
 
   // 全局热键与静音/拒听/截屏
-  registerKeybinds: (keybinds: any[]) =>
+  registerKeybinds: (keybinds: KeybindConfig[]) =>
     ipcRenderer.invoke("register-keybinds", keybinds),
   onGlobalMuteToggle: (callback: () => void) => {
     const handler = () => callback();

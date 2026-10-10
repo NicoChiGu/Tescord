@@ -28,11 +28,7 @@ export function normalizeShortcut(shortcut: string): string {
       lower === "controlright"
     ) {
       modifiers.add("Control");
-    } else if (
-      lower === "alt" ||
-      lower === "altleft" ||
-      lower === "altright"
-    ) {
+    } else if (lower === "alt" || lower === "altleft" || lower === "altright") {
       modifiers.add("Alt");
     } else if (
       lower === "shift" ||
@@ -163,7 +159,10 @@ export function useKeybinds() {
         k.id === actionId ? { ...k, ...updates } : k,
       );
 
-      if (typeof window !== "undefined" && window.electronAPI?.registerKeybinds) {
+      if (
+        typeof window !== "undefined" &&
+        window.electronAPI?.registerKeybinds
+      ) {
         const res = await window.electronAPI.registerKeybinds(nextKeybinds);
         if (!res.success && res.conflicts?.length > 0) {
           const matched = res.conflicts.find((c) => c.id === actionId);
@@ -181,6 +180,13 @@ export function useKeybinds() {
       setKeybinds(nextKeybinds);
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(nextKeybinds));
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("tescord:keybinds-changed", {
+              detail: nextKeybinds,
+            }),
+          );
+        }
       } catch {}
 
       return { conflict: false };
@@ -192,6 +198,13 @@ export function useKeybinds() {
     setKeybinds(DEFAULT_KEYBINDS);
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(DEFAULT_KEYBINDS));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("tescord:keybinds-changed", {
+            detail: DEFAULT_KEYBINDS,
+          }),
+        );
+      }
     } catch {}
     syncToElectron(DEFAULT_KEYBINDS);
   }, [syncToElectron]);

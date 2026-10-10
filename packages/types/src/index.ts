@@ -3892,10 +3892,7 @@ export * from "./media-frame.js";
 // 快捷键系统与动作映射 (Keybinds System)
 // ==========================================
 
-export type KeybindAction =
-  | "TOGGLE_MUTE"
-  | "TOGGLE_DEAFEN"
-  | "SCREEN_CAPTURE";
+export type KeybindAction = "TOGGLE_MUTE" | "TOGGLE_DEAFEN" | "SCREEN_CAPTURE";
 
 export interface KeybindConfig {
   id: KeybindAction;

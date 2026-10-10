@@ -293,8 +293,11 @@
     "cropCopied": "Screenshot copied to clipboard",
     "cropSaved": "Screenshot saved",
     "copy": "Copy to Clipboard",
+    "copyShort": "Copy",
     "save": "Save Image",
+    "saveShort": "Save",
     "send": "Send to Chat",
+    "sendShort": "Send",
     "cancel": "Cancel (ESC)"
   }
 }

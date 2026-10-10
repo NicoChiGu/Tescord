@@ -2351,6 +2351,9 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     };
   }, []);
 
+  const handleFilesSelectedRef = useRef(handleFilesSelected);
+  handleFilesSelectedRef.current = handleFilesSelected;
+
   useEffect(() => {
     const handleInsertCapture = (e: Event) => {
       const customEvent = e as CustomEvent<{ blob: Blob; dataUrl: string }>;
@@ -2360,13 +2363,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         `screenshot-${Date.now()}.png`,
         { type: "image/png" },
       );
-      handleFilesSelected([file]);
+      handleFilesSelectedRef.current([file]);
     };
     window.addEventListener("insert-captured-image", handleInsertCapture);
     return () => {
       window.removeEventListener("insert-captured-image", handleInsertCapture);
     };
-  }, [handleFilesSelected]);
+  }, []);
 
   // 严格校验是否为来自操作系统外部的文件拖入（排除内部 DOM 图片/链接/文本拖拽）
   const isExternalFileDrag = (e: React.DragEvent) => {

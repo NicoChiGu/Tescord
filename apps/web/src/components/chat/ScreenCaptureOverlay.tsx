@@ -130,7 +130,10 @@ export const ScreenCaptureOverlay: React.FC<ScreenCaptureOverlayProps> = ({
     if (!dataUrl) return;
 
     let copied = false;
-    if (typeof window !== "undefined" && window.electronAPI?.writeClipboardImage) {
+    if (
+      typeof window !== "undefined" &&
+      window.electronAPI?.writeClipboardImage
+    ) {
       copied = await window.electronAPI.writeClipboardImage(dataUrl);
     }
 
@@ -264,7 +267,7 @@ export const ScreenCaptureOverlay: React.FC<ScreenCaptureOverlayProps> = ({
             title={t("chat:screenCapture.copy", "复制到剪贴板")}
           >
             <Copy className="w-3.5 h-3.5 text-[#5865f2]" />
-            <span>{t("chat:screenCapture.copy", "复制")}</span>
+            <span>{t("chat:screenCapture.copyShort", "复制")}</span>
           </button>
 
           <button
@@ -275,7 +278,7 @@ export const ScreenCaptureOverlay: React.FC<ScreenCaptureOverlayProps> = ({
             title={t("chat:screenCapture.save", "保存图片")}
           >
             <Download className="w-3.5 h-3.5 text-emerald-400" />
-            <span>{t("chat:screenCapture.save", "保存")}</span>
+            <span>{t("chat:screenCapture.saveShort", "保存")}</span>
           </button>
 
           {onComplete && (
@@ -287,7 +290,7 @@ export const ScreenCaptureOverlay: React.FC<ScreenCaptureOverlayProps> = ({
               title={t("chat:screenCapture.send", "发送到聊天")}
             >
               <Send className="w-3.5 h-3.5 text-blue-400" />
-              <span>{t("chat:screenCapture.send", "发送")}</span>
+              <span>{t("chat:screenCapture.sendShort", "发送")}</span>
             </button>
           )}
 
