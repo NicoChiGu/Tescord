@@ -94,8 +94,17 @@
       "allow": "Allow",
       "inherit": "Inherit",
       "deny": "Deny",
-      "advancedPermissions": "Advanced Permissions"
-    }
+      "advancedPermissions": "Advanced Permissions",
+      "confirmSync": "Confirm Sync (Clear Overwrites)?",
+      "togglePrivateFailed": "Failed to toggle private channel",
+      "syncFailed": "Failed to sync category permissions",
+      "deleteOverwriteFailed": "Failed to delete permission overwrite"
+    },
+    "voiceTopologyTitle": "Audio Transmission Topology",
+    "voiceTopologySfuTitle": "Edge Relay (SFU)",
+    "voiceTopologySfuDesc": "Relayed via edge media servers, stable for multi-user calls.",
+    "voiceTopologyMeshTitle": "Mesh Direct (P2P Mesh)",
+    "voiceTopologyMeshDesc": "Direct peer-to-peer connection with minimal server latency."
   },
   "createCategory": {
     "title": "Create Category",

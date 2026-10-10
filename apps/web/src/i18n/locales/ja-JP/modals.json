@@ -94,8 +94,17 @@
       "allow": "許可",
       "inherit": "継承",
       "deny": "拒否",
-      "advancedPermissions": "高度な権限設定"
-    }
+      "advancedPermissions": "高度な権限設定",
+      "confirmSync": "同期を確認（オーバーライドを消去）？",
+      "togglePrivateFailed": "プライベートチャンネルの切り替えに失敗しました",
+      "syncFailed": "カテゴリー権限の同期に失敗しました",
+      "deleteOverwriteFailed": "権限オーバーライドの削除に失敗しました"
+    },
+    "voiceTopologyTitle": "音声伝送トポロジー",
+    "voiceTopologySfuTitle": "エッジ中継 (SFU)",
+    "voiceTopologySfuDesc": "エッジサーバーを経由して中継し、多人数通話を安定させます。",
+    "voiceTopologyMeshTitle": "メッシュ直接接続 (P2P Mesh)",
+    "voiceTopologyMeshDesc": "クライアント間の直接P2P接続で、サーバー遅延を最小化します。"
   },
   "createCategory": {
     "title": "カテゴリーを作成",

@@ -15,7 +15,7 @@ import {
 } from "../services/storage/index.js";
 import { startAuthentication } from "@simplewebauthn/browser";
 import { isWebAuthnSupported } from "../utils/webauthn.js";
-import { getErrorMessage } from "../i18n/index.js";
+import { getErrorMessage, tGlobal } from "../i18n/index.js";
 
 const MAX_SAVED_ACCOUNTS = 10;
 const SAVED_ACCOUNTS_STORAGE_KEY = "tescord_saved_accounts";
@@ -576,7 +576,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   loginWithPasskey: async (emailOrUsername?: string) => {
     set({ error: null });
     if (!isWebAuthnSupported()) {
-      const err = new Error("当前环境或浏览器不支持通行密钥登录");
+      const err = new Error(tGlobal("errors:WEBAUTHN_NOT_SUPPORTED"));
       set({ error: err.message });
       throw err;
     }
@@ -593,12 +593,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
         if (!res.success) {
           if (res.error?.includes("取消") || res.error?.includes("cancel")) {
-            set({ error: "已取消通行密钥验证" });
-            const err = new Error("已取消通行密钥验证");
+            const cancelMsg = tGlobal("settings:passkeyRegistrationCancelled");
+            set({ error: cancelMsg });
+            const err = new Error(cancelMsg);
             (err as any).name = "NotAllowedError";
             throw err;
           }
-          throw new Error(res.error || "通行密钥验证失败");
+          throw new Error(
+            getErrorMessage(res.error) || tGlobal("auth:passkeyLoginFailed"),
+          );
         }
         const tokens = res.tokens as AuthTokens;
         const rememberMe = true;
@@ -641,7 +644,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       const optionsData = await optionsRes.json();
       if (!optionsRes.ok) {
-        throw new Error(optionsData.error || "获取通行密钥配置失败");
+        throw new Error(
+          getErrorMessage(optionsData) || tGlobal("auth:passkeyLoginFailed"),
+        );
       }
 
       const { options, challengeId } = optionsData;
@@ -667,7 +672,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         const errObj = new Error(
           getErrorMessage(data.code || data.error) ||
             data.error ||
-            "通行密钥验证失败",
+            tGlobal("auth:passkeyLoginFailed"),
         );
         (errObj as any).code = data.code;
         throw errObj;
@@ -702,9 +707,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       scheduleProactiveRefresh(() => get().refreshAuth());
     } catch (err: any) {
       if (err.name === "NotAllowedError") {
-        set({ error: "已取消通行密钥验证" });
+        set({ error: tGlobal("settings:passkeyRegistrationCancelled") });
       } else {
-        const msg = getErrorMessage(err) || err.message || "通行密钥登录失败";
+        const msg = getErrorMessage(err) || tGlobal("auth:passkeyLoginFailed");
         set({ error: msg });
       }
       throw err;

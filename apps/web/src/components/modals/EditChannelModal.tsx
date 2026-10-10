@@ -265,9 +265,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(
-          getErrorMessage(data) || t("common:saveFailed", "更新权限覆写失败"),
-        );
+        throw new Error(getErrorMessage(data) || t("common:saveFailed"));
       }
 
       const updatedChannel: Channel = await res.json();
@@ -310,7 +308,10 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(getErrorMessage(data) || "切换私密频道失败");
+        throw new Error(
+          getErrorMessage(data) ||
+            t("modals:editChannel.permissions.togglePrivateFailed"),
+        );
       }
 
       const updatedChannel: Channel = await res.json();
@@ -341,7 +342,10 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(getErrorMessage(data) || "同步分类权限失败");
+        throw new Error(
+          getErrorMessage(data) ||
+            t("modals:editChannel.permissions.syncFailed"),
+        );
       }
 
       const updatedChannel: Channel = await res.json();
@@ -358,6 +362,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
   // 删除当前选中目标的覆写
   const handleDeleteCurrentOverwrite = async () => {
     if (selectedTargetId === everyoneRole?.id) return;
+
     try {
       const token = localStorage.getItem("tescord_access_token");
       const res = await fetch(
@@ -372,7 +377,10 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(getErrorMessage(data) || "删除覆写失败");
+        throw new Error(
+          getErrorMessage(data) ||
+            t("modals:editChannel.permissions.deleteOverwriteFailed"),
+        );
       }
 
       const updatedChannel: Channel = await res.json();
@@ -544,7 +552,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
             {isVoice && (
               <div className="space-y-2">
                 <label className="block text-xs font-bold uppercase tracking-wider text-discord-textMuted">
-                  音频传输架构 (Audio Transmission Topology)
+                  {t("modals:editChannel.voiceTopologyTitle")}
                 </label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div
@@ -566,12 +574,11 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
                           }`}
                         />
                         <span className="text-xs font-bold">
-                          边缘转发 (SFU)
+                          {t("modals:editChannel.voiceTopologySfuTitle")}
                         </span>
                       </div>
                       <p className="text-[11px] text-gray-400 leading-relaxed">
-                        经由 Cloudflare Anycast
-                        边缘服务器转发，多人通话稳定流畅。
+                        {t("modals:editChannel.voiceTopologySfuDesc")}
                       </p>
                     </div>
                   </div>
@@ -595,11 +602,11 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
                           }`}
                         />
                         <span className="text-xs font-bold">
-                          纯网状直连 (P2P Mesh)
+                          {t("modals:editChannel.voiceTopologyMeshTitle")}
                         </span>
                       </div>
                       <p className="text-[11px] text-gray-400 leading-relaxed">
-                        客户端间端到端直连，零服务器延迟，极低开销。
+                        {t("modals:editChannel.voiceTopologyMeshDesc")}
                       </p>
                     </div>
                   </div>
@@ -721,7 +728,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
                       <RotateCcw className="w-3 h-3" />
                       <span>
                         {confirmSync
-                          ? "确认同步 (清除覆盖)？"
+                          ? t("modals:editChannel.permissions.confirmSync")
                           : t(
                               "modals:editChannel.permissions.syncWithCategory",
                             )}

@@ -94,8 +94,17 @@
       "allow": "允許",
       "inherit": "繼承",
       "deny": "拒絕",
-      "advancedPermissions": "進階權限設定"
-    }
+      "advancedPermissions": "進階權限設定",
+      "confirmSync": "確認同步 (清除覆蓋)？",
+      "togglePrivateFailed": "切換私密頻道失敗",
+      "syncFailed": "同步分類權限失敗",
+      "deleteOverwriteFailed": "刪除覆寫失敗"
+    },
+    "voiceTopologyTitle": "音訊傳輸架構",
+    "voiceTopologySfuTitle": "邊緣轉發 (SFU)",
+    "voiceTopologySfuDesc": "經由邊緣伺服器轉發，多人通話穩定流暢。",
+    "voiceTopologyMeshTitle": "純網狀直連 (P2P Mesh)",
+    "voiceTopologyMeshDesc": "用戶端間端到端直連，零伺服器延遲，極低開銷。"
   },
   "createCategory": {
     "title": "建立分類",

@@ -94,8 +94,17 @@
       "allow": "允许",
       "inherit": "继承",
       "deny": "拒绝",
-      "advancedPermissions": "高级权限设置"
-    }
+      "advancedPermissions": "高级权限设置",
+      "confirmSync": "确认同步 (清除覆盖)？",
+      "togglePrivateFailed": "切换私密频道失败",
+      "syncFailed": "同步分类权限失败",
+      "deleteOverwriteFailed": "删除覆写失败"
+    },
+    "voiceTopologyTitle": "音频传输架构",
+    "voiceTopologySfuTitle": "边缘转发 (SFU)",
+    "voiceTopologySfuDesc": "经由边缘服务器转发，多人通话稳定流畅。",
+    "voiceTopologyMeshTitle": "纯网状直连 (P2P Mesh)",
+    "voiceTopologyMeshDesc": "客户端间端到端直连，零服务器延迟，极低开销。"
   },
   "createCategory": {
     "title": "创建分类",
