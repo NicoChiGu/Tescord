@@ -25,7 +25,7 @@ import {
   BellOff,
   UserPlus,
 } from "lucide-react";
-import { API_BASE } from "../../config.js";
+import { API_BASE, getInviteUrl } from "../../config.js";
 
 interface ChannelContextMenuProps {
   channel: Channel;
@@ -81,7 +81,7 @@ export const ChannelContextMenu: React.FC<ChannelContextMenuProps> = ({
       });
       if (res.ok) {
         const data = await res.json();
-        await navigator.clipboard.writeText(data.code);
+        await navigator.clipboard.writeText(getInviteUrl(data.code));
         setCopiedInvite(true);
         setTimeout(() => setCopiedInvite(false), 2000);
       }

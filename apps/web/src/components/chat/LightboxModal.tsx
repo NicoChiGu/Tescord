@@ -641,7 +641,13 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({
     >
       {/* 顶部轻提示 (Toast) */}
       {toastMessage && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-30 px-4 py-2 bg-[#1e1f22]/95 border border-[#3f4147] text-white text-xs rounded-full shadow-2xl animate-fade-in flex items-center gap-2">
+        <div
+          className={`absolute ${
+            typeof window !== "undefined" && Boolean(window.electronAPI)
+              ? "top-11"
+              : "top-6"
+          } left-1/2 -translate-x-1/2 z-30 px-4 py-2 bg-[#1e1f22]/95 border border-[#3f4147] text-white text-xs rounded-full shadow-2xl animate-fade-in flex items-center gap-2`}
+        >
           <span>{toastMessage}</span>
         </div>
       )}
@@ -653,7 +659,11 @@ export const LightboxModal: React.FC<LightboxModalProps> = ({
           opacity: dismissOpacity,
           transition: dismissOffset > 0 ? "none" : "opacity 0.18s ease-out",
         }}
-        className="absolute top-[max(1rem,env(safe-area-inset-top))] right-4 flex items-center gap-1.5 text-white/85 z-20 bg-[#1e1f22]/80 backdrop-blur-md px-2.5 py-1.5 rounded-lg border border-[#3f4147]/80 shadow-lg"
+        className={`absolute ${
+          typeof window !== "undefined" && Boolean(window.electronAPI)
+            ? "top-11 right-4"
+            : "top-[max(1rem,env(safe-area-inset-top))] right-4"
+        } flex items-center gap-1.5 text-white/85 z-20 bg-[#1e1f22]/80 backdrop-blur-md px-2.5 py-1.5 rounded-lg border border-[#3f4147]/80 shadow-lg`}
       >
         {/* 缩小 */}
         <button

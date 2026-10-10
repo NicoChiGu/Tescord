@@ -35,7 +35,7 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { API_BASE, resolveServerUrl } from "../../config.js";
+import { API_BASE, resolveServerUrl, getRegistrationInviteUrl } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { useMaintenanceStore } from "../../stores/useMaintenanceStore.js";
 import { dialog } from "../../stores/useDialogStore.js";
@@ -516,11 +516,7 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
 
   // 邀请码操作：一键复制邀请链接
   const handleCopyInviteLink = (code: string) => {
-    const origin =
-      typeof window !== "undefined" && window.location.origin
-        ? window.location.origin
-        : "";
-    const inviteLink = `${origin}/?invite=${encodeURIComponent(code)}`;
+    const inviteLink = getRegistrationInviteUrl(code);
     navigator.clipboard.writeText(inviteLink).then(() => {
       setCopiedCode(code);
       showSuccess(t("admin:invites.copySuccess", { link: inviteLink }));

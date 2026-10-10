@@ -32,6 +32,17 @@ interface ElectronAPI {
   ) => void;
   syncLocale?: (locale: import("@tescord/types").SupportedLocale) => void;
   onGlobalMuteToggle: (callback: () => void) => () => void;
+  onGlobalDeafenToggle?: (callback: () => void) => () => void;
+  onTriggerScreenCapture?: (callback: () => void) => () => void;
+  registerKeybinds?: (
+    keybinds: import("@tescord/types").KeybindConfig[],
+  ) => Promise<import("@tescord/types").KeybindRegisterResponse>;
+  captureScreenBitmap?: () => Promise<string | null>;
+  writeClipboardImage?: (dataUrl: string) => Promise<boolean>;
+  saveImageFile?: (
+    dataUrl: string,
+    defaultFilename?: string,
+  ) => Promise<boolean>;
   onGlobalPTTDown: (callback: () => void) => () => void;
   onGlobalPTTUp: (callback: () => void) => () => void;
   setPTTKeybind: (key: string) => Promise<boolean>;

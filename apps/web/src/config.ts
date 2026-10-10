@@ -22,6 +22,7 @@ const desktopConfig: import("@tescord/types").DesktopServerConfig | null =
           desktopParams.get("desktopVoiceEngine") === "cloudflare_realtime"
             ? "cloudflare_realtime"
             : "livekit",
+        webUrl: desktopParams.get("desktopWeb") || undefined,
       }
     : null;
 
@@ -38,6 +39,52 @@ export const GATEWAY_URL =
   (isFileProtocol
     ? "ws://localhost:3001/gateway"
     : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host || "localhost:3000"}/gateway`);
+
+export function getPublicWebUrl(): string {
+  if (
+    typeof window !== "undefined" &&
+    window.location.origin &&
+    !isFileProtocol
+  ) {
+    const origin = window.location.origin;
+    if (origin !== "null" && !origin.startsWith("file:")) {
+      return origin.replace(/\/+$/, "");
+    }
+  }
+
+  const configuredWeb =
+    desktopConfig?.webUrl ||
+    (import.meta.env.VITE_PUBLIC_URL as string | undefined);
+  if (configuredWeb && typeof configuredWeb === "string" && configuredWeb.trim()) {
+    return configuredWeb.trim().replace(/\/+$/, "");
+  }
+
+  const baseServer =
+    desktopConfig?.serverUrl ||
+    (import.meta.env.VITE_API_URL as string | undefined) ||
+    API_BASE;
+  if (baseServer && typeof baseServer === "string" && !baseServer.startsWith("file:")) {
+    const trimmed = baseServer.trim().replace(/\/+$/, "");
+    if (/^https?:\/\/(localhost|127\.0\.0\.1):3001$/i.test(trimmed)) {
+      return "http://localhost:3000";
+    }
+    return trimmed;
+  }
+
+  return "https://tescord.terata.top";
+}
+
+export function getInviteUrl(inviteCode: string): string {
+  if (!inviteCode) return "";
+  const base = getPublicWebUrl();
+  return `${base}/invite/${encodeURIComponent(inviteCode)}`;
+}
+
+export function getRegistrationInviteUrl(inviteCode: string): string {
+  if (!inviteCode) return "";
+  const base = getPublicWebUrl();
+  return `${base}/?invite=${encodeURIComponent(inviteCode)}`;
+}
 
 /**
  * 智能自愈服务端静态文件/上传链接：

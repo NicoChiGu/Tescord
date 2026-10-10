@@ -67,6 +67,16 @@ export function deriveGatewayUrl(serverUrl) {
   return parsed.href;
 }
 
+export function deriveWebUrl(serverUrl) {
+  const normalized = validateUrl(serverUrl, ["http:", "https:"], "serverUrl");
+  if (!normalized) return "";
+  const parsed = new URL(normalized);
+  if (/^(localhost|127\.0\.0\.1)$/i.test(parsed.hostname) && parsed.port === "3001") {
+    parsed.port = "3000";
+  }
+  return parsed.origin;
+}
+
 /** Resolve each field independently; malformed configuration fails the build. */
 export function resolveServerConfig(options = {}) {
   const rootDir = options.rootDir || defaultRootDir;
@@ -112,6 +122,12 @@ export function resolveServerConfig(options = {}) {
     "VITE_LIVEKIT_URL",
     "livekitUrl",
   ]);
+  const web = select([
+    "TESCORD_WEB_URL",
+    "VITE_PUBLIC_URL",
+    "VITE_WEB_URL",
+    "webUrl",
+  ]);
   const voice = select(["VITE_VOICE_ENGINE", "voiceEngine"]);
   const voiceEngine = voice.value || "livekit";
   if (voiceEngine !== "livekit" && voiceEngine !== "cloudflare_realtime")
@@ -121,11 +137,15 @@ export function resolveServerConfig(options = {}) {
     validateUrl(gateway.value, ["ws:", "wss:"], "gatewayUrl") ||
     deriveGatewayUrl(serverUrl);
   const livekitUrl = validateUrl(livekit.value, ["ws:", "wss:"], "livekitUrl");
+  const webUrl =
+    validateUrl(web.value, ["http:", "https:"], "webUrl") ||
+    deriveWebUrl(serverUrl);
   return {
     serverUrl,
     gatewayUrl,
     livekitUrl,
     voiceEngine,
+    webUrl,
     source: server.source,
   };
 }

@@ -139,7 +139,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
     ipcRenderer.send("sync-tray-unread", state),
   syncLocale: (locale: any) => ipcRenderer.send("sync-locale", locale),
 
-  // 全局热键与静音
+  // 全局热键与静音/拒听/截屏
+  registerKeybinds: (keybinds: any[]) =>
+    ipcRenderer.invoke("register-keybinds", keybinds),
   onGlobalMuteToggle: (callback: () => void) => {
     const handler = () => callback();
     ipcRenderer.on("toggle-global-mute", handler);
@@ -147,6 +149,25 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.removeListener("toggle-global-mute", handler);
     };
   },
+  onGlobalDeafenToggle: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("toggle-global-deafen", handler);
+    return () => {
+      ipcRenderer.removeListener("toggle-global-deafen", handler);
+    };
+  },
+  onTriggerScreenCapture: (callback: () => void) => {
+    const handler = () => callback();
+    ipcRenderer.on("trigger-screen-capture", handler);
+    return () => {
+      ipcRenderer.removeListener("trigger-screen-capture", handler);
+    };
+  },
+  captureScreenBitmap: () => ipcRenderer.invoke("capture-screen-bitmap"),
+  writeClipboardImage: (dataUrl: string) =>
+    ipcRenderer.invoke("write-clipboard-image", dataUrl),
+  saveImageFile: (dataUrl: string, defaultFilename?: string) =>
+    ipcRenderer.invoke("save-image-file", dataUrl, defaultFilename),
   onGlobalPTTDown: (callback: () => void) => {
     const handler = () => callback();
     ipcRenderer.on("global-ptt-down", handler);

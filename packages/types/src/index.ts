@@ -727,6 +727,7 @@ export interface DesktopServerConfig {
   gatewayUrl: string;
   livekitUrl: string;
   voiceEngine: "livekit" | "cloudflare_realtime";
+  webUrl?: string;
 }
 
 export interface FileUrlAccess {
@@ -3886,3 +3887,36 @@ export * from "./desktop-capture.js";
 
 export * from "./media-encryption.js";
 export * from "./media-frame.js";
+
+// ==========================================
+// 快捷键系统与动作映射 (Keybinds System)
+// ==========================================
+
+export type KeybindAction =
+  | "TOGGLE_MUTE"
+  | "TOGGLE_DEAFEN"
+  | "SCREEN_CAPTURE";
+
+export interface KeybindConfig {
+  id: KeybindAction;
+  shortcut: string;
+  enabled: boolean;
+}
+
+export type KeybindConflictType = "INTERNAL_CONFLICT" | "SYSTEM_OCCUPIED";
+
+export interface KeybindConflictResult {
+  conflict: boolean;
+  type?: KeybindConflictType;
+  conflictingAction?: KeybindAction;
+  shortcut?: string;
+}
+
+export interface KeybindRegisterResponse {
+  success: boolean;
+  conflicts: Array<{
+    id: KeybindAction;
+    shortcut: string;
+    reason: KeybindConflictType;
+  }>;
+}

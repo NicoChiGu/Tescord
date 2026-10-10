@@ -25,6 +25,7 @@ const useResponsiveContextMenu = () => {
 // 探测是否处于移动端或小屏触控设备 (屏幕宽度 < 1024px 或小屏纯触屏设备)
 export const checkIsMobileDevice = (): boolean => {
   if (typeof window === "undefined") return false;
+  if (Boolean(window.electronAPI)) return false;
   const isNarrow = window.innerWidth < 1024;
   const isTouch =
     typeof navigator !== "undefined" && navigator.maxTouchPoints > 0;

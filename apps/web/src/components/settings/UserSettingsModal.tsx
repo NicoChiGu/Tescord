@@ -28,6 +28,7 @@ import {
   Loader2,
   Fingerprint,
   Smile,
+  Keyboard,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { AudioSettingsTab } from "./AudioSettingsTab.js";
@@ -36,6 +37,7 @@ import { AboutUpdatesTab } from "./AboutUpdatesTab.js";
 import { SecuritySettingsTab } from "./SecuritySettingsTab.js";
 import { AppearanceSettingsTab } from "./AppearanceSettingsTab.js";
 import { UserEmojisTab } from "./UserEmojisTab.js";
+import { KeybindsSettingsTab } from "./KeybindsSettingsTab.js";
 import { ProfileCardPreview } from "../profile/ProfileCardPreview.js";
 import { ImageCropModal } from "../modals/ImageCropModal.js";
 import { Avatar } from "../ui/Avatar.js";
@@ -47,6 +49,7 @@ export type UserSettingsTabType =
   | "appearance"
   | "emojis"
   | "audio"
+  | "keybinds"
   | "language"
   | "updates";
 
@@ -600,6 +603,21 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                 <span>{t("settings:voiceAndVideo")}</span>
               </button>
 
+              {/* 快捷键设置 */}
+              <button
+                type="button"
+                data-testid="tab-keybinds-btn"
+                onClick={() => selectTab("keybinds")}
+                className={`w-full flex items-center gap-2.5 px-3 py-3 md:px-2.5 md:py-2 rounded-lg text-sm md:text-xs font-semibold transition-colors text-left ${
+                  activeTab === "keybinds"
+                    ? "bg-[#5865f2] md:bg-white/10 text-white shadow-sm md:shadow-none"
+                    : "text-gray-300 md:text-gray-400 bg-[#1e1f22]/80 md:bg-transparent hover:bg-white/5 hover:text-white"
+                }`}
+              >
+                <Keyboard className="w-3.5 h-3.5 md:w-4 md:h-4 text-white md:text-discord-brand" />
+                <span>{t("settings:keybindsTab", "快捷键")}</span>
+              </button>
+
               {/* 语言设置 */}
               <button
                 type="button"
@@ -709,9 +727,11 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                   ? t("settings:securityAndPasskeysTab", "账号安全与通行密钥")
                   : activeTab === "audio"
                     ? t("settings:voiceAndVideo")
-                    : activeTab === "language"
-                      ? t("settings:language")
-                      : t("settings:updatesTab", "版本与更新")}
+                    : activeTab === "keybinds"
+                      ? t("settings:keybindsTab", "快捷键")
+                      : activeTab === "language"
+                        ? t("settings:language")
+                        : t("settings:updatesTab", "版本与更新")}
             </span>
           </div>
           {/* 桌面端内容与独立工具列的水平容器 */}
@@ -1320,6 +1340,8 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                   initialSubSection={initialSubSection}
                 />
               )}
+
+              {activeTab === "keybinds" && <KeybindsSettingsTab />}
 
               {activeTab === "language" && <LanguageSettingsTab />}
 

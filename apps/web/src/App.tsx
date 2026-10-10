@@ -115,6 +115,8 @@ import { X, AlertTriangle, Info } from "lucide-react";
 import { deviceKeyService } from "./services/deviceKeys.js";
 import { messageDb } from "./services/messageDb.js";
 import { preheatManager } from "./services/preheatManager.js";
+import { ScreenCaptureOverlay } from "./components/chat/ScreenCaptureOverlay.js";
+import { normalizeShortcut, DEFAULT_KEYBINDS } from "./hooks/useKeybinds.js";
 
 type DMCallHistorySnapshot = {
   channelId: string;
@@ -481,6 +483,11 @@ export const App: React.FC = () => {
   const isDeafenedRef = useRef<boolean>(false);
   isDeafenedRef.current = isDeafened;
   const handleToggleMuteRef = useRef<() => void>(() => {});
+  const handleToggleDeafenRef = useRef<() => void>(() => {});
+  const handleTriggerScreenCaptureRef = useRef<() => void>(() => {});
+  const [screenCaptureImage, setScreenCaptureImage] = useState<string | null>(
+    null,
+  );
 
   // 模态框显隐状态
   const [isUserSettingsOpen, setIsUserSettingsOpen] = useState(false);
@@ -2817,6 +2824,81 @@ export const App: React.FC = () => {
       handleToggleMuteRef.current?.();
     });
 
+    const unbindGlobalDeafen =
+      window.electronAPI?.onGlobalDeafenToggle?.(() => {
+        handleToggleDeafenRef.current?.();
+      });
+
+    const unbindTriggerCapture =
+      window.electronAPI?.onTriggerScreenCapture?.(() => {
+        handleTriggerScreenCaptureRef.current?.();
+      });
+
+    const handleCustomTriggerCapture = () => {
+      handleTriggerScreenCaptureRef.current?.();
+    };
+    window.addEventListener(
+      "trigger-screen-capture",
+      handleCustomTriggerCapture,
+    );
+
+    const handleWindowKeydown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+      const hasModifier = e.ctrlKey || e.metaKey || e.altKey;
+      if (isInput && !hasModifier) return;
+
+      const parts: string[] = [];
+      if (e.ctrlKey) parts.push("Control");
+      if (e.metaKey) parts.push("Meta");
+      if (e.altKey) parts.push("Alt");
+      if (e.shiftKey) parts.push("Shift");
+      const keyPart = e.code ? e.code : e.key.toUpperCase();
+      parts.push(keyPart);
+
+      const currentShortcut = normalizeShortcut(parts.join("+"));
+      if (!currentShortcut) return;
+
+      let keybindsList = DEFAULT_KEYBINDS;
+      try {
+        const saved = localStorage.getItem("tescord_keybinds_config");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            keybindsList = DEFAULT_KEYBINDS.map((def) => {
+              const f = parsed.find((p: any) => p.id === def.id);
+              return f ? { ...def, ...f } : def;
+            });
+          }
+        }
+      } catch {}
+
+      for (const item of keybindsList) {
+        if (!item.enabled || !item.shortcut) continue;
+        if (normalizeShortcut(item.shortcut) === currentShortcut) {
+          e.preventDefault();
+          e.stopPropagation();
+          switch (item.id) {
+            case "TOGGLE_MUTE":
+              handleToggleMuteRef.current?.();
+              break;
+            case "TOGGLE_DEAFEN":
+              handleToggleDeafenRef.current?.();
+              break;
+            case "SCREEN_CAPTURE":
+              handleTriggerScreenCaptureRef.current?.();
+              break;
+          }
+          break;
+        }
+      }
+    };
+    window.addEventListener("keydown", handleWindowKeydown, { capture: true });
+
     const unbindTray = window.electronAPI?.onStatusChangeFromTray(
       (newStatus) => {
         useAuthStore.getState().updateProfile({ status: newStatus });
@@ -2890,6 +2972,15 @@ export const App: React.FC = () => {
     return () => {
       unbindNotif?.();
       unbindGlobalMute?.();
+      unbindGlobalDeafen?.();
+      unbindTriggerCapture?.();
+      window.removeEventListener(
+        "trigger-screen-capture",
+        handleCustomTriggerCapture,
+      );
+      window.removeEventListener("keydown", handleWindowKeydown, {
+        capture: true,
+      });
       unbindTray?.();
       unbindShare?.();
       unbindP2P?.();
@@ -4382,6 +4473,21 @@ export const App: React.FC = () => {
       });
     }
   };
+  handleToggleDeafenRef.current = handleToggleDeafen;
+
+  const handleTriggerScreenCapture = async () => {
+    if (
+      typeof window === "undefined" ||
+      !window.electronAPI?.captureScreenBitmap
+    ) {
+      return;
+    }
+    const dataUrl = await window.electronAPI.captureScreenBitmap();
+    if (dataUrl) {
+      setScreenCaptureImage(dataUrl);
+    }
+  };
+  handleTriggerScreenCaptureRef.current = handleTriggerScreenCapture;
 
   // 切换摄像头直播推流
   const handleToggleCamera = async () => {
@@ -5931,6 +6037,21 @@ export const App: React.FC = () => {
 
       {/* 21. 全局单例音频小窗播放状态栏 */}
       <GlobalMiniPlayer />
+
+      {/* 22. 桌面客户端屏幕截图交互蒙层 */}
+      {screenCaptureImage && (
+        <ScreenCaptureOverlay
+          imageSrc={screenCaptureImage}
+          onClose={() => setScreenCaptureImage(null)}
+          onComplete={(blob, dataUrl) => {
+            window.dispatchEvent(
+              new CustomEvent("insert-captured-image", {
+                detail: { blob, dataUrl },
+              }),
+            );
+          }}
+        />
+      )}
     </div>
   );
 };

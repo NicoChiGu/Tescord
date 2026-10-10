@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Guild, Invite } from "@tescord/types";
 import { Link, Copy, Check, Trash2, Plus, Clock, Users } from "lucide-react";
-import { API_BASE, resolveServerUrl } from "../../config.js";
+import { API_BASE, resolveServerUrl, getInviteUrl } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { dialog } from "../../stores/useDialogStore.js";
 import { toast } from "../../stores/useToastStore.js";
@@ -46,7 +46,7 @@ export const InvitesTab: React.FC<InvitesTabProps> = ({ guild }) => {
   }, [guild.id]);
 
   const handleCopyLink = (code: string) => {
-    const inviteLink = `${window.location.origin}/invite/${code}`;
+    const inviteLink = getInviteUrl(code);
     navigator.clipboard.writeText(inviteLink);
     setCopiedCode(code);
     setTimeout(() => setCopiedCode(null), 2000);

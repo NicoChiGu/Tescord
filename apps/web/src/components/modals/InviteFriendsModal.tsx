@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { X, Search, Check, Copy, Settings, Loader2, Users } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { ActiveGuildInviteResponse, Guild, User } from "@tescord/types";
-import { API_BASE } from "../../config.js";
+import { API_BASE, getInviteUrl } from "../../config.js";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { useFriendStore } from "../../stores/useFriendStore.js";
 import { usePresenceStore } from "../../stores/usePresenceStore.js";
@@ -131,12 +131,7 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
   }, [isOpen, guild.id]);
 
   const fullInviteUrl = useMemo(() => {
-    if (!inviteCode) return "";
-    const origin =
-      typeof window !== "undefined" && window.location.origin
-        ? window.location.origin
-        : "https://tescord.com";
-    return `${origin}/invite/${inviteCode}`;
+    return getInviteUrl(inviteCode);
   }, [inviteCode]);
 
   // 好友列表与搜索过滤
@@ -194,11 +189,7 @@ export const InviteFriendsModal: React.FC<InviteFriendsModalProps> = ({
         );
       }
 
-      const origin =
-        typeof window !== "undefined" && window.location.origin
-          ? window.location.origin
-          : "https://tescord.com";
-      const targetInviteUrl = `${origin}/invite/${codeToUse}`;
+      const targetInviteUrl = getInviteUrl(codeToUse);
 
       // 1. 获取或创建 DM 频道
       const dmRes = await fetch(`${API_BASE}/api/users/@me/channels`, {

@@ -69,7 +69,6 @@ import { API_BASE } from "../config.js";
 import { useSettingsStore } from "../stores/useSettingsStore.js";
 import { audioEngine } from "../services/audioEngine.js";
 import { useNetworkStats } from "../hooks/useNetworkStats.js";
-import { useGatewayStatus } from "../hooks/useGatewayStatus.js";
 import { usePermissions } from "../hooks/usePermissions.js";
 import { ServerContextMenu } from "./context-menu/ServerContextMenu.js";
 import { ChannelContextMenu } from "./context-menu/ChannelContextMenu.js";
@@ -580,7 +579,6 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
   const { t } = useTranslation(["voice", "common", "contextMenu", "server"]);
   const [copiedInvite, setCopiedInvite] = useState<string | null>(null);
   const networkStats = useNetworkStats();
-  const { ping: gatewayPing } = useGatewayStatus();
   const { canManageChannels, canManageGuild, canCreateInvite } =
     usePermissions(guild);
   const [isCurrentUserCardOpen, setIsCurrentUserCardOpen] = useState(false);
@@ -1632,15 +1630,6 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                           ? t("common:status.dnd")
                           : t("common:status.invisible"))}
                 </span>
-                {gatewayPing !== null && (
-                  <span
-                    data-testid="gateway-ping-badge"
-                    className="font-mono text-[9px] text-[#23a55a] opacity-80"
-                    title={t("voice:wsLatencyTooltip", { ping: gatewayPing })}
-                  >
-                    • {gatewayPing}ms
-                  </span>
-                )}
               </span>
             </div>
           </button>

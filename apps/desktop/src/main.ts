@@ -14,6 +14,7 @@ import {
   IpcMainEvent,
   IpcMainInvokeEvent,
   utilityProcess,
+  dialog,
 } from "electron";
 import path from "path";
 import fs from "fs";
@@ -31,6 +32,8 @@ import {
   DesktopAudioInferenceStart,
   DesktopAudioInferenceStop,
   DesktopAudioInferenceFailure,
+  KeybindConfig,
+  KeybindRegisterResponse,
 } from "@tescord/types";
 import { detectLocalNetwork, UPnPClient } from "./upnp.js";
 import { getDesktopLocale } from "./locales.js";
@@ -416,8 +419,8 @@ const AUTH_WINDOW_CONFIG = {
 const MAIN_WINDOW_CONFIG = {
   width: 1280,
   height: 800,
-  minWidth: 940,
-  minHeight: 500,
+  minWidth: 1024,
+  minHeight: 600,
 };
 
 const isSafeExternalUrl = (raw: string) => {
@@ -664,6 +667,8 @@ async function loadWindowContent(
       BUILD_CONFIG.DEFAULT_GATEWAY_URL || "ws://localhost:3001/gateway",
     desktopLivekit: BUILD_CONFIG.DEFAULT_LIVEKIT_URL,
     desktopVoiceEngine: BUILD_CONFIG.DEFAULT_VOICE_ENGINE,
+    desktopWeb:
+      BUILD_CONFIG.DEFAULT_WEB_URL || BUILD_CONFIG.DEFAULT_SERVER_URL || "",
   }).toString();
 
   if (app.isPackaged) {
@@ -1348,6 +1353,172 @@ ipcMain.handle("set-ptt-keybind", async (event, key: string) => {
   }
 });
 
+function formatAccelerator(shortcut: string): string {
+  if (!shortcut || typeof shortcut !== "string") return "";
+  const parts = shortcut.split("+").map((p) => p.trim());
+  const converted = parts.map((part) => {
+    const lower = part.toLowerCase();
+    if (
+      lower === "ctrl" ||
+      lower === "control" ||
+      lower === "controlleft" ||
+      lower === "controlright" ||
+      lower === "meta" ||
+      lower === "cmd" ||
+      lower === "command"
+    ) {
+      return "CommandOrControl";
+    }
+    if (lower === "shift" || lower === "shiftleft" || lower === "shiftright") {
+      return "Shift";
+    }
+    if (lower === "alt" || lower === "altleft" || lower === "altright") {
+      return "Alt";
+    }
+    if (part.startsWith("Key") && part.length === 4) {
+      return part.slice(3).toUpperCase();
+    }
+    if (part.startsWith("Digit") && part.length === 6) {
+      return part.slice(5);
+    }
+    return part.toUpperCase();
+  });
+  return converted.join("+");
+}
+
+const registeredKeybindsMap = new Map<string, string>();
+
+ipcMain.handle(
+  "register-keybinds",
+  async (
+    event,
+    keybinds: KeybindConfig[],
+  ): Promise<KeybindRegisterResponse> => {
+    if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+    try {
+      for (const [_, acc] of registeredKeybindsMap.entries()) {
+        if (globalShortcut.isRegistered(acc)) {
+          globalShortcut.unregister(acc);
+        }
+      }
+      registeredKeybindsMap.clear();
+
+      const conflicts: KeybindRegisterResponse["conflicts"] = [];
+
+      for (const item of keybinds) {
+        if (!item.enabled || !item.shortcut) continue;
+        const accelerator = formatAccelerator(item.shortcut);
+        if (!accelerator) continue;
+
+        if (globalShortcut.isRegistered(accelerator)) {
+          conflicts.push({
+            id: item.id,
+            shortcut: item.shortcut,
+            reason: "SYSTEM_OCCUPIED",
+          });
+          continue;
+        }
+
+        const success = globalShortcut.register(accelerator, () => {
+          if (!mainWindow || mainWindow.isDestroyed()) return;
+          switch (item.id) {
+            case "TOGGLE_MUTE":
+              mainWindow.webContents.send("toggle-global-mute");
+              break;
+            case "TOGGLE_DEAFEN":
+              mainWindow.webContents.send("toggle-global-deafen");
+              break;
+            case "SCREEN_CAPTURE":
+              mainWindow.webContents.send("trigger-screen-capture");
+              break;
+          }
+        });
+
+        if (!success) {
+          conflicts.push({
+            id: item.id,
+            shortcut: item.shortcut,
+            reason: "SYSTEM_OCCUPIED",
+          });
+        } else {
+          registeredKeybindsMap.set(item.id, accelerator);
+        }
+      }
+
+      return {
+        success: conflicts.length === 0,
+        conflicts,
+      };
+    } catch (err) {
+      console.error("Failed to register keybinds:", err);
+      return { success: false, conflicts: [] };
+    }
+  },
+);
+
+ipcMain.handle("capture-screen-bitmap", async (event) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+  try {
+    const primaryDisplay = screen.getPrimaryDisplay();
+    const { width, height } = primaryDisplay.size;
+    const scaleFactor = primaryDisplay.scaleFactor || 1;
+    const thumbnailWidth = Math.round(width * scaleFactor);
+    const thumbnailHeight = Math.round(height * scaleFactor);
+
+    const sources = await desktopCapturer.getSources({
+      types: ["screen"],
+      thumbnailSize: { width: thumbnailWidth, height: thumbnailHeight },
+    });
+
+    const primarySource =
+      sources.find((s) => s.display_id === primaryDisplay.id.toString()) ||
+      sources[0];
+    if (!primarySource) return null;
+
+    return primarySource.thumbnail.toDataURL();
+  } catch (err) {
+    console.error("Failed to capture screen bitmap:", err);
+    return null;
+  }
+});
+
+ipcMain.handle("write-clipboard-image", async (event, dataUrl: string) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+  try {
+    if (!dataUrl || typeof dataUrl !== "string") return false;
+    const img = nativeImage.createFromDataURL(dataUrl);
+    clipboard.writeImage(img);
+    return true;
+  } catch (err) {
+    console.error("Failed to write image to clipboard:", err);
+    return false;
+  }
+});
+
+ipcMain.handle(
+  "save-image-file",
+  async (event, dataUrl: string, defaultFilename?: string) => {
+    if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+    try {
+      if (!dataUrl || typeof dataUrl !== "string") return false;
+      const targetWindow = mainWindow || BrowserWindow.getFocusedWindow();
+      if (!targetWindow) return false;
+      const { canceled, filePath } = await dialog.showSaveDialog(targetWindow, {
+        defaultPath: defaultFilename || `tescord-screenshot-${Date.now()}.png`,
+        filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg"] }],
+      });
+      if (canceled || !filePath) return false;
+      const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, "");
+      const buffer = Buffer.from(base64Data, "base64");
+      await fs.promises.writeFile(filePath, buffer);
+      return true;
+    } catch (err) {
+      console.error("Failed to save image file:", err);
+      return false;
+    }
+  },
+);
+
 // 4. 原生桌面通知与类似 Discord 的悬浮弹窗 (Desktop Notifications / Toast)
 ipcMain.handle(
   "show-desktop-notification",
@@ -1856,11 +2027,6 @@ app.whenReady().then(async () => {
   // 监听游戏状态变动并推送给渲染进程
   gameDetector.onActivityChange((activity) => {
     mainWindow?.webContents.send("game-activity-changed", activity);
-  });
-
-  // 注册系统全局静音热键 (Ctrl+Shift+M / Command+Shift+M)
-  globalShortcut.register("CommandOrControl+Shift+M", () => {
-    mainWindow?.webContents.send("toggle-global-mute");
   });
 
   app.on("activate", async () => {

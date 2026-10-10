@@ -151,6 +151,8 @@ function main() {
 export const BUILD_CONFIG = {
   /** 编译期固化的服务器 API 地址 (若未指定则为空字符串，客户端默认连接 localhost:3001) */
   DEFAULT_SERVER_URL: ${JSON.stringify(serverConfig.serverUrl || "")},
+  /** 编译期固化的公开 Web 站点域名 (用于邀请链接/外部分享) */
+  DEFAULT_WEB_URL: ${JSON.stringify(serverConfig.webUrl || serverConfig.serverUrl || "")},
   /** 编译期固化的 WebSocket Gateway 地址 */
   DEFAULT_GATEWAY_URL: ${JSON.stringify(serverConfig.gatewayUrl || "")},
   /** 编译期固化的 LiveKit SFU 媒体服务地址 */

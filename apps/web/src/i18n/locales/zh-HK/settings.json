@@ -296,5 +296,23 @@
     "complete": "已切換至 {{model}} 降噪",
     "downloaded": "{{model}} 已下載，將在咪高峰啟用時載入",
     "failed": "{{model}} 載入失敗，繼續使用 {{effective}}"
+  },
+  "keybindsTab": "快捷鍵",
+  "keybinds": {
+    "title": "快捷鍵設定",
+    "description": "自訂 Tescord 常用操作的快捷鍵綁定。在桌面客戶端支援系統全局熱鍵。",
+    "recordBtn": "錄製按鍵",
+    "recording": "請按下組合鍵...",
+    "clearBtn": "清除按鍵綁定",
+    "resetDefaults": "恢復預設按鍵",
+    "toggleMute": "開關咪高峰",
+    "toggleMuteDesc": "快速切換咪高峰靜音與取消靜音狀態",
+    "toggleDeafen": "開關拒聽/輸出",
+    "toggleDeafenDesc": "快速切換揚聲器靜音與恢復接收聲音",
+    "screenCapture": "螢幕截圖",
+    "screenCaptureDesc": "全螢幕暗色框選截圖並複製或貼入聊天 (桌面客戶端專用)",
+    "conflictInternal": "快捷鍵衝突：該按鍵組合已被「{{action}}」占用",
+    "conflictSystem": "快捷鍵衝突：該按鍵已被系統或其他應用程式占用",
+    "unassigned": "未指定"
   }
 }

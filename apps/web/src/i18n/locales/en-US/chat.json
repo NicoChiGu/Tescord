@@ -287,5 +287,14 @@
     "close": "Close player",
     "snapLeft": "Snap Left",
     "snapRight": "Snap Right"
+  },
+  "screenCapture": {
+    "btnTooltip": "Screen Capture ({{shortcut}})",
+    "cropCopied": "Screenshot copied to clipboard",
+    "cropSaved": "Screenshot saved",
+    "copy": "Copy to Clipboard",
+    "save": "Save Image",
+    "send": "Send to Chat",
+    "cancel": "Cancel (ESC)"
   }
 }

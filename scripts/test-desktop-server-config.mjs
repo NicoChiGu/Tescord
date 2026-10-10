@@ -6,6 +6,7 @@ import ts from "typescript";
 import { fileURLToPath } from "node:url";
 import {
   deriveGatewayUrl,
+  deriveWebUrl,
   resolveServerConfig,
 } from "./resolve-server-config.mjs";
 
@@ -37,6 +38,11 @@ try {
       "wss://example.test/tescord/gateway",
     ),
   );
+  check("web url derivation from server and localhost mapping", () => {
+    assert.equal(deriveWebUrl("https://example.test/api/"), "https://example.test");
+    assert.equal(deriveWebUrl("http://localhost:3001"), "http://localhost:3000");
+    assert.equal(deriveWebUrl("http://127.0.0.1:3001/"), "http://127.0.0.1:3000");
+  });
   fs.writeFileSync(
     configPath,
     JSON.stringify({
@@ -140,6 +146,25 @@ try {
         fixed.resolveServerUrl("/public-assets/logo.png"),
         "https://private.example.test/public-assets/logo.png",
       );
+      assert.equal(fixed.getPublicWebUrl(), "https://private.example.test");
+      assert.equal(
+        fixed.getInviteUrl("cyberpunk_2077"),
+        "https://private.example.test/invite/cyberpunk_2077",
+      );
+      assert.equal(
+        fixed.getRegistrationInviteUrl("REG99"),
+        "https://private.example.test/?invite=REG99",
+      );
+    });
+    const desktopWithExplicitWeb = await loadConfig(
+      "file:///app/index.html?desktopServer=https%3A%2F%2Fapi.example.test&desktopWeb=https%3A%2F%2Fapp.example.test&desktopGateway=wss%3A%2F%2Fapi.example.test%2Fgateway",
+    );
+    check("desktop with explicit desktopWeb prefers web domain for invites", () => {
+      assert.equal(desktopWithExplicitWeb.getPublicWebUrl(), "https://app.example.test");
+      assert.equal(
+        desktopWithExplicitWeb.getInviteUrl("portal123"),
+        "https://app.example.test/invite/portal123",
+      );
     });
     const browser = await loadConfig(
       "https://app.example.test/?desktopServer=https://untrusted.example.test&desktopVoiceEngine=cloudflare_realtime",
@@ -148,6 +173,14 @@ try {
       assert.equal(browser.API_BASE, "");
       assert.equal(browser.GATEWAY_URL, "wss://app.example.test/gateway");
       assert.equal(browser.VOICE_ENGINE, "livekit");
+      assert.equal(
+        browser.getInviteUrl("browser_code"),
+        "https://app.example.test/invite/browser_code",
+      );
+      assert.equal(
+        browser.getRegistrationInviteUrl("reg_code"),
+        "https://app.example.test/?invite=reg_code",
+      );
     });
     const legacy = await loadConfig("file:///app/legacy.html", {
       VITE_API_URL: "http://127.0.0.1:3101",

@@ -296,5 +296,23 @@
     "complete": "Switched to {{model}} noise suppression",
     "downloaded": "{{model}} downloaded; it will load when the microphone starts",
     "failed": "Could not load {{model}}; continuing with {{effective}}"
+  },
+  "keybindsTab": "Keybinds",
+  "keybinds": {
+    "title": "Keybind Settings",
+    "description": "Customize keybinds for common Tescord actions. Global hotkeys are supported on the desktop client.",
+    "recordBtn": "Record Keybind",
+    "recording": "Press a key combination...",
+    "clearBtn": "Clear Keybind",
+    "resetDefaults": "Reset Defaults",
+    "toggleMute": "Toggle Mute",
+    "toggleMuteDesc": "Quickly switch microphone mute state",
+    "toggleDeafen": "Toggle Deafen",
+    "toggleDeafenDesc": "Quickly switch speaker mute state",
+    "screenCapture": "Screen Capture",
+    "screenCaptureDesc": "Fullscreen screenshot overlay to crop, copy, or paste into chat (Desktop only)",
+    "conflictInternal": "Keybind conflict: already assigned to \"{{action}}\"",
+    "conflictSystem": "Keybind conflict: already occupied by the system or another app",
+    "unassigned": "Unassigned"
   }
 }

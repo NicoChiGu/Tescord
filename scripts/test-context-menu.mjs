@@ -53,6 +53,7 @@ server.listen(PORT, async () => {
     await page.addInitScript(() => {
       localStorage.setItem("tescord_access_token", "mock_test_token");
       localStorage.setItem("tescord_refresh_token", "mock_refresh_token");
+      localStorage.setItem("tescord_last_seen_changelog_version", "99.0.0");
     });
 
     // Mock 后端关键 API

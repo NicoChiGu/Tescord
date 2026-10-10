@@ -287,5 +287,14 @@
     "close": "プレーヤーを閉じる",
     "snapLeft": "左側に吸着",
     "snapRight": "右側に吸着"
+  },
+  "screenCapture": {
+    "btnTooltip": "スクリーンショット ({{shortcut}})",
+    "cropCopied": "スクリーンショットをクリップボードにコピーしました",
+    "cropSaved": "スクリーンショットを保存しました",
+    "copy": "クリップボードにコピー",
+    "save": "画像を保存",
+    "send": "チャットに送信",
+    "cancel": "キャンセル (ESC)"
   }
 }

@@ -296,5 +296,23 @@
     "complete": "已切换至 {{model}} 降噪",
     "downloaded": "{{model}} 已下载，将在麦克风启用时加载",
     "failed": "{{model}} 加载失败，继续使用 {{effective}}"
+  },
+  "keybindsTab": "快捷键",
+  "keybinds": {
+    "title": "快捷键设置",
+    "description": "自定义 Tescord 常用操作的快捷键绑定。在桌面客户端支持系统全局热键。",
+    "recordBtn": "录制按键",
+    "recording": "请按下组合键...",
+    "clearBtn": "清除按键绑定",
+    "resetDefaults": "恢复默认按键",
+    "toggleMute": "开关麦克风",
+    "toggleMuteDesc": "快速切换麦克风静音与取消静音状态",
+    "toggleDeafen": "开关拒听/输出",
+    "toggleDeafenDesc": "快速切换扬声器静音与恢复接收声音",
+    "screenCapture": "屏幕截图",
+    "screenCaptureDesc": "全屏暗色框选截图并复制或贴入聊天 (桌面客户端专用)",
+    "conflictInternal": "快捷键冲突：该按键组合已被“{{action}}”占用",
+    "conflictSystem": "快捷键冲突：该按键已被系统或其他应用占用",
+    "unassigned": "未指定"
   }
 }

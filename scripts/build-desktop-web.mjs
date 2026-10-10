@@ -20,6 +20,7 @@ if (config.serverUrl) {
 }
 if (config.gatewayUrl) extraEnv.VITE_GATEWAY_URL = config.gatewayUrl;
 if (config.livekitUrl) extraEnv.VITE_LIVEKIT_URL = config.livekitUrl;
+if (config.webUrl || config.serverUrl) extraEnv.VITE_PUBLIC_URL = config.webUrl || config.serverUrl;
 
 const result = spawnSync(
   process.platform === "win32" ? "pnpm.cmd" : "pnpm",

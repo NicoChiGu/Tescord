@@ -296,5 +296,23 @@
     "complete": "{{model}} ノイズ抑制に切り替えました",
     "downloaded": "{{model}} をダウンロードしました。マイク使用時に読み込みます",
     "failed": "{{model}} を読み込めませんでした。{{effective}} を継続します"
+  },
+  "keybindsTab": "ショートカットキー",
+  "keybinds": {
+    "title": "キーバインド設定",
+    "description": "Tescord の一般的な操作のショートカットキーをカスタマイズします。デスクトップ版ではシステム全体のグローバルホットキーに対応しています。",
+    "recordBtn": "キーを記録",
+    "recording": "組み合わせキーを押してください...",
+    "clearBtn": "キー割り当てをクリア",
+    "resetDefaults": "デフォルトに戻す",
+    "toggleMute": "マイクのミュート切り替え",
+    "toggleMuteDesc": "マイクのミュートと解除を素早く切り替えます",
+    "toggleDeafen": "スピーカーのミュート切り替え",
+    "toggleDeafenDesc": "受信音声の遮断と復帰を素早く切り替えます",
+    "screenCapture": "スクリーンショット",
+    "screenCaptureDesc": "画面全体を暗転させて範囲選択し、コピーまたはチャットに送信 (デスクトップ専用)",
+    "conflictInternal": "キー重複：「{{action}}」にすでに割り当てられています",
+    "conflictSystem": "キー重複：システムまたは他のアプリによって既に使用されています",
+    "unassigned": "未割り当て"
   }
 }

@@ -287,5 +287,14 @@
     "close": "关闭播放器",
     "snapLeft": "靠左吸附",
     "snapRight": "靠右吸附"
+  },
+  "screenCapture": {
+    "btnTooltip": "屏幕截图 ({{shortcut}})",
+    "cropCopied": "截图已复制到剪贴板",
+    "cropSaved": "截图已保存",
+    "copy": "复制到剪贴板",
+    "save": "保存图片",
+    "send": "发送到聊天",
+    "cancel": "取消 (ESC)"
   }
 }

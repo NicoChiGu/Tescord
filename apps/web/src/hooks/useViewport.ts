@@ -12,12 +12,14 @@ export interface ViewportInfo {
 
 export function useViewport(): ViewportInfo {
   const [viewport, setViewport] = useState<ViewportInfo>(() => {
+    const isElectron =
+      typeof window !== "undefined" && Boolean(window.electronAPI);
     const width = typeof window !== "undefined" ? window.innerWidth : 1200;
     const height = typeof window !== "undefined" ? window.innerHeight : 800;
     return {
-      isMobile: width < 768,
-      isTablet: width >= 768 && width < 1024,
-      isDesktop: width >= 1024,
+      isMobile: isElectron ? false : width < 768,
+      isTablet: isElectron ? false : width >= 768 && width < 1024,
+      isDesktop: isElectron ? true : width >= 1024,
       viewportWidth: width,
       viewportHeight: height,
       isKeyboardOpen: false,
@@ -29,6 +31,7 @@ export function useViewport(): ViewportInfo {
     if (typeof window === "undefined") return;
 
     const updateViewport = () => {
+      const isElectron = Boolean(window.electronAPI);
       const vv = window.visualViewport;
       const width = window.innerWidth;
       const currentHeight = vv ? vv.height : window.innerHeight;
@@ -45,9 +48,9 @@ export function useViewport(): ViewportInfo {
       }
 
       setViewport({
-        isMobile: width < 768,
-        isTablet: width >= 768 && width < 1024,
-        isDesktop: width >= 1024,
+        isMobile: isElectron ? false : width < 768,
+        isTablet: isElectron ? false : width >= 768 && width < 1024,
+        isDesktop: isElectron ? true : width >= 1024,
         viewportWidth: width,
         viewportHeight: currentHeight,
         isKeyboardOpen: isKbOpen,

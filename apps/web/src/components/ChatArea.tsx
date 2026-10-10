@@ -38,6 +38,7 @@ import {
   FileText,
   Download,
   Loader2,
+  Scissors,
   Key,
   ShieldAlert,
   Menu,
@@ -2338,6 +2339,23 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
     };
   }, []);
 
+  useEffect(() => {
+    const handleInsertCapture = (e: Event) => {
+      const customEvent = e as CustomEvent<{ blob: Blob; dataUrl: string }>;
+      if (!customEvent.detail?.blob) return;
+      const file = new File(
+        [customEvent.detail.blob],
+        `screenshot-${Date.now()}.png`,
+        { type: "image/png" },
+      );
+      handleFilesSelected([file]);
+    };
+    window.addEventListener("insert-captured-image", handleInsertCapture);
+    return () => {
+      window.removeEventListener("insert-captured-image", handleInsertCapture);
+    };
+  }, [handleFilesSelected]);
+
   // 严格校验是否为来自操作系统外部的文件拖入（排除内部 DOM 图片/链接/文本拖拽）
   const isExternalFileDrag = (e: React.DragEvent) => {
     if (isInternalDragRef.current) return false;
@@ -3177,6 +3195,23 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               <Paperclip className="w-5 h-5 transition-transform duration-150 hover:scale-110" />
             )}
           </button>
+
+          {typeof window !== "undefined" && Boolean(window.electronAPI) && (
+            <button
+              type="button"
+              data-testid="chat-screenshot-btn"
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent("trigger-screen-capture"));
+              }}
+              className="flex items-center justify-center text-discord-textMuted hover:text-discord-textHeader transition shrink-0 active:scale-90"
+              title={t("chat:screenCapture.btnTooltip", {
+                shortcut: "Ctrl+Shift+S",
+                defaultValue: "屏幕截图 (Ctrl+Shift+S)",
+              })}
+            >
+              <Scissors className="w-5 h-5 transition-transform duration-150 hover:scale-110" />
+            </button>
+          )}
 
           {/* 富文本 @提及 Tag 输入框 */}
           <MentionInput
