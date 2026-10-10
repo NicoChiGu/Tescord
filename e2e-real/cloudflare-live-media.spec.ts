@@ -12,7 +12,44 @@ declare global {
   interface Window {
     __cloudflareAcceptancePcs: RTCPeerConnection[];
     __acceptanceSelectedMic?: string;
+    __acceptanceOutputProbe?: { gain: GainNode; analyser: AnalyserNode };
   }
+}
+
+async function outputPcmSnapshot(page: Page) {
+  return page.evaluate(() => {
+    const service = (
+      window as unknown as {
+        cloudflareRealtimeService: {
+          playbackContext: AudioContext | null;
+          masterGain: GainNode | null;
+        };
+      }
+    ).cloudflareRealtimeService;
+    const context = service.playbackContext;
+    const gain = service.masterGain;
+    if (!context || !gain) return { state: "missing", rms: 0 };
+    if (window.__acceptanceOutputProbe?.gain !== gain) {
+      const previous = window.__acceptanceOutputProbe;
+      if (previous) {
+        previous.gain.disconnect(previous.analyser);
+        previous.analyser.disconnect();
+      }
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 4096;
+      gain.connect(analyser);
+      window.__acceptanceOutputProbe = { gain, analyser };
+    }
+    const analyser = window.__acceptanceOutputProbe.analyser;
+    const values = new Float32Array(analyser.fftSize);
+    analyser.getFloatTimeDomainData(values);
+    return {
+      state: context.state,
+      rms: Math.sqrt(
+        values.reduce((sum, value) => sum + value * value, 0) / values.length,
+      ),
+    };
+  });
 }
 
 async function mediaSnapshot(page: Page) {
@@ -635,6 +672,18 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
       )
       .toBe(true);
   if (forceRelay) after = await Promise.all(pages.map(mediaSnapshot));
+  await expect
+    .poll(
+      async () => {
+        const pcm = await Promise.all(pages.map(outputPcmSnapshot));
+        return pcm.every(
+          (output) => output.state === "running" && output.rms > 0.0001,
+        );
+      },
+      { timeout: 15_000 },
+    )
+    .toBe(true);
+  const outputPcm = await Promise.all(pages.map(outputPcmSnapshot));
   for (let i = 0; i < pages.length; i++) {
     const inbound = (rows: Awaited<ReturnType<typeof mediaSnapshot>>) =>
       rows
@@ -994,6 +1043,7 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     restartReceiver = afterRestartRtp[1];
   }
   const evidence = {
+    outputPcm,
     result: "PASS",
     peers: after,
     microphoneSwitchReceiver: micAfter,
@@ -1031,6 +1081,17 @@ test("three authorized browsers exchange Cloudflare SFU audio, camera and screen
     JSON.stringify(diagnostics),
   ).toEqual([]);
   tearingDown = true;
+  await Promise.all(
+    pages.map((page) =>
+      page.evaluate(() => {
+        const probe = window.__acceptanceOutputProbe;
+        if (!probe) return;
+        probe.gain.disconnect(probe.analyser);
+        probe.analyser.disconnect();
+        delete window.__acceptanceOutputProbe;
+      }),
+    ),
+  );
   for (const page of pages) {
     const shareModal = page.locator(".fixed.inset-0.z-50").filter({
       has: page.getByRole("heading", { name: /屏幕与应用直播分享/ }),

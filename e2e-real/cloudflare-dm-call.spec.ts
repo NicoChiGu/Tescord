@@ -252,14 +252,18 @@ test("public DM call negotiates E2EE and exchanges audio after Cloudflare SFU fa
           const packet = JSON.parse(String(frame.payload));
           if (
             typeof packet.t === "string" &&
-            (packet.t.startsWith("CALL_") || packet.t === "P2P_SIGNAL")
+            (packet.t.startsWith("CALL_") ||
+              packet.t === "P2P_SIGNAL" ||
+              packet.t === "READY")
           )
             diagnostics[index].push({
               event: packet.t,
               detail:
-                packet.t === "P2P_SIGNAL"
-                  ? packet.d?.type
-                  : packet.d?.state || packet.d?.reason,
+                packet.t === "READY"
+                  ? packet.d?.user?.id
+                  : packet.t === "P2P_SIGNAL"
+                    ? packet.d?.type
+                    : packet.d?.state || packet.d?.reason,
             });
         } catch {
           /* Ignore unrelated frames. */
@@ -316,6 +320,15 @@ test("public DM call negotiates E2EE and exchanges audio after Cloudflare SFU fa
     });
     await page.getByTestId(`dm-item-${dmId}`).click();
     await expect(page.getByTestId("dm-start-voice-call-btn")).toBeVisible();
+  }
+  for (const [index, user] of users.entries()) {
+    await expect
+      .poll(() =>
+        diagnostics[index].some(
+          (event) => event.event === "READY" && event.detail === user.id,
+        ),
+      )
+      .toBe(true);
   }
   await pages[0].getByTestId("dm-start-voice-call-btn").click();
   try {
