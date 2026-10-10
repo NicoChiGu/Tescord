@@ -98,6 +98,8 @@ test("public personal and guild emoji lifecycle with signed upload boundaries", 
     try {
       const asset = await request.get(grant.fileUrl);
       expect(asset.status()).toBe(200);
+      expect(asset.headers()["cache-control"]).toBe("no-store");
+      expect(asset.headers()["cloudflare-cdn-cache-control"]).toBe("no-store");
       expect(await asset.body()).toEqual(bytes);
       expect(
         (

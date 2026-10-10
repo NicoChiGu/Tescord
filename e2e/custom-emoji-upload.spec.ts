@@ -58,6 +58,9 @@ test("personal emoji upload renders and deletion revokes public access", async (
     await expect(page.getByText(`:${name}:`, { exact: true })).toBeVisible();
     const asset = await request.get(emoji.imageUrl);
     expect(asset.status()).toBe(200);
+    expect(asset.headers()["cache-control"]).toBe("no-store");
+    expect(asset.headers()["cloudflare-cdn-cache-control"]).toBe("no-store");
+    expect(asset.headers()["cdn-cache-control"]).toBe("no-store");
     expect((await asset.body()).subarray(0, 8)).toEqual(png.subarray(0, 8));
     await expect(page.locator(`img[src="${emoji.imageUrl}"]`)).toHaveJSProperty(
       "naturalWidth",

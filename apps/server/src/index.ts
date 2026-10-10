@@ -6887,7 +6887,13 @@ server.get("/public-assets/:fileName", async (request, reply) => {
         .header("ETag", `"${decoded}-static-0"`)
         .send(png);
     }
-    reply.header("Cache-Control", "public, max-age=31536000, immutable");
+    if (customEmoji) {
+      reply.header("Cache-Control", "no-store");
+      reply.header("Cloudflare-CDN-Cache-Control", "no-store");
+      reply.header("CDN-Cache-Control", "no-store");
+    } else {
+      reply.header("Cache-Control", "public, max-age=31536000, immutable");
+    }
     reply.header("ETag", `"${decoded}"`);
     return reply.send(stream);
   } catch {
