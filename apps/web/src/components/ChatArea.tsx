@@ -22,7 +22,6 @@ import {
 } from "@tescord/types";
 import {
   Hash,
-  Lock,
   Send,
   Paperclip,
   Smile,
@@ -173,7 +172,9 @@ interface ChatMessageItemProps {
 }
 
 const isImageMime = (mime: string, name: string) => {
-  return mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(name);
+  return (
+    mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(name)
+  );
 };
 
 const ChatMessageItemComponent: React.FC<ChatMessageItemProps> = ({
@@ -2330,7 +2331,8 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
   const isImageMime = (mime: string, name: string) => {
     return (
-      mime.startsWith("image/") || /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(name)
+      mime.startsWith("image/") ||
+      /\.(png|jpe?g|gif|webp|avif|svg)$/i.test(name)
     );
   };
 
@@ -2356,14 +2358,25 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
 
   useEffect(() => {
     const handleInsertCapture = (e: Event) => {
-      const customEvent = e as CustomEvent<{ blob: Blob; dataUrl: string }>;
-      if (!customEvent.detail?.blob) return;
-      const file = new File(
-        [customEvent.detail.blob],
-        `screenshot-${Date.now()}.png`,
-        { type: "image/png" },
-      );
-      handleFilesSelectedRef.current([file]);
+      const customEvent = e as CustomEvent<{ blob?: Blob; dataUrl?: string }>;
+      if (customEvent.detail?.blob) {
+        const file = new File(
+          [customEvent.detail.blob],
+          `screenshot-${Date.now()}.png`,
+          { type: "image/png" },
+        );
+        handleFilesSelectedRef.current([file]);
+      } else if (customEvent.detail?.dataUrl) {
+        fetch(customEvent.detail.dataUrl)
+          .then((res) => res.blob())
+          .then((blob) => {
+            const file = new File([blob], `screenshot-${Date.now()}.png`, {
+              type: "image/png",
+            });
+            handleFilesSelectedRef.current([file]);
+          })
+          .catch(() => {});
+      }
     };
     window.addEventListener("insert-captured-image", handleInsertCapture);
     return () => {
@@ -2461,7 +2474,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
           ) : channel.isE2EE ? (
             <div className="relative flex-shrink-0">
               <Hash className="w-5 h-5 text-discord-textMuted" />
-              <Lock className="w-3 h-3 text-discord-green absolute -top-0.5 -right-1" />
+              <ShieldCheck className="w-3 h-3 text-discord-green absolute -top-0.5 -right-1" />
             </div>
           ) : (
             <Hash className="w-5 h-5 text-discord-textMuted flex-shrink-0" />
@@ -2838,7 +2851,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                   {channel.isE2EE ? (
                     <div className="relative">
                       <Hash className="w-8 h-8 text-discord-textHeader" />
-                      <Lock className="w-4 h-4 text-discord-green absolute -top-1 -right-1" />
+                      <ShieldCheck className="w-4 h-4 text-discord-green absolute -top-1 -right-1" />
                     </div>
                   ) : (
                     <Hash className="w-8 h-8 text-discord-textHeader" />
@@ -3216,7 +3229,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               type="button"
               data-testid="chat-screenshot-btn"
               onClick={() => {
-                window.dispatchEvent(new CustomEvent("trigger-screen-capture"));
+                if (window.electronAPI?.startScreenCapture) {
+                  window.electronAPI.startScreenCapture();
+                } else {
+                  window.dispatchEvent(
+                    new CustomEvent("trigger-screen-capture"),
+                  );
+                }
               }}
               className="flex items-center justify-center text-discord-textMuted hover:text-discord-textHeader transition shrink-0 active:scale-90"
               title={t("chat:screenCapture.btnTooltip", {

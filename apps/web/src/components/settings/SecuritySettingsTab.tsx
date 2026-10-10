@@ -26,7 +26,7 @@ import {
 
 export const SecuritySettingsTab: React.FC = () => {
   const { t } = useTranslation(["settings", "common", "auth"]);
-  const { getAuthHeaders } = useAuthStore();
+  const { getAuthHeaders, accessToken } = useAuthStore();
 
   const isSupported = isWebAuthnSupported();
   const [passkeys, setPasskeys] = useState<PasskeyInfo[]>([]);
@@ -88,6 +88,41 @@ export const SecuritySettingsTab: React.FC = () => {
 
     setIsRegistering(true);
     try {
+      if (
+        typeof window !== "undefined" &&
+        Boolean((window as any).electronAPI?.openPasskeyAuth)
+      ) {
+        const res = await (window as any).electronAPI.openPasskeyAuth({
+          action: "register",
+          apiBase: API_BASE,
+          deviceName,
+          token: accessToken || undefined,
+        });
+        if (!res.success) {
+          if (res.error?.includes("取消") || res.error?.includes("cancel")) {
+            toast.info(
+              t("settings:passkeyRegistrationCancelled", {
+                defaultValue: "已取消添加通行密钥",
+              }),
+            );
+            return;
+          }
+          throw new Error(
+            res.error ||
+              t("settings:passkeyAddFailed", {
+                defaultValue: "添加通行密钥失败",
+              }),
+          );
+        }
+        toast.success(
+          t("settings:passkeyAddSuccess", {
+            defaultValue: "通行密钥添加成功",
+          }),
+        );
+        await fetchPasskeys();
+        return;
+      }
+
       // 1. 获取注册挑战选项
       const optRes = await fetch(
         `${API_BASE}/api/auth/webauthn/register-options`,

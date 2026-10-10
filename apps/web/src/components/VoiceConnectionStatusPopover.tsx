@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Bug, ExternalLink, Lock, Check, UserRound } from "lucide-react";
+import { Bug, ExternalLink, ShieldCheck, Check, UserRound } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Channel, Guild, VoiceState, PeerLatencyReport } from "@tescord/types";
 import { useNetworkStats } from "../hooks/useNetworkStats.js";
@@ -1085,7 +1085,7 @@ export const VoiceConnectionStatusPopover: React.FC<
                 : "bg-white/5 text-discord-textMuted border border-white/10"
             }`}
           >
-            <Lock className="w-3.5 h-3.5 flex-shrink-0" />
+            <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />
             <span>
               {t(
                 e2eeActive

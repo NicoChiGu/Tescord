@@ -487,18 +487,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           return;
         }
 
-        // 2. 检查已保存的免密账号
-        const autoLoginAccount = accounts.find(
-          (a) => a.rememberPassword && Boolean(a.refreshToken),
-        );
-        if (autoLoginAccount) {
-          const ok = await get().loginWithSavedAccount(autoLoginAccount);
-          if (ok) {
-            return;
-          }
-        }
-
-        // 3. 无有效令牌或免密失败，停留在未登录态并进入账号选择
+        // 2. 无有效活跃令牌时，仅保留已存账号列表供界面选择，绝不静默自动换票重登
         clearProactiveRefreshTimer();
         cancelPendingRequests("会话未授权或已失效");
         if (get().refreshFailure !== "transient")
@@ -593,6 +582,53 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     try {
+      if (
+        typeof window !== "undefined" &&
+        Boolean((window as any).electronAPI?.openPasskeyAuth)
+      ) {
+        const res = await (window as any).electronAPI.openPasskeyAuth({
+          action: "login",
+          apiBase: API_BASE,
+          emailOrUsername,
+        });
+        if (!res.success) {
+          if (res.error?.includes("取消") || res.error?.includes("cancel")) {
+            set({ error: "已取消通行密钥验证" });
+            const err = new Error("已取消通行密钥验证");
+            (err as any).name = "NotAllowedError";
+            throw err;
+          }
+          throw new Error(res.error || "通行密钥验证失败");
+        }
+        const tokens = res.tokens as AuthTokens;
+        const rememberMe = true;
+        await getStorageAdapter().switchUser(tokens.user.id);
+        authGeneration++;
+        await storeActiveTokens(tokens, rememberMe);
+
+        const updatedAccounts = upsertSavedAccount(
+          tokens.user,
+          { refreshToken: tokens.refreshToken },
+          rememberMe,
+        );
+        await waitForDesktopAccountSave();
+
+        set({
+          user: tokens.user,
+          lastActiveUser: tokens.user,
+          accessToken: tokens.accessToken,
+          token: tokens.accessToken,
+          refreshToken: tokens.refreshToken,
+          isAuthenticated: true,
+          isLoading: false,
+          savedAccounts: updatedAccounts,
+          error: null,
+        });
+        syncDesktopWindowMode("main");
+        scheduleProactiveRefresh(() => get().refreshAuth());
+        return;
+      }
+
       // 1. 获取登录挑战选项
       const optionsRes = await fetch(
         `${API_BASE}/api/auth/webauthn/login-options`,

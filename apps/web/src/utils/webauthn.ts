@@ -4,6 +4,10 @@
 
 export function isWebAuthnSupported(): boolean {
   if (typeof window === "undefined") return false;
+  // Electron 桌面端通过独立认证窗口支持通行密钥
+  if (Boolean((window as any).electronAPI?.openPasskeyAuth)) {
+    return true;
+  }
   // file:// 协议源无法满足 WebAuthn 的 RP ID 域名要求
   if (window.location.protocol === "file:") return false;
   return Boolean(

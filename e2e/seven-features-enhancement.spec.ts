@@ -270,7 +270,7 @@ test.describe("7 项核心需求与 UI 增强全链路端到端自动化验收 (
     // 验证通过 Portal 渲染了自定义 Tooltip 黑暗微气泡
     const tooltipBubble = page.getByTestId("tooltip-bubble");
     await expect(tooltipBubble).toBeVisible({ timeout: 3000 });
-    await expect(tooltipBubble).toContainText(/静音/);
+    await expect(tooltipBubble).toContainText(/静音|闭麦/);
   });
 
   test("功能4：P2P 语音频道喇叭右上角图标、E2EE 加密锁标展示，并取消人数预览数字", async ({

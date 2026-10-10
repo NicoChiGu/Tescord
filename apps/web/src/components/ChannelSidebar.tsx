@@ -13,7 +13,7 @@ import {
 import {
   Hash,
   Volume2,
-  Lock,
+  ShieldCheck,
   Mic,
   MicOff,
   Headphones,
@@ -340,7 +340,7 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
                   title={t("voice:encryptedChannel")}
                   className="inline-flex items-center ml-1.5 flex-shrink-0"
                 >
-                  <Lock className="w-3.5 h-3.5 text-discord-green" />
+                  <ShieldCheck className="w-3.5 h-3.5 text-discord-green" />
                 </span>
               )}
             </button>
@@ -369,7 +369,7 @@ const SortableChannelItem: React.FC<SortableChannelItemProps> = ({
                         : "text-discord-textMuted"
                     }`}
                   />
-                  <Lock className="w-2.5 h-2.5 text-discord-green absolute -top-0.5 -right-1" />
+                  <ShieldCheck className="w-2.5 h-2.5 text-discord-green absolute -top-0.5 -right-1" />
                 </div>
               ) : (
                 <Hash
@@ -1293,7 +1293,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                   ) : activeItem.channel.isE2EE ? (
                     <div className="relative mr-1.5 flex-shrink-0">
                       <Hash className="w-4 h-4 text-discord-textMuted" />
-                      <Lock className="w-2.5 h-2.5 text-discord-green absolute -top-0.5 -right-1" />
+                      <ShieldCheck className="w-2.5 h-2.5 text-discord-green absolute -top-0.5 -right-1" />
                     </div>
                   ) : (
                     <Hash className="w-4 h-4 mr-1.5 text-discord-textMuted flex-shrink-0" />
@@ -1301,7 +1301,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                   <span className="truncate">{activeItem.channel.name}</span>
                   {activeItem.channel.type === "VOICE" &&
                     activeItem.channel.isE2EE && (
-                      <Lock className="w-3.5 h-3.5 ml-1.5 text-discord-green flex-shrink-0" />
+                      <ShieldCheck className="w-3.5 h-3.5 ml-1.5 text-discord-green flex-shrink-0" />
                     )}
                 </div>
               ) : activeItem?.type === "category" ? (

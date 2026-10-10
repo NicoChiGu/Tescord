@@ -2970,6 +2970,16 @@ export const App: React.FC = () => {
       },
     );
 
+    const unbindInsertImage = window.electronAPI?.onInsertCapturedImage?.(
+      ({ dataUrl }) => {
+        window.dispatchEvent(
+          new CustomEvent("insert-captured-image", {
+            detail: { dataUrl },
+          }),
+        );
+      },
+    );
+
     const unbindShare = livekitService.onScreenShareChange((share) => {
       setActiveScreenShare(share);
       if (share) {
@@ -3039,6 +3049,7 @@ export const App: React.FC = () => {
       unbindGlobalMute?.();
       unbindGlobalDeafen?.();
       unbindTriggerCapture?.();
+      unbindInsertImage?.();
       window.removeEventListener(
         "trigger-screen-capture",
         handleCustomTriggerCapture,
@@ -4545,10 +4556,12 @@ export const App: React.FC = () => {
   handleToggleDeafenRef.current = handleToggleDeafen;
 
   const handleTriggerScreenCapture = async () => {
-    if (
-      typeof window === "undefined" ||
-      !window.electronAPI?.captureScreenBitmap
-    ) {
+    if (typeof window === "undefined") return;
+    if (window.electronAPI?.startScreenCapture) {
+      window.electronAPI.startScreenCapture();
+      return;
+    }
+    if (!window.electronAPI?.captureScreenBitmap) {
       return;
     }
     const dataUrl = await window.electronAPI.captureScreenBitmap();
@@ -4963,6 +4976,11 @@ export const App: React.FC = () => {
   }
 
   if (!isAuthenticated || !currentUser) {
+    if (typeof window !== "undefined" && Boolean((window as any).electronAPI)) {
+      return (
+        <div className="flex flex-col h-screen w-screen bg-discord-chat overflow-hidden" />
+      );
+    }
     return (
       <div className="flex flex-col h-screen w-screen bg-discord-chat overflow-hidden">
         <TitleBar />

@@ -157,6 +157,21 @@ export interface DeletePasskeyDTO {
   password?: string;
 }
 
+export interface DesktopPasskeyAuthPayload {
+  action: "login" | "register";
+  apiBase: string;
+  emailOrUsername?: string;
+  deviceName?: string;
+  token?: string;
+}
+
+export interface DesktopPasskeyAuthResult {
+  success: boolean;
+  tokens?: AuthTokens;
+  error?: string;
+  code?: ErrorCode;
+}
+
 export interface UpdateProfileDTO {
   username?: string;
   displayName?: string | null;
@@ -453,7 +468,9 @@ export const CHANNEL_VOICE_PERMISSIONS: PermissionFlags[] = [
 ];
 
 export const CHANNEL_CATEGORY_PERMISSIONS: PermissionFlags[] = [
-  ...Array.from(new Set([...CHANNEL_TEXT_PERMISSIONS, ...CHANNEL_VOICE_PERMISSIONS])),
+  ...Array.from(
+    new Set([...CHANNEL_TEXT_PERMISSIONS, ...CHANNEL_VOICE_PERMISSIONS]),
+  ),
 ];
 
 export interface ComputePermissionsContext {
@@ -484,7 +501,8 @@ export function computeEffectivePermissions(
   }
 
   if (
-    (perms & PermissionFlags.ADMINISTRATOR) === PermissionFlags.ADMINISTRATOR
+    (perms & PermissionFlags.ADMINISTRATOR) ===
+    PermissionFlags.ADMINISTRATOR
   ) {
     return ~0;
   }

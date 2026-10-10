@@ -352,6 +352,7 @@ const publicApiPaths = new Set([
   "/api/auth/check-email",
   "/api/auth/webauthn/login-options",
   "/api/auth/webauthn/login-verify",
+  "/api/auth/webauthn/bridge",
   "/api/discovery/guilds",
   "/api/livekit/webhook",
 ]);
@@ -795,6 +796,315 @@ server.delete(
     }
   },
 );
+
+// 8. 通行密钥桌面内嵌认证桥接页 (供 Electron 独立 HTTPS 窗口调用 WebAuthn)
+server.get("/api/auth/webauthn/bridge", async (request, reply) => {
+  const html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tescord 通行密钥认证</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #1e1f22;
+      color: #f2f3f5;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      user-select: none;
+      padding: 24px;
+    }
+    .card {
+      background: #2b2d31;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 16px;
+      padding: 32px 28px;
+      width: 100%;
+      max-width: 380px;
+      text-align: center;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4);
+    }
+    .icon-container {
+      width: 72px;
+      height: 72px;
+      border-radius: 50%;
+      background: rgba(88, 101, 242, 0.15);
+      border: 1px solid rgba(88, 101, 242, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      position: relative;
+    }
+    .icon-pulse {
+      position: absolute;
+      inset: -6px;
+      border-radius: 50%;
+      border: 2px solid #5865f2;
+      opacity: 0.4;
+      animation: pulse 2s infinite ease-out;
+    }
+    @keyframes pulse {
+      0% { transform: scale(0.95); opacity: 0.7; }
+      100% { transform: scale(1.25); opacity: 0; }
+    }
+    .icon-svg {
+      width: 36px;
+      height: 36px;
+      fill: none;
+      stroke: #5865f2;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    h2 { font-size: 18px; font-weight: 600; margin-bottom: 8px; color: #ffffff; }
+    p { font-size: 13px; color: #949ba4; line-height: 1.5; margin-bottom: 24px; }
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      border-radius: 20px;
+      background: rgba(255, 255, 255, 0.05);
+      font-size: 12px;
+      color: #b5bac1;
+      margin-bottom: 24px;
+    }
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      border-top-color: #5865f2;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .btn-group { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+    .btn {
+      width: 100%;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: #5865f2; color: #fff; }
+    .btn-primary:hover { background: #4752c4; }
+    .btn-secondary { background: transparent; color: #949ba4; border: 1px solid rgba(255, 255, 255, 0.1); }
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
+    .error-msg { color: #f23f43; font-size: 12px; margin-bottom: 16px; display: none; line-height: 1.4; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon-container">
+      <div class="icon-pulse"></div>
+      <svg class="icon-svg" viewBox="0 0 24 24">
+        <path d="M12 11c0 1.66-1.34 3-3 3s-3-1.34-3-3 1.34-3 3-3 3 1.34 3 3z"></path>
+        <path d="M9 14v7"></path>
+        <path d="M9 17h3"></path>
+        <path d="M9 19h2"></path>
+        <circle cx="16" cy="11" r="3"></circle>
+        <path d="M16 14v7"></path>
+      </svg>
+    </div>
+    <h2 id="title">通行密钥验证</h2>
+    <p id="desc">正在拉起 Windows Hello 或安全密钥，请按照系统提示完成身份核验...</p>
+    <div class="status-badge" id="badge">
+      <div class="spinner"></div>
+      <span id="badge-text">等待安全凭据响应...</span>
+    </div>
+    <div class="error-msg" id="error-msg"></div>
+    <div class="btn-group">
+      <button class="btn btn-primary" id="retry-btn" style="display: none;">重新验证</button>
+      <button class="btn btn-secondary" id="cancel-btn">取消</button>
+    </div>
+  </div>
+
+  <script>
+    function base64UrlToBuffer(base64url) {
+      if (!base64url) return new ArrayBuffer(0);
+      var padding = '='.repeat((4 - base64url.length % 4) % 4);
+      var base64 = (base64url + padding).replace(/-/g, '+').replace(/_/g, '/');
+      var raw = atob(base64);
+      var output = new Uint8Array(raw.length);
+      for (var i = 0; i < raw.length; ++i) {
+        output[i] = raw.charCodeAt(i);
+      }
+      return output.buffer;
+    }
+
+    function bufferToBase64Url(buffer) {
+      if (!buffer) return '';
+      var bytes = new Uint8Array(buffer);
+      var binary = '';
+      for (var i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binary).replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/, '');
+    }
+
+    var params = new URLSearchParams(window.location.search);
+    var action = params.get('action') || 'login';
+    var emailOrUsername = params.get('emailOrUsername') || '';
+    var deviceName = params.get('deviceName') || '通行密钥';
+    var token = params.get('token') || '';
+
+    var errorEl = document.getElementById('error-msg');
+    var retryBtn = document.getElementById('retry-btn');
+    var cancelBtn = document.getElementById('cancel-btn');
+    var badge = document.getElementById('badge');
+
+    function notifyResult(res) {
+      if (window.electronPasskeyBridge) {
+        window.electronPasskeyBridge.sendResult(res);
+      } else if (window.opener) {
+        window.opener.postMessage({ type: 'passkey-result', result: res }, '*');
+      }
+    }
+
+    function notifyCancel() {
+      if (window.electronPasskeyBridge) {
+        window.electronPasskeyBridge.cancel();
+      } else if (window.opener) {
+        window.opener.postMessage({ type: 'passkey-cancel' }, '*');
+      }
+    }
+
+    cancelBtn.addEventListener('click', function() {
+      notifyCancel();
+    });
+
+    retryBtn.addEventListener('click', function() {
+      runAuth();
+    });
+
+    async function runAuth() {
+      errorEl.style.display = 'none';
+      retryBtn.style.display = 'none';
+      badge.style.display = 'inline-flex';
+
+      try {
+        if (!window.PublicKeyCredential) {
+          throw new Error('当前系统环境不支持 WebAuthn 通行密钥');
+        }
+
+        if (action === 'register') {
+          var optRes = await fetch('/api/auth/webauthn/register-options', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + token
+            }
+          });
+          var optData = await optRes.json();
+          if (!optRes.ok) throw new Error(optData.error || '获取注册挑战失败');
+
+          var options = optData.options;
+          options.challenge = base64UrlToBuffer(options.challenge);
+          options.user.id = base64UrlToBuffer(options.user.id);
+          if (options.excludeCredentials) {
+            options.excludeCredentials.forEach(function(c) {
+              c.id = base64UrlToBuffer(c.id);
+            });
+          }
+
+          var cred = await navigator.credentials.create({ publicKey: options });
+          var regResponse = {
+            id: cred.id,
+            rawId: bufferToBase64Url(cred.rawId),
+            type: cred.type,
+            response: {
+              clientDataJSON: bufferToBase64Url(cred.response.clientDataJSON),
+              attestationObject: bufferToBase64Url(cred.response.attestationObject),
+              transports: cred.response.getTransports ? cred.response.getTransports() : []
+            }
+          };
+
+          var verifyRes = await fetch('/api/auth/webauthn/register-verify', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer ' + token
+            },
+            body: JSON.stringify({
+              challengeId: optData.challengeId,
+              response: regResponse,
+              name: deviceName
+            })
+          });
+          var verifyData = await verifyRes.json();
+          if (!verifyRes.ok) throw new Error(verifyData.error || '核验注册凭证失败');
+
+          notifyResult({ success: true, data: verifyData });
+        } else {
+          var optRes = await fetch('/api/auth/webauthn/login-options', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ emailOrUsername: emailOrUsername || undefined })
+          });
+          var optData = await optRes.json();
+          if (!optRes.ok) throw new Error(optData.error || '获取登录凭据配置失败');
+
+          var options = optData.options;
+          options.challenge = base64UrlToBuffer(options.challenge);
+          if (options.allowCredentials) {
+            options.allowCredentials.forEach(function(c) {
+              c.id = base64UrlToBuffer(c.id);
+            });
+          }
+
+          var cred = await navigator.credentials.get({ publicKey: options });
+          var authResponse = {
+            id: cred.id,
+            rawId: bufferToBase64Url(cred.rawId),
+            type: cred.type,
+            response: {
+              clientDataJSON: bufferToBase64Url(cred.response.clientDataJSON),
+              authenticatorData: bufferToBase64Url(cred.response.authenticatorData),
+              signature: bufferToBase64Url(cred.response.signature),
+              userHandle: cred.response.userHandle ? bufferToBase64Url(cred.response.userHandle) : null
+            }
+          };
+
+          var verifyRes = await fetch('/api/auth/webauthn/login-verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              challengeId: optData.challengeId,
+              response: authResponse
+            })
+          });
+          var verifyData = await verifyRes.json();
+          if (!verifyRes.ok) throw new Error(verifyData.error || '通行密钥核验失败');
+
+          notifyResult({ success: true, tokens: verifyData });
+        }
+      } catch (err) {
+        if (err.name === 'NotAllowedError') {
+          notifyCancel();
+          return;
+        }
+        errorEl.textContent = err.message || '通行密钥认证异常';
+        errorEl.style.display = 'block';
+        retryBtn.style.display = 'block';
+        badge.style.display = 'none';
+      }
+    }
+
+    setTimeout(runAuth, 300);
+  </script>
+</body>
+</html>`;
+  reply.type("text/html; charset=utf-8").send(html);
+});
 
 // 修改个人资料 (个性签名、在线状态、头像等)
 server.patch(
@@ -4221,192 +4531,223 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
 });
 
 // 设置/更新频道权限覆写 (Channel Permission Overwrite)
-server.put("/api/channels/:channelId/permissions/:targetId", async (request, reply) => {
-  const { channelId, targetId } = request.params as { channelId: string; targetId: string };
-  const userId = await getUserIdFromRequest(request);
-  if (!userId) {
-    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
-  }
+server.put(
+  "/api/channels/:channelId/permissions/:targetId",
+  async (request, reply) => {
+    const { channelId, targetId } = request.params as {
+      channelId: string;
+      targetId: string;
+    };
+    const userId = await getUserIdFromRequest(request);
+    if (!userId) {
+      return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
+    }
 
-  const channel = await prisma.channel.findUnique({
-    where: { id: channelId },
-  });
-  if (!channel || !channel.guildId) {
-    return sendApiError(reply, 404, ErrorCode.CHANNEL_NOT_FOUND, "频道不存在");
-  }
-
-  const { targetType, allow = 0, deny = 0 } = (request.body || {}) as SetPermissionOverwriteDTO;
-  if (targetType !== "ROLE" && targetType !== "MEMBER") {
-    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "无效的覆写目标类型 (ROLE | MEMBER)");
-  }
-
-  const guard = await permissionService.canManageChannelPermissions(
-    userId,
-    channelId,
-    targetType,
-    targetId,
-    allow,
-    deny,
-  );
-  if (!guard.ok) {
-    return sendApiError(
-      reply,
-      403,
-      guard.code || ErrorCode.FORBIDDEN,
-      guard.message || "无权修改该权限覆写",
-    );
-  }
-
-  if (allow === 0 && deny === 0) {
-    await prisma.permissionOverwrite.deleteMany({
-      where: {
-        channelId,
-        targetType,
-        targetId,
-      },
+    const channel = await prisma.channel.findUnique({
+      where: { id: channelId },
     });
-  } else {
-    await prisma.permissionOverwrite.upsert({
-      where: {
-        channelId_targetType_targetId: {
+    if (!channel || !channel.guildId) {
+      return sendApiError(
+        reply,
+        404,
+        ErrorCode.CHANNEL_NOT_FOUND,
+        "频道不存在",
+      );
+    }
+
+    const {
+      targetType,
+      allow = 0,
+      deny = 0,
+    } = (request.body || {}) as SetPermissionOverwriteDTO;
+    if (targetType !== "ROLE" && targetType !== "MEMBER") {
+      return sendApiError(
+        reply,
+        400,
+        ErrorCode.INVALID_PARAMS,
+        "无效的覆写目标类型 (ROLE | MEMBER)",
+      );
+    }
+
+    const guard = await permissionService.canManageChannelPermissions(
+      userId,
+      channelId,
+      targetType,
+      targetId,
+      allow,
+      deny,
+    );
+    if (!guard.ok) {
+      return sendApiError(
+        reply,
+        403,
+        guard.code || ErrorCode.FORBIDDEN,
+        guard.message || "无权修改该权限覆写",
+      );
+    }
+
+    if (allow === 0 && deny === 0) {
+      await prisma.permissionOverwrite.deleteMany({
+        where: {
           channelId,
           targetType,
           targetId,
         },
-      },
-      create: {
-        guildId: channel.guildId,
-        channelId,
-        targetType,
-        targetId,
-        allow,
-        deny,
-      },
-      update: {
-        allow,
-        deny,
-      },
+      });
+    } else {
+      await prisma.permissionOverwrite.upsert({
+        where: {
+          channelId_targetType_targetId: {
+            channelId,
+            targetType,
+            targetId,
+          },
+        },
+        create: {
+          guildId: channel.guildId,
+          channelId,
+          targetType,
+          targetId,
+          allow,
+          deny,
+        },
+        update: {
+          allow,
+          deny,
+        },
+      });
+    }
+
+    const updatedOverwrites = await prisma.permissionOverwrite.findMany({
+      where: { channelId },
     });
-  }
 
-  const updatedOverwrites = await prisma.permissionOverwrite.findMany({
-    where: { channelId },
-  });
+    const channelPayload = {
+      id: channel.id,
+      guildId: channel.guildId,
+      name: channel.name,
+      type: channel.type as any,
+      topic: channel.topic,
+      parentId: channel.parentId,
+      position: channel.position,
+      isE2EE: channel.isE2EE,
+      bitrate: channel.bitrate,
+      voiceMode: ((channel as any).voiceMode || "sfu") as any,
+      streamMode: ((channel as any).streamMode || "sfu") as any,
+      overwrites: updatedOverwrites.map((o) => ({
+        id: o.id,
+        guildId: o.guildId,
+        channelId: o.channelId,
+        categoryId: o.categoryId,
+        targetType: o.targetType as any,
+        targetId: o.targetId,
+        allow: o.allow,
+        deny: o.deny,
+      })),
+      createdAt: channel.createdAt.toISOString(),
+    };
 
-  const channelPayload = {
-    id: channel.id,
-    guildId: channel.guildId,
-    name: channel.name,
-    type: channel.type as any,
-    topic: channel.topic,
-    parentId: channel.parentId,
-    position: channel.position,
-    isE2EE: channel.isE2EE,
-    bitrate: channel.bitrate,
-    voiceMode: ((channel as any).voiceMode || "sfu") as any,
-    streamMode: ((channel as any).streamMode || "sfu") as any,
-    overwrites: updatedOverwrites.map((o) => ({
-      id: o.id,
-      guildId: o.guildId,
-      channelId: o.channelId,
-      categoryId: o.categoryId,
-      targetType: o.targetType as any,
-      targetId: o.targetId,
-      allow: o.allow,
-      deny: o.deny,
-    })),
-    createdAt: channel.createdAt.toISOString(),
-  };
+    gatewayManager.broadcast({
+      op: GatewayOpCode.DISPATCH,
+      t: GatewayEvents.CHANNEL_UPDATE,
+      d: channelPayload,
+    });
 
-  gatewayManager.broadcast({
-    op: GatewayOpCode.DISPATCH,
-    t: GatewayEvents.CHANNEL_UPDATE,
-    d: channelPayload,
-  });
-
-  return channelPayload;
-});
+    return channelPayload;
+  },
+);
 
 // 删除频道权限覆写 (Delete Channel Permission Overwrite)
-server.delete("/api/channels/:channelId/permissions/:targetId", async (request, reply) => {
-  const { channelId, targetId } = request.params as { channelId: string; targetId: string };
-  const userId = await getUserIdFromRequest(request);
-  if (!userId) {
-    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
-  }
+server.delete(
+  "/api/channels/:channelId/permissions/:targetId",
+  async (request, reply) => {
+    const { channelId, targetId } = request.params as {
+      channelId: string;
+      targetId: string;
+    };
+    const userId = await getUserIdFromRequest(request);
+    if (!userId) {
+      return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
+    }
 
-  const channel = await prisma.channel.findUnique({
-    where: { id: channelId },
-  });
-  if (!channel || !channel.guildId) {
-    return sendApiError(reply, 404, ErrorCode.CHANNEL_NOT_FOUND, "频道不存在");
-  }
+    const channel = await prisma.channel.findUnique({
+      where: { id: channelId },
+    });
+    if (!channel || !channel.guildId) {
+      return sendApiError(
+        reply,
+        404,
+        ErrorCode.CHANNEL_NOT_FOUND,
+        "频道不存在",
+      );
+    }
 
-  const existing = await prisma.permissionOverwrite.findFirst({
-    where: { channelId, targetId },
-  });
-  if (!existing) {
-    return reply.status(204).send();
-  }
+    const existing = await prisma.permissionOverwrite.findFirst({
+      where: { channelId, targetId },
+    });
+    if (!existing) {
+      return reply.status(204).send();
+    }
 
-  const guard = await permissionService.canManageChannelPermissions(
-    userId,
-    channelId,
-    existing.targetType as any,
-    targetId,
-    0,
-    0,
-  );
-  if (!guard.ok) {
-    return sendApiError(
-      reply,
-      403,
-      guard.code || ErrorCode.FORBIDDEN,
-      guard.message || "无权删除该权限覆写",
+    const guard = await permissionService.canManageChannelPermissions(
+      userId,
+      channelId,
+      existing.targetType as any,
+      targetId,
+      0,
+      0,
     );
-  }
+    if (!guard.ok) {
+      return sendApiError(
+        reply,
+        403,
+        guard.code || ErrorCode.FORBIDDEN,
+        guard.message || "无权删除该权限覆写",
+      );
+    }
 
-  await prisma.permissionOverwrite.deleteMany({
-    where: { channelId, targetId },
-  });
+    await prisma.permissionOverwrite.deleteMany({
+      where: { channelId, targetId },
+    });
 
-  const updatedOverwrites = await prisma.permissionOverwrite.findMany({
-    where: { channelId },
-  });
+    const updatedOverwrites = await prisma.permissionOverwrite.findMany({
+      where: { channelId },
+    });
 
-  const channelPayload = {
-    id: channel.id,
-    guildId: channel.guildId,
-    name: channel.name,
-    type: channel.type as any,
-    topic: channel.topic,
-    parentId: channel.parentId,
-    position: channel.position,
-    isE2EE: channel.isE2EE,
-    bitrate: channel.bitrate,
-    voiceMode: ((channel as any).voiceMode || "sfu") as any,
-    streamMode: ((channel as any).streamMode || "sfu") as any,
-    overwrites: updatedOverwrites.map((o) => ({
-      id: o.id,
-      guildId: o.guildId,
-      channelId: o.channelId,
-      categoryId: o.categoryId,
-      targetType: o.targetType as any,
-      targetId: o.targetId,
-      allow: o.allow,
-      deny: o.deny,
-    })),
-    createdAt: channel.createdAt.toISOString(),
-  };
+    const channelPayload = {
+      id: channel.id,
+      guildId: channel.guildId,
+      name: channel.name,
+      type: channel.type as any,
+      topic: channel.topic,
+      parentId: channel.parentId,
+      position: channel.position,
+      isE2EE: channel.isE2EE,
+      bitrate: channel.bitrate,
+      voiceMode: ((channel as any).voiceMode || "sfu") as any,
+      streamMode: ((channel as any).streamMode || "sfu") as any,
+      overwrites: updatedOverwrites.map((o) => ({
+        id: o.id,
+        guildId: o.guildId,
+        channelId: o.channelId,
+        categoryId: o.categoryId,
+        targetType: o.targetType as any,
+        targetId: o.targetId,
+        allow: o.allow,
+        deny: o.deny,
+      })),
+      createdAt: channel.createdAt.toISOString(),
+    };
 
-  gatewayManager.broadcast({
-    op: GatewayOpCode.DISPATCH,
-    t: GatewayEvents.CHANNEL_UPDATE,
-    d: channelPayload,
-  });
+    gatewayManager.broadcast({
+      op: GatewayOpCode.DISPATCH,
+      t: GatewayEvents.CHANNEL_UPDATE,
+      d: channelPayload,
+    });
 
-  return channelPayload;
-});
+    return channelPayload;
+  },
+);
 
 // 与分类同步权限 (Sync with Category)
 server.post("/api/channels/:channelId/sync", async (request, reply) => {
@@ -4424,7 +4765,12 @@ server.post("/api/channels/:channelId/sync", async (request, reply) => {
   }
 
   if (!channel.parentId) {
-    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "该频道未归属任何分类，无法执行同步");
+    return sendApiError(
+      reply,
+      400,
+      ErrorCode.INVALID_PARAMS,
+      "该频道未归属任何分类，无法执行同步",
+    );
   }
 
   const canManage = await permissionService.hasChannelPermission(
@@ -4433,7 +4779,12 @@ server.post("/api/channels/:channelId/sync", async (request, reply) => {
     PermissionFlags.MANAGE_CHANNELS,
   );
   if (!canManage) {
-    return sendApiError(reply, 403, ErrorCode.CHANNEL_PERMISSION_DENIED, "缺少管理频道权限");
+    return sendApiError(
+      reply,
+      403,
+      ErrorCode.CHANNEL_PERMISSION_DENIED,
+      "缺少管理频道权限",
+    );
   }
 
   await prisma.permissionOverwrite.deleteMany({
@@ -4466,140 +4817,171 @@ server.post("/api/channels/:channelId/sync", async (request, reply) => {
 });
 
 // 设置/更新分类权限覆写 (Category Permission Overwrite)
-server.put("/api/categories/:categoryId/permissions/:targetId", async (request, reply) => {
-  const { categoryId, targetId } = request.params as { categoryId: string; targetId: string };
-  const userId = await getUserIdFromRequest(request);
-  if (!userId) {
-    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
-  }
+server.put(
+  "/api/categories/:categoryId/permissions/:targetId",
+  async (request, reply) => {
+    const { categoryId, targetId } = request.params as {
+      categoryId: string;
+      targetId: string;
+    };
+    const userId = await getUserIdFromRequest(request);
+    if (!userId) {
+      return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
+    }
 
-  const category = await prisma.channelCategory.findUnique({
-    where: { id: categoryId },
-  });
-  if (!category) {
-    return sendApiError(reply, 404, ErrorCode.CATEGORY_NOT_FOUND, "分类不存在");
-  }
-
-  const { targetType, allow = 0, deny = 0 } = (request.body || {}) as SetPermissionOverwriteDTO;
-  if (targetType !== "ROLE" && targetType !== "MEMBER") {
-    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "无效的覆写目标类型 (ROLE | MEMBER)");
-  }
-
-  const guard = await permissionService.canManageCategoryPermissions(
-    userId,
-    categoryId,
-    targetType,
-    targetId,
-    allow,
-    deny,
-  );
-  if (!guard.ok) {
-    return sendApiError(
-      reply,
-      403,
-      guard.code || ErrorCode.FORBIDDEN,
-      guard.message || "无权修改该分类权限覆写",
-    );
-  }
-
-  if (allow === 0 && deny === 0) {
-    await prisma.permissionOverwrite.deleteMany({
-      where: {
-        categoryId,
-        targetType,
-        targetId,
-      },
+    const category = await prisma.channelCategory.findUnique({
+      where: { id: categoryId },
     });
-  } else {
-    await prisma.permissionOverwrite.upsert({
-      where: {
-        categoryId_targetType_targetId: {
+    if (!category) {
+      return sendApiError(
+        reply,
+        404,
+        ErrorCode.CATEGORY_NOT_FOUND,
+        "分类不存在",
+      );
+    }
+
+    const {
+      targetType,
+      allow = 0,
+      deny = 0,
+    } = (request.body || {}) as SetPermissionOverwriteDTO;
+    if (targetType !== "ROLE" && targetType !== "MEMBER") {
+      return sendApiError(
+        reply,
+        400,
+        ErrorCode.INVALID_PARAMS,
+        "无效的覆写目标类型 (ROLE | MEMBER)",
+      );
+    }
+
+    const guard = await permissionService.canManageCategoryPermissions(
+      userId,
+      categoryId,
+      targetType,
+      targetId,
+      allow,
+      deny,
+    );
+    if (!guard.ok) {
+      return sendApiError(
+        reply,
+        403,
+        guard.code || ErrorCode.FORBIDDEN,
+        guard.message || "无权修改该分类权限覆写",
+      );
+    }
+
+    if (allow === 0 && deny === 0) {
+      await prisma.permissionOverwrite.deleteMany({
+        where: {
           categoryId,
           targetType,
           targetId,
         },
-      },
-      create: {
-        guildId: category.guildId,
-        categoryId,
-        targetType,
-        targetId,
-        allow,
-        deny,
-      },
-      update: {
-        allow,
-        deny,
-      },
+      });
+    } else {
+      await prisma.permissionOverwrite.upsert({
+        where: {
+          categoryId_targetType_targetId: {
+            categoryId,
+            targetType,
+            targetId,
+          },
+        },
+        create: {
+          guildId: category.guildId,
+          categoryId,
+          targetType,
+          targetId,
+          allow,
+          deny,
+        },
+        update: {
+          allow,
+          deny,
+        },
+      });
+    }
+
+    const catOverwrites = await prisma.permissionOverwrite.findMany({
+      where: { categoryId },
     });
-  }
 
-  const catOverwrites = await prisma.permissionOverwrite.findMany({
-    where: { categoryId },
-  });
-
-  return {
-    id: category.id,
-    guildId: category.guildId,
-    name: category.name,
-    position: category.position,
-    overwrites: catOverwrites.map((o) => ({
-      id: o.id,
-      guildId: o.guildId,
-      categoryId: o.categoryId,
-      targetType: o.targetType as any,
-      targetId: o.targetId,
-      allow: o.allow,
-      deny: o.deny,
-    })),
-  };
-});
+    return {
+      id: category.id,
+      guildId: category.guildId,
+      name: category.name,
+      position: category.position,
+      overwrites: catOverwrites.map((o) => ({
+        id: o.id,
+        guildId: o.guildId,
+        categoryId: o.categoryId,
+        targetType: o.targetType as any,
+        targetId: o.targetId,
+        allow: o.allow,
+        deny: o.deny,
+      })),
+    };
+  },
+);
 
 // 删除分类权限覆写 (Delete Category Permission Overwrite)
-server.delete("/api/categories/:categoryId/permissions/:targetId", async (request, reply) => {
-  const { categoryId, targetId } = request.params as { categoryId: string; targetId: string };
-  const userId = await getUserIdFromRequest(request);
-  if (!userId) {
-    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
-  }
+server.delete(
+  "/api/categories/:categoryId/permissions/:targetId",
+  async (request, reply) => {
+    const { categoryId, targetId } = request.params as {
+      categoryId: string;
+      targetId: string;
+    };
+    const userId = await getUserIdFromRequest(request);
+    if (!userId) {
+      return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
+    }
 
-  const category = await prisma.channelCategory.findUnique({
-    where: { id: categoryId },
-  });
-  if (!category) {
-    return sendApiError(reply, 404, ErrorCode.CATEGORY_NOT_FOUND, "分类不存在");
-  }
+    const category = await prisma.channelCategory.findUnique({
+      where: { id: categoryId },
+    });
+    if (!category) {
+      return sendApiError(
+        reply,
+        404,
+        ErrorCode.CATEGORY_NOT_FOUND,
+        "分类不存在",
+      );
+    }
 
-  const existing = await prisma.permissionOverwrite.findFirst({
-    where: { categoryId, targetId },
-  });
-  if (!existing) {
-    return reply.status(204).send();
-  }
+    const existing = await prisma.permissionOverwrite.findFirst({
+      where: { categoryId, targetId },
+    });
+    if (!existing) {
+      return reply.status(204).send();
+    }
 
-  const guard = await permissionService.canManageCategoryPermissions(
-    userId,
-    categoryId,
-    existing.targetType as any,
-    targetId,
-    0,
-    0,
-  );
-  if (!guard.ok) {
-    return sendApiError(
-      reply,
-      403,
-      guard.code || ErrorCode.FORBIDDEN,
-      guard.message || "无权删除该分类权限覆写",
+    const guard = await permissionService.canManageCategoryPermissions(
+      userId,
+      categoryId,
+      existing.targetType as any,
+      targetId,
+      0,
+      0,
     );
-  }
+    if (!guard.ok) {
+      return sendApiError(
+        reply,
+        403,
+        guard.code || ErrorCode.FORBIDDEN,
+        guard.message || "无权删除该分类权限覆写",
+      );
+    }
 
-  await prisma.permissionOverwrite.deleteMany({
-    where: { categoryId, targetId },
-  });
+    await prisma.permissionOverwrite.deleteMany({
+      where: { categoryId, targetId },
+    });
 
-  return { success: true };
-});
+    return { success: true };
+  },
+);
 
 // ==========================================
 // 频道分类与拖拽排序 API (Channel Categories & Positions)

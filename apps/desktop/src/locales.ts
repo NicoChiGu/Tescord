@@ -183,3 +183,88 @@ export function getDesktopLocale(
 ): DesktopLocaleStrings {
   return desktopLocales[locale] || desktopLocales["zh-CN"];
 }
+
+export interface ScreenshotLocaleStrings {
+  rect: string;
+  arrow: string;
+  pen: string;
+  mosaic: string;
+  text: string;
+  undo: string;
+  copy: string;
+  send: string;
+  save: string;
+  close: string;
+}
+
+export const screenshotLocales: Record<
+  SupportedLocale,
+  ScreenshotLocaleStrings
+> = {
+  "zh-CN": {
+    rect: "矩形框",
+    arrow: "箭头",
+    pen: "画笔",
+    mosaic: "马赛克",
+    text: "文字",
+    undo: "撤销 (Ctrl+Z)",
+    copy: "复制 (Enter / 双击)",
+    send: "发送到聊天",
+    save: "保存图片",
+    close: "退出截图 (ESC)",
+  },
+  "zh-TW": {
+    rect: "矩形框",
+    arrow: "箭頭",
+    pen: "畫筆",
+    mosaic: "馬賽克",
+    text: "文字",
+    undo: "復原 (Ctrl+Z)",
+    copy: "複製 (Enter / 點兩下)",
+    send: "發送到聊天",
+    save: "儲存圖片",
+    close: "結束截圖 (ESC)",
+  },
+  "zh-HK": {
+    rect: "矩形框",
+    arrow: "箭頭",
+    pen: "畫筆",
+    mosaic: "馬賽克",
+    text: "文字",
+    undo: "復原 (Ctrl+Z)",
+    copy: "複製 (Enter / 雙擊)",
+    send: "發送到聊天",
+    save: "儲存圖片",
+    close: "結束截圖 (ESC)",
+  },
+  "en-US": {
+    rect: "Rectangle",
+    arrow: "Arrow",
+    pen: "Pen",
+    mosaic: "Mosaic",
+    text: "Text",
+    undo: "Undo (Ctrl+Z)",
+    copy: "Copy (Enter / Double Click)",
+    send: "Send to Chat",
+    save: "Save Image",
+    close: "Cancel (ESC)",
+  },
+  "ja-JP": {
+    rect: "四角形",
+    arrow: "矢印",
+    pen: "ペン",
+    mosaic: "モザイク",
+    text: "テキスト",
+    undo: "元に戻す (Ctrl+Z)",
+    copy: "コピー (Enter / ダブルクリック)",
+    send: "チャットに送信",
+    save: "画像を保存",
+    close: "終了 (ESC)",
+  },
+};
+
+export function getScreenshotLocale(
+  locale: SupportedLocale = "zh-CN",
+): ScreenshotLocaleStrings {
+  return screenshotLocales[locale] || screenshotLocales["zh-CN"];
+}

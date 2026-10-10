@@ -15,6 +15,8 @@ import type {
   DesktopCaptureAudioStart,
   KeybindConfig,
   SupportedLocale,
+  DesktopPasskeyAuthPayload,
+  DesktopPasskeyAuthResult,
 } from "@tescord/types";
 
 // The sandboxed preload can require Electron only. Keep IPC literals checked
@@ -166,6 +168,14 @@ contextBridge.exposeInMainWorld("electronAPI", {
       ipcRenderer.removeListener("trigger-screen-capture", handler);
     };
   },
+  startScreenCapture: () => ipcRenderer.invoke("start-screen-capture"),
+  onInsertCapturedImage: (callback: (data: { dataUrl: string }) => void) => {
+    const handler = (_e: any, data: { dataUrl: string }) => callback(data);
+    ipcRenderer.on("insert-captured-image", handler);
+    return () => {
+      ipcRenderer.removeListener("insert-captured-image", handler);
+    };
+  },
   captureScreenBitmap: () => ipcRenderer.invoke("capture-screen-bitmap"),
   writeClipboardImage: (dataUrl: string) =>
     ipcRenderer.invoke("write-clipboard-image", dataUrl),
@@ -223,6 +233,12 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   // 显卡与硬件加速能力探测
   getGPUInfo: () => ipcRenderer.invoke("get-gpu-info"),
+
+  // 内嵌通行密钥 WebAuthn 独立认证窗口
+  openPasskeyAuth: (
+    payload: DesktopPasskeyAuthPayload,
+  ): Promise<DesktopPasskeyAuthResult> =>
+    ipcRenderer.invoke("open-passkey-auth", payload),
 
   // 原生网络穿透与 UPnP 自动打洞
   network: {

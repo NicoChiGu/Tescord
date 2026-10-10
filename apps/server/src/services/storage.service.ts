@@ -673,7 +673,10 @@ export class StorageService {
         await this.minioClient.removeObject(this.bucketName, fileKey);
         return true;
       } catch (err) {
-        console.warn(`[StorageService] MinIO removeObject failed for ${fileKey}:`, err);
+        console.warn(
+          `[StorageService] MinIO removeObject failed for ${fileKey}:`,
+          err,
+        );
         return false;
       }
     }
@@ -683,22 +686,37 @@ export class StorageService {
       await fs.promises.rm(filePath, { force: true });
       return true;
     } catch (err) {
-      console.warn(`[StorageService] Local file rm failed for ${filePath}:`, err);
+      console.warn(
+        `[StorageService] Local file rm failed for ${filePath}:`,
+        err,
+      );
       return false;
     }
   }
 
-  public async listAllStoredObjects(): Promise<Array<{ key: string; size: number; lastModified: Date }>> {
+  public async listAllStoredObjects(): Promise<
+    Array<{ key: string; size: number; lastModified: Date }>
+  > {
     if (this.isMinioAvailable && this.minioClient) {
       return new Promise((resolve) => {
-        const results: Array<{ key: string; size: number; lastModified: Date }> = [];
-        const stream = this.minioClient!.listObjectsV2(this.bucketName, "", true);
+        const results: Array<{
+          key: string;
+          size: number;
+          lastModified: Date;
+        }> = [];
+        const stream = this.minioClient!.listObjectsV2(
+          this.bucketName,
+          "",
+          true,
+        );
         stream.on("data", (item: any) => {
           if (item && item.name) {
             results.push({
               key: item.name,
               size: item.size || 0,
-              lastModified: item.lastModified ? new Date(item.lastModified) : new Date(0),
+              lastModified: item.lastModified
+                ? new Date(item.lastModified)
+                : new Date(0),
             });
           }
         });
@@ -711,8 +729,11 @@ export class StorageService {
     }
 
     try {
-      const entries = await fs.promises.readdir(this.uploadsDir, { withFileTypes: true });
-      const results: Array<{ key: string; size: number; lastModified: Date }> = [];
+      const entries = await fs.promises.readdir(this.uploadsDir, {
+        withFileTypes: true,
+      });
+      const results: Array<{ key: string; size: number; lastModified: Date }> =
+        [];
       for (const entry of entries) {
         if (entry.isFile()) {
           try {

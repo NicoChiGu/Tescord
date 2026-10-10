@@ -443,13 +443,21 @@ export class PermissionService {
       where: { id: channelId },
     });
     if (!channel || !channel.guildId) {
-      return { ok: false, code: ErrorCode.CHANNEL_NOT_FOUND, message: "频道不存在" };
+      return {
+        ok: false,
+        code: ErrorCode.CHANNEL_NOT_FOUND,
+        message: "频道不存在",
+      };
     }
     const guildId = channel.guildId;
 
     const guild = await prisma.guild.findUnique({ where: { id: guildId } });
     if (!guild) {
-      return { ok: false, code: ErrorCode.GUILD_NOT_FOUND, message: "服务器不存在" };
+      return {
+        ok: false,
+        code: ErrorCode.GUILD_NOT_FOUND,
+        message: "服务器不存在",
+      };
     }
 
     const actor = await prisma.user.findUnique({
@@ -552,13 +560,21 @@ export class PermissionService {
       where: { id: categoryId },
     });
     if (!category) {
-      return { ok: false, code: ErrorCode.CATEGORY_NOT_FOUND, message: "分类不存在" };
+      return {
+        ok: false,
+        code: ErrorCode.CATEGORY_NOT_FOUND,
+        message: "分类不存在",
+      };
     }
     const guildId = category.guildId;
 
     const guild = await prisma.guild.findUnique({ where: { id: guildId } });
     if (!guild) {
-      return { ok: false, code: ErrorCode.GUILD_NOT_FOUND, message: "服务器不存在" };
+      return {
+        ok: false,
+        code: ErrorCode.GUILD_NOT_FOUND,
+        message: "服务器不存在",
+      };
     }
 
     const actor = await prisma.user.findUnique({

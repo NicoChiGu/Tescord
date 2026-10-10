@@ -58,7 +58,9 @@ test("StorageGcService: 仅清理超过缓冲期的解绑附件，保护正常�
       },
       aggregate: async ({ where }: any) => {
         const filtered = mockAttachments.filter((a) =>
-          where?.messageId === null ? a.messageId === null : a.messageId !== null,
+          where?.messageId === null
+            ? a.messageId === null
+            : a.messageId !== null,
         );
         const sumFile = filtered.reduce((acc, a) => acc + a.fileSize, 0);
         const sumPrev = filtered.reduce(

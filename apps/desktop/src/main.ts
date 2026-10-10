@@ -35,6 +35,8 @@ import {
   DesktopAudioInferenceFailure,
   KeybindConfig,
   KeybindRegisterResponse,
+  DesktopPasskeyAuthPayload,
+  DesktopPasskeyAuthResult,
 } from "@tescord/types";
 import { detectLocalNetwork, UPnPClient } from "./upnp.js";
 import { getDesktopLocale } from "./locales.js";
@@ -45,6 +47,7 @@ import { ProxyManager } from "./updater/proxy-manager.js";
 import { BUILD_CONFIG } from "./build-config.js";
 import { ToastManager } from "./toastManager.js";
 import { StorageManager } from "./storage/storageManager.js";
+import { ScreenshotManager } from "./screenshotManager.js";
 import {
   attachDisplayCapture,
   clearDisplayCapture,
@@ -56,6 +59,7 @@ if (process.env.TESCORD_E2E_USER_DATA_DIR) {
 }
 
 let toastManager: ToastManager | null = null;
+let screenshotManager: ScreenshotManager | null = null;
 
 // 开发环境下忽略自签名证书错误 (配合 Vite basicSsl HTTPS 开发模式)
 if (process.env.NODE_ENV !== "production") {
@@ -1000,6 +1004,10 @@ async function switchToAuthWindow(): Promise<void> {
       }
     }
     savePersistedWindowBounds(savedMainBounds);
+    // 立即隐藏主窗口，杜绝视觉撕裂与大号窗口渲染登录界面
+    try {
+      mainWindow.hide();
+    } catch {}
   }
 
   if (authWindow && !authWindow.isDestroyed()) {
@@ -1430,7 +1438,17 @@ ipcMain.handle(
               mainWindow.webContents.send("toggle-global-deafen");
               break;
             case "SCREEN_CAPTURE":
-              mainWindow.webContents.send("trigger-screen-capture");
+              if (screenshotManager) {
+                screenshotManager.startCapture((dataUrl) => {
+                  if (mainWindow && !mainWindow.isDestroyed()) {
+                    mainWindow.webContents.send("insert-captured-image", {
+                      dataUrl,
+                    });
+                  }
+                });
+              } else {
+                mainWindow.webContents.send("trigger-screen-capture");
+              }
               break;
           }
         });
@@ -1456,6 +1474,19 @@ ipcMain.handle(
     }
   },
 );
+
+ipcMain.handle("start-screen-capture", async (event) => {
+  if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+  if (screenshotManager) {
+    await screenshotManager.startCapture((dataUrl) => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send("insert-captured-image", { dataUrl });
+      }
+    });
+    return true;
+  }
+  return false;
+});
 
 ipcMain.handle("capture-screen-bitmap", async (event) => {
   if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
@@ -1517,6 +1548,127 @@ ipcMain.handle(
       console.error("Failed to save image file:", err);
       return false;
     }
+  },
+);
+
+let passkeyAuthWindow: BrowserWindow | null = null;
+
+ipcMain.handle(
+  "open-passkey-auth",
+  async (event, payload: DesktopPasskeyAuthPayload) => {
+    if (!isTrustedIpcSender(event)) throw new Error("Untrusted IPC sender");
+
+    const apiBase = (payload.apiBase || "").trim().replace(/\/+$/, "");
+    let isSecureOrigin = false;
+    try {
+      const url = new URL(apiBase);
+      isSecureOrigin =
+        url.protocol === "https:" ||
+        url.hostname === "localhost" ||
+        url.hostname === "127.0.0.1";
+    } catch {}
+
+    if (!isSecureOrigin) {
+      return {
+        success: false,
+        error: "通行密钥需要有效 HTTPS 域名或安全环境支持",
+      };
+    }
+
+    if (passkeyAuthWindow && !passkeyAuthWindow.isDestroyed()) {
+      try {
+        passkeyAuthWindow.focus();
+      } catch {}
+      return {
+        success: false,
+        error: "认证窗口已在运行中",
+      };
+    }
+
+    return new Promise<DesktopPasskeyAuthResult>((resolve) => {
+      let resolved = false;
+      const parentWindow =
+        BrowserWindow.getFocusedWindow() ||
+        mainWindow ||
+        authWindow ||
+        undefined;
+
+      const win = new BrowserWindow({
+        width: 440,
+        height: 560,
+        parent: parentWindow,
+        modal: Boolean(parentWindow),
+        resizable: false,
+        minimizable: false,
+        maximizable: false,
+        show: false,
+        backgroundColor: "#1e1f22",
+        title: "Tescord 通行密钥",
+        icon: getAppIconPath(),
+        autoHideMenuBar: true,
+        webPreferences: {
+          preload: path.join(__dirname, "passkeyPreload.js"),
+          contextIsolation: true,
+          nodeIntegration: false,
+          sandbox: true,
+        },
+      });
+
+      passkeyAuthWindow = win;
+      win.setMenu(null);
+
+      const safeResolve = (res: DesktopPasskeyAuthResult) => {
+        if (resolved) return;
+        resolved = true;
+        ipcMain.removeListener("passkey-auth-result", onResult);
+        ipcMain.removeListener("passkey-auth-cancel", onCancel);
+        if (win && !win.isDestroyed()) {
+          try {
+            win.close();
+          } catch {}
+        }
+        passkeyAuthWindow = null;
+        resolve(res);
+      };
+
+      const onResult = (_e: Electron.IpcMainEvent, data: any) => {
+        if (_e.sender.id !== win.webContents.id) return;
+        safeResolve(data || { success: false, error: "未收到有效认证数据" });
+      };
+
+      const onCancel = (_e: Electron.IpcMainEvent) => {
+        if (_e.sender.id !== win.webContents.id) return;
+        safeResolve({ success: false, error: "用户已取消通行密钥验证" });
+      };
+
+      ipcMain.on("passkey-auth-result", onResult);
+      ipcMain.on("passkey-auth-cancel", onCancel);
+
+      win.on("closed", () => {
+        safeResolve({ success: false, error: "认证窗口已关闭" });
+      });
+
+      win.once("ready-to-show", () => {
+        if (!resolved) win.show();
+      });
+
+      const queryParams = new URLSearchParams({
+        action: payload.action,
+        ...(payload.emailOrUsername
+          ? { emailOrUsername: payload.emailOrUsername }
+          : {}),
+        ...(payload.deviceName ? { deviceName: payload.deviceName } : {}),
+        ...(payload.token ? { token: payload.token } : {}),
+      });
+
+      const targetUrl = `${apiBase}/api/auth/webauthn/bridge?${queryParams.toString()}`;
+      win.loadURL(targetUrl).catch((err) => {
+        safeResolve({
+          success: false,
+          error: `加载通行密钥认证服务失败: ${err.message}`,
+        });
+      });
+    });
   },
 );
 
@@ -2023,6 +2175,10 @@ app.whenReady().then(async () => {
   StorageManager.getInstance().initialize();
   await startApplicationWithSplash();
   setupSystemTray();
+  screenshotManager = new ScreenshotManager(
+    () => mainWindow,
+    () => currentLocale,
+  );
   startBackgroundUpdateChecker();
 
   // 监听游戏状态变动并推送给渲染进程

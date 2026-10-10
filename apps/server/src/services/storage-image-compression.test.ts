@@ -58,15 +58,8 @@ test("StorageService 图像压缩管线: 大图等比缩放至 2K 并优先压�
     claimRes.preview.url.endsWith(".preview.avif"),
     `preview.url 应该以 .preview.avif 结尾，实际为: ${claimRes.preview.url}`,
   );
-  assert.equal(
-    claimRes.preview.width,
-    2048,
-    "长边超过 2K 时应等比缩放至 2048",
-  );
-  assert.ok(
-    claimRes.preview.height <= 2048,
-    "高度应等比缩放且不超过 2048",
-  );
+  assert.equal(claimRes.preview.width, 2048, "长边超过 2K 时应等比缩放至 2048");
+  assert.ok(claimRes.preview.height <= 2048, "高度应等比缩放且不超过 2048");
   assert.ok(
     claimRes.preview.size < largeJpgBuffer.length,
     "AVIF 压缩后体积应小于原图",
@@ -76,7 +69,10 @@ test("StorageService 图像压缩管线: 大图等比缩放至 2K 并优先压�
   const previewPath = storageService.resolveLocalUploadPath(
     `${fileKey}.preview.avif`,
   );
-  assert.ok(previewPath && fs.existsSync(previewPath), "本地应存在 preview.avif 文件");
+  assert.ok(
+    previewPath && fs.existsSync(previewPath),
+    "本地应存在 preview.avif 文件",
+  );
   const previewBytes = await fs.promises.readFile(previewPath);
   const previewMeta = await sharp(previewBytes).metadata();
   assert.equal(
@@ -87,7 +83,10 @@ test("StorageService 图像压缩管线: 大图等比缩放至 2K 并优先压�
 
   // 6. 清理文件并验证级联清理
   await storageService.deleteStoredFile(fileKey);
-  assert.ok(!fs.existsSync(previewPath), "删除原图时应级联删除 preview.avif 文件");
+  assert.ok(
+    !fs.existsSync(previewPath),
+    "删除原图时应级联删除 preview.avif 文件",
+  );
 });
 
 test("StorageService 图像压缩管线: 小于 2K 图片保持原尺寸并压缩为 AVIF", async () => {
@@ -149,19 +148,73 @@ test("StorageService 图像压缩管线: 动态动图跳过压缩保持原图", 
 
   // 标准且完整的 2 帧动态 GIF 二进制
   const animatedGifBuffer = Buffer.from([
-    0x47, 0x49, 0x46, 0x38, 0x39, 0x61, // GIF89a
-    0x02, 0x00, 0x02, 0x00, // 2x2
-    0x80, 0x00, 0x00, // Global Color Table Flag
-    0x00, 0x00, 0x00, // Color 0: #000000
-    0xff, 0xff, 0xff, // Color 1: #ffffff
+    0x47,
+    0x49,
+    0x46,
+    0x38,
+    0x39,
+    0x61, // GIF89a
+    0x02,
+    0x00,
+    0x02,
+    0x00, // 2x2
+    0x80,
+    0x00,
+    0x00, // Global Color Table Flag
+    0x00,
+    0x00,
+    0x00, // Color 0: #000000
+    0xff,
+    0xff,
+    0xff, // Color 1: #ffffff
     // Frame 1
-    0x21, 0xf9, 0x04, 0x00, 0x0a, 0x00, 0x00, 0x00, // Graphic Control Extension
-    0x2c, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x02, 0x00, 0x00, // Image Descriptor
-    0x02, 0x02, 0x44, 0x01, 0x00, // Image Data
+    0x21,
+    0xf9,
+    0x04,
+    0x00,
+    0x0a,
+    0x00,
+    0x00,
+    0x00, // Graphic Control Extension
+    0x2c,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x02,
+    0x00,
+    0x02,
+    0x00,
+    0x00, // Image Descriptor
+    0x02,
+    0x02,
+    0x44,
+    0x01,
+    0x00, // Image Data
     // Frame 2
-    0x21, 0xf9, 0x04, 0x00, 0x0a, 0x00, 0x00, 0x00, // Graphic Control Extension
-    0x2c, 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x02, 0x00, 0x00, // Image Descriptor
-    0x02, 0x02, 0x4c, 0x01, 0x00, // Image Data
+    0x21,
+    0xf9,
+    0x04,
+    0x00,
+    0x0a,
+    0x00,
+    0x00,
+    0x00, // Graphic Control Extension
+    0x2c,
+    0x00,
+    0x00,
+    0x00,
+    0x00,
+    0x02,
+    0x00,
+    0x02,
+    0x00,
+    0x00, // Image Descriptor
+    0x02,
+    0x02,
+    0x4c,
+    0x01,
+    0x00, // Image Data
     0x3b, // Trailer
   ]);
 
@@ -193,7 +246,11 @@ test("StorageService 图像压缩管线: 动态动图跳过压缩保持原图", 
   });
 
   assert.ok(claimRes, "认领附件应成功");
-  assert.equal(claimRes.preview, undefined, "动态 GIF 动图应跳过压缩，保留原图");
+  assert.equal(
+    claimRes.preview,
+    undefined,
+    "动态 GIF 动图应跳过压缩，保留原图",
+  );
 
   await storageService.deleteStoredFile(fileKey);
 });
@@ -260,7 +317,10 @@ test("StorageService 图像压缩管线: AVIF 异常时平滑降级至 WebP 兜�
   const previewPath = storageService.resolveLocalUploadPath(
     `${fileKey}.preview.webp`,
   );
-  assert.ok(previewPath && fs.existsSync(previewPath), "本地应存在 preview.webp 降级文件");
+  assert.ok(
+    previewPath && fs.existsSync(previewPath),
+    "本地应存在 preview.webp 降级文件",
+  );
   const previewBytes = await fs.promises.readFile(previewPath);
   const previewMeta = await sharp(previewBytes).metadata();
   assert.equal(previewMeta.format, "webp", "降级文件格式应确为 webp");
@@ -283,7 +343,10 @@ test("StorageService 附件签名与 Content-Type 分发契约: 支持 AVIF 与 
     scope,
     "preview",
   );
-  assert.ok(previewUrl.includes("variant=preview"), "应包含 variant=preview 参数");
+  assert.ok(
+    previewUrl.includes("variant=preview"),
+    "应包含 variant=preview 参数",
+  );
 
   const parsedUrl = new URL(previewUrl);
   const sig = parsedUrl.searchParams.get("signature")!;
@@ -304,7 +367,11 @@ test("StorageService 附件签名与 Content-Type 分发契约: 支持 AVIF 与 
   const resolveMime = (previewUrl: string | undefined, defaultMime: string) => {
     const previewIsAvif = Boolean(previewUrl?.endsWith(".avif"));
     const previewIsWebp = Boolean(previewUrl?.endsWith(".webp"));
-    return previewIsAvif ? "image/avif" : previewIsWebp ? "image/webp" : defaultMime;
+    return previewIsAvif
+      ? "image/avif"
+      : previewIsWebp
+        ? "image/webp"
+        : defaultMime;
   };
 
   assert.equal(
@@ -323,4 +390,3 @@ test("StorageService 附件签名与 Content-Type 分发契约: 支持 AVIF 与 
     "无 preview 时应保持原始格式",
   );
 });
-

@@ -55,12 +55,7 @@ interface AdminDashboardModalProps {
 }
 
 type TabType =
-  | "OVERVIEW"
-  | "USERS"
-  | "GUILDS"
-  | "INVITES"
-  | "SYSTEM"
-  | "STORAGE";
+  "OVERVIEW" | "USERS" | "GUILDS" | "INVITES" | "SYSTEM" | "STORAGE";
 
 export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
   isOpen,
@@ -1606,7 +1601,9 @@ export const AdminDashboardModal: React.FC<AdminDashboardModalProps> = ({
                         {t("admin:storage.cards.orphanedAttachments")}
                       </p>
                       <p className="text-xl font-bold text-white truncate">
-                        {formatBytes(storageStats?.orphanedAttachmentBytes || 0)}
+                        {formatBytes(
+                          storageStats?.orphanedAttachmentBytes || 0,
+                        )}
                       </p>
                       <p className="text-[11px] text-discord-textMuted">
                         {storageStats?.orphanedAttachmentCount || 0}{" "}

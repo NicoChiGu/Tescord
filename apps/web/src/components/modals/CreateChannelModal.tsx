@@ -455,48 +455,51 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
                 </div>
 
                 {/* 身份组列表 */}
-                {guild?.roles && guild.roles.filter((r) => !r.isDefault).length > 0 && (
-                  <div className="space-y-1">
-                    <div className="text-[11px] font-semibold text-gray-400">
-                      {t("modals:editChannel.permissions.roles")}
-                    </div>
-                    <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
-                      {guild.roles
-                        .filter((r) => !r.isDefault)
-                        .map((role) => {
-                          const isChecked = selectedRoleIds.includes(role.id);
-                          return (
-                            <label
-                              key={role.id}
-                              className="flex items-center justify-between p-1.5 rounded bg-[#1e1f22]/60 hover:bg-[#1e1f22] cursor-pointer text-xs transition"
-                            >
-                              <div className="flex items-center space-x-2">
-                                <span
-                                  className="w-2.5 h-2.5 rounded-full shrink-0"
-                                  style={{ backgroundColor: role.color || "#99aab5" }}
+                {guild?.roles &&
+                  guild.roles.filter((r) => !r.isDefault).length > 0 && (
+                    <div className="space-y-1">
+                      <div className="text-[11px] font-semibold text-gray-400">
+                        {t("modals:editChannel.permissions.roles")}
+                      </div>
+                      <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
+                        {guild.roles
+                          .filter((r) => !r.isDefault)
+                          .map((role) => {
+                            const isChecked = selectedRoleIds.includes(role.id);
+                            return (
+                              <label
+                                key={role.id}
+                                className="flex items-center justify-between p-1.5 rounded bg-[#1e1f22]/60 hover:bg-[#1e1f22] cursor-pointer text-xs transition"
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <span
+                                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                                    style={{
+                                      backgroundColor: role.color || "#99aab5",
+                                    }}
+                                  />
+                                  <span className="text-discord-textHeader font-medium">
+                                    {role.name}
+                                  </span>
+                                </div>
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={() => {
+                                    setSelectedRoleIds((prev) =>
+                                      isChecked
+                                        ? prev.filter((id) => id !== role.id)
+                                        : [...prev, role.id],
+                                    );
+                                  }}
+                                  className="w-3.5 h-3.5 rounded text-discord-brand"
                                 />
-                                <span className="text-discord-textHeader font-medium">
-                                  {role.name}
-                                </span>
-                              </div>
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={() => {
-                                  setSelectedRoleIds((prev) =>
-                                    isChecked
-                                      ? prev.filter((id) => id !== role.id)
-                                      : [...prev, role.id],
-                                  );
-                                }}
-                                className="w-3.5 h-3.5 rounded text-discord-brand"
-                              />
-                            </label>
-                          );
-                        })}
+                              </label>
+                            );
+                          })}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* 成员列表 */}
                 {guild?.members && guild.members.length > 0 && (
@@ -506,7 +509,9 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
                     </div>
                     <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
                       {guild.members.map((member) => {
-                        const isChecked = selectedUserIds.includes(member.userId);
+                        const isChecked = selectedUserIds.includes(
+                          member.userId,
+                        );
                         return (
                           <label
                             key={member.userId}

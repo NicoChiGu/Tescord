@@ -118,9 +118,7 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
   const parentCategory = channel.parentId
     ? guild?.categories?.find((c) => c.id === channel.parentId)
     : null;
-  const isSyncedWithCategory = !!(
-    channel.parentId && overwrites.length === 0
-  );
+  const isSyncedWithCategory = !!(channel.parentId && overwrites.length === 0);
 
   const channelPermissionsList = isVoice
     ? CHANNEL_VOICE_PERMISSIONS
@@ -567,10 +565,13 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
                               : "text-gray-400"
                           }`}
                         />
-                        <span className="text-xs font-bold">边缘转发 (SFU)</span>
+                        <span className="text-xs font-bold">
+                          边缘转发 (SFU)
+                        </span>
                       </div>
                       <p className="text-[11px] text-gray-400 leading-relaxed">
-                        经由 Cloudflare Anycast 边缘服务器转发，多人通话稳定流畅。
+                        经由 Cloudflare Anycast
+                        边缘服务器转发，多人通话稳定流畅。
                       </p>
                     </div>
                   </div>
@@ -721,7 +722,9 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
                       <span>
                         {confirmSync
                           ? "确认同步 (清除覆盖)？"
-                          : t("modals:editChannel.permissions.syncWithCategory")}
+                          : t(
+                              "modals:editChannel.permissions.syncWithCategory",
+                            )}
                       </span>
                     </button>
                   )}
@@ -744,7 +747,9 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
                       data-testid="add-overwrite-btn"
                       onClick={() => setShowAddMenu(!showAddMenu)}
                       className="p-1 rounded text-gray-400 hover:text-white hover:bg-white/10 transition"
-                      title={t("modals:editChannel.permissions.addRoleOrMember")}
+                      title={t(
+                        "modals:editChannel.permissions.addRoleOrMember",
+                      )}
                     >
                       <Plus className="w-3.5 h-3.5" />
                     </button>
@@ -761,7 +766,8 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
                               !r.isDefault &&
                               !overwrites.some(
                                 (o) =>
-                                  o.targetId === r.id && o.targetType === "ROLE",
+                                  o.targetId === r.id &&
+                                  o.targetType === "ROLE",
                               ),
                           )
                           .map((role) => (
@@ -916,7 +922,9 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
                     className="mt-2 text-[11px] text-red-400 hover:text-red-300 hover:bg-red-500/10 p-1.5 rounded transition flex items-center justify-center gap-1.5 shrink-0"
                   >
                     <Trash2 className="w-3 h-3" />
-                    <span>{t("modals:editChannel.permissions.resetOverwrite")}</span>
+                    <span>
+                      {t("modals:editChannel.permissions.resetOverwrite")}
+                    </span>
                   </button>
                 )}
               </div>
@@ -931,7 +939,9 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
 
                 <div className="space-y-3 overflow-y-auto flex-1 pr-1">
                   {channelPermissionsList.map((flag) => {
-                    const permDef = ALL_PERMISSIONS.find((p) => p.flag === flag);
+                    const permDef = ALL_PERMISSIONS.find(
+                      (p) => p.flag === flag,
+                    );
                     const isAllowed = (currentAllow & flag) === flag;
                     const isDenied = (currentDeny & flag) === flag;
                     const isInherit = !isAllowed && !isDenied;
@@ -943,7 +953,8 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
                       >
                         <div className="pr-3">
                           <div className="text-xs font-bold text-gray-200">
-                            {permDef?.name || `Permission (1<<${Math.log2(flag)})`}
+                            {permDef?.name ||
+                              `Permission (1<<${Math.log2(flag)})`}
                           </div>
                           <div className="text-[10px] text-gray-400 line-clamp-1">
                             {permDef?.description || ""}
@@ -971,7 +982,9 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
                           <button
                             type="button"
                             data-testid={`perm-${flag}-inherit`}
-                            onClick={() => handleTogglePermission(flag, "INHERIT")}
+                            onClick={() =>
+                              handleTogglePermission(flag, "INHERIT")
+                            }
                             className={`p-1.5 rounded transition flex items-center justify-center ${
                               isInherit
                                 ? "bg-gray-500 text-white shadow-sm"
@@ -986,7 +999,9 @@ export const EditChannelModal: React.FC<EditChannelModalProps> = ({
                           <button
                             type="button"
                             data-testid={`perm-${flag}-allow`}
-                            onClick={() => handleTogglePermission(flag, "ALLOW")}
+                            onClick={() =>
+                              handleTogglePermission(flag, "ALLOW")
+                            }
                             className={`p-1.5 rounded transition flex items-center justify-center ${
                               isAllowed
                                 ? "bg-green-600 text-white shadow-sm"

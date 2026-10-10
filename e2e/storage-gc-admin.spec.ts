@@ -145,7 +145,9 @@ test.describe("超级管理员控制台 - 存储与维护 (STORAGE) 及垃圾回
     await storageTabBtn.click();
 
     // 7. 验证 STORAGE 页面关键指标卡片和内容展示
-    await expect(page.getByText("50.00 MB", { exact: true })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText("50.00 MB", { exact: true })).toBeVisible({
+      timeout: 5000,
+    });
     await expect(page.getByText("30.00 MB", { exact: true })).toBeVisible();
     await expect(page.getByText("15.00 MB", { exact: true })).toBeVisible();
     await expect(page.getByText("5.00 MB", { exact: true })).toBeVisible();
@@ -156,7 +158,11 @@ test.describe("超级管理员控制台 - 存储与维护 (STORAGE) 及垃圾回
     await runGcBtn.click();
 
     // 9. 确认弹窗
-    const confirmBtn = page.locator('button:has-text("确认清理"), button:has-text("Confirm & Clean")').first();
+    const confirmBtn = page
+      .locator(
+        'button:has-text("确认清理"), button:has-text("Confirm & Clean")',
+      )
+      .first();
     await expect(confirmBtn).toBeVisible({ timeout: 5000 });
     await confirmBtn.click();
 

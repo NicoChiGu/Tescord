@@ -3,7 +3,7 @@ import {
   Search,
   X,
   Hash,
-  Lock,
+  ShieldCheck,
   ArrowRight,
   FileText,
   Image as ImageIcon,
@@ -453,7 +453,7 @@ export const SearchResultsDrawer: React.FC<SearchResultsDrawerProps> = ({
                 <div className="flex items-center justify-between text-xs text-discord-textMuted">
                   <div className="flex items-center space-x-1 truncate font-medium text-discord-textNormal">
                     {msg.isEncrypted ? (
-                      <Lock className="w-3 h-3 text-discord-green shrink-0" />
+                      <ShieldCheck className="w-3 h-3 text-discord-green shrink-0" />
                     ) : (
                       <Hash className="w-3 h-3 shrink-0" />
                     )}

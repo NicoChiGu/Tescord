@@ -34,6 +34,13 @@ interface ElectronAPI {
   onGlobalMuteToggle: (callback: () => void) => () => void;
   onGlobalDeafenToggle?: (callback: () => void) => () => void;
   onTriggerScreenCapture?: (callback: () => void) => () => void;
+  startScreenCapture?: () => Promise<boolean>;
+  onInsertCapturedImage?: (
+    callback: (data: { dataUrl: string }) => void,
+  ) => () => void;
+  openPasskeyAuth?: (
+    payload: import("@tescord/types").DesktopPasskeyAuthPayload,
+  ) => Promise<import("@tescord/types").DesktopPasskeyAuthResult>;
   registerKeybinds?: (
     keybinds: import("@tescord/types").KeybindConfig[],
   ) => Promise<import("@tescord/types").KeybindRegisterResponse>;

@@ -112,7 +112,8 @@ export class StorageGcService {
             att.previewUrl,
           );
           if (previewKey) {
-            const removed = await this.storageService.deleteStoredFile(previewKey);
+            const removed =
+              await this.storageService.deleteStoredFile(previewKey);
             if (removed) {
               deletedPhysicalFiles++;
               freedBytes += att.previewSize || 0;

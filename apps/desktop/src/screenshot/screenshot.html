@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tescord Screen Capture</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: transparent;
+      user-select: none;
+      cursor: crosshair;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    #canvas-container {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+    }
+    canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+    #toolbar {
+      position: absolute;
+      display: none;
+      align-items: center;
+      gap: 4px;
+      padding: 5px 8px;
+      background: rgba(30, 31, 34, 0.94);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(8px);
+      z-index: 100;
+      cursor: default;
+    }
+    .tool-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      border: none;
+      background: transparent;
+      color: #dbdee1;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      position: relative;
+    }
+    .tool-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #ffffff;
+    }
+    .tool-btn.active {
+      background: #5865f2;
+      color: #ffffff;
+    }
+    .tool-btn svg {
+      width: 16px;
+      height: 16px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+    .divider {
+      width: 1px;
+      height: 18px;
+      background: rgba(255, 255, 255, 0.15);
+      margin: 0 4px;
+    }
+    #size-badge {
+      position: absolute;
+      display: none;
+      padding: 3px 7px;
+      background: rgba(0, 0, 0, 0.75);
+      color: #ffffff;
+      font-size: 11px;
+      font-family: monospace;
+      border-radius: 4px;
+      pointer-events: none;
+      z-index: 99;
+    }
+    #text-input {
+      position: absolute;
+      display: none;
+      background: rgba(30, 31, 34, 0.9);
+      color: #ff3333;
+      border: 1px dashed #ff3333;
+      outline: none;
+      padding: 4px 6px;
+      font-size: 14px;
+      font-weight: 500;
+      border-radius: 4px;
+      z-index: 101;
+      min-width: 80px;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-container">
+    <canvas id="bg-canvas"></canvas>
+    <canvas id="draw-canvas"></canvas>
+    <canvas id="overlay-canvas"></canvas>
+  </div>
+
+  <div id="size-badge"></div>
+  <input id="text-input" type="text" />
+
+  <div id="toolbar">
+    <button class="tool-btn" data-tool="rect" id="btn-rect">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/></svg>
+    </button>
+    <button class="tool-btn" data-tool="arrow" id="btn-arrow">
+      <svg viewBox="0 0 24 24"><line x1="5" y1="19" x2="19" y2="5"/><polyline points="9 5 19 5 19 15"/></svg>
+    </button>
+    <button class="tool-btn" data-tool="pen" id="btn-pen">
+      <svg viewBox="0 0 24 24"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/><path d="M2 2l7.586 7.586"/></svg>
+    </button>
+    <button class="tool-btn" data-tool="mosaic" id="btn-mosaic">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+    </button>
+    <button class="tool-btn" data-tool="text" id="btn-text">
+      <svg viewBox="0 0 24 24"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+    </button>
+    <button class="tool-btn" id="btn-undo">
+      <svg viewBox="0 0 24 24"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-9-9 9 9 0 0 0-6 2.3L3 13"/></svg>
+    </button>
+
+    <div class="divider"></div>
+
+    <button class="tool-btn" id="btn-save">
+      <svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+    </button>
+    <button class="tool-btn" id="btn-copy">
+      <svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+    </button>
+    <button class="tool-btn" id="btn-send" style="color: #5865f2;">
+      <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </button>
+    <button class="tool-btn" id="btn-close" style="color: #f23f43;">
+      <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+
+  <script>
+    const bgCanvas = document.getElementById('bg-canvas');
+    const drawCanvas = document.getElementById('draw-canvas');
+    const overlayCanvas = document.getElementById('overlay-canvas');
+    const toolbar = document.getElementById('toolbar');
+    const sizeBadge = document.getElementById('size-badge');
+    const textInput = document.getElementById('text-input');
+
+    const bgCtx = bgCanvas.getContext('2d');
+    const drawCtx = drawCanvas.getContext('2d');
+    const overlayCtx = overlayCanvas.getContext('2d');
+
+    let screenImage = null;
+    let dpr = window.devicePixelRatio || 1;
+    let viewWidth = window.innerWidth;
+    let viewHeight = window.innerHeight;
+
+    let rect = null;
+    let isSelecting = false;
+    let activeHandle = null;
+    let isMoving = false;
+    let moveOffset = { x: 0, y: 0 };
+
+    let currentTool = null;
+    let isDrawingTool = false;
+    let toolStart = { x: 0, y: 0 };
+    let penPoints = [];
+    let historyStack = [];
+
+    const HANDLE_SIZE = 7;
+    const HANDLE_DETECT = 8;
+    const ANNOTATION_COLOR = '#ff3333';
+
+    function initCanvases(w, h) {
+      viewWidth = w;
+      viewHeight = h;
+      dpr = window.devicePixelRatio || 1;
+
+      [bgCanvas, drawCanvas, overlayCanvas].forEach(c => {
+        c.width = Math.round(w * dpr);
+        c.height = Math.round(h * dpr);
+        c.style.width = w + 'px';
+        c.style.height = h + 'px';
+      });
+
+      bgCtx.scale(dpr, dpr);
+      drawCtx.scale(dpr, dpr);
+      overlayCtx.scale(dpr, dpr);
+    }
+
+    if (window.screenshotAPI) {
+      window.screenshotAPI.onInit((data) => {
+        initCanvases(window.innerWidth, window.innerHeight);
+        if (data.i18n) applyI18n(data.i18n);
+
+        const img = new Image();
+        img.onload = () => {
+          screenImage = img;
+          bgCtx.drawImage(img, 0, 0, viewWidth, viewHeight);
+          renderOverlay();
+        };
+        img.src = data.imageSrc;
+      });
+    }
+
+    function applyI18n(dict) {
+      if (!dict) return;
+      document.getElementById('btn-rect').title = dict.rect || '矩形';
+      document.getElementById('btn-arrow').title = dict.arrow || '箭头';
+      document.getElementById('btn-pen').title = dict.pen || '画笔';
+      document.getElementById('btn-mosaic').title = dict.mosaic || '马赛克';
+      document.getElementById('btn-text').title = dict.text || '文字';
+      document.getElementById('btn-undo').title = dict.undo || '撤销';
+      document.getElementById('btn-save').title = dict.save || '保存图片';
+      document.getElementById('btn-copy').title = dict.copy || '复制';
+      document.getElementById('btn-send').title = dict.send || '发送到聊天';
+      document.getElementById('btn-close').title = dict.close || '退出';
+    }
+
+    function getNormalizedRect() {
+      if (!rect) return null;
+      const x = Math.min(rect.startX, rect.endX);
+      const y = Math.min(rect.startY, rect.endY);
+      const w = Math.abs(rect.endX - rect.startX);
+      const h = Math.abs(rect.endY - rect.startY);
+      return { x, y, w, h };
+    }
+
+    function renderOverlay() {
+      overlayCtx.clearRect(0, 0, viewWidth, viewHeight);
+      overlayCtx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      overlayCtx.fillRect(0, 0, viewWidth, viewHeight);
+
+      const norm = getNormalizedRect();
+      if (!norm || norm.w <= 0 || norm.h <= 0) {
+        toolbar.style.display = 'none';
+        sizeBadge.style.display = 'none';
+        return;
+      }
+
+      overlayCtx.clearRect(norm.x, norm.y, norm.w, norm.h);
+
+      overlayCtx.strokeStyle = '#5865f2';
+      overlayCtx.lineWidth = 2;
+      overlayCtx.strokeRect(norm.x, norm.y, norm.w, norm.h);
+
+      renderHandles(norm);
+      positionToolbarAndBadge(norm);
+    }
+
+    function renderHandles(n) {
+      const handles = getHandleCoordinates(n);
+      overlayCtx.fillStyle = '#ffffff';
+      overlayCtx.strokeStyle = '#5865f2';
+      overlayCtx.lineWidth = 1.5;
+
+      Object.values(handles).forEach(pt => {
+        overlayCtx.fillRect(pt.x - HANDLE_SIZE / 2, pt.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+        overlayCtx.strokeRect(pt.x - HANDLE_SIZE / 2, pt.y - HANDLE_SIZE / 2, HANDLE_SIZE, HANDLE_SIZE);
+      });
+    }
+
+    function getHandleCoordinates(n) {
+      return {
+        nw: { x: n.x, y: n.y },
+        n:  { x: n.x + n.w / 2, y: n.y },
+        ne: { x: n.x + n.w, y: n.y },
+        e:  { x: n.x + n.w, y: n.y + n.h / 2 },
+        se: { x: n.x + n.w, y: n.y + n.h },
+        s:  { x: n.x + n.w / 2, y: n.y + n.h },
+        sw: { x: n.x, y: n.y + n.h },
+        w:  { x: n.x, y: n.y + n.h / 2 },
+      };
+    }
+
+    function detectHandle(x, y) {
+      const norm = getNormalizedRect();
+      if (!norm) return null;
+      const handles = getHandleCoordinates(norm);
+      for (const [key, pt] of Object.entries(handles)) {
+        if (Math.abs(x - pt.x) <= HANDLE_DETECT && Math.abs(y - pt.y) <= HANDLE_DETECT) {
+          return key;
+        }
+      }
+      return null;
+    }
+
+    function isPointInRect(x, y, n) {
+      return n && x >= n.x && x <= n.x + n.w && y >= n.y && y <= n.y + n.h;
+    }
+
+    function positionToolbarAndBadge(n) {
+      sizeBadge.textContent = `${Math.round(n.w)} × ${Math.round(n.h)}`;
+      sizeBadge.style.display = 'block';
+      sizeBadge.style.left = `${n.x}px`;
+      sizeBadge.style.top = `${Math.max(8, n.y - 24)}px`;
+
+      toolbar.style.display = 'flex';
+      const tbWidth = toolbar.offsetWidth || 340;
+      let left = n.x + n.w - tbWidth;
+      if (left < 10) left = 10;
+      if (left + tbWidth > viewWidth - 10) left = viewWidth - tbWidth - 10;
+
+      let top = n.y + n.h + 8;
+      if (top + 45 > viewHeight) {
+        top = n.y - 45;
+        if (top < 10) top = n.y + 10;
+      }
+
+      toolbar.style.left = `${left}px`;
+      toolbar.style.top = `${top}px`;
+    }
+
+    function saveHistory() {
+      historyStack.push(drawCtx.getImageData(0, 0, drawCanvas.width, drawCanvas.height));
+      if (historyStack.length > 20) historyStack.shift();
+    }
+
+    function undoLast() {
+      if (historyStack.length > 0) {
+        const last = historyStack.pop();
+        drawCtx.putImageData(last, 0, 0);
+      }
+    }
+
+    window.addEventListener('mousedown', (e) => {
+      if (e.target.closest('#toolbar') || e.target === textInput) return;
+      if (textInput.style.display === 'block') {
+        commitText();
+        return;
+      }
+
+      const x = e.clientX;
+      const y = e.clientY;
+      const norm = getNormalizedRect();
+
+      if (e.button === 2) {
+        if (norm) {
+          rect = null;
+          drawCtx.clearRect(0, 0, viewWidth, viewHeight);
+          historyStack = [];
+          currentTool = null;
+          updateToolButtons();
+          renderOverlay();
+        } else {
+          window.screenshotAPI?.cancel();
+        }
+        return;
+      }
+
+      if (norm) {
+        const handle = detectHandle(x, y);
+        if (handle) {
+          activeHandle = handle;
+          return;
+        }
+
+        if (currentTool && isPointInRect(x, y, norm)) {
+          isDrawingTool = true;
+          toolStart = { x, y };
+          if (currentTool === 'pen' || currentTool === 'mosaic') {
+            saveHistory();
+            penPoints = [{ x, y }];
+            if (currentTool === 'mosaic') applyMosaicAt(x, y);
+          }
+          if (currentTool === 'text') {
+            openTextInput(x, y);
+          }
+          return;
+        }
+
+        if (!currentTool && isPointInRect(x, y, norm)) {
+          isMoving = true;
+          moveOffset = { x: x - norm.x, y: y - norm.y };
+          return;
+        }
+      }
+
+      rect = { startX: x, startY: y, endX: x, endY: y };
+      isSelecting = true;
+      currentTool = null;
+      updateToolButtons();
+      drawCtx.clearRect(0, 0, viewWidth, viewHeight);
+      historyStack = [];
+      renderOverlay();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      const x = e.clientX;
+      const y = e.clientY;
+      const norm = getNormalizedRect();
+
+      if (activeHandle && rect) {
+        if (activeHandle.includes('w')) rect.startX = x;
+        if (activeHandle.includes('e')) rect.endX = x;
+        if (activeHandle.includes('n')) rect.startY = y;
+        if (activeHandle.includes('s')) rect.endY = y;
+        renderOverlay();
+        return;
+      }
+
+      if (isMoving && rect) {
+        const w = norm.w;
+        const h = norm.h;
+        let nextX = x - moveOffset.x;
+        let nextY = y - moveOffset.y;
+        nextX = Math.max(0, Math.min(viewWidth - w, nextX));
+        nextY = Math.max(0, Math.min(viewHeight - h, nextY));
+        rect = { startX: nextX, startY: nextY, endX: nextX + w, endY: nextY + h };
+        renderOverlay();
+        return;
+      }
+
+      if (isSelecting && rect) {
+        rect.endX = x;
+        rect.endY = y;
+        renderOverlay();
+        return;
+      }
+
+      if (isDrawingTool && currentTool) {
+        renderOverlay();
+        drawCtx.save();
+        drawCtx.beginPath();
+        drawCtx.rect(norm.x, norm.y, norm.w, norm.h);
+        drawCtx.clip();
+
+        if (currentTool === 'pen') {
+          drawCtx.strokeStyle = ANNOTATION_COLOR;
+          drawCtx.lineWidth = 3;
+          drawCtx.lineCap = 'round';
+          drawCtx.lineJoin = 'round';
+          drawCtx.beginPath();
+          drawCtx.moveTo(penPoints[penPoints.length - 1].x, penPoints[penPoints.length - 1].y);
+          drawCtx.lineTo(x, y);
+          drawCtx.stroke();
+          penPoints.push({ x, y });
+        } else if (currentTool === 'mosaic') {
+          applyMosaicAt(x, y);
+        } else if (currentTool === 'rect') {
+          overlayCtx.strokeStyle = ANNOTATION_COLOR;
+          overlayCtx.lineWidth = 3;
+          overlayCtx.strokeRect(toolStart.x, toolStart.y, x - toolStart.x, y - toolStart.y);
+        } else if (currentTool === 'arrow') {
+          drawArrow(overlayCtx, toolStart.x, toolStart.y, x, y, ANNOTATION_COLOR);
+        }
+        drawCtx.restore();
+        return;
+      }
+
+      if (norm) {
+        const handle = detectHandle(x, y);
+        if (handle) {
+          if (handle === 'nw' || handle === 'se') document.body.style.cursor = 'nwse-resize';
+          else if (handle === 'ne' || handle === 'sw') document.body.style.cursor = 'nesw-resize';
+          else if (handle === 'n' || handle === 's') document.body.style.cursor = 'ns-resize';
+          else if (handle === 'w' || handle === 'e') document.body.style.cursor = 'ew-resize';
+          return;
+        }
+
+        if (isPointInRect(x, y, norm)) {
+          document.body.style.cursor = currentTool ? 'crosshair' : 'move';
+          return;
+        }
+      }
+
+      document.body.style.cursor = 'crosshair';
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (activeHandle) activeHandle = null;
+      if (isMoving) isMoving = false;
+
+      if (isSelecting) {
+        isSelecting = false;
+        const norm = getNormalizedRect();
+        if (!norm || norm.w < 10 || norm.h < 10) {
+          rect = null;
+        }
+        renderOverlay();
+      }
+
+      if (isDrawingTool && currentTool) {
+        isDrawingTool = false;
+        const norm = getNormalizedRect();
+        const x = e.clientX;
+        const y = e.clientY;
+
+        if (currentTool === 'rect' || currentTool === 'arrow') {
+          saveHistory();
+          drawCtx.save();
+          drawCtx.beginPath();
+          drawCtx.rect(norm.x, norm.y, norm.w, norm.h);
+          drawCtx.clip();
+
+          if (currentTool === 'rect') {
+            drawCtx.strokeStyle = ANNOTATION_COLOR;
+            drawCtx.lineWidth = 3;
+            drawCtx.strokeRect(toolStart.x, toolStart.y, x - toolStart.x, y - toolStart.y);
+          } else if (currentTool === 'arrow') {
+            drawArrow(drawCtx, toolStart.x, toolStart.y, x, y, ANNOTATION_COLOR);
+          }
+          drawCtx.restore();
+          renderOverlay();
+        }
+      }
+    });
+
+    window.addEventListener('dblclick', (e) => {
+      const norm = getNormalizedRect();
+      if (norm && isPointInRect(e.clientX, e.clientY, norm)) {
+        triggerCopy();
+      }
+    });
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        window.screenshotAPI?.cancel();
+      } else if (e.key === 'Enter') {
+        if (textInput.style.display === 'block') {
+          commitText();
+        } else {
+          triggerCopy();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        undoLast();
+      }
+    });
+
+    function drawArrow(ctx, fromX, fromY, toX, toY, color) {
+      const headlen = 12;
+      const angle = Math.atan2(toY - fromY, toX - fromX);
+      ctx.strokeStyle = color;
+      ctx.fillStyle = color;
+      ctx.lineWidth = 3;
+
+      ctx.beginPath();
+      ctx.moveTo(fromX, fromY);
+      ctx.lineTo(toX, toY);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(toX, toY);
+      ctx.lineTo(toX - headlen * Math.cos(angle - Math.PI / 6), toY - headlen * Math.sin(angle - Math.PI / 6));
+      ctx.lineTo(toX - headlen * Math.cos(angle + Math.PI / 6), toY - headlen * Math.sin(angle + Math.PI / 6));
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    function applyMosaicAt(centerX, centerY) {
+      const norm = getNormalizedRect();
+      if (!norm) return;
+      const radius = 16;
+      const blockSize = 8;
+
+      const sx = Math.max(norm.x, centerX - radius);
+      const sy = Math.max(norm.y, centerY - radius);
+      const sw = Math.min(norm.x + norm.w - sx, radius * 2);
+      const sh = Math.min(norm.y + norm.h - sy, radius * 2);
+      if (sw <= 0 || sh <= 0) return;
+
+      const rawData = bgCtx.getImageData(sx * dpr, sy * dpr, sw * dpr, sh * dpr);
+      const data = rawData.data;
+      const pixelWidth = rawData.width;
+      const pixelHeight = rawData.height;
+      const actualBlock = Math.round(blockSize * dpr);
+
+      for (let y = 0; y < pixelHeight; y += actualBlock) {
+        for (let x = 0; x < pixelWidth; x += actualBlock) {
+          let r = 0, g = 0, b = 0, count = 0;
+          for (let by = 0; by < actualBlock && y + by < pixelHeight; by++) {
+            for (let bx = 0; bx < actualBlock && x + bx < pixelWidth; bx++) {
+              const idx = ((y + by) * pixelWidth + (x + bx)) * 4;
+              r += data[idx];
+              g += data[idx + 1];
+              b += data[idx + 2];
+              count++;
+            }
+          }
+          r = Math.round(r / count);
+          g = Math.round(g / count);
+          b = Math.round(b / count);
+
+          drawCtx.fillStyle = `rgb(${r},${g},${b})`;
+          drawCtx.fillRect(sx + x / dpr, sy + y / dpr, actualBlock / dpr, actualBlock / dpr);
+        }
+      }
+    }
+
+    function openTextInput(x, y) {
+      textInput.style.display = 'block';
+      textInput.style.left = `${x}px`;
+      textInput.style.top = `${y}px`;
+      textInput.value = '';
+      textInput.focus();
+    }
+
+    function commitText() {
+      const val = textInput.value.trim();
+      const x = parseFloat(textInput.style.left);
+      const y = parseFloat(textInput.style.top);
+      textInput.style.display = 'none';
+
+      if (val) {
+        saveHistory();
+        drawCtx.font = 'bold 16px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+        drawCtx.fillStyle = ANNOTATION_COLOR;
+        drawCtx.fillText(val, x, y + 16);
+      }
+    }
+
+    function updateToolButtons() {
+      document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.tool === currentTool);
+      });
+    }
+
+    document.querySelectorAll('.tool-btn[data-tool]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tool = btn.dataset.tool;
+        currentTool = currentTool === tool ? null : tool;
+        updateToolButtons();
+      });
+    });
+
+    document.getElementById('btn-undo').addEventListener('click', undoLast);
+    document.getElementById('btn-close').addEventListener('click', () => window.screenshotAPI?.cancel());
+    document.getElementById('btn-copy').addEventListener('click', triggerCopy);
+    document.getElementById('btn-send').addEventListener('click', triggerSend);
+    document.getElementById('btn-save').addEventListener('click', triggerSave);
+
+    function exportCroppedDataUrl() {
+      const norm = getNormalizedRect();
+      if (!norm || norm.w <= 0 || norm.h <= 0) return null;
+
+      const out = document.createElement('canvas');
+      out.width = Math.round(norm.w * dpr);
+      out.height = Math.round(norm.h * dpr);
+      const ctx = out.getContext('2d');
+
+      ctx.drawImage(bgCanvas, norm.x * dpr, norm.y * dpr, norm.w * dpr, norm.h * dpr, 0, 0, out.width, out.height);
+      ctx.drawImage(drawCanvas, norm.x * dpr, norm.y * dpr, norm.w * dpr, norm.h * dpr, 0, 0, out.width, out.height);
+      return out.toDataURL('image/png');
+    }
+
+    function triggerCopy() {
+      const dataUrl = exportCroppedDataUrl();
+      if (dataUrl) window.screenshotAPI?.copyImage(dataUrl);
+    }
+
+    function triggerSend() {
+      const dataUrl = exportCroppedDataUrl();
+      if (dataUrl) window.screenshotAPI?.sendImage(dataUrl);
+    }
+
+    function triggerSave() {
+      const dataUrl = exportCroppedDataUrl();
+      if (dataUrl) window.screenshotAPI?.saveImage(dataUrl);
+    }
+  </script>
+</body>
+</html>

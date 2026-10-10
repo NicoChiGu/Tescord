@@ -459,7 +459,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
       confirmText: t("auth:logoutConfirmTitle", "退出登录"),
     });
     if (confirmed) {
-      logout();
+      await logout();
       onClose();
     }
   };
