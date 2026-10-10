@@ -1062,9 +1062,6 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                   {t("settings:audioVideo.badgeRecommended")}
                 </span>
               </div>
-              <p className="text-[11px] text-discord-textMuted leading-relaxed">
-                {t("settings:audioVideo.rnnoiseDescDetailed")}
-              </p>
             </div>
             <div className="mt-3 text-[10px] text-gray-400 font-medium">
               {t("settings:audioVideo.rnnoiseSuitable")}
@@ -1091,9 +1088,6 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                   {t("settings:audioVideo.badgeKeyboard")}
                 </span>
               </div>
-              <p className="text-[11px] text-discord-textMuted leading-relaxed">
-                {t("settings:audioVideo.dtlnDescDetailed")}
-              </p>
             </div>
             <div className="mt-3 text-[10px] text-gray-400 font-medium">
               {t("settings:audioVideo.dtlnSuitable")}
@@ -1120,9 +1114,6 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                   {t("settings:audioVideo.badgeFullBand")}
                 </span>
               </div>
-              <p className="text-[11px] text-discord-textMuted leading-relaxed">
-                {t("settings:audioVideo.dfn3DescDetailed")}
-              </p>
             </div>
             <div className="mt-3 text-[10px] text-gray-400 font-medium">
               {t("settings:audioVideo.dfn3Suitable")}
@@ -1146,9 +1137,6 @@ export const AudioSettingsTab: React.FC<AudioSettingsTabProps> = ({
                   <span>{t("settings:audioVideo.noiseOffTitle")}</span>
                 </span>
               </div>
-              <p className="text-[11px] text-discord-textMuted leading-relaxed">
-                {t("settings:audioVideo.noiseOffDesc")}
-              </p>
             </div>
             <div className="mt-3 text-[10px] text-gray-400 font-medium">
               {t("settings:audioVideo.noiseOffSuitable")}

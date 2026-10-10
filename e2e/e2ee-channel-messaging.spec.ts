@@ -45,15 +45,15 @@ test.describe("端到端双棘轮加密频道消息收发与查看验收 (E2EE C
     await expect(e2eeHeaderBtn).toBeVisible({ timeout: 10000 });
     await expect(e2eeHeaderBtn).toContainText("端加密");
 
-    // 4. 点击端加密按钮验证安全验证码模态框包含 Beta 提示
+    // 4. 点击端加密按钮验证安全密钥模态框
     await e2eeHeaderBtn.click();
-    const safetyModal = page.locator('text="端到端双棘轮安全验证码"');
+    const safetyModal = page.locator('text="安全密钥"');
     await expect(safetyModal).toBeVisible();
-    const betaNotice = page.locator('text="实验性功能提示 (Beta)"');
-    await expect(betaNotice).toBeVisible();
+    const keyLabel = page.locator('text="密钥"');
+    await expect(keyLabel).toBeVisible();
 
     // 关闭模态框
-    const closeBtn = page.locator('button:has-text("确认并关闭")');
+    const closeBtn = page.locator('button:has-text("关闭")');
     await closeBtn.click();
     await expect(safetyModal).not.toBeVisible();
 

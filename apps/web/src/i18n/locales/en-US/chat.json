@@ -17,6 +17,8 @@
   "e2eeDecrypted": "Decrypted",
   "e2eeProtected": "🔒 [End-to-End Encrypted Message: Protected by Double Ratchet]",
   "e2eeCorrupted": "⚠️ [End-to-End Encrypted Message is corrupted or truncated and cannot be decrypted]",
+  "securityKeyModalTitle": "Security Key",
+  "securityKey": "Key",
   "messageTooLarge": "Message exceeds maximum length limit ({{max}} characters)",
   "encryptedMessageTooLarge": "Encrypted message envelope exceeds size limit (256KB). Consider sending as a file attachment.",
   "historyDivider": "NEW MESSAGES BELOW",

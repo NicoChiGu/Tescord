@@ -224,7 +224,7 @@ export const SecuritySettingsTab: React.FC = () => {
     const password = await dialog.prompt({
       title: t("settings:deletePasskeyTitle", { defaultValue: "解绑通行密钥" }),
       description: t("settings:deletePasskeyDesc", {
-        defaultValue: `确定要移除「${passkey.name}」吗？移除后将无法使用该设备生物识别登录。为保证安全，请输入当前账号密码：`,
+        defaultValue: `确定要移除「${passkey.name}」吗？请输入当前账号密码以确认：`,
       }),
       placeholder: t("auth:password", { defaultValue: "当前账号密码" }),
       confirmText: t("common:delete", { defaultValue: "确认解除绑定" }),
@@ -308,8 +308,7 @@ export const SecuritySettingsTab: React.FC = () => {
         </h2>
         <p className="text-xs text-discord-textMuted mt-1">
           {t("settings:securityAndPasskeysDesc", {
-            defaultValue:
-              "管理绑定的生物识别与硬件安全密钥，使用 Touch ID、Windows Hello 或 YubiKey 免密极速登录。",
+            defaultValue: "管理用于快捷登录的通行密钥。",
           })}
         </p>
       </div>
@@ -326,8 +325,7 @@ export const SecuritySettingsTab: React.FC = () => {
             </p>
             <p className="text-amber-200/80 leading-relaxed">
               {t("settings:passkeyUnsupportedNotice", {
-                defaultValue:
-                  "检测到当前运行环境未开启或不支持 WebAuthn 硬件凭据标准。如需体验指纹/面容免密登录，请使用现代浏览器（Chrome、Edge、Safari、Firefox）访问 Tescord Web 客户端。",
+                defaultValue: "当前运行环境不支持通行密钥免密登录。",
               })}
             </p>
           </div>
@@ -352,12 +350,6 @@ export const SecuritySettingsTab: React.FC = () => {
                   {passkeys.length}
                 </span>
               </h3>
-              <p className="text-xs text-discord-textMuted mt-0.5">
-                {t("settings:passkeysSectionDesc", {
-                  defaultValue:
-                    "绑定的凭证将存储在您受信任设备的硬件安全区（Secure Enclave / TPM）中。",
-                })}
-              </p>
             </div>
           </div>
 
@@ -397,8 +389,7 @@ export const SecuritySettingsTab: React.FC = () => {
             </p>
             <p className="text-[11px] text-gray-500 max-w-sm">
               {t("settings:noPasskeysHint", {
-                defaultValue:
-                  "点击上方「添加通行密钥」按钮，即可为当前电脑、手机或硬件安全密钥配置免密登录。",
+                defaultValue: "点击上方按钮即可添加通行密钥。",
               })}
             </p>
           </div>

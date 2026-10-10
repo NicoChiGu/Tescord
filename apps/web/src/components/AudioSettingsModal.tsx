@@ -298,7 +298,7 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
                     )}
                   </div>
                   <p className="text-[10px] text-discord-textMuted">
-                    原始麦克风直通，适合安静录音室或硬件声卡降噪
+                    适合安静录音室或硬件声卡降噪
                   </p>
                 </div>
               </button>
@@ -323,7 +323,7 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
                       )}
                   </div>
                   <p className="text-[10px] text-discord-textMuted">
-                    48 kHz 轻量实时降噪，适合日常语音通话
+                    适合绝大部分日常开黑与会议
                   </p>
                 </div>
               </button>
@@ -349,7 +349,7 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
                     </span>
                   </div>
                   <p className="text-[10px] text-discord-textMuted">
-                    双阶段 LSTM，经重采样接入 48 kHz 通话
+                    建议结合自己的麦克风与噪声试听
                   </p>
                 </div>
               </button>
@@ -375,7 +375,7 @@ export const AudioSettingsModal: React.FC<AudioSettingsModalProps> = ({
                     </span>
                   </div>
                   <p className="text-[10px] text-discord-textMuted">
-                    48 kHz 复数深度滤波，默认最大衰减 12 dB
+                    可与原声和其他模型试听比较
                   </p>
                 </div>
               </button>

@@ -3287,7 +3287,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
         />
       </div>
 
-      {/* 阶段五：端到端双棘轮密钥安全码与加密指纹模态框 */}
       {showFingerprintModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm animate-fade-in">
           <div className="bg-[#313338] text-discord-textNormal w-full max-w-md rounded-lg shadow-2xl overflow-hidden border border-[#3f4147] p-6">
@@ -3295,7 +3294,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
               <div className="flex items-center space-x-2 text-discord-green">
                 <ShieldCheck className="w-5 h-5" />
                 <h3 className="font-bold text-discord-textHeader text-base">
-                  端到端双棘轮安全验证码
+                  {t("chat:securityKeyModalTitle", "安全密钥")}
                 </h3>
               </div>
               <button
@@ -3307,40 +3306,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
             </div>
 
             <div className="py-4 space-y-3 text-xs text-discord-textMuted">
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded p-2.5 text-[11px] text-amber-300">
-                ⚠️ <strong>实验性功能提示 (Beta)</strong>
-                ：当前频道采用双棘轮密文信封防网络嗅探与服务端直读；基于用户设备私钥的多方动态树状握手协议正在持续演进中。
-              </div>
-              <p>
-                当前频道已激活{" "}
-                <b className="text-discord-textHeader">
-                  Signal Double Ratchet (双棘轮)
-                </b>{" "}
-                算法。消息由 ECDH P-256 临时公钥协商派生一次一密 (One-Time
-                Message Key) 封装。
-              </p>
               <div className="bg-[#1e1f22] p-3 rounded-lg border border-[#2b2d31]">
                 <div className="text-[11px] text-discord-textMuted mb-1">
-                  安全指纹校验码 (Safety Number / Key Fingerprint):
+                  {t("chat:securityKey", "密钥")}
                 </div>
                 <div className="font-mono text-sm tracking-widest text-discord-green font-bold select-all">
                   {safetyNumber}
                 </div>
               </div>
-              <ul className="list-disc pl-4 space-y-1 text-[11px]">
-                <li>
-                  前向保密性 (Forward
-                  Secrecy)：旧消息密钥阅后即焚，无法推演后续通信。
-                </li>
-                <li>
-                  破后自愈 (Break-in Recovery)：每轮会话触发 DH
-                  棘轮，密钥泄漏自动恢复安全。
-                </li>
-                <li>
-                  服务端盲中继：数据库仅存 JSON
-                  密文信封，管理员无法查看任何明文。
-                </li>
-              </ul>
             </div>
 
             <div className="pt-2 flex justify-end">
@@ -3348,7 +3321,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({
                 onClick={() => setShowFingerprintModal(false)}
                 className="bg-discord-brand hover:bg-discord-brandHover text-white px-4 py-1.5 rounded text-xs font-semibold"
               >
-                确认并关闭
+                {t("common:close", "关闭")}
               </button>
             </div>
           </div>

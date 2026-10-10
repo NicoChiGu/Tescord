@@ -17,6 +17,8 @@
   "e2eeDecrypted": "復号済み",
   "e2eeProtected": "🔒 [エンドツーエンド暗号化メッセージ：Double Ratchetにより保護されています]",
   "e2eeCorrupted": "⚠️ [エンドツーエンド暗号化メッセージが破損または切断されているため、復号できません]",
+  "securityKeyModalTitle": "セキュリティキー",
+  "securityKey": "キー",
   "messageTooLarge": "メッセージが最大文字数制限（{{max}}文字）を超えています",
   "encryptedMessageTooLarge": "暗号化エンベロープがサイズ制限（256KB）を超えています。ファイル添付としての送信をご検討ください。",
   "historyDivider": "ここから新しいメッセージ",

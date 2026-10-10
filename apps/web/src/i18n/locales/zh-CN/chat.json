@@ -17,6 +17,8 @@
   "e2eeDecrypted": "已解密",
   "e2eeProtected": "🔒 [端到端加密消息：已通过双棘轮密文保护]",
   "e2eeCorrupted": "⚠️ [端到端加密消息已损坏或被截断，无法解密]",
+  "securityKeyModalTitle": "安全密钥",
+  "securityKey": "密钥",
   "messageTooLarge": "消息内容超过最大字符限制 ({{max}}字)",
   "encryptedMessageTooLarge": "加密消息信封体积超出系统限制 (256KB)，建议作为文件附件发送",
   "historyDivider": "以下是新消息",
