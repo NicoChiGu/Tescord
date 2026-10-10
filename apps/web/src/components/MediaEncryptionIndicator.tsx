@@ -6,14 +6,30 @@ import { getErrorMessage } from "../i18n/index.js";
 
 export function MediaEncryptionIndicator({
   showCounters = true,
+  visuallyHidden = false,
 }: {
   showCounters?: boolean;
+  visuallyHidden?: boolean;
 }) {
   const { t } = useTranslation("voice");
   const [state, setState] = useState(() => mediaEncryptionService.getState());
   useEffect(() => mediaEncryptionService.onState(setState), []);
   const phase =
     !state.contextId && state.phase !== "failed" ? "inactive" : state.phase;
+
+  if (visuallyHidden) {
+    return (
+      <div
+        data-testid="media-encryption-state"
+        data-phase={phase}
+        data-encrypted-frames={state.framesEncrypted}
+        data-decrypted-frames={state.framesDecrypted}
+        className="hidden"
+        aria-hidden="true"
+      />
+    );
+  }
+
   return (
     <div
       data-testid="media-encryption-state"

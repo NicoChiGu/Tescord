@@ -7,10 +7,10 @@
   "disconnect": "中斷連線",
   "kickedFromVoiceNotice": "你已被管理員移出語音頻道",
   "disconnectSuccess": "已將成員移出語音頻道",
-  "muteMic": "靜音",
-  "unmuteMic": "取消靜音",
-  "deafen": "閉咪拒聽",
-  "undeafen": "開啟揚聲器",
+  "muteMic": "閉咪",
+  "unmuteMic": "開咪",
+  "deafen": "靜音",
+  "undeafen": "取消靜音",
   "screenShare": "螢幕共享",
   "stopScreenShare": "停止共享",
   "stopLiveStream": "停止直播",
@@ -244,11 +244,11 @@
     "capture_failed": "分享聲音擷取已中斷，畫面分享仍繼續"
   },
   "mediaEncryption": {
-    "inactive": "媒體加密尚未連線",
-    "negotiating": "正在協商端對端加密",
-    "ready": "加密已就緒，等候媒體",
-    "active": "實際媒體已端對端加密",
-    "failed": "媒體加密失敗，已停止傳輸",
+    "inactive": "未啟用",
+    "negotiating": "協商中",
+    "ready": "已就緒",
+    "active": "已啟用",
+    "failed": "連線異常",
     "counts": "已加密 {{encrypted}} 影格 · 已解密 {{decrypted}} 影格"
   },
   "audioQuality": {

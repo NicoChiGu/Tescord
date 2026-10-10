@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { User, UserStatus, Activity } from "@tescord/types";
 import { resolveServerUrl } from "../../config.js";
 import { StatusBadge } from "../ui/StatusBadge.js";
@@ -40,6 +41,7 @@ export const ProfileCardPreview: React.FC<ProfileCardPreviewProps> = ({
   showActivity = true,
   activeGame,
 }) => {
+  const { t, i18n } = useTranslation(["settings", "common"]);
   // 实时游玩计时器
   const [elapsedMinutes, setElapsedMinutes] = useState(1);
 
@@ -74,9 +76,9 @@ export const ProfileCardPreview: React.FC<ProfileCardPreviewProps> = ({
   return (
     <div className="w-full max-w-[340px] select-none text-[#dbdee1] font-sans">
       <div className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-2 flex items-center justify-between">
-        <span>预览效果 (PREVIEW)</span>
+        <span>{t("settings:profilePreview")}</span>
         <span className="text-[10px] text-[#5865f2] lowercase font-normal">
-          1:1 动态展示
+          {t("settings:profileLivePreview")}
         </span>
       </div>
 
@@ -105,13 +107,13 @@ export const ProfileCardPreview: React.FC<ProfileCardPreviewProps> = ({
           {/* 右上角勋章装饰 */}
           <div className="flex items-center gap-1.5 p-1 rounded-full bg-black/40 backdrop-blur-sm border border-white/10">
             <span
-              title="Tescord 特别徽章"
+              title={t("settings:specialBadge")}
               className="flex items-center text-amber-300"
             >
               <Sparkles className="w-3.5 h-3.5" />
             </span>
             <span
-              title="已认证用户"
+              title={t("settings:authenticatedUser")}
               className="flex items-center text-[#5865f2]"
             >
               <ShieldCheck className="w-3.5 h-3.5" />
@@ -197,7 +199,7 @@ export const ProfileCardPreview: React.FC<ProfileCardPreviewProps> = ({
             >
               <div className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
                 <Gamepad2 className="w-3.5 h-3.5" />
-                <span>正在游玩 (PLAYING A GAME)</span>
+                <span>{t("settings:playingGame")}</span>
               </div>
               <div className="flex items-center gap-3">
                 <div className="w-11 h-11 rounded-lg bg-[#2b2d31] flex items-center justify-center flex-shrink-0 border border-white/5 shadow-inner">
@@ -214,7 +216,7 @@ export const ProfileCardPreview: React.FC<ProfileCardPreviewProps> = ({
                   )}
                   <div className="text-[10px] text-emerald-400/90 font-medium flex items-center gap-1 mt-0.5">
                     <Clock className="w-3 h-3" />
-                    <span>已游玩 {elapsedMinutes} 分钟</span>
+                    <span>{t("settings:playedMinutes", { count: elapsedMinutes })}</span>
                   </div>
                 </div>
               </div>
@@ -224,7 +226,7 @@ export const ProfileCardPreview: React.FC<ProfileCardPreviewProps> = ({
           {/* 如果关闭了 showActivity 或未在玩游戏时的提示 */}
           {!showActivity && (
             <div className="p-2.5 rounded-lg bg-[#111214]/40 border border-white/5 text-[11px] text-[#80848e] italic text-center">
-              游戏状态已设置为隐藏
+              {t("settings:gameActivityHidden")}
             </div>
           )}
 
@@ -232,14 +234,14 @@ export const ProfileCardPreview: React.FC<ProfileCardPreviewProps> = ({
           <div className="p-3 rounded-xl bg-[#111214]/60 border border-white/5 space-y-2 text-xs">
             <div>
               <div className="text-[10px] font-extrabold uppercase tracking-wider text-[#b5bac1] mb-1">
-                关于我 (ABOUT ME)
+                {t("settings:aboutMe")}
               </div>
               <div className="text-[#dbdee1] leading-relaxed whitespace-pre-wrap break-words min-h-[32px]">
                 {bio ? (
                   bio
                 ) : (
                   <span className="text-[#80848e] italic">
-                    这个人很神秘，什么都还没写...
+                    {t("settings:bioPlaceholderEmpty")}
                   </span>
                 )}
               </div>
@@ -249,9 +251,9 @@ export const ProfileCardPreview: React.FC<ProfileCardPreviewProps> = ({
               <div className="flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-[#5865f2]" />
                 <span>
-                  注册于：
+                  {t("settings:registeredAt")}
                   {new Date(user.createdAt || Date.now()).toLocaleDateString(
-                    "zh-CN",
+                    i18n.language || "zh-CN",
                   )}
                 </span>
               </div>

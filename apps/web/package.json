@@ -19,6 +19,7 @@
     "@tanstack/react-virtual": "^3.13.2",
     "@tescord/types": "workspace:*",
     "clsx": "^2.1.1",
+    "framer-motion": "^14.0.0",
     "i18next": "^26.4.2",
     "i18next-browser-languagedetector": "^8.2.1",
     "idb": "^8.0.2",

@@ -7,10 +7,10 @@
   "disconnect": "断开连接",
   "kickedFromVoiceNotice": "您已被管理员移出语音频道",
   "disconnectSuccess": "已将成员移出语音频道",
-  "muteMic": "静音",
-  "unmuteMic": "取消静音",
-  "deafen": "闭麦拒听",
-  "undeafen": "开启扬声器",
+  "muteMic": "闭麦",
+  "unmuteMic": "开麦",
+  "deafen": "静音",
+  "undeafen": "取消静音",
   "screenShare": "屏幕共享",
   "stopScreenShare": "停止共享",
   "stopLiveStream": "停止直播",
@@ -244,11 +244,11 @@
     "capture_failed": "共享声音捕获已中断，画面共享仍继续"
   },
   "mediaEncryption": {
-    "inactive": "媒体加密尚未连接",
-    "negotiating": "正在协商端到端加密",
-    "ready": "加密已就绪，等待媒体",
-    "active": "实际媒体已端到端加密",
-    "failed": "媒体加密失败，已停止传输",
+    "inactive": "未启用",
+    "negotiating": "协商中",
+    "ready": "已就绪",
+    "active": "已启用",
+    "failed": "连接异常",
     "counts": "已加密 {{encrypted}} 帧 · 已解密 {{decrypted}} 帧"
   },
   "audioQuality": {

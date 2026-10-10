@@ -615,7 +615,7 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
                     maxLength={100}
                     value={customStatusInput}
                     onChange={(e) => setCustomStatusInput(e.target.value)}
-                    placeholder="设定状态..."
+                    placeholder={t("settings:setStatusPlaceholder")}
                     className="w-full bg-transparent text-xs text-white placeholder-[#80848e] focus:outline-none pr-11"
                   />
                   <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
@@ -623,7 +623,7 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
                       type="submit"
                       disabled={isSavingStatus}
                       className="p-1 text-emerald-400 hover:text-emerald-300 disabled:opacity-40"
-                      title="保存状态 (Enter)"
+                      title={t("settings:saveStatusTitle")}
                     >
                       <Check className="w-3 h-3" />
                     </button>
@@ -634,7 +634,7 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
                         setCustomStatusInput(currentUser.customStatus || "");
                       }}
                       className="p-1 text-gray-400 hover:text-gray-300"
-                      title="取消 (Esc)"
+                      title={t("settings:cancelStatusTitle")}
                     >
                       <X className="w-3 h-3" />
                     </button>
@@ -644,11 +644,11 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
                 <div
                   onClick={() => setIsEditingStatus(true)}
                   className="group/bubble cursor-pointer bg-[#2b2d31] hover:bg-[#313338] border border-white/5 rounded-2xl px-3 py-1.5 shadow transition-all flex items-center gap-1.5 max-w-full"
-                  title="点击即时设定/修改个性状态"
+                  title={t("settings:clickToSetStatus")}
                 >
                   <Plus className="w-3 h-3 text-[#949ba4] group-hover/bubble:text-white flex-shrink-0" />
                   <span className="text-xs text-[#dbdee1] group-hover/bubble:text-white truncate">
-                    {currentUser.customStatus || "刚刚读完..."}
+                    {currentUser.customStatus || t("settings:statusDefaultFallback")}
                   </span>
                 </div>
               )}
@@ -677,8 +677,8 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
                 }`}
                 title={
                   currentUserNote
-                    ? `备注: ${currentUserNote} (点击编辑)`
-                    : "添加备注"
+                    ? t("settings:editNote", { note: currentUserNote })
+                    : t("settings:addNote")
                 }
                 onClick={(e) => {
                   e.stopPropagation();
@@ -698,7 +698,7 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
             <div className="flex items-center gap-1 ml-0.5">
               {isOwner && (
                 <span
-                  title="服务器所有者"
+                  title={t("settings:serverOwner")}
                   className="text-amber-400 flex items-center"
                 >
                   <Crown className="w-3.5 h-3.5 fill-amber-400/30" />
@@ -706,7 +706,7 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
               )}
               {user.role === "SUPER_ADMIN" && (
                 <span
-                  title="系统超级管理员"
+                  title={t("settings:superAdmin")}
                   className="text-rose-400 flex items-center"
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
@@ -714,7 +714,7 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
               )}
               {user.role === "ADMIN" && (
                 <span
-                  title="平台管理员"
+                  title={t("settings:platformAdmin")}
                   className="text-[#5865f2] flex items-center"
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
@@ -744,7 +744,7 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
               >
                 <div className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
                   <Gamepad2 className="w-3.5 h-3.5" />
-                  <span>正在游玩 (PLAYING A GAME)</span>
+                  <span>{t("settings:playingGame")}</span>
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-[#2b2d31] flex items-center justify-center flex-shrink-0 border border-white/5">
@@ -763,16 +763,16 @@ export const UserProfilePopout: React.FC<UserProfilePopoutProps> = ({
                       <div className="text-[10px] text-emerald-400/90 font-medium flex items-center gap-1 mt-0.5">
                         <Clock className="w-3 h-3" />
                         <span>
-                          已游玩{" "}
-                          {Math.max(
-                            1,
-                            Math.floor(
-                              (Date.now() -
-                                user.activities[0].timestamps.start) /
-                                60000,
+                          {t("settings:playedMinutes", {
+                            count: Math.max(
+                              1,
+                              Math.floor(
+                                (Date.now() -
+                                  user.activities[0].timestamps.start) /
+                                  60000,
+                              ),
                             ),
-                          )}{" "}
-                          分钟
+                          })}
                         </span>
                       </div>
                     )}

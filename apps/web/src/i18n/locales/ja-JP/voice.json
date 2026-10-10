@@ -244,11 +244,11 @@
     "capture_failed": "共有音声の取得が停止しました。映像の共有は続行します"
   },
   "mediaEncryption": {
-    "inactive": "メディア暗号化は未接続です",
-    "negotiating": "エンドツーエンド暗号化を確立中",
-    "ready": "暗号化の準備完了。メディアを待機中",
-    "active": "実際のメディアをエンドツーエンドで暗号化中",
-    "failed": "メディア暗号化に失敗しました。送信を停止しました",
+    "inactive": "無効",
+    "negotiating": "交渉中",
+    "ready": "準備完了",
+    "active": "有効",
+    "failed": "接続エラー",
     "counts": "暗号化 {{encrypted}} フレーム · 復号 {{decrypted}} フレーム"
   },
   "audioQuality": {

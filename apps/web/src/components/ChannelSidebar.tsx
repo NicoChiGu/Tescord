@@ -1316,7 +1316,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
       {/* 底部连接控制面板 (接入语音连接中或已连接时显示) */}
       {activeVoiceChannel && voiceConnectionStatus !== "disconnected" && (
         <div className="bg-[#202225] border-b border-[#2b2d31] p-2.5 flex flex-col space-y-2 animate-fadeIn relative">
-          <MediaEncryptionIndicator showCounters={false} />
+          <MediaEncryptionIndicator showCounters={false} visuallyHidden={true} />
           <VoiceConnectionStatusPopover
             isOpen={isConnectionPopoverOpen}
             onClose={() => setIsConnectionPopoverOpen(false)}
@@ -1327,7 +1327,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
             guild={guild}
             voiceStates={voiceStates}
           />
-          <div className="flex items-center justify-between">
+          <div className="flex items-center">
             <div
               role="button"
               tabIndex={0}
@@ -1346,7 +1346,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                   }
                 }
               }}
-              className={`flex flex-col min-w-0 max-w-[calc(100%-36px)] pt-1.5 pb-1 px-1.5 -ml-1 rounded-lg transition group ${
+              className={`flex-1 min-w-0 mr-1.5 flex flex-col pt-1.5 pb-1 px-1.5 -ml-1 rounded-lg transition group ${
                 voiceConnectionStatus === "connecting"
                   ? "cursor-default opacity-90"
                   : "hover:bg-[#35373c]/60 cursor-pointer"
@@ -1442,7 +1442,7 @@ export const ChannelSidebar: React.FC<ChannelSidebarProps> = ({
                       onSelectChannel(activeVoiceChannel);
                     }
                   }}
-                  className="text-left text-[11px] leading-4 text-discord-textMuted hover:text-white hover:underline transition-colors truncate inline-block max-w-[130px] cursor-pointer relative z-10"
+                  className="text-left text-[11px] leading-4 text-discord-textMuted hover:text-white hover:underline transition-colors truncate inline-block max-w-full cursor-pointer relative z-10"
                   title={activeVoiceChannel.name}
                 >
                   {activeVoiceChannel.name}

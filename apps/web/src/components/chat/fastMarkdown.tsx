@@ -71,15 +71,28 @@ const STRIKE_REGEX = /^~~([\s\S]+?)~~/;
 const LINK_REGEX = MARKDOWN_LINK_REGEX;
 const CUSTOM_EMOJI_REGEX = /^<(a)?:([a-zA-Z0-9_]{2,32}):([a-zA-Z0-9_-]+)>/;
 
-const CustomEmojiItem: React.FC<{
+export function isJumbojiContent(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  const emojiRegex = /<(a)?:([a-zA-Z0-9_]{2,32}):([a-zA-Z0-9_-]+)>/g;
+  const matches = trimmed.match(emojiRegex);
+  if (!matches || matches.length === 0 || matches.length > 10) return false;
+  const stripped = trimmed.replace(emojiRegex, "").replace(/\s+/g, "");
+  return stripped.length === 0;
+}
+
+export const CustomEmojiItem: React.FC<{
   emojiId: string;
   emojiName: string;
-}> = ({ emojiId, emojiName }) => {
+  jumbo?: boolean;
+}> = ({ emojiId, emojiName, jumbo = false }) => {
   const [hasError, setHasError] = useState(false);
   if (hasError) {
     return (
       <span
-        className="inline-block text-[#949ba4] font-medium mx-0.5 select-none text-[13px] bg-[#2b2d31]/50 px-1 py-0.5 rounded border border-[#383a40]"
+        className={`inline-block text-[#949ba4] font-medium mx-0.5 select-none bg-[#2b2d31]/50 px-1 py-0.5 rounded border border-[#383a40] ${
+          jumbo ? "text-[15px]" : "text-[13px]"
+        }`}
         title={`:${emojiName}:`}
       >
         {`:${emojiName}:`}
@@ -91,7 +104,11 @@ const CustomEmojiItem: React.FC<{
       src={resolveServerUrl(`/api/custom-emojis/${emojiId}`)}
       alt={`:${emojiName}:`}
       title={`:${emojiName}:`}
-      className="inline-block w-6 h-6 object-contain align-middle mx-0.5 select-none hover:scale-110 transition-transform cursor-pointer"
+      className={`inline-block object-contain align-middle select-none transition-transform cursor-pointer ${
+        jumbo
+          ? "w-16 h-16 max-w-[64px] max-h-[64px] mx-1 my-0.5 hover:scale-105"
+          : "w-7 h-7 max-w-[28px] max-h-[28px] mx-0.5 hover:scale-110"
+      }`}
       loading="lazy"
       onError={() => setHasError(true)}
     />
@@ -103,6 +120,7 @@ function parseInline(
   text: string,
   ctx?: MarkdownContext,
   keyPrefix = "in",
+  isJumbo = false,
 ): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
   let remaining = text;
@@ -118,7 +136,12 @@ function parseInline(
       const emojiName = match[2];
       const emojiId = match[3];
       nodes.push(
-        <CustomEmojiItem key={key} emojiId={emojiId} emojiName={emojiName} />,
+        <CustomEmojiItem
+          key={key}
+          emojiId={emojiId}
+          emojiName={emojiName}
+          jumbo={isJumbo}
+        />,
       );
       prevChar = remaining[match[0].length - 1];
       remaining = remaining.slice(match[0].length);
@@ -347,6 +370,8 @@ function parseFastMarkdownInternal(
     );
   }
 
+  const isJumbo = isJumbojiContent(content);
+
   // 块级解析（处理代码块 ```、引用块 >、换行 \n）
   const lines = content.split(/\r?\n/);
   const elements: React.ReactNode[] = [];
@@ -404,8 +429,15 @@ function parseFastMarkdownInternal(
 
     // 普通行
     elements.push(
-      <span key={`line-${i}`} className="inline">
-        {parseInline(line, ctx, `l-${i}`)}
+      <span
+        key={`line-${i}`}
+        className={
+          isJumbo
+            ? "inline-flex items-center flex-wrap gap-1.5 my-1"
+            : "inline"
+        }
+      >
+        {parseInline(line, ctx, `l-${i}`, isJumbo)}
       </span>,
     );
 

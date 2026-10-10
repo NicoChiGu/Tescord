@@ -94,10 +94,10 @@ test.describe("Tescord Web 端到端冒烟与核心交互验收", () => {
     const deafenButton = page.getByTestId("user-bar-deafen-btn");
     await expect(micButton).toBeVisible();
     await micButton.hover();
-    await expect(page.getByTestId("tooltip-bubble")).toHaveText("静音");
+    await expect(page.getByTestId("tooltip-bubble")).toHaveText("闭麦");
     await expect(deafenButton).toBeVisible();
     await deafenButton.hover();
-    await expect(page.getByTestId("tooltip-bubble")).toHaveText("闭麦拒听");
+    await expect(page.getByTestId("tooltip-bubble")).toHaveText("静音");
     const audioSettingsBtn = page.getByTestId("user-settings-gear-btn");
     await expect(audioSettingsBtn).toBeVisible();
 

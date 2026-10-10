@@ -104,24 +104,24 @@ const STATUS_OPTIONS: {
 ];
 
 const PRESET_BANNER_COLORS = [
-  { name: "经典蓝紫", value: "#5865f2" },
-  { name: "午夜深蓝", value: "#2b3d68" },
-  { name: "翡翠暗绿", value: "#23a55a" },
-  { name: "向日葵黄", value: "#f0b232" },
-  { name: "珊瑚桃红", value: "#eb459e" },
-  { name: "绯红赤炎", value: "#f23f43" },
-  { name: "极客炭黑", value: "#1e1f22" },
-  { name: "落日鎏金", value: "#e67e22" },
-  { name: "神秘紫晶", value: "#9b59b6" },
+  { key: "classicBlurple", defaultName: "经典蓝紫", value: "#5865f2" },
+  { key: "midnightNavy", defaultName: "午夜深蓝", value: "#2b3d68" },
+  { key: "emeraldGreen", defaultName: "翡翠暗绿", value: "#23a55a" },
+  { key: "sunflowerYellow", defaultName: "向日葵黄", value: "#f0b232" },
+  { key: "coralPink", defaultName: "珊瑚桃红", value: "#eb459e" },
+  { key: "crimsonRed", defaultName: "绯红赤炎", value: "#f23f43" },
+  { key: "geekCharcoal", defaultName: "极客炭黑", value: "#1e1f22" },
+  { key: "sunsetGold", defaultName: "落日鎏金", value: "#e67e22" },
+  { key: "mysticAmethyst", defaultName: "神秘紫晶", value: "#9b59b6" },
 ];
 
 const PRESET_THEME_COLORS = [
-  { name: "默认", value: "" },
-  { name: "蓝紫", value: "#5865f2" },
-  { name: "碧绿", value: "#23a55a" },
-  { name: "琥珀", value: "#f0b232" },
-  { name: "玫红", value: "#eb459e" },
-  { name: "天蓝", value: "#00b0f4" },
+  { key: "default", defaultName: "默认", value: "" },
+  { key: "blurple", defaultName: "蓝紫", value: "#5865f2" },
+  { key: "green", defaultName: "碧绿", value: "#23a55a" },
+  { key: "amber", defaultName: "琥珀", value: "#f0b232" },
+  { key: "fuchsia", defaultName: "玫红", value: "#eb459e" },
+  { key: "skyBlue", defaultName: "天蓝", value: "#00b0f4" },
 ];
 
 export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
@@ -760,11 +760,10 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                   <div>
                     <h2 className="text-xl font-bold text-white flex items-center gap-2">
                       <Palette className="w-6 h-6 text-[#5865f2]" />
-                      <span>展示卡与个人资料 (Profiles)</span>
+                      <span>{t("settings:profilesTitle")}</span>
                     </h2>
                     <p className="text-xs text-discord-textMuted mt-1">
-                      在此个性化您的个人信息展示卡外观，设置游戏侦测状态，并随时通过右侧
-                      1:1 卡片查看实时预览。
+                      {t("settings:profilesDesc")}
                     </p>
                   </div>
 
@@ -819,7 +818,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                             </h4>
                             <span className="flex items-center gap-1 text-[11px] font-bold bg-[#5865f2]/20 text-[#5865f2] px-2 py-0.5 rounded-full">
                               <Shield className="w-3 h-3" />
-                              已鉴权
+                              {t("settings:authenticated")}
                             </span>
                           </div>
                           <p className="text-xs text-gray-400 mt-0.5 font-mono">
@@ -875,18 +874,18 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                       <div className="space-y-4 p-4 rounded-xl bg-[#2b2d31] border border-white/5">
                         <div className="space-y-1.5">
                           <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">
-                            显示昵称 (Display Name)
+                            {t("settings:displayName")}
                           </label>
                           <input
                             type="text"
                             value={displayName}
                             onChange={(e) => setDisplayName(e.target.value)}
-                            placeholder={userPrefix || "设置向大家展示的昵称"}
+                            placeholder={userPrefix || t("settings:displayNamePlaceholder")}
                             data-testid="profile-display-name-input"
                             className="w-full rounded-xl bg-[#1e1f22] border border-white/5 px-4 py-2.5 text-base sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
                           />
                           <p className="text-[11px] text-gray-400">
-                            这是您在聊天、成员列表和个人卡片中展示的专属昵称。您可以随时调整，无修改次数限制。
+                            {t("settings:displayNameDesc")}
                           </p>
                         </div>
 
@@ -989,7 +988,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                         <div className="flex items-center justify-between">
                           <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
                             <Palette className="w-3.5 h-3.5 text-[#5865f2]" />
-                            <span>展示卡横幅 (Profile Banner)</span>
+                            <span>{t("settings:profileBanner")}</span>
                           </label>
                           {bannerColor && (
                             <button
@@ -997,7 +996,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                               onClick={() => setBannerColor("")}
                               className="text-[11px] text-gray-400 hover:text-white underline"
                             >
-                              重置为默认渐变
+                              {t("settings:resetDefaultGradient")}
                             </button>
                           )}
                         </div>
@@ -1005,14 +1004,14 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                         {/* 经典预设色板 */}
                         <div className="space-y-1.5">
                           <div className="text-[11px] text-gray-400">
-                            预设纯色主题：
+                            {t("settings:presetSolidColors")}
                           </div>
                           <div className="flex flex-wrap gap-2 items-center">
                             {PRESET_BANNER_COLORS.map((c) => (
                               <button
                                 key={c.value}
                                 type="button"
-                                title={c.name}
+                                title={t(`settings:colorPresets.${c.key}`, c.defaultName)}
                                 onClick={() => setBannerColor(c.value)}
                                 className={`w-7 h-7 rounded-full transition-transform border-2 ${
                                   bannerColor === c.value
@@ -1028,10 +1027,10 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                                 value={bannerColor || "#5865f2"}
                                 onChange={(e) => setBannerColor(e.target.value)}
                                 className="w-7 h-7 rounded cursor-pointer bg-transparent border-0"
-                                title="自定义取色器"
+                                title={t("settings:colorPickerTitle")}
                               />
                               <span className="text-[11px] text-gray-400 font-mono">
-                                {bannerColor || "默认"}
+                                {bannerColor || t("settings:defaultColor")}
                               </span>
                             </div>
                           </div>
@@ -1041,14 +1040,14 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                         <div className="space-y-1.5 pt-2 border-t border-white/5">
                           <div className="text-[11px] text-gray-400 flex items-center gap-1">
                             <ImageIcon className="w-3.5 h-3.5" />
-                            <span>自定义横幅图片链接 (Banner Image URL)：</span>
+                            <span>{t("settings:bannerImageUrl")}</span>
                           </div>
                           <input
                             type="url"
                             data-testid="input-banner-url"
                             value={bannerUrl}
                             onChange={(e) => setBannerUrl(e.target.value)}
-                            placeholder="https://... (粘贴外部图片直链，优先于纯色展示)"
+                            placeholder={t("settings:bannerUrlPlaceholder")}
                             className="w-full rounded-xl bg-[#1e1f22] border border-white/5 px-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-[#5865f2]"
                           />
                         </div>
@@ -1058,12 +1057,12 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                       <div className="space-y-2.5 p-4 rounded-xl bg-[#2b2d31] border border-white/5">
                         <label className="block text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
                           <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                          <span>卡片名称强调色 (Theme Accent)</span>
+                          <span>{t("settings:themeAccent")}</span>
                         </label>
                         <div className="flex flex-wrap gap-2 items-center">
                           {PRESET_THEME_COLORS.map((tc) => (
                             <button
-                              key={tc.name}
+                              key={tc.key}
                               type="button"
                               onClick={() => setThemeColor(tc.value)}
                               className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
@@ -1078,7 +1077,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                                   style={{ backgroundColor: tc.value }}
                                 />
                               )}
-                              <span>{tc.name}</span>
+                              <span>{t(`settings:colorPresets.${tc.key}`, tc.defaultName)}</span>
                             </button>
                           ))}
                         </div>
@@ -1094,10 +1093,10 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                             <Gamepad2 className="w-4 h-4 text-emerald-400" />
                             <div>
                               <span className="text-xs font-bold text-white">
-                                在个人展示卡与状态中显示正在运行的游戏
+                                {t("settings:showGameActivity")}
                               </span>
                               <p className="text-[11px] text-gray-400">
-                                开启后，系统侦测到您正在玩的游戏将自动同步展示给同服好友与频道成员。
+                                {t("settings:showGameActivityDesc")}
                               </p>
                             </div>
                           </div>
@@ -1123,17 +1122,17 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                             <div>
                               <div className="font-semibold text-white">
                                 {detectedGame
-                                  ? `已侦测到游戏：${detectedGame.name}`
+                                  ? t("settings:gameDetected", { name: detectedGame.name })
                                   : testGameActive
-                                    ? "正在模拟游戏：英雄联盟 (League of Legends)"
+                                    ? t("settings:gameSimulating")
                                     : isElectron
-                                      ? "当前未检测到支持的游戏进程"
-                                      : "Web 端模式：自动侦测仅在桌面客户端生效"}
+                                      ? t("settings:noGameDetected")
+                                      : t("settings:gameDetectWebMode")}
                               </div>
                               <div className="text-[10px] text-gray-400">
                                 {isElectron
-                                  ? "后台每 5 秒低开销扫描系统前台进程"
-                                  : "建议下载并使用 Tescord 桌面客户端获得全自动感知体验"}
+                                  ? t("settings:gameDetectScanDesc")
+                                  : t("settings:gameDetectWebDesc")}
                               </div>
                             </div>
                           </div>
@@ -1144,7 +1143,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                             onClick={() => setTestGameActive(!testGameActive)}
                             className="text-[11px] px-2.5 py-1 rounded bg-[#2b2d31] hover:bg-[#35373c] text-gray-300 hover:text-white border border-white/5 transition self-end sm:self-auto shrink-0"
                           >
-                            {testGameActive ? "停止测试游戏" : "模拟测试游戏"}
+                            {testGameActive ? t("settings:stopTestGame") : t("settings:startTestGame")}
                           </button>
                         </div>
                       </div>
@@ -1152,13 +1151,13 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                       {/* 6. 自定义状态与签名 */}
                       <div className="space-y-2">
                         <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">
-                          自定义个性签名 (Custom Status)
+                          {t("settings:customStatus")}
                         </label>
                         <input
                           type="text"
                           value={customStatus}
                           onChange={(e) => setCustomStatus(e.target.value)}
-                          placeholder="分享你现在在做什么... (例如: 正在开黑 🎮)"
+                          placeholder={t("settings:customStatusInputPlaceholder")}
                           className="w-full rounded-xl bg-[#2b2d31] border border-white/5 px-4 py-3 text-base sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
                         />
                       </div>
@@ -1166,13 +1165,13 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                       {/* 7. 自我介绍 / Bio */}
                       <div className="space-y-2">
                         <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">
-                          自我介绍 (About Me)
+                          {t("settings:bioTitle")}
                         </label>
                         <textarea
                           rows={3}
                           value={bio}
                           onChange={(e) => setBio(e.target.value)}
-                          placeholder="写一小段介绍展示在个人资料卡片上..."
+                          placeholder={t("settings:bioInputPlaceholder")}
                           className="w-full rounded-xl bg-[#2b2d31] border border-white/5 p-3.5 text-base sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2] resize-none"
                         />
                       </div>
@@ -1180,13 +1179,13 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                       {/* 8. 自定义头像链接 */}
                       <div className="space-y-2">
                         <label className="block text-xs font-bold uppercase tracking-wider text-gray-400">
-                          自定义头像 URL
+                          {t("settings:avatarUrlTitle")}
                         </label>
                         <input
                           type="url"
                           value={avatarUrl}
                           onChange={(e) => setAvatarUrl(e.target.value)}
-                          placeholder="https://... (支持外部图片直链或 DiceBear SVG)"
+                          placeholder={t("settings:avatarUrlPlaceholder")}
                           className="w-full rounded-xl bg-[#2b2d31] border border-white/5 px-4 py-3 text-base sm:text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#5865f2]"
                         />
                       </div>
@@ -1218,7 +1217,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                       data-testid="open-profile-preview-fab"
                       onClick={() => setIsMobilePreviewOpen(true)}
                       className="flex items-center gap-2 bg-[#5865f2] hover:bg-[#4752c4] active:scale-95 text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-2xl border border-white/20 transition-all cursor-pointer backdrop-blur-md"
-                      aria-label="查看卡片预览"
+                      aria-label={t("settings:viewCardPreviewAria")}
                     >
                       <Eye className="w-4 h-4" />
                       <span>
@@ -1250,7 +1249,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                             data-testid="close-mobile-preview-btn"
                             onClick={() => setIsMobilePreviewOpen(false)}
                             className="text-gray-400 hover:text-white p-1 rounded-md hover:bg-white/10 transition cursor-pointer"
-                            aria-label="关闭预览"
+                            aria-label={t("settings:closePreviewAria")}
                           >
                             <X className="w-5 h-5" />
                           </button>
@@ -1284,7 +1283,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                       <div className="flex items-center gap-2 text-xs font-semibold text-white w-full sm:w-auto justify-center sm:justify-start">
                         <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping shrink-0" />
                         <span className="truncate">
-                          注意 — 您有未保存的更改！
+                          {t("settings:unsavedChangesWarning")}
                         </span>
                       </div>
 
@@ -1296,7 +1295,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                           className="text-xs text-gray-300 hover:text-white hover:underline px-2 py-1 flex items-center gap-1 transition"
                         >
                           <RotateCcw className="w-3 h-3" />
-                          <span>重置</span>
+                          <span>{t("settings:resetChanges")}</span>
                         </button>
                         <button
                           type="button"
@@ -1310,7 +1309,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                           ) : (
                             <Save className="w-3.5 h-3.5" />
                           )}
-                          <span>{isSaving ? "保存中..." : "保存更改"}</span>
+                          <span>{isSaving ? t("settings:saving") : t("settings:saveChanges")}</span>
                         </button>
                       </div>
                     </div>
@@ -1321,7 +1320,7 @@ export const UserSettingsModal: React.FC<UserSettingsModalProps> = ({
                     <div className="fixed bottom-4 left-4 right-4 sm:left-1/2 sm:right-auto sm:-translate-x-1/2 z-50 bg-emerald-900/95 border border-emerald-500/30 text-white rounded-2xl shadow-2xl px-4 sm:px-6 py-3 flex items-center justify-center gap-2 text-xs font-semibold animate-in fade-in">
                       <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                       <span className="truncate">
-                        展示卡个性化设置已成功保存并全网同步！
+                        {t("settings:profileSavedSuccess")}
                       </span>
                     </div>
                   )}

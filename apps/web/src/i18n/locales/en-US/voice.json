@@ -244,11 +244,11 @@
     "capture_failed": "Shared audio capture stopped. Video sharing continues."
   },
   "mediaEncryption": {
-    "inactive": "Media encryption is disconnected",
-    "negotiating": "Negotiating end-to-end encryption",
-    "ready": "Encryption ready; waiting for media",
-    "active": "Media is end-to-end encrypted",
-    "failed": "Media encryption failed; transmission stopped",
+    "inactive": "Inactive",
+    "negotiating": "Negotiating",
+    "ready": "Ready",
+    "active": "Active",
+    "failed": "Connection error",
     "counts": "{{encrypted}} frames encrypted · {{decrypted}} frames decrypted"
   },
   "audioQuality": {

@@ -12,6 +12,7 @@ import React, {
   useMemo,
   useCallback,
 } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Channel,
   User,
@@ -494,9 +495,9 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
                 : "min-h-[140px] sm:min-h-[190px] aspect-video w-full"
         } ${
           speaking && !isFullscreen
-            ? "border-discord-green shadow-[0_0_20px_rgba(35,165,90,0.35)]"
+            ? "border-discord-green shadow-[0_0_24px_rgba(35,165,90,0.45)] ring-2 ring-discord-green/30"
             : isPinned && !isFullscreen
-              ? "border-discord-brand shadow-[0_0_15px_rgba(88,101,242,0.3)]"
+              ? "border-discord-brand shadow-[0_0_18px_rgba(88,101,242,0.35)] ring-1 ring-discord-brand/20"
               : "border-transparent hover:border-[#383a40]"
         }`}
       >
@@ -559,13 +560,13 @@ const ParticipantCard: React.FC<ParticipantCardProps> = ({
                   (e.currentTarget as HTMLImageElement).src =
                     `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(participant.user?.username || "avatar")}`;
                 }}
-                className={`rounded-full border-4 border-[#1e1f22] object-cover ${
+                className={`rounded-full border-4 border-[#1e1f22] object-cover transition-all duration-200 ${
                   isSpotlight
                     ? "w-28 h-28"
                     : isTheaterMode
                       ? "w-12 h-12"
                       : "w-20 h-20"
-                } ${speaking ? "speaking-ring" : ""}`}
+                } ${speaking ? "speaking-ring scale-105" : ""}`}
               />
               {participant.selfMute && (
                 <div
@@ -2272,80 +2273,91 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                         : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 max-w-7xl"
               }`}
             >
-              {stageParticipants.map((p) => {
-                const isMe = p.userId === currentUser.id;
-                const speaking = isMe
-                  ? isSpeaking
-                  : activeSpeakers.includes(p.userId);
-                const stats = getParticipantStats(p.userId);
-                const userVol = getVolume(p.userId);
-                const media = getParticipantMedia(p);
-                const isPinned = pinnedUserId === p.userId;
+              <AnimatePresence mode="popLayout">
+                {stageParticipants.map((p) => {
+                  const isMe = p.userId === currentUser.id;
+                  const speaking = isMe
+                    ? isSpeaking
+                    : activeSpeakers.includes(p.userId);
+                  const stats = getParticipantStats(p.userId);
+                  const userVol = getVolume(p.userId);
+                  const media = getParticipantMedia(p);
+                  const isPinned = pinnedUserId === p.userId;
 
-                return (
-                  <ParticipantCard
-                    key={`stage-${p.userId}`}
-                    participant={p}
-                    isMe={isMe}
-                    speaking={speaking}
-                    stats={stats}
-                    volume={userVol}
-                    onVolumeChange={(vol) => handleVolumeChange(p.userId, vol)}
-                    isPinned={isPinned}
-                    onTogglePin={() => {
-                      setPinnedUserId(isPinned ? null : p.userId);
-                    }}
-                    cameraTrack={media.cameraTrack}
-                    screenShareTrack={media.screenShareTrack}
-                    screenShareInfo={media.screenShareInfo}
-                    streamAvailable={
-                      p.streaming ||
-                      Boolean(media.screenShareTrack) ||
-                      (VOICE_ENGINE === "cloudflare_realtime" &&
-                        Boolean(getScreenPublication(p.userId)))
-                    }
-                    watching={isWatchingStream(p.userId, p.streamMode)}
-                    viewerCount={getStreamViewerCount(p.userId)}
-                    watchPending={watchPending.has(p.userId)}
-                    watchError={watchErrors.get(p.userId)}
-                    onToggleWatching={() => void handleToggleWatching(p)}
-                    streamVolume={
-                      streamVolumes.get(p.userId) ??
-                      cloudflareRealtimeService.getStreamVolume(p.userId)
-                    }
-                    onStreamVolumeChange={(volume) => {
-                      cloudflareRealtimeService.setStreamVolume(
-                        p.userId,
-                        volume,
-                      );
-                      setStreamVolumes((previous) =>
-                        new Map(previous).set(p.userId, volume),
-                      );
-                    }}
-                    guild={guild}
-                    currentUser={currentUser}
-                    isTheaterMode={isTheaterMode}
-                    isNoiseSuppressionEnabled={isNoiseSuppressionEnabled}
-                    noiseSuppressionMode={noiseSuppressionMode}
-                    isSpotlight={true}
-                    onStopScreenShare={onStopScreenShare || onToggleScreenShare}
-                    peerLatency={peerLatencies.get(p.userId)}
-                    isP2P={isP2P}
-                    showStatsHUD={statsUserId === p.userId}
-                    onToggleStats={() => handleToggleStats(p.userId)}
-                    onCloseStats={() => setStatsUserId(null)}
-                    viewersList={
-                      isMe ? getStreamViewersList(p.userId) : undefined
-                    }
-                    onKickViewer={handleKickViewer}
-                    showViewersModal={isMe && showViewersModal}
-                    onToggleViewersModal={() =>
-                      setShowViewersModal((prev) => !prev)
-                    }
-                    onCloseViewersModal={() => setShowViewersModal(false)}
-                  />
-                );
-              })}
+                  return (
+                    <motion.div
+                      layout
+                      key={`stage-${p.userId}`}
+                      initial={{ opacity: 0, scale: 0.92, y: 12 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.88, transition: { duration: 0.18 } }}
+                      transition={{ type: "spring", stiffness: 380, damping: 28 }}
+                      className="w-full flex justify-center"
+                    >
+                      <ParticipantCard
+                        participant={p}
+                        isMe={isMe}
+                        speaking={speaking}
+                        stats={stats}
+                        volume={userVol}
+                        onVolumeChange={(vol) => handleVolumeChange(p.userId, vol)}
+                        isPinned={isPinned}
+                        onTogglePin={() => {
+                          setPinnedUserId(isPinned ? null : p.userId);
+                        }}
+                        cameraTrack={media.cameraTrack}
+                        screenShareTrack={media.screenShareTrack}
+                        screenShareInfo={media.screenShareInfo}
+                        streamAvailable={
+                          p.streaming ||
+                          Boolean(media.screenShareTrack) ||
+                          (VOICE_ENGINE === "cloudflare_realtime" &&
+                            Boolean(getScreenPublication(p.userId)))
+                        }
+                        watching={isWatchingStream(p.userId, p.streamMode)}
+                        viewerCount={getStreamViewerCount(p.userId)}
+                        watchPending={watchPending.has(p.userId)}
+                        watchError={watchErrors.get(p.userId)}
+                        onToggleWatching={() => void handleToggleWatching(p)}
+                        streamVolume={
+                          streamVolumes.get(p.userId) ??
+                          cloudflareRealtimeService.getStreamVolume(p.userId)
+                        }
+                        onStreamVolumeChange={(volume) => {
+                          cloudflareRealtimeService.setStreamVolume(
+                            p.userId,
+                            volume,
+                          );
+                          setStreamVolumes((previous) =>
+                            new Map(previous).set(p.userId, volume),
+                          );
+                        }}
+                        guild={guild}
+                        currentUser={currentUser}
+                        isTheaterMode={isTheaterMode}
+                        isNoiseSuppressionEnabled={isNoiseSuppressionEnabled}
+                        noiseSuppressionMode={noiseSuppressionMode}
+                        isSpotlight={true}
+                        onStopScreenShare={onStopScreenShare || onToggleScreenShare}
+                        peerLatency={peerLatencies.get(p.userId)}
+                        isP2P={isP2P}
+                        showStatsHUD={statsUserId === p.userId}
+                        onToggleStats={() => handleToggleStats(p.userId)}
+                        onCloseStats={() => setStatsUserId(null)}
+                        viewersList={
+                          isMe ? getStreamViewersList(p.userId) : undefined
+                        }
+                        onKickViewer={handleKickViewer}
+                        showViewersModal={isMe && showViewersModal}
+                        onToggleViewersModal={() =>
+                          setShowViewersModal((prev) => !prev)
+                        }
+                        onCloseViewersModal={() => setShowViewersModal(false)}
+                      />
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
             </div>
           )}
 
@@ -2375,86 +2387,101 @@ export const VoiceRoomArea: React.FC<VoiceRoomAreaProps> = ({
                       }`
                 }`}
               >
-                {otherParticipants.map((p) => {
-                  const isMe = p.userId === currentUser.id;
-                  const speaking = isMe
-                    ? isSpeaking
-                    : activeSpeakers.includes(p.userId);
-                  const stats = getParticipantStats(p.userId);
-                  const userVol = getVolume(p.userId);
-                  const isPinned = pinnedUserId === p.userId;
-                  const media = getParticipantMedia(p);
+                <AnimatePresence mode="popLayout">
+                  {otherParticipants.map((p) => {
+                    const isMe = p.userId === currentUser.id;
+                    const speaking = isMe
+                      ? isSpeaking
+                      : activeSpeakers.includes(p.userId);
+                    const stats = getParticipantStats(p.userId);
+                    const userVol = getVolume(p.userId);
+                    const isPinned = pinnedUserId === p.userId;
+                    const media = getParticipantMedia(p);
 
-                  return (
-                    <ParticipantCard
-                      key={p.userId}
-                      participant={p}
-                      isMe={isMe}
-                      speaking={speaking}
-                      stats={stats}
-                      volume={userVol}
-                      onVolumeChange={(vol) =>
-                        handleVolumeChange(p.userId, vol)
-                      }
-                      isPinned={isPinned}
-                      onTogglePin={() =>
-                        setPinnedUserId(isPinned ? null : p.userId)
-                      }
-                      cameraTrack={media.cameraTrack}
-                      screenShareTrack={media.screenShareTrack}
-                      screenShareInfo={media.screenShareInfo}
-                      streamAvailable={
-                        p.streaming ||
-                        Boolean(media.screenShareTrack) ||
-                        (VOICE_ENGINE === "cloudflare_realtime" &&
-                          Boolean(getScreenPublication(p.userId)))
-                      }
-                      watching={isWatchingStream(p.userId, p.streamMode)}
-                      viewerCount={getStreamViewerCount(p.userId)}
-                      watchPending={watchPending.has(p.userId)}
-                      watchError={watchErrors.get(p.userId)}
-                      onToggleWatching={() => void handleToggleWatching(p)}
-                      streamVolume={
-                        streamVolumes.get(p.userId) ??
-                        cloudflareRealtimeService.getStreamVolume(p.userId)
-                      }
-                      onStreamVolumeChange={(volume) => {
-                        cloudflareRealtimeService.setStreamVolume(
-                          p.userId,
-                          volume,
-                        );
-                        setStreamVolumes((previous) =>
-                          new Map(previous).set(p.userId, volume),
-                        );
-                      }}
-                      guild={guild}
-                      currentUser={currentUser}
-                      isTheaterMode={
-                        isTheaterMode || Boolean(stageParticipants.length > 0)
-                      }
-                      isNoiseSuppressionEnabled={isNoiseSuppressionEnabled}
-                      noiseSuppressionMode={noiseSuppressionMode}
-                      isSpotlight={false}
-                      onStopScreenShare={
-                        onStopScreenShare || onToggleScreenShare
-                      }
-                      peerLatency={peerLatencies.get(p.userId)}
-                      isP2P={isP2P}
-                      showStatsHUD={statsUserId === p.userId}
-                      onToggleStats={() => handleToggleStats(p.userId)}
-                      onCloseStats={() => setStatsUserId(null)}
-                      viewersList={
-                        isMe ? getStreamViewersList(p.userId) : undefined
-                      }
-                      onKickViewer={handleKickViewer}
-                      showViewersModal={isMe && showViewersModal}
-                      onToggleViewersModal={() =>
-                        setShowViewersModal((prev) => !prev)
-                      }
-                      onCloseViewersModal={() => setShowViewersModal(false)}
-                    />
-                  );
-                })}
+                    return (
+                      <motion.div
+                        layout
+                        key={`participant-${p.userId}`}
+                        initial={{ opacity: 0, scale: 0.92, y: 12 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.88, transition: { duration: 0.18 } }}
+                        transition={{ type: "spring", stiffness: 380, damping: 28 }}
+                        className={
+                          stageParticipants.length > 0 || isTheaterMode
+                            ? "flex-shrink-0"
+                            : "w-full"
+                        }
+                      >
+                        <ParticipantCard
+                          participant={p}
+                          isMe={isMe}
+                          speaking={speaking}
+                          stats={stats}
+                          volume={userVol}
+                          onVolumeChange={(vol) =>
+                            handleVolumeChange(p.userId, vol)
+                          }
+                          isPinned={isPinned}
+                          onTogglePin={() =>
+                            setPinnedUserId(isPinned ? null : p.userId)
+                          }
+                          cameraTrack={media.cameraTrack}
+                          screenShareTrack={media.screenShareTrack}
+                          screenShareInfo={media.screenShareInfo}
+                          streamAvailable={
+                            p.streaming ||
+                            Boolean(media.screenShareTrack) ||
+                            (VOICE_ENGINE === "cloudflare_realtime" &&
+                              Boolean(getScreenPublication(p.userId)))
+                          }
+                          watching={isWatchingStream(p.userId, p.streamMode)}
+                          viewerCount={getStreamViewerCount(p.userId)}
+                          watchPending={watchPending.has(p.userId)}
+                          watchError={watchErrors.get(p.userId)}
+                          onToggleWatching={() => void handleToggleWatching(p)}
+                          streamVolume={
+                            streamVolumes.get(p.userId) ??
+                            cloudflareRealtimeService.getStreamVolume(p.userId)
+                          }
+                          onStreamVolumeChange={(volume) => {
+                            cloudflareRealtimeService.setStreamVolume(
+                              p.userId,
+                              volume,
+                            );
+                            setStreamVolumes((previous) =>
+                              new Map(previous).set(p.userId, volume),
+                            );
+                          }}
+                          guild={guild}
+                          currentUser={currentUser}
+                          isTheaterMode={
+                            isTheaterMode || Boolean(stageParticipants.length > 0)
+                          }
+                          isNoiseSuppressionEnabled={isNoiseSuppressionEnabled}
+                          noiseSuppressionMode={noiseSuppressionMode}
+                          isSpotlight={false}
+                          onStopScreenShare={
+                            onStopScreenShare || onToggleScreenShare
+                          }
+                          peerLatency={peerLatencies.get(p.userId)}
+                          isP2P={isP2P}
+                          showStatsHUD={statsUserId === p.userId}
+                          onToggleStats={() => handleToggleStats(p.userId)}
+                          onCloseStats={() => setStatsUserId(null)}
+                          viewersList={
+                            isMe ? getStreamViewersList(p.userId) : undefined
+                          }
+                          onKickViewer={handleKickViewer}
+                          showViewersModal={isMe && showViewersModal}
+                          onToggleViewersModal={() =>
+                            setShowViewersModal((prev) => !prev)
+                          }
+                          onCloseViewersModal={() => setShowViewersModal(false)}
+                        />
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
               </div>
             );
           })()}
