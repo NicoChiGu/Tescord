@@ -14,7 +14,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { startRegistration } from "@simplewebauthn/browser";
-import { PasskeyInfo } from "@tescord/types";
+import { PasskeyInfo, ErrorCode } from "@tescord/types";
 import { useAuthStore } from "../../stores/useAuthStore.js";
 import { dialog } from "../../stores/useDialogStore.js";
 import { toast } from "../../stores/useToastStore.js";
@@ -99,7 +99,11 @@ export const SecuritySettingsTab: React.FC = () => {
           token: accessToken || undefined,
         });
         if (!res.success) {
-          if (res.error?.includes("取消") || res.error?.includes("cancel")) {
+          if (
+            res.code === ErrorCode.OPERATION_CANCELLED ||
+            res.error?.includes("取消") ||
+            res.error?.includes("cancel")
+          ) {
             toast.info(
               t("settings:passkeyRegistrationCancelled", {
                 defaultValue: "已取消添加通行密钥",

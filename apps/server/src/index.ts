@@ -799,12 +799,83 @@ server.delete(
 
 // 8. 通行密钥桌面内嵌认证桥接页 (供 Electron 独立 HTTPS 窗口调用 WebAuthn)
 server.get("/api/auth/webauthn/bridge", async (request, reply) => {
+  const queryLang = (request.query as any)?.lang as string | undefined;
+  const acceptLang = (request.headers["accept-language"] || "").toLowerCase();
+  let locale: SupportedLocale = "zh-CN";
+  const supportedLocales: SupportedLocale[] = ["zh-CN", "zh-TW", "zh-HK", "en-US", "ja-JP"];
+
+  if (queryLang && supportedLocales.includes(queryLang as SupportedLocale)) {
+    locale = queryLang as SupportedLocale;
+  } else if (acceptLang.includes("zh-tw")) {
+    locale = "zh-TW";
+  } else if (acceptLang.includes("zh-hk")) {
+    locale = "zh-HK";
+  } else if (acceptLang.startsWith("en") || acceptLang.includes(",en")) {
+    locale = "en-US";
+  } else if (acceptLang.startsWith("ja") || acceptLang.includes(",ja")) {
+    locale = "ja-JP";
+  }
+
+  const i18nStrings: Record<
+    SupportedLocale,
+    {
+      title: string;
+      waiting: string;
+      retry: string;
+      cancel: string;
+      unsupported: string;
+      failed: string;
+    }
+  > = {
+    "zh-CN": {
+      title: "通行密钥",
+      waiting: "等待响应...",
+      retry: "重试",
+      cancel: "取消",
+      unsupported: "当前环境不支持通行密钥",
+      failed: "通行密钥认证异常",
+    },
+    "zh-TW": {
+      title: "通行金鑰",
+      waiting: "等待回應...",
+      retry: "重試",
+      cancel: "取消",
+      unsupported: "目前環境不支援通行金鑰",
+      failed: "通行金鑰驗證異常",
+    },
+    "zh-HK": {
+      title: "通行密匙",
+      waiting: "等待回應...",
+      retry: "重試",
+      cancel: "取消",
+      unsupported: "目前環境唔支援通行密匙",
+      failed: "通行密匙驗證異常",
+    },
+    "en-US": {
+      title: "Passkey",
+      waiting: "Waiting for response...",
+      retry: "Retry",
+      cancel: "Cancel",
+      unsupported: "Passkeys not supported in this environment",
+      failed: "Passkey authentication failed",
+    },
+    "ja-JP": {
+      title: "パスキー",
+      waiting: "応答を待機中...",
+      retry: "再試行",
+      cancel: "キャンセル",
+      unsupported: "この環境ではパスキーがサポートされていません",
+      failed: "パスキー認証エラー",
+    },
+  };
+  const t = i18nStrings[locale] || i18nStrings["zh-CN"];
+
   const html = `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="${locale}">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tescord 通行密钥认证</title>
+  <title>${t.title}</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
@@ -915,16 +986,15 @@ server.get("/api/auth/webauthn/bridge", async (request, reply) => {
         <path d="M16 14v7"></path>
       </svg>
     </div>
-    <h2 id="title">通行密钥验证</h2>
-    <p id="desc">正在拉起 Windows Hello 或安全密钥，请按照系统提示完成身份核验...</p>
+    <h2 id="title">${t.title}</h2>
     <div class="status-badge" id="badge">
       <div class="spinner"></div>
-      <span id="badge-text">等待安全凭据响应...</span>
+      <span id="badge-text">${t.waiting}</span>
     </div>
     <div class="error-msg" id="error-msg"></div>
     <div class="btn-group">
-      <button class="btn btn-primary" id="retry-btn" style="display: none;">重新验证</button>
-      <button class="btn btn-secondary" id="cancel-btn">取消</button>
+      <button class="btn btn-primary" id="retry-btn" style="display: none;">${t.retry}</button>
+      <button class="btn btn-secondary" id="cancel-btn">${t.cancel}</button>
     </div>
   </div>
 
@@ -954,19 +1024,20 @@ server.get("/api/auth/webauthn/bridge", async (request, reply) => {
     var params = new URLSearchParams(window.location.search);
     var action = params.get('action') || 'login';
     var emailOrUsername = params.get('emailOrUsername') || '';
-    var deviceName = params.get('deviceName') || '通行密钥';
+    var deviceName = params.get('deviceName') || ${JSON.stringify(t.title)};
     var token = params.get('token') || '';
 
     var errorEl = document.getElementById('error-msg');
     var retryBtn = document.getElementById('retry-btn');
     var cancelBtn = document.getElementById('cancel-btn');
     var badge = document.getElementById('badge');
+    var targetOrigin = window.location.origin;
 
     function notifyResult(res) {
       if (window.electronPasskeyBridge) {
         window.electronPasskeyBridge.sendResult(res);
       } else if (window.opener) {
-        window.opener.postMessage({ type: 'passkey-result', result: res }, '*');
+        window.opener.postMessage({ type: 'passkey-result', result: res }, targetOrigin);
       }
     }
 
@@ -974,7 +1045,7 @@ server.get("/api/auth/webauthn/bridge", async (request, reply) => {
       if (window.electronPasskeyBridge) {
         window.electronPasskeyBridge.cancel();
       } else if (window.opener) {
-        window.opener.postMessage({ type: 'passkey-cancel' }, '*');
+        window.opener.postMessage({ type: 'passkey-cancel' }, targetOrigin);
       }
     }
 
@@ -993,7 +1064,7 @@ server.get("/api/auth/webauthn/bridge", async (request, reply) => {
 
       try {
         if (!window.PublicKeyCredential) {
-          throw new Error('当前系统环境不支持 WebAuthn 通行密钥');
+          throw new Error(${JSON.stringify(t.unsupported)});
         }
 
         if (action === 'register') {
@@ -1092,7 +1163,7 @@ server.get("/api/auth/webauthn/bridge", async (request, reply) => {
           notifyCancel();
           return;
         }
-        errorEl.textContent = err.message || '通行密钥认证异常';
+        errorEl.textContent = err.message || ${JSON.stringify(t.failed)};
         errorEl.style.display = 'block';
         retryBtn.style.display = 'block';
         badge.style.display = 'none';
@@ -9653,9 +9724,12 @@ server.post(
         gracePeriodMs: body.gracePeriodMs,
       });
     } catch (err: any) {
-      return reply
-        .status(400)
-        .send({ error: err.message || "存储垃圾回收执行失败" });
+      return sendApiError(
+        reply,
+        400,
+        ErrorCode.STORAGE_GC_FAILED,
+        err.message || "Storage GC failed",
+      );
     }
   },
 );

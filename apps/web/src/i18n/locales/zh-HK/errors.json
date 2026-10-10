@@ -63,5 +63,7 @@
   "AUDIO_DEVICE_UNSUPPORTED": "此瀏覽器不支援選擇輸出裝置。",
   "CHANNEL_PERMISSION_DENIED": "無權存取或管理該頻道",
   "CHANNEL_OVERWRITE_NOT_FOUND": "頻道權限覆寫不存在",
-  "CHANNEL_HIERARCHY_VIOLATION": "權限層級不足，無法配置高於自身嘅身分組或未持有嘅權限"
+  "CHANNEL_HIERARCHY_VIOLATION": "權限層級不足，無法配置高於自身嘅身分組或未持有嘅權限",
+  "STORAGE_GC_FAILED": "儲存垃圾回收執行失敗，請檢查儲存連線與權限",
+  "OPERATION_CANCELLED": "操作已取消"
 }

@@ -6,6 +6,7 @@ import {
   UpdateProfileDTO,
   AuthTokens,
   SavedAccount,
+  ErrorCode,
 } from "@tescord/types";
 import { API_BASE } from "../config.js";
 import { cancelPendingRequests } from "../services/apiClient.js";
@@ -592,7 +593,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           emailOrUsername,
         });
         if (!res.success) {
-          if (res.error?.includes("取消") || res.error?.includes("cancel")) {
+          if (
+            res.code === ErrorCode.OPERATION_CANCELLED ||
+            res.error?.includes("取消") ||
+            res.error?.includes("cancel")
+          ) {
             const cancelMsg = tGlobal("settings:passkeyRegistrationCancelled");
             set({ error: cancelMsg });
             const err = new Error(cancelMsg);

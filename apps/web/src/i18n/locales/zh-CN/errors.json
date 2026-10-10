@@ -63,5 +63,7 @@
   "AUDIO_DEVICE_UNSUPPORTED": "此浏览器不支持选择输出设备。",
   "CHANNEL_PERMISSION_DENIED": "无权访问或管理该频道",
   "CHANNEL_OVERWRITE_NOT_FOUND": "频道权限覆写不存在",
-  "CHANNEL_HIERARCHY_VIOLATION": "权限层级不足，无法配置高于自身的身份组或未持有的权限"
+  "CHANNEL_HIERARCHY_VIOLATION": "权限层级不足，无法配置高于自身的身份组或未持有的权限",
+  "STORAGE_GC_FAILED": "存储垃圾回收执行失败，请检查存储连接与权限",
+  "OPERATION_CANCELLED": "操作已取消"
 }

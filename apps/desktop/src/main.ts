@@ -35,6 +35,7 @@ import {
   DesktopAudioInferenceFailure,
   KeybindConfig,
   KeybindRegisterResponse,
+  ErrorCode,
   DesktopPasskeyAuthPayload,
   DesktopPasskeyAuthResult,
 } from "@tescord/types";
@@ -1581,6 +1582,7 @@ ipcMain.handle(
       } catch {}
       return {
         success: false,
+        code: ErrorCode.RATE_LIMITED,
         error: "认证窗口已在运行中",
       };
     }
@@ -1631,21 +1633,38 @@ ipcMain.handle(
         resolve(res);
       };
 
-      const onResult = (_e: Electron.IpcMainEvent, data: any) => {
+      const onResult = (
+        _e: Electron.IpcMainEvent,
+        data: DesktopPasskeyAuthResult,
+      ) => {
         if (_e.sender.id !== win.webContents.id) return;
-        safeResolve(data || { success: false, error: "未收到有效认证数据" });
+        safeResolve(
+          data || {
+            success: false,
+            code: ErrorCode.INTERNAL_ERROR,
+            error: "未收到有效认证数据",
+          },
+        );
       };
 
       const onCancel = (_e: Electron.IpcMainEvent) => {
         if (_e.sender.id !== win.webContents.id) return;
-        safeResolve({ success: false, error: "用户已取消通行密钥验证" });
+        safeResolve({
+          success: false,
+          code: ErrorCode.OPERATION_CANCELLED,
+          error: "用户已取消通行密钥验证",
+        });
       };
 
       ipcMain.on("passkey-auth-result", onResult);
       ipcMain.on("passkey-auth-cancel", onCancel);
 
       win.on("closed", () => {
-        safeResolve({ success: false, error: "认证窗口已关闭" });
+        safeResolve({
+          success: false,
+          code: ErrorCode.OPERATION_CANCELLED,
+          error: "认证窗口已关闭",
+        });
       });
 
       win.once("ready-to-show", () => {
@@ -1654,6 +1673,7 @@ ipcMain.handle(
 
       const queryParams = new URLSearchParams({
         action: payload.action,
+        lang: currentLocale,
         ...(payload.emailOrUsername
           ? { emailOrUsername: payload.emailOrUsername }
           : {}),
@@ -1665,6 +1685,7 @@ ipcMain.handle(
       win.loadURL(targetUrl).catch((err) => {
         safeResolve({
           success: false,
+          code: ErrorCode.INTERNAL_ERROR,
           error: `加载通行密钥认证服务失败: ${err.message}`,
         });
       });

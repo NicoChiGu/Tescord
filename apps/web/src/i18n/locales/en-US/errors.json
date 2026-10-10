@@ -63,5 +63,7 @@
   "AUDIO_DEVICE_UNSUPPORTED": "This browser does not support output device selection.",
   "CHANNEL_PERMISSION_DENIED": "You lack permission to access or manage this channel",
   "CHANNEL_OVERWRITE_NOT_FOUND": "Channel permission overwrite not found",
-  "CHANNEL_HIERARCHY_VIOLATION": "Hierarchy violation: cannot manage roles higher than yours or grant unowned permissions"
+  "CHANNEL_HIERARCHY_VIOLATION": "Hierarchy violation: cannot manage roles higher than yours or grant unowned permissions",
+  "STORAGE_GC_FAILED": "Storage garbage collection failed, please check storage connectivity and permissions",
+  "OPERATION_CANCELLED": "Operation cancelled"
 }

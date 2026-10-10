@@ -63,5 +63,7 @@
   "AUDIO_DEVICE_UNSUPPORTED": "このブラウザーでは出力デバイスを選択できません。",
   "CHANNEL_PERMISSION_DENIED": "このチャンネルにアクセスまたは管理する権限がありません",
   "CHANNEL_OVERWRITE_NOT_FOUND": "チャンネルの権限上書きが見つかりません",
-  "CHANNEL_HIERARCHY_VIOLATION": "階層違反：自分より上位のロールを管理したり、持っていない権限を付与することはできません"
+  "CHANNEL_HIERARCHY_VIOLATION": "階層違反：自分より上位のロールを管理したり、持っていない権限を付与することはできません",
+  "STORAGE_GC_FAILED": "ストレージのガベージコレクションに失敗しました。接続と権限を確認してください",
+  "OPERATION_CANCELLED": "操作がキャンセルされました"
 }
