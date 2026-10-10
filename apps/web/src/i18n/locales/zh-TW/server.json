@@ -89,7 +89,14 @@
       "addReactions": "新增表情回應",
       "connect": "連線語音頻道",
       "speak": "在語音頻道中發言",
-      "stream": "視訊直播與螢幕分享"
+      "stream": "視訊直播與螢幕分享",
+      "viewAuditLog": "查看審計日誌",
+      "viewChannel": "查看頻道",
+      "readMessageHistory": "閱讀歷史訊息",
+      "manageMessages": "管理訊息",
+      "muteMembers": "靜音成員",
+      "deafenMembers": "拒聽成員",
+      "moveMembers": "移動成員"
     }
   },
   "members": {

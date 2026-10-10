@@ -1,9 +1,11 @@
 import { useMemo } from "react";
 import {
   Guild,
+  Channel,
   PermissionFlags,
   hasPermission,
   computePermissions,
+  computeEffectivePermissions,
   parseRoleIds,
 } from "@tescord/types";
 import { useAuthStore } from "../stores/useAuthStore.js";
@@ -21,18 +23,25 @@ export interface PermissionsResult {
   canManageNicknames: boolean;
   canChangeNickname: boolean;
   canMoveMembers: boolean;
+  canViewChannel: boolean;
+  canSendMessages: boolean;
+  canAttachFiles: boolean;
+  canReadMessageHistory: boolean;
+  canConnect: boolean;
+  canSpeak: boolean;
+  canStream: boolean;
   rawPermissions: number;
 }
 
 export function usePermissions(
   guild?: Guild | null,
   targetUserId?: string,
+  channel?: Channel | null,
 ): PermissionsResult {
   const { user: currentUser } = useAuthStore();
   const userId = targetUserId || currentUser?.id;
 
   return useMemo(() => {
-    // 默认空权限
     const noPerms: PermissionsResult = {
       isOwner: false,
       canManageChannels: false,
@@ -46,20 +55,26 @@ export function usePermissions(
       canManageNicknames: false,
       canChangeNickname: false,
       canMoveMembers: false,
+      canViewChannel: false,
+      canSendMessages: false,
+      canAttachFiles: false,
+      canReadMessageHistory: false,
+      canConnect: false,
+      canSpeak: false,
+      canStream: false,
       rawPermissions: 0,
     };
 
     if (!guild || !userId) return noPerms;
 
-    // 1. 服务器所有者拥有所有最高特权
     const isOwner = guild.ownerId === userId;
-    // 兼容初始超管账号
     const isSuperAdmin =
       currentUser?.id === userId &&
       (currentUser?.username === "admin" ||
         currentUser?.username === "Jackey" ||
         currentUser?.username?.includes("admin") ||
-        (currentUser as any)?.role === "ADMIN");
+        (currentUser as any)?.role === "ADMIN" ||
+        (currentUser as any)?.role === "SUPER_ADMIN");
 
     if (isOwner || isSuperAdmin) {
       return {
@@ -75,11 +90,17 @@ export function usePermissions(
         canManageNicknames: true,
         canChangeNickname: true,
         canMoveMembers: true,
+        canViewChannel: true,
+        canSendMessages: true,
+        canAttachFiles: true,
+        canReadMessageHistory: true,
+        canConnect: true,
+        canSpeak: true,
+        canStream: true,
         rawPermissions: 0x7fffffff,
       };
     }
 
-    // 2. 查找成员角色与基础 @everyone 角色
     const member = guild.members?.find((m) => m.userId === userId);
     if (!member) return noPerms;
 
@@ -90,8 +111,25 @@ export function usePermissions(
     const memberRoleIds = parseRoleIds(member.roleIds);
     const memberRoles = guildRoles.filter((r) => memberRoleIds.includes(r.id));
 
-    let userPerms = everyoneRole ? everyoneRole.permissions : 0;
-    userPerms = computePermissions(memberRoles) | userPerms;
+    let userPerms = 0;
+    if (channel) {
+      const parentCat = channel.parentId
+        ? guild.categories?.find((c) => c.id === channel.parentId)
+        : undefined;
+
+      userPerms = computeEffectivePermissions({
+        userId,
+        isOwner,
+        isSuperAdmin,
+        userRoleIds: memberRoleIds,
+        guildRoles,
+        channelOverwrites: channel.overwrites,
+        categoryOverwrites: parentCat?.overwrites,
+      });
+    } else {
+      userPerms = everyoneRole ? everyoneRole.permissions : 0;
+      userPerms = computePermissions(memberRoles) | userPerms;
+    }
 
     return {
       isOwner: false,
@@ -118,7 +156,17 @@ export function usePermissions(
         PermissionFlags.CHANGE_NICKNAME,
       ),
       canMoveMembers: hasPermission(userPerms, PermissionFlags.MOVE_MEMBERS),
+      canViewChannel: hasPermission(userPerms, PermissionFlags.VIEW_CHANNEL),
+      canSendMessages: hasPermission(userPerms, PermissionFlags.SEND_MESSAGES),
+      canAttachFiles: hasPermission(userPerms, PermissionFlags.ATTACH_FILES),
+      canReadMessageHistory: hasPermission(
+        userPerms,
+        PermissionFlags.READ_MESSAGE_HISTORY,
+      ),
+      canConnect: hasPermission(userPerms, PermissionFlags.CONNECT),
+      canSpeak: hasPermission(userPerms, PermissionFlags.SPEAK),
+      canStream: hasPermission(userPerms, PermissionFlags.STREAM),
       rawPermissions: userPerms,
     };
-  }, [guild, userId, currentUser]);
+  }, [guild, userId, currentUser, channel]);
 }

@@ -60,5 +60,8 @@
   "ICON_PROCESS_TIMEOUT": "图标处理超时，请选择较小的 GIF 后重试",
   "AUDIO_INPUT_SWITCH_FAILED": "无法切换麦克风，请检查设备和权限。",
   "AUDIO_DEVICE_SWITCH_FAILED": "无法切换输出设备，请检查设备和权限。",
-  "AUDIO_DEVICE_UNSUPPORTED": "此浏览器不支持选择输出设备。"
+  "AUDIO_DEVICE_UNSUPPORTED": "此浏览器不支持选择输出设备。",
+  "CHANNEL_PERMISSION_DENIED": "无权访问或管理该频道",
+  "CHANNEL_OVERWRITE_NOT_FOUND": "频道权限覆写不存在",
+  "CHANNEL_HIERARCHY_VIOLATION": "权限层级不足，无法配置高于自身的身份组或未持有的权限"
 }

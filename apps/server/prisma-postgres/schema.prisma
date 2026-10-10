@@ -100,6 +100,7 @@ model Guild {
   bans        Ban[]
   auditLogs   AuditLog[]
   customEmojis CustomEmoji[]
+  permissionOverwrites PermissionOverwrite[]
 
   @@index([ownerId])
 }
@@ -145,6 +146,7 @@ model ChannelCategory {
   updatedAt DateTime  @updatedAt
 
   channels  Channel[]
+  overwrites PermissionOverwrite[]
 
   @@index([guildId])
 }
@@ -171,9 +173,32 @@ model Channel {
   messages   Message[]
   recipients ChannelRecipient[]
   readStates ChannelReadState[]
+  overwrites PermissionOverwrite[]
 
   @@index([guildId])
   @@index([parentId])
+}
+
+model PermissionOverwrite {
+  id          String           @id @default(cuid())
+  guildId     String
+  guild       Guild            @relation(fields: [guildId], references: [id], onDelete: Cascade)
+  channelId   String?
+  channel     Channel?         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  categoryId  String?
+  category    ChannelCategory? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  targetType  String           // "ROLE" | "MEMBER"
+  targetId    String           // roleId 或 userId
+  allow       Int              @default(0)
+  deny        Int              @default(0)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@unique([channelId, targetType, targetId])
+  @@unique([categoryId, targetType, targetId])
+  @@index([guildId])
+  @@index([channelId])
+  @@index([categoryId])
 }
 
 // 4. 消息与互动反应

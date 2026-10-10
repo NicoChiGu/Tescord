@@ -57,6 +57,7 @@ import {
   CreateGuildDTO,
   UpdateGuildDTO,
   CreateChannelDTO,
+  SetPermissionOverwriteDTO,
   CreateCategoryDTO,
   UpdateCategoryDTO,
   ReorderCategoriesDTO,
@@ -1384,13 +1385,37 @@ server.get("/api/guilds/:guildId/channels", async (request, reply) => {
     where: { guildId },
     orderBy: { position: "asc" },
     include: {
+      overwrites: true,
       readStates: {
         where: { userId },
         select: { lastReadSequence: true },
       },
     },
   });
-  return channels.map((c: any) => {
+
+  const canManageGuild = await permissionService.hasGuildPermission(
+    userId,
+    guildId,
+    PermissionFlags.MANAGE_CHANNELS,
+  );
+
+  const visibleChannels: typeof channels = [];
+  for (const c of channels) {
+    if (canManageGuild) {
+      visibleChannels.push(c);
+      continue;
+    }
+    const canView = await permissionService.hasChannelPermission(
+      userId,
+      c.id,
+      PermissionFlags.VIEW_CHANNEL,
+    );
+    if (canView) {
+      visibleChannels.push(c);
+    }
+  }
+
+  return visibleChannels.map((c: any) => {
     const lastReadSeq = c.readStates?.[0]?.lastReadSequence ?? 0;
     const unreadCount = Math.max(0, (c.nextMessageSequence || 0) - lastReadSeq);
     return {
@@ -1407,6 +1432,16 @@ server.get("/api/guilds/:guildId/channels", async (request, reply) => {
       streamMode: ((c as any).streamMode || "sfu") as any,
       lastReadSequence: lastReadSeq,
       unreadCount,
+      overwrites: (c.overwrites || []).map((o: any) => ({
+        id: o.id,
+        guildId: o.guildId,
+        channelId: o.channelId,
+        categoryId: o.categoryId,
+        targetType: o.targetType,
+        targetId: o.targetId,
+        allow: o.allow,
+        deny: o.deny,
+      })),
       createdAt: c.createdAt.toISOString(),
     };
   });
@@ -3838,6 +3873,9 @@ server.post("/api/guilds/:guildId/channels", async (request, reply) => {
     bitrate,
     voiceMode,
     streamMode,
+    isPrivate,
+    allowedRoleIds,
+    allowedUserIds,
   } = (request.body || {}) as CreateChannelDTO;
   if (!name || !name.trim()) {
     return reply.status(400).send({ error: "频道名称不能为空" });
@@ -3905,6 +3943,58 @@ server.post("/api/guilds/:guildId/channels", async (request, reply) => {
     },
   });
 
+  if (isPrivate) {
+    const everyoneRole = await permissionService.ensureEveryoneRole(guildId);
+    await prisma.permissionOverwrite.create({
+      data: {
+        guildId,
+        channelId: channel.id,
+        targetType: "ROLE",
+        targetId: everyoneRole.id,
+        allow: 0,
+        deny: PermissionFlags.VIEW_CHANNEL,
+      },
+    });
+
+    if (Array.isArray(allowedRoleIds)) {
+      for (const rId of allowedRoleIds) {
+        if (rId && rId !== everyoneRole.id) {
+          await prisma.permissionOverwrite.create({
+            data: {
+              guildId,
+              channelId: channel.id,
+              targetType: "ROLE",
+              targetId: rId,
+              allow: PermissionFlags.VIEW_CHANNEL,
+              deny: 0,
+            },
+          });
+        }
+      }
+    }
+
+    if (Array.isArray(allowedUserIds)) {
+      for (const uId of allowedUserIds) {
+        if (uId) {
+          await prisma.permissionOverwrite.create({
+            data: {
+              guildId,
+              channelId: channel.id,
+              targetType: "MEMBER",
+              targetId: uId,
+              allow: PermissionFlags.VIEW_CHANNEL,
+              deny: 0,
+            },
+          });
+        }
+      }
+    }
+  }
+
+  const createdOverwrites = await prisma.permissionOverwrite.findMany({
+    where: { channelId: channel.id },
+  });
+
   const channelPayload = {
     id: channel.id,
     guildId: channel.guildId,
@@ -3917,6 +4007,16 @@ server.post("/api/guilds/:guildId/channels", async (request, reply) => {
     bitrate: channel.bitrate,
     voiceMode: ((channel as any).voiceMode || "sfu") as any,
     streamMode: ((channel as any).streamMode || "sfu") as any,
+    overwrites: createdOverwrites.map((o) => ({
+      id: o.id,
+      guildId: o.guildId,
+      channelId: o.channelId,
+      categoryId: o.categoryId,
+      targetType: o.targetType as any,
+      targetId: o.targetId,
+      allow: o.allow,
+      deny: o.deny,
+    })),
     createdAt: channel.createdAt.toISOString(),
   };
 
@@ -4082,6 +4182,10 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
     },
   });
 
+  const overwrites = await prisma.permissionOverwrite.findMany({
+    where: { channelId },
+  });
+
   const channelPayload = {
     id: updatedChannel.id,
     guildId: updatedChannel.guildId,
@@ -4094,6 +4198,16 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
     bitrate: updatedChannel.bitrate,
     voiceMode: ((updatedChannel as any).voiceMode || "sfu") as any,
     streamMode: ((updatedChannel as any).streamMode || "sfu") as any,
+    overwrites: overwrites.map((o) => ({
+      id: o.id,
+      guildId: o.guildId,
+      channelId: o.channelId,
+      categoryId: o.categoryId,
+      targetType: o.targetType as any,
+      targetId: o.targetId,
+      allow: o.allow,
+      deny: o.deny,
+    })),
     createdAt: updatedChannel.createdAt.toISOString(),
   };
 
@@ -4104,6 +4218,387 @@ server.patch("/api/channels/:channelId", async (request, reply) => {
   });
 
   return channelPayload;
+});
+
+// 设置/更新频道权限覆写 (Channel Permission Overwrite)
+server.put("/api/channels/:channelId/permissions/:targetId", async (request, reply) => {
+  const { channelId, targetId } = request.params as { channelId: string; targetId: string };
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) {
+    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
+  }
+
+  const channel = await prisma.channel.findUnique({
+    where: { id: channelId },
+  });
+  if (!channel || !channel.guildId) {
+    return sendApiError(reply, 404, ErrorCode.CHANNEL_NOT_FOUND, "频道不存在");
+  }
+
+  const { targetType, allow = 0, deny = 0 } = (request.body || {}) as SetPermissionOverwriteDTO;
+  if (targetType !== "ROLE" && targetType !== "MEMBER") {
+    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "无效的覆写目标类型 (ROLE | MEMBER)");
+  }
+
+  const guard = await permissionService.canManageChannelPermissions(
+    userId,
+    channelId,
+    targetType,
+    targetId,
+    allow,
+    deny,
+  );
+  if (!guard.ok) {
+    return sendApiError(
+      reply,
+      403,
+      guard.code || ErrorCode.FORBIDDEN,
+      guard.message || "无权修改该权限覆写",
+    );
+  }
+
+  if (allow === 0 && deny === 0) {
+    await prisma.permissionOverwrite.deleteMany({
+      where: {
+        channelId,
+        targetType,
+        targetId,
+      },
+    });
+  } else {
+    await prisma.permissionOverwrite.upsert({
+      where: {
+        channelId_targetType_targetId: {
+          channelId,
+          targetType,
+          targetId,
+        },
+      },
+      create: {
+        guildId: channel.guildId,
+        channelId,
+        targetType,
+        targetId,
+        allow,
+        deny,
+      },
+      update: {
+        allow,
+        deny,
+      },
+    });
+  }
+
+  const updatedOverwrites = await prisma.permissionOverwrite.findMany({
+    where: { channelId },
+  });
+
+  const channelPayload = {
+    id: channel.id,
+    guildId: channel.guildId,
+    name: channel.name,
+    type: channel.type as any,
+    topic: channel.topic,
+    parentId: channel.parentId,
+    position: channel.position,
+    isE2EE: channel.isE2EE,
+    bitrate: channel.bitrate,
+    voiceMode: ((channel as any).voiceMode || "sfu") as any,
+    streamMode: ((channel as any).streamMode || "sfu") as any,
+    overwrites: updatedOverwrites.map((o) => ({
+      id: o.id,
+      guildId: o.guildId,
+      channelId: o.channelId,
+      categoryId: o.categoryId,
+      targetType: o.targetType as any,
+      targetId: o.targetId,
+      allow: o.allow,
+      deny: o.deny,
+    })),
+    createdAt: channel.createdAt.toISOString(),
+  };
+
+  gatewayManager.broadcast({
+    op: GatewayOpCode.DISPATCH,
+    t: GatewayEvents.CHANNEL_UPDATE,
+    d: channelPayload,
+  });
+
+  return channelPayload;
+});
+
+// 删除频道权限覆写 (Delete Channel Permission Overwrite)
+server.delete("/api/channels/:channelId/permissions/:targetId", async (request, reply) => {
+  const { channelId, targetId } = request.params as { channelId: string; targetId: string };
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) {
+    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
+  }
+
+  const channel = await prisma.channel.findUnique({
+    where: { id: channelId },
+  });
+  if (!channel || !channel.guildId) {
+    return sendApiError(reply, 404, ErrorCode.CHANNEL_NOT_FOUND, "频道不存在");
+  }
+
+  const existing = await prisma.permissionOverwrite.findFirst({
+    where: { channelId, targetId },
+  });
+  if (!existing) {
+    return reply.status(204).send();
+  }
+
+  const guard = await permissionService.canManageChannelPermissions(
+    userId,
+    channelId,
+    existing.targetType as any,
+    targetId,
+    0,
+    0,
+  );
+  if (!guard.ok) {
+    return sendApiError(
+      reply,
+      403,
+      guard.code || ErrorCode.FORBIDDEN,
+      guard.message || "无权删除该权限覆写",
+    );
+  }
+
+  await prisma.permissionOverwrite.deleteMany({
+    where: { channelId, targetId },
+  });
+
+  const updatedOverwrites = await prisma.permissionOverwrite.findMany({
+    where: { channelId },
+  });
+
+  const channelPayload = {
+    id: channel.id,
+    guildId: channel.guildId,
+    name: channel.name,
+    type: channel.type as any,
+    topic: channel.topic,
+    parentId: channel.parentId,
+    position: channel.position,
+    isE2EE: channel.isE2EE,
+    bitrate: channel.bitrate,
+    voiceMode: ((channel as any).voiceMode || "sfu") as any,
+    streamMode: ((channel as any).streamMode || "sfu") as any,
+    overwrites: updatedOverwrites.map((o) => ({
+      id: o.id,
+      guildId: o.guildId,
+      channelId: o.channelId,
+      categoryId: o.categoryId,
+      targetType: o.targetType as any,
+      targetId: o.targetId,
+      allow: o.allow,
+      deny: o.deny,
+    })),
+    createdAt: channel.createdAt.toISOString(),
+  };
+
+  gatewayManager.broadcast({
+    op: GatewayOpCode.DISPATCH,
+    t: GatewayEvents.CHANNEL_UPDATE,
+    d: channelPayload,
+  });
+
+  return channelPayload;
+});
+
+// 与分类同步权限 (Sync with Category)
+server.post("/api/channels/:channelId/sync", async (request, reply) => {
+  const { channelId } = request.params as { channelId: string };
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) {
+    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
+  }
+
+  const channel = await prisma.channel.findUnique({
+    where: { id: channelId },
+  });
+  if (!channel || !channel.guildId) {
+    return sendApiError(reply, 404, ErrorCode.CHANNEL_NOT_FOUND, "频道不存在");
+  }
+
+  if (!channel.parentId) {
+    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "该频道未归属任何分类，无法执行同步");
+  }
+
+  const canManage = await permissionService.hasChannelPermission(
+    userId,
+    channelId,
+    PermissionFlags.MANAGE_CHANNELS,
+  );
+  if (!canManage) {
+    return sendApiError(reply, 403, ErrorCode.CHANNEL_PERMISSION_DENIED, "缺少管理频道权限");
+  }
+
+  await prisma.permissionOverwrite.deleteMany({
+    where: { channelId },
+  });
+
+  const channelPayload = {
+    id: channel.id,
+    guildId: channel.guildId,
+    name: channel.name,
+    type: channel.type as any,
+    topic: channel.topic,
+    parentId: channel.parentId,
+    position: channel.position,
+    isE2EE: channel.isE2EE,
+    bitrate: channel.bitrate,
+    voiceMode: ((channel as any).voiceMode || "sfu") as any,
+    streamMode: ((channel as any).streamMode || "sfu") as any,
+    overwrites: [],
+    createdAt: channel.createdAt.toISOString(),
+  };
+
+  gatewayManager.broadcast({
+    op: GatewayOpCode.DISPATCH,
+    t: GatewayEvents.CHANNEL_UPDATE,
+    d: channelPayload,
+  });
+
+  return channelPayload;
+});
+
+// 设置/更新分类权限覆写 (Category Permission Overwrite)
+server.put("/api/categories/:categoryId/permissions/:targetId", async (request, reply) => {
+  const { categoryId, targetId } = request.params as { categoryId: string; targetId: string };
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) {
+    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
+  }
+
+  const category = await prisma.channelCategory.findUnique({
+    where: { id: categoryId },
+  });
+  if (!category) {
+    return sendApiError(reply, 404, ErrorCode.CATEGORY_NOT_FOUND, "分类不存在");
+  }
+
+  const { targetType, allow = 0, deny = 0 } = (request.body || {}) as SetPermissionOverwriteDTO;
+  if (targetType !== "ROLE" && targetType !== "MEMBER") {
+    return sendApiError(reply, 400, ErrorCode.INVALID_PARAMS, "无效的覆写目标类型 (ROLE | MEMBER)");
+  }
+
+  const guard = await permissionService.canManageCategoryPermissions(
+    userId,
+    categoryId,
+    targetType,
+    targetId,
+    allow,
+    deny,
+  );
+  if (!guard.ok) {
+    return sendApiError(
+      reply,
+      403,
+      guard.code || ErrorCode.FORBIDDEN,
+      guard.message || "无权修改该分类权限覆写",
+    );
+  }
+
+  if (allow === 0 && deny === 0) {
+    await prisma.permissionOverwrite.deleteMany({
+      where: {
+        categoryId,
+        targetType,
+        targetId,
+      },
+    });
+  } else {
+    await prisma.permissionOverwrite.upsert({
+      where: {
+        categoryId_targetType_targetId: {
+          categoryId,
+          targetType,
+          targetId,
+        },
+      },
+      create: {
+        guildId: category.guildId,
+        categoryId,
+        targetType,
+        targetId,
+        allow,
+        deny,
+      },
+      update: {
+        allow,
+        deny,
+      },
+    });
+  }
+
+  const catOverwrites = await prisma.permissionOverwrite.findMany({
+    where: { categoryId },
+  });
+
+  return {
+    id: category.id,
+    guildId: category.guildId,
+    name: category.name,
+    position: category.position,
+    overwrites: catOverwrites.map((o) => ({
+      id: o.id,
+      guildId: o.guildId,
+      categoryId: o.categoryId,
+      targetType: o.targetType as any,
+      targetId: o.targetId,
+      allow: o.allow,
+      deny: o.deny,
+    })),
+  };
+});
+
+// 删除分类权限覆写 (Delete Category Permission Overwrite)
+server.delete("/api/categories/:categoryId/permissions/:targetId", async (request, reply) => {
+  const { categoryId, targetId } = request.params as { categoryId: string; targetId: string };
+  const userId = await getUserIdFromRequest(request);
+  if (!userId) {
+    return sendApiError(reply, 401, ErrorCode.UNAUTHORIZED, "需要登录");
+  }
+
+  const category = await prisma.channelCategory.findUnique({
+    where: { id: categoryId },
+  });
+  if (!category) {
+    return sendApiError(reply, 404, ErrorCode.CATEGORY_NOT_FOUND, "分类不存在");
+  }
+
+  const existing = await prisma.permissionOverwrite.findFirst({
+    where: { categoryId, targetId },
+  });
+  if (!existing) {
+    return reply.status(204).send();
+  }
+
+  const guard = await permissionService.canManageCategoryPermissions(
+    userId,
+    categoryId,
+    existing.targetType as any,
+    targetId,
+    0,
+    0,
+  );
+  if (!guard.ok) {
+    return sendApiError(
+      reply,
+      403,
+      guard.code || ErrorCode.FORBIDDEN,
+      guard.message || "无权删除该分类权限覆写",
+    );
+  }
+
+  await prisma.permissionOverwrite.deleteMany({
+    where: { categoryId, targetId },
+  });
+
+  return { success: true };
 });
 
 // ==========================================

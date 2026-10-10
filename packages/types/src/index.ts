@@ -406,6 +406,154 @@ export function parseRoleIds(raw: any): string[] {
   return [];
 }
 
+// 权限覆写与通道专属权限定义
+export type OverwriteTargetType = "ROLE" | "MEMBER";
+
+export interface PermissionOverwrite {
+  id: string;
+  guildId: string;
+  channelId?: string | null;
+  categoryId?: string | null;
+  targetType: OverwriteTargetType;
+  targetId: string;
+  allow: number;
+  deny: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface SetPermissionOverwriteDTO {
+  targetType: OverwriteTargetType;
+  allow: number;
+  deny: number;
+}
+
+export const CHANNEL_TEXT_PERMISSIONS: PermissionFlags[] = [
+  PermissionFlags.VIEW_CHANNEL,
+  PermissionFlags.MANAGE_CHANNELS,
+  PermissionFlags.MANAGE_ROLES,
+  PermissionFlags.SEND_MESSAGES,
+  PermissionFlags.ATTACH_FILES,
+  PermissionFlags.READ_MESSAGE_HISTORY,
+  PermissionFlags.ADD_REACTIONS,
+  PermissionFlags.MANAGE_MESSAGES,
+  PermissionFlags.CREATE_INVITE,
+];
+
+export const CHANNEL_VOICE_PERMISSIONS: PermissionFlags[] = [
+  PermissionFlags.VIEW_CHANNEL,
+  PermissionFlags.MANAGE_CHANNELS,
+  PermissionFlags.MANAGE_ROLES,
+  PermissionFlags.CONNECT,
+  PermissionFlags.SPEAK,
+  PermissionFlags.STREAM,
+  PermissionFlags.MUTE_MEMBERS,
+  PermissionFlags.DEAFEN_MEMBERS,
+  PermissionFlags.MOVE_MEMBERS,
+];
+
+export const CHANNEL_CATEGORY_PERMISSIONS: PermissionFlags[] = [
+  ...Array.from(new Set([...CHANNEL_TEXT_PERMISSIONS, ...CHANNEL_VOICE_PERMISSIONS])),
+];
+
+export interface ComputePermissionsContext {
+  userId: string;
+  isOwner?: boolean;
+  isSuperAdmin?: boolean;
+  userRoleIds: string[];
+  guildRoles: Role[];
+  channelOverwrites?: PermissionOverwrite[];
+  categoryOverwrites?: PermissionOverwrite[];
+}
+
+export function computeEffectivePermissions(
+  context: ComputePermissionsContext,
+): number {
+  if (context.isOwner || context.isSuperAdmin) {
+    return ~0;
+  }
+
+  const everyoneRole = context.guildRoles.find((r) => r.isDefault);
+  let perms = everyoneRole ? everyoneRole.permissions : 0;
+
+  for (const roleId of context.userRoleIds) {
+    const role = context.guildRoles.find((r) => r.id === roleId);
+    if (role) {
+      perms |= role.permissions;
+    }
+  }
+
+  if (
+    (perms & PermissionFlags.ADMINISTRATOR) === PermissionFlags.ADMINISTRATOR
+  ) {
+    return ~0;
+  }
+
+  if (context.categoryOverwrites && context.categoryOverwrites.length > 0) {
+    if (everyoneRole) {
+      const catEveryone = context.categoryOverwrites.find(
+        (o) => o.targetType === "ROLE" && o.targetId === everyoneRole.id,
+      );
+      if (catEveryone) {
+        perms = (perms & ~catEveryone.deny) | catEveryone.allow;
+      }
+    }
+
+    let catRoleAllow = 0;
+    let catRoleDeny = 0;
+    for (const roleId of context.userRoleIds) {
+      const catRoleOw = context.categoryOverwrites.find(
+        (o) => o.targetType === "ROLE" && o.targetId === roleId,
+      );
+      if (catRoleOw) {
+        catRoleAllow |= catRoleOw.allow;
+        catRoleDeny |= catRoleOw.deny;
+      }
+    }
+    perms = (perms & ~catRoleDeny) | catRoleAllow;
+
+    const catMemberOw = context.categoryOverwrites.find(
+      (o) => o.targetType === "MEMBER" && o.targetId === context.userId,
+    );
+    if (catMemberOw) {
+      perms = (perms & ~catMemberOw.deny) | catMemberOw.allow;
+    }
+  }
+
+  if (context.channelOverwrites && context.channelOverwrites.length > 0) {
+    if (everyoneRole) {
+      const chEveryone = context.channelOverwrites.find(
+        (o) => o.targetType === "ROLE" && o.targetId === everyoneRole.id,
+      );
+      if (chEveryone) {
+        perms = (perms & ~chEveryone.deny) | chEveryone.allow;
+      }
+    }
+
+    let chRoleAllow = 0;
+    let chRoleDeny = 0;
+    for (const roleId of context.userRoleIds) {
+      const chRoleOw = context.channelOverwrites.find(
+        (o) => o.targetType === "ROLE" && o.targetId === roleId,
+      );
+      if (chRoleOw) {
+        chRoleAllow |= chRoleOw.allow;
+        chRoleDeny |= chRoleOw.deny;
+      }
+    }
+    perms = (perms & ~chRoleDeny) | chRoleAllow;
+
+    const chMemberOw = context.channelOverwrites.find(
+      (o) => o.targetType === "MEMBER" && o.targetId === context.userId,
+    );
+    if (chMemberOw) {
+      perms = (perms & ~chMemberOw.deny) | chMemberOw.allow;
+    }
+  }
+
+  return perms;
+}
+
 // 3. 频道与公会 (Guild / Server)
 export type ChannelType = "TEXT" | "VOICE" | "DM" | "GROUP_DM";
 
@@ -414,6 +562,7 @@ export interface ChannelCategory {
   guildId: string;
   name: string;
   position: number;
+  overwrites?: PermissionOverwrite[];
   createdAt: string;
   updatedAt: string;
 }
@@ -434,6 +583,7 @@ export interface Channel {
   lastMessage?: Message;
   unreadCount?: number;
   lastReadSequence?: number;
+  overwrites?: PermissionOverwrite[];
   createdAt: string;
 }
 
@@ -637,6 +787,9 @@ export interface CreateChannelDTO {
   bitrate?: number;
   voiceMode?: "sfu" | "p2p_mesh";
   streamMode?: StreamTransmissionMode;
+  isPrivate?: boolean;
+  allowedRoleIds?: string[];
+  allowedUserIds?: string[];
 }
 
 export interface UpdateChannelDTO {
@@ -3248,6 +3401,9 @@ export enum ErrorCode {
   // 频道与分类
   CHANNEL_NOT_FOUND = "CHANNEL_NOT_FOUND",
   CHANNEL_NAME_REQUIRED = "CHANNEL_NAME_REQUIRED",
+  CHANNEL_PERMISSION_DENIED = "CHANNEL_PERMISSION_DENIED",
+  CHANNEL_OVERWRITE_NOT_FOUND = "CHANNEL_OVERWRITE_NOT_FOUND",
+  CHANNEL_HIERARCHY_VIOLATION = "CHANNEL_HIERARCHY_VIOLATION",
   CATEGORY_NOT_FOUND = "CATEGORY_NOT_FOUND",
   CATEGORY_NAME_REQUIRED = "CATEGORY_NAME_REQUIRED",
 

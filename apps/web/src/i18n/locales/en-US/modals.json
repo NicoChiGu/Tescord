@@ -47,7 +47,12 @@
     "bitrateDesc": "Configure Opus audio streaming bitrate for this voice channel. Higher bitrates provide richer, clearer audio but consume more network bandwidth.",
     "submit": "Create Channel",
     "submitting": "Creating...",
-    "failed": "Failed to create channel"
+    "failed": "Failed to create channel",
+    "privateChannel": "Private Channel",
+    "privateChannelDesc": "Only selected roles and members will be able to view this channel.",
+    "whoCanAccess": "Who can access this channel?",
+    "rolesAndMembers": "Roles & Members",
+    "searchRolesAndMembers": "Search roles or members..."
   },
   "editChannel": {
     "title": "Channel Settings",
@@ -70,7 +75,27 @@
     "deleteConfirmTitle": "Delete Channel",
     "deleteConfirmDesc": "Are you sure you want to delete #{{name}}? This cannot be undone and all message history will be permanently deleted.",
     "deleteWarning": "All messages and media in this channel will be permanently removed upon deletion.",
-    "confirmDelete": "Confirm Permanent Delete"
+    "confirmDelete": "Confirm Permanent Delete",
+    "tabs": {
+      "overview": "Overview",
+      "permissions": "Permissions"
+    },
+    "permissions": {
+      "privateChannel": "Private Channel",
+      "privateChannelDesc": "When enabled, only roles or members with explicit view permission can see this channel.",
+      "syncWithCategory": "Sync with Category",
+      "synced": "Synced with Category",
+      "unsynced": "Not synced (has custom overwrites)",
+      "syncConfirm": "Are you sure you want to sync permissions with the parent category? This will clear all custom overwrites for this channel.",
+      "addRoleOrMember": "Add Role or Member",
+      "roles": "Roles",
+      "members": "Members",
+      "resetOverwrite": "Reset Overwrite",
+      "allow": "Allow",
+      "inherit": "Inherit",
+      "deny": "Deny",
+      "advancedPermissions": "Advanced Permissions"
+    }
   },
   "createCategory": {
     "title": "Create Category",

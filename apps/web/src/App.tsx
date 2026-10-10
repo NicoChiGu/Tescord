@@ -5733,6 +5733,7 @@ export const App: React.FC = () => {
         <CreateChannelModal
           isOpen={isCreateChannelOpen}
           guildId={selectedGuildId}
+          guild={currentGuild}
           categories={currentGuild?.categories}
           initialCategoryId={selectedCategoryForChannel?.id}
           onClose={() => {

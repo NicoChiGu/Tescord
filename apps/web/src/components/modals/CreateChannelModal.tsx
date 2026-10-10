@@ -9,11 +9,13 @@ import {
   Server,
   Share2,
   Layers,
+  Lock,
 } from "lucide-react";
 import {
   Channel,
   ChannelCategory,
   ChannelType,
+  Guild,
   StreamTransmissionMode,
 } from "@tescord/types";
 import { useTranslation } from "react-i18next";
@@ -24,6 +26,7 @@ import { Select } from "../ui/Select.js";
 interface CreateChannelModalProps {
   isOpen: boolean;
   guildId: string;
+  guild?: Guild | null;
   categories?: ChannelCategory[];
   initialCategoryId?: string | null;
   onClose: () => void;
@@ -33,6 +36,7 @@ interface CreateChannelModalProps {
 export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
   isOpen,
   guildId,
+  guild,
   categories = [],
   initialCategoryId = null,
   onClose,
@@ -47,6 +51,9 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
   const [streamMode, setStreamMode] = useState<StreamTransmissionMode>("sfu");
   const [bitrate, setBitrate] = useState<number>(64000);
   const [isE2EE, setIsE2EE] = useState(false);
+  const [isPrivate, setIsPrivate] = useState(false);
+  const [selectedRoleIds, setSelectedRoleIds] = useState<string[]>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,6 +66,9 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
       setStreamMode("sfu");
       setBitrate(64000);
       setIsE2EE(false);
+      setIsPrivate(false);
+      setSelectedRoleIds([]);
+      setSelectedUserIds([]);
       setError(null);
     }
   }, [isOpen, initialCategoryId]);
@@ -89,6 +99,9 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
           parentId: parentId || undefined,
           topic: topic.trim() || undefined,
           isE2EE,
+          isPrivate,
+          allowedRoleIds: isPrivate ? selectedRoleIds : undefined,
+          allowedUserIds: isPrivate ? selectedUserIds : undefined,
           ...(type === "VOICE" ? { voiceMode, streamMode, bitrate } : {}),
         }),
       });
@@ -409,6 +422,119 @@ export const CreateChannelModal: React.FC<CreateChannelModalProps> = ({
               onChange={(e) => setIsE2EE(e.target.checked)}
               className="w-4 h-4 rounded text-discord-brand focus:ring-discord-brand cursor-pointer"
             />
+          </div>
+
+          {/* 私密频道选项 (Private Channel) */}
+          <div className="bg-[#2b2d31] p-3 rounded-lg border border-[#383a40] space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <Lock className="w-5 h-5 text-discord-brand" />
+                <div>
+                  <div className="text-sm font-semibold text-discord-textHeader">
+                    {t("modals:createChannel.privateChannel")}
+                  </div>
+                  <div className="text-[11px] text-discord-textMuted">
+                    {t("modals:createChannel.privateChannelDesc")}
+                  </div>
+                </div>
+              </div>
+              <input
+                type="checkbox"
+                data-testid="create-channel-private-switch"
+                checked={isPrivate}
+                onChange={(e) => setIsPrivate(e.target.checked)}
+                className="w-4 h-4 rounded text-discord-brand focus:ring-discord-brand cursor-pointer"
+              />
+            </div>
+
+            {/* 若开启私密频道，展开身份组与成员选择 */}
+            {isPrivate && (
+              <div className="pt-2 border-t border-[#383a40]/60 space-y-2">
+                <div className="text-xs font-bold uppercase tracking-wider text-discord-textMuted">
+                  {t("modals:createChannel.whoCanAccess")}
+                </div>
+
+                {/* 身份组列表 */}
+                {guild?.roles && guild.roles.filter((r) => !r.isDefault).length > 0 && (
+                  <div className="space-y-1">
+                    <div className="text-[11px] font-semibold text-gray-400">
+                      {t("modals:editChannel.permissions.roles")}
+                    </div>
+                    <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
+                      {guild.roles
+                        .filter((r) => !r.isDefault)
+                        .map((role) => {
+                          const isChecked = selectedRoleIds.includes(role.id);
+                          return (
+                            <label
+                              key={role.id}
+                              className="flex items-center justify-between p-1.5 rounded bg-[#1e1f22]/60 hover:bg-[#1e1f22] cursor-pointer text-xs transition"
+                            >
+                              <div className="flex items-center space-x-2">
+                                <span
+                                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                                  style={{ backgroundColor: role.color || "#99aab5" }}
+                                />
+                                <span className="text-discord-textHeader font-medium">
+                                  {role.name}
+                                </span>
+                              </div>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {
+                                  setSelectedRoleIds((prev) =>
+                                    isChecked
+                                      ? prev.filter((id) => id !== role.id)
+                                      : [...prev, role.id],
+                                  );
+                                }}
+                                className="w-3.5 h-3.5 rounded text-discord-brand"
+                              />
+                            </label>
+                          );
+                        })}
+                    </div>
+                  </div>
+                )}
+
+                {/* 成员列表 */}
+                {guild?.members && guild.members.length > 0 && (
+                  <div className="space-y-1 pt-1">
+                    <div className="text-[11px] font-semibold text-gray-400">
+                      {t("modals:editChannel.permissions.members")}
+                    </div>
+                    <div className="max-h-28 overflow-y-auto space-y-1 pr-1">
+                      {guild.members.map((member) => {
+                        const isChecked = selectedUserIds.includes(member.userId);
+                        return (
+                          <label
+                            key={member.userId}
+                            className="flex items-center justify-between p-1.5 rounded bg-[#1e1f22]/60 hover:bg-[#1e1f22] cursor-pointer text-xs transition"
+                          >
+                            <span className="text-discord-textHeader font-medium truncate max-w-[200px]">
+                              {member.nickname || member.userId}
+                            </span>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                setSelectedUserIds((prev) =>
+                                  isChecked
+                                    ? prev.filter((id) => id !== member.userId)
+                                    : [...prev, member.userId],
+                                );
+                              }}
+                              className="w-3.5 h-3.5 rounded text-discord-brand"
+                            />
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* 底部按钮 */}

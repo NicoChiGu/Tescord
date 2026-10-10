@@ -47,7 +47,12 @@
     "bitrateDesc": "このボイスチャンネルの Opus 音声ビットレートを設定します。ビットレートが高いほどクリアで豊かな音質になりますが、より多くのネットワーク帯域を消費します。",
     "submit": "チャンネルを作成",
     "submitting": "作成中...",
-    "failed": "チャンネルの作成に失敗しました"
+    "failed": "チャンネルの作成に失敗しました",
+    "privateChannel": "プライベートチャンネル",
+    "privateChannelDesc": "選択したロールとメンバーのみがこのチャンネルを閲覧できます。",
+    "whoCanAccess": "誰がこのチャンネルにアクセスできますか？",
+    "rolesAndMembers": "ロールとメンバー",
+    "searchRolesAndMembers": "ロールまたはメンバーを検索..."
   },
   "editChannel": {
     "title": "チャンネル設定",
@@ -70,7 +75,27 @@
     "deleteConfirmTitle": "チャンネルを削除",
     "deleteConfirmDesc": "本当に #{{name}} チャンネルを削除しますか？この操作は取り消せず、すべてのメッセージ履歴が完全に削除されます。",
     "deleteWarning": "削除すると、このチャンネル内のすべてのチャットおよびメディア履歴が完全に削除されます。",
-    "confirmDelete": "完全に削除する"
+    "confirmDelete": "完全に削除する",
+    "tabs": {
+      "overview": "概要",
+      "permissions": "権限"
+    },
+    "permissions": {
+      "privateChannel": "プライベートチャンネル",
+      "privateChannelDesc": "有効にすると、明示的な表示権限を持つロールまたはメンバーのみが閲覧できます。",
+      "syncWithCategory": "カテゴリーと同期",
+      "synced": "カテゴリーと同期中",
+      "unsynced": "非同期（カスタム権限あり）",
+      "syncConfirm": "このチャンネルの権限を親カテゴリーと同期しますか？これにより、このチャンネルのカスタム権限がすべてクリアされます。",
+      "addRoleOrMember": "ロールまたはメンバーを追加",
+      "roles": "ロール",
+      "members": "メンバー",
+      "resetOverwrite": "権限の上書きを解除",
+      "allow": "許可",
+      "inherit": "継承",
+      "deny": "拒否",
+      "advancedPermissions": "高度な権限設定"
+    }
   },
   "createCategory": {
     "title": "カテゴリーを作成",

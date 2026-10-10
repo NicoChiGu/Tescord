@@ -4,6 +4,9 @@ import {
   PermissionFlags,
   hasPermission,
   Role,
+  computeEffectivePermissions,
+  OverwriteTargetType,
+  ErrorCode,
 } from "@tescord/types";
 
 export class PermissionService {
@@ -225,22 +228,422 @@ export class PermissionService {
   }
 
   /**
-   * 校验用户在频道所属的公会中是否拥有指定权限
+   * 计算用户在频道内的有效权限位掩码
+   */
+  public async getChannelPermissionBits(
+    userId: string,
+    channelId: string,
+  ): Promise<number | null> {
+    const channel = await prisma.channel.findUnique({
+      where: { id: channelId },
+      include: {
+        recipients: true,
+        overwrites: true,
+        parent: {
+          include: {
+            overwrites: true,
+          },
+        },
+      },
+    });
+    if (!channel) return null;
+
+    if (!channel.guildId) {
+      const isRecipient = channel.recipients.some((r) => r.userId === userId);
+      if (!isRecipient) return null;
+      return (
+        PermissionFlags.VIEW_CHANNEL |
+        PermissionFlags.SEND_MESSAGES |
+        PermissionFlags.ATTACH_FILES |
+        PermissionFlags.READ_MESSAGE_HISTORY |
+        PermissionFlags.ADD_REACTIONS |
+        PermissionFlags.CONNECT |
+        PermissionFlags.SPEAK |
+        PermissionFlags.STREAM
+      );
+    }
+
+    const guildId = channel.guildId;
+    const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+    if (!guild) return null;
+
+    const actor = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (guild.ownerId === userId || actor?.role === "SUPER_ADMIN") {
+      return this.allPermissionBits;
+    }
+
+    const member = await prisma.guildMember.findUnique({
+      where: { guildId_userId: { guildId, userId } },
+    });
+    if (!member) return null;
+
+    await this.ensureEveryoneRole(guildId);
+    const guildRoles = await prisma.role.findMany({
+      where: { guildId },
+    });
+
+    let roleIds: string[] = [];
+    try {
+      roleIds = JSON.parse(member.roleIds || "[]");
+    } catch {
+      roleIds = [];
+    }
+
+    return computeEffectivePermissions({
+      userId,
+      isOwner: guild.ownerId === userId,
+      isSuperAdmin: actor?.role === "SUPER_ADMIN",
+      userRoleIds: roleIds,
+      guildRoles: guildRoles.map((r) => ({
+        id: r.id,
+        guildId: r.guildId,
+        name: r.name,
+        color: r.color,
+        hoist: r.hoist,
+        position: r.position,
+        permissions: r.permissions,
+        isDefault: r.isDefault,
+        createdAt: r.createdAt.toISOString(),
+      })),
+      channelOverwrites: (channel.overwrites || []).map((o) => ({
+        id: o.id,
+        guildId: o.guildId,
+        channelId: o.channelId,
+        categoryId: o.categoryId,
+        targetType: o.targetType as OverwriteTargetType,
+        targetId: o.targetId,
+        allow: o.allow,
+        deny: o.deny,
+      })),
+      categoryOverwrites: (channel.parent?.overwrites || []).map((o) => ({
+        id: o.id,
+        guildId: o.guildId,
+        channelId: o.channelId,
+        categoryId: o.categoryId,
+        targetType: o.targetType as OverwriteTargetType,
+        targetId: o.targetId,
+        allow: o.allow,
+        deny: o.deny,
+      })),
+    });
+  }
+
+  /**
+   * 校验用户在频道内是否拥有指定权限
    */
   public async hasChannelPermission(
     userId: string,
     channelId: string,
     flag: PermissionFlags,
   ): Promise<boolean> {
+    const bits = await this.getChannelPermissionBits(userId, channelId);
+    return bits !== null && hasPermission(bits, flag);
+  }
+
+  /**
+   * 计算用户在分类内的有效权限位掩码
+   */
+  public async getCategoryPermissionBits(
+    userId: string,
+    categoryId: string,
+  ): Promise<number | null> {
+    const category = await prisma.channelCategory.findUnique({
+      where: { id: categoryId },
+      include: {
+        overwrites: true,
+      },
+    });
+    if (!category) return null;
+
+    const guildId = category.guildId;
+    const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+    if (!guild) return null;
+
+    const actor = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { role: true },
+    });
+    if (guild.ownerId === userId || actor?.role === "SUPER_ADMIN") {
+      return this.allPermissionBits;
+    }
+
+    const member = await prisma.guildMember.findUnique({
+      where: { guildId_userId: { guildId, userId } },
+    });
+    if (!member) return null;
+
+    await this.ensureEveryoneRole(guildId);
+    const guildRoles = await prisma.role.findMany({
+      where: { guildId },
+    });
+
+    let roleIds: string[] = [];
+    try {
+      roleIds = JSON.parse(member.roleIds || "[]");
+    } catch {
+      roleIds = [];
+    }
+
+    return computeEffectivePermissions({
+      userId,
+      isOwner: guild.ownerId === userId,
+      isSuperAdmin: actor?.role === "SUPER_ADMIN",
+      userRoleIds: roleIds,
+      guildRoles: guildRoles.map((r) => ({
+        id: r.id,
+        guildId: r.guildId,
+        name: r.name,
+        color: r.color,
+        hoist: r.hoist,
+        position: r.position,
+        permissions: r.permissions,
+        isDefault: r.isDefault,
+        createdAt: r.createdAt.toISOString(),
+      })),
+      categoryOverwrites: (category.overwrites || []).map((o) => ({
+        id: o.id,
+        guildId: o.guildId,
+        channelId: o.channelId,
+        categoryId: o.categoryId,
+        targetType: o.targetType as OverwriteTargetType,
+        targetId: o.targetId,
+        allow: o.allow,
+        deny: o.deny,
+      })),
+    });
+  }
+
+  /**
+   * 校验用户在分类内是否拥有指定权限
+   */
+  public async hasCategoryPermission(
+    userId: string,
+    categoryId: string,
+    flag: PermissionFlags,
+  ): Promise<boolean> {
+    const bits = await this.getCategoryPermissionBits(userId, categoryId);
+    return bits !== null && hasPermission(bits, flag);
+  }
+
+  /**
+   * 校验操作者是否能够管理频道权限覆写 (防越权)
+   */
+  public async canManageChannelPermissions(
+    actorUserId: string,
+    channelId: string,
+    targetType: OverwriteTargetType,
+    targetId: string,
+    allow: number,
+    deny: number,
+  ): Promise<{ ok: boolean; code?: ErrorCode; message?: string }> {
     const channel = await prisma.channel.findUnique({
       where: { id: channelId },
-      include: { recipients: true },
     });
-    if (!channel) return false;
-    if (!channel.guildId) {
-      return channel.recipients.some((r) => r.userId === userId);
+    if (!channel || !channel.guildId) {
+      return { ok: false, code: ErrorCode.CHANNEL_NOT_FOUND, message: "频道不存在" };
     }
-    return this.hasGuildPermission(userId, channel.guildId, flag);
+    const guildId = channel.guildId;
+
+    const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+    if (!guild) {
+      return { ok: false, code: ErrorCode.GUILD_NOT_FOUND, message: "服务器不存在" };
+    }
+
+    const actor = await prisma.user.findUnique({
+      where: { id: actorUserId },
+      select: { role: true },
+    });
+
+    if (guild.ownerId === actorUserId || actor?.role === "SUPER_ADMIN") {
+      return { ok: true };
+    }
+
+    const canManageRoles = await this.hasGuildPermission(
+      actorUserId,
+      guildId,
+      PermissionFlags.MANAGE_ROLES,
+    );
+    const canManageChannels = await this.hasChannelPermission(
+      actorUserId,
+      channelId,
+      PermissionFlags.MANAGE_CHANNELS,
+    );
+    if (!canManageRoles && !canManageChannels) {
+      return {
+        ok: false,
+        code: ErrorCode.CHANNEL_PERMISSION_DENIED,
+        message: "缺少管理频道或角色权限",
+      };
+    }
+
+    const actorHighestPos = await this.getMemberHighestRolePosition(
+      actorUserId,
+      guildId,
+    );
+    const actorEffectiveBits =
+      (await this.getChannelPermissionBits(actorUserId, channelId)) || 0;
+
+    const extraBits = (allow | deny) & ~actorEffectiveBits;
+    if (extraBits !== 0) {
+      return {
+        ok: false,
+        code: ErrorCode.CHANNEL_HIERARCHY_VIOLATION,
+        message: "无法授予自身未持有的权限位",
+      };
+    }
+
+    if (targetType === "ROLE") {
+      const targetRole = await prisma.role.findUnique({
+        where: { id: targetId },
+      });
+      if (!targetRole || targetRole.guildId !== guildId) {
+        return {
+          ok: false,
+          code: ErrorCode.GUILD_ROLE_NOT_FOUND,
+          message: "目标身份组不存在",
+        };
+      }
+      if (!targetRole.isDefault && targetRole.position >= actorHighestPos) {
+        return {
+          ok: false,
+          code: ErrorCode.CHANNEL_HIERARCHY_VIOLATION,
+          message: "无法管理层级高于或等于自身的身份组覆写",
+        };
+      }
+    } else {
+      if (targetId === guild.ownerId) {
+        return {
+          ok: false,
+          code: ErrorCode.CHANNEL_HIERARCHY_VIOLATION,
+          message: "无法覆盖服务器所有者的权限",
+        };
+      }
+      const targetPos = await this.getMemberHighestRolePosition(
+        targetId,
+        guildId,
+      );
+      if (targetPos >= actorHighestPos) {
+        return {
+          ok: false,
+          code: ErrorCode.CHANNEL_HIERARCHY_VIOLATION,
+          message: "无法管理层级高于或等于自身的成员覆写",
+        };
+      }
+    }
+
+    return { ok: true };
+  }
+
+  /**
+   * 校验操作者是否能够管理分类权限覆写 (防越权)
+   */
+  public async canManageCategoryPermissions(
+    actorUserId: string,
+    categoryId: string,
+    targetType: OverwriteTargetType,
+    targetId: string,
+    allow: number,
+    deny: number,
+  ): Promise<{ ok: boolean; code?: ErrorCode; message?: string }> {
+    const category = await prisma.channelCategory.findUnique({
+      where: { id: categoryId },
+    });
+    if (!category) {
+      return { ok: false, code: ErrorCode.CATEGORY_NOT_FOUND, message: "分类不存在" };
+    }
+    const guildId = category.guildId;
+
+    const guild = await prisma.guild.findUnique({ where: { id: guildId } });
+    if (!guild) {
+      return { ok: false, code: ErrorCode.GUILD_NOT_FOUND, message: "服务器不存在" };
+    }
+
+    const actor = await prisma.user.findUnique({
+      where: { id: actorUserId },
+      select: { role: true },
+    });
+
+    if (guild.ownerId === actorUserId || actor?.role === "SUPER_ADMIN") {
+      return { ok: true };
+    }
+
+    const canManageRoles = await this.hasGuildPermission(
+      actorUserId,
+      guildId,
+      PermissionFlags.MANAGE_ROLES,
+    );
+    const canManageChannels = await this.hasGuildPermission(
+      actorUserId,
+      guildId,
+      PermissionFlags.MANAGE_CHANNELS,
+    );
+    if (!canManageRoles && !canManageChannels) {
+      return {
+        ok: false,
+        code: ErrorCode.CHANNEL_PERMISSION_DENIED,
+        message: "缺少管理频道或角色权限",
+      };
+    }
+
+    const actorHighestPos = await this.getMemberHighestRolePosition(
+      actorUserId,
+      guildId,
+    );
+    const actorEffectiveBits =
+      (await this.getCategoryPermissionBits(actorUserId, categoryId)) || 0;
+
+    const extraBits = (allow | deny) & ~actorEffectiveBits;
+    if (extraBits !== 0) {
+      return {
+        ok: false,
+        code: ErrorCode.CHANNEL_HIERARCHY_VIOLATION,
+        message: "无法授予自身未持有的权限位",
+      };
+    }
+
+    if (targetType === "ROLE") {
+      const targetRole = await prisma.role.findUnique({
+        where: { id: targetId },
+      });
+      if (!targetRole || targetRole.guildId !== guildId) {
+        return {
+          ok: false,
+          code: ErrorCode.GUILD_ROLE_NOT_FOUND,
+          message: "目标身份组不存在",
+        };
+      }
+      if (!targetRole.isDefault && targetRole.position >= actorHighestPos) {
+        return {
+          ok: false,
+          code: ErrorCode.CHANNEL_HIERARCHY_VIOLATION,
+          message: "无法管理层级高于或等于自身的身份组覆写",
+        };
+      }
+    } else {
+      if (targetId === guild.ownerId) {
+        return {
+          ok: false,
+          code: ErrorCode.CHANNEL_HIERARCHY_VIOLATION,
+          message: "无法覆盖服务器所有者的权限",
+        };
+      }
+      const targetPos = await this.getMemberHighestRolePosition(
+        targetId,
+        guildId,
+      );
+      if (targetPos >= actorHighestPos) {
+        return {
+          ok: false,
+          code: ErrorCode.CHANNEL_HIERARCHY_VIOLATION,
+          message: "无法管理层级高于或等于自身的成员覆写",
+        };
+      }
+    }
+
+    return { ok: true };
   }
 }
 

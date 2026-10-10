@@ -89,7 +89,14 @@
       "addReactions": "Add Reactions",
       "connect": "Connect to Voice",
       "speak": "Speak in Voice",
-      "stream": "Video & Screen Share"
+      "stream": "Video & Screen Share",
+      "viewAuditLog": "View Audit Log",
+      "viewChannel": "View Channel",
+      "readMessageHistory": "Read Message History",
+      "manageMessages": "Manage Messages",
+      "muteMembers": "Mute Members",
+      "deafenMembers": "Deafen Members",
+      "moveMembers": "Move Members"
     }
   },
   "members": {

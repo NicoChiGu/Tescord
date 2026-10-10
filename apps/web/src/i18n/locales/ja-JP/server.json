@@ -89,7 +89,14 @@
       "addReactions": "リアクションを追加",
       "connect": "ボイスチャンネルに接続",
       "speak": "ボイスチャンネルで発言",
-      "stream": "動画配信・画面共有"
+      "stream": "動画配信・画面共有",
+      "viewAuditLog": "監査ログを表示",
+      "viewChannel": "チャンネルを表示",
+      "readMessageHistory": "メッセージ履歴を読む",
+      "manageMessages": "メッセージの管理",
+      "muteMembers": "メンバーをミュート",
+      "deafenMembers": "メンバーのスピーカーをミュート",
+      "moveMembers": "メンバーを移動"
     }
   },
   "members": {

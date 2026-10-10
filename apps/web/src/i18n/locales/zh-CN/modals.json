@@ -47,7 +47,12 @@
     "bitrateDesc": "设置语音频道的 Opus 音质码率，码率越高音质越通透饱满，但会占用更多网络带宽。",
     "submit": "创建频道",
     "submitting": "创建中...",
-    "failed": "创建频道失败"
+    "failed": "创建频道失败",
+    "privateChannel": "私密频道",
+    "privateChannelDesc": "只有选定的身份组和成员能够查看此频道。",
+    "whoCanAccess": "谁可以访问此频道？",
+    "rolesAndMembers": "身份组与成员",
+    "searchRolesAndMembers": "搜索身份组或成员..."
   },
   "editChannel": {
     "title": "编辑频道设置",
@@ -70,7 +75,27 @@
     "deleteConfirmTitle": "删除频道",
     "deleteConfirmDesc": "确定要删除频道 #{{name}} 吗？此操作无法撤销，所有聊天记录将被永久移除。",
     "deleteWarning": "删除后该频道内的所有聊天与媒体记录将被永久清除。",
-    "confirmDelete": "确认永久删除"
+    "confirmDelete": "确认永久删除",
+    "tabs": {
+      "overview": "概况",
+      "permissions": "权限"
+    },
+    "permissions": {
+      "privateChannel": "私密频道",
+      "privateChannelDesc": "开启后只有具有明确允许权限的身份组或成员才能查看此频道。",
+      "syncWithCategory": "与分类同步",
+      "synced": "已与分类同步",
+      "unsynced": "未同步（拥有独立覆写）",
+      "syncConfirm": "确定要将此频道的权限与父分类同步吗？此操作将清除该频道的所有特殊覆写。",
+      "addRoleOrMember": "添加身份组或成员",
+      "roles": "身份组",
+      "members": "成员",
+      "resetOverwrite": "清除此覆写",
+      "allow": "允许",
+      "inherit": "继承",
+      "deny": "拒绝",
+      "advancedPermissions": "高级权限设置"
+    }
   },
   "createCategory": {
     "title": "创建分类",

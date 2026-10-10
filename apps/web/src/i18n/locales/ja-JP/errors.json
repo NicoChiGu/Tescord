@@ -60,5 +60,8 @@
   "ICON_PROCESS_TIMEOUT": "アイコンの処理がタイムアウトしました。より小さい GIF で再試行してください",
   "AUDIO_INPUT_SWITCH_FAILED": "マイクを切り替えられません。デバイスと権限を確認してください。",
   "AUDIO_DEVICE_SWITCH_FAILED": "出力デバイスを切り替えられません。デバイスと権限を確認してください。",
-  "AUDIO_DEVICE_UNSUPPORTED": "このブラウザーでは出力デバイスを選択できません。"
+  "AUDIO_DEVICE_UNSUPPORTED": "このブラウザーでは出力デバイスを選択できません。",
+  "CHANNEL_PERMISSION_DENIED": "このチャンネルにアクセスまたは管理する権限がありません",
+  "CHANNEL_OVERWRITE_NOT_FOUND": "チャンネルの権限上書きが見つかりません",
+  "CHANNEL_HIERARCHY_VIOLATION": "階層違反：自分より上位のロールを管理したり、持っていない権限を付与することはできません"
 }

@@ -89,7 +89,14 @@
       "addReactions": "添加表情回应",
       "connect": "连接语音频道",
       "speak": "在语音频道中讲话",
-      "stream": "视频直播与屏幕共享"
+      "stream": "视频直播与屏幕共享",
+      "viewAuditLog": "查看审计日志",
+      "viewChannel": "查看频道",
+      "readMessageHistory": "阅读历史消息",
+      "manageMessages": "管理消息",
+      "muteMembers": "静音成员",
+      "deafenMembers": "拒听成员",
+      "moveMembers": "移动成员"
     }
   },
   "members": {
