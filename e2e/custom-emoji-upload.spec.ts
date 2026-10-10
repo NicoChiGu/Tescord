@@ -67,6 +67,35 @@ test("personal emoji upload renders and deletion revokes public access", async (
       1,
     );
     expect(errors).toEqual([]);
+
+    const emojiRedirect = await request.get(`/api/custom-emojis/${emoji.id}`, {
+      maxRedirects: 0,
+    });
+    expect(emojiRedirect.status()).toBe(302);
+    expect(emojiRedirect.headers()["location"]).toBe(emoji.imageUrl);
+    expect(emojiRedirect.headers()["cache-control"]).toBe(
+      "public, max-age=86400, stale-while-revalidate=604800",
+    );
+
+    const missingSvg = await request.get(
+      "/api/custom-emojis/cmv27pzb00054qr3kbi34zif6",
+      {
+        headers: { Accept: "image/svg+xml,image/*,*/*" },
+      },
+    );
+    expect(missingSvg.status()).toBe(404);
+    expect(missingSvg.headers()["content-type"]).toContain("image/svg+xml");
+    expect(missingSvg.headers()["cache-control"]).toBe("public, max-age=60");
+    expect(await missingSvg.text()).toContain("<svg");
+
+    const missingJson = await request.get(
+      "/api/custom-emojis/cmv27pzb00054qr3kbi34zif6",
+      {
+        headers: { Accept: "application/json" },
+      },
+    );
+    expect(missingJson.status()).toBe(404);
+    expect((await missingJson.json()).code).toBe("EMOJI_NOT_FOUND");
   } finally {
     if (emoji) {
       expect(
@@ -75,6 +104,13 @@ test("personal emoji upload renders and deletion revokes public access", async (
         ).status(),
       ).toBe(200);
       expect((await request.get(emoji.imageUrl)).status()).toBe(404);
+      expect(
+        (
+          await request.get(`/api/custom-emojis/${emoji.id}`, {
+            headers: { Accept: "application/json" },
+          })
+        ).status(),
+      ).toBe(404);
     }
   }
 });
